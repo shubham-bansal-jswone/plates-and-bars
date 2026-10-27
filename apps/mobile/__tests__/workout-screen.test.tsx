@@ -452,7 +452,7 @@ describe('Workout tab: logging sets', () => {
     expect(l.prev).toMatchObject({ date: '2026-10-05', form: 'yes' });
     expect(l.hist?.at(-1)).toEqual({ date: DATE, e: 75 });
 
-    expect(screen.getByText('Rest 2:30')).toBeTruthy();
+    expect(screen.getByLabelText('Rest 2:30')).toBeTruthy();
     // The panel sits in an opaque dock, so the "How to do" link under it cannot show through the gap.
     const dock = screen.getByLabelText('Rest timer').parent;
     expect(StyleSheet.flatten(dock?.props.style)).toMatchObject({ position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: expect.any(String) });
@@ -467,9 +467,9 @@ describe('Workout tab: logging sets', () => {
     const clock = frozenClock();
     try {
       await press('Mark Barbell Bench Press set 1 done');
-      expect(await screen.findByText('Rest 2:30')).toBeTruthy();
+      expect(await screen.findByLabelText('Rest 2:30')).toBeTruthy();
       await press('+30 s');
-      expect(await screen.findByText('Rest 3:00')).toBeTruthy();
+      expect(await screen.findByLabelText('Rest 3:00')).toBeTruthy();
     } finally {
       clock.mockRestore();
     }
