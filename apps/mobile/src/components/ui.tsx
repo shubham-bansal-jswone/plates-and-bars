@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useLayoutEffect, useRef, useState, type ComponentRef, type ReactNode, type Ref } from 'react';
-import { Pressable, ScrollView, StyleSheet, Switch as RNSwitch, useWindowDimensions, View, type PressableProps, type SwitchProps, type TextInputProps, type TextProps, type ViewProps } from 'react-native';
+import { Platform, Pressable, ScrollView, StyleSheet, Switch as RNSwitch, useWindowDimensions, View, type PressableProps, type SwitchProps, type TextInputProps, type TextProps, type ViewProps } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { dark, glowShadow, pressedShadow, radius, space, tabular, type } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
@@ -146,9 +146,22 @@ export function useFocusRing(surface: RingSurface = 'canvas') {
 /** Pressable with the focus ring. Every tappable control uses this, so none can miss the ring. */
 export function Press({ surface, style, onFocus, onBlur, ...rest }: PressableProps & { surface?: RingSurface; ref?: Ref<ComponentRef<typeof View>> }) {
   const f = useFocusRing(surface);
+  // react-native-web's Pressable (a div) only answers Enter; the ARIA checkbox, radio and switch contract is Space, and Space would scroll the page (#1139).
+  const spaceKey = Platform.OS === 'web' && (rest.accessibilityRole === 'checkbox' || rest.accessibilityRole === 'radio' || rest.accessibilityRole === 'switch' || rest.role === 'checkbox' || rest.role === 'radio' || rest.role === 'switch');
   return (
     <Pressable
       {...rest}
+      {...(spaceKey && !rest.disabled
+        ? {
+            onKeyDown: ((e: { key: string; repeat?: boolean; ctrlKey?: boolean; altKey?: boolean; metaKey?: boolean; target?: unknown; currentTarget?: unknown; preventDefault(): void }) => {
+              rest.onKeyDown?.(e as never);
+              // Only a bare Space on the control itself: a focusable child keeps its own Space, and Ctrl/Alt/Meta+Space stay with the browser.
+              if (e.key !== ' ' || e.ctrlKey || e.altKey || e.metaKey || e.target !== e.currentTarget) return;
+              e.preventDefault();
+              if (!e.repeat) rest.onPress?.(e as never);
+            }) as unknown as PressableProps['onKeyDown'],
+          }
+        : null)}
       onFocus={(e) => {
         f.onFocus(e);
         onFocus?.(e);
@@ -209,7 +222,7 @@ export function Button({
         kind === 'primary' && !disabled && !pressed && { shadowColor: c.glow, ...glowShadow },
       ]}
     >
-      <Text style={[kind === 'link' ? type.bodyStrong : type.button, { color: palette.fg }]}>{label}</Text>
+      <Text style={[kind === 'link' ? type.bodyStrong : type.button, kind === 'link' && { flexShrink: 1 }, { color: palette.fg }]}>{label}</Text>
     </Press>
   );
 }
@@ -315,14 +328,27 @@ export function Switch(props: SwitchProps) {
   const c = useTheme();
   const f = useFocusRing();
   return (
-    <View style={[styles.switchRing, f.ring]}>
-      <RNSwitch
-        trackColor={{ true: c.brand, false: c.muted }}
-        thumbColor={props.value ? c.onBrand : c.ink}
-        {...webThumb(c.onBrand)}
-        {...props}
-        {...focusHandlers(f, props)}
+    // The 44x44 hit area is a sibling Pressable behind the unchanged 40x20 track, so clicks on the switch never reach it (#1121).
+    // Not an a11y node or tab stop: the switch carries the role, label and state.
+    <View style={styles.switchHit}>
+      <Pressable
+        testID="switch-hit-area"
+        accessible={false}
+        focusable={false}
+        importantForAccessibility="no"
+        disabled={props.disabled ?? false}
+        onPress={() => props.onValueChange?.(!props.value)}
+        style={StyleSheet.absoluteFill}
       />
+      <View style={[styles.switchRing, f.ring]}>
+        <RNSwitch
+          trackColor={{ true: c.brand, false: c.muted }}
+          thumbColor={props.value ? c.onBrand : c.ink}
+          {...webThumb(c.onBrand)}
+          {...props}
+          {...focusHandlers(f, props)}
+        />
+      </View>
     </View>
   );
 }
@@ -341,11 +367,12 @@ const styles = StyleSheet.create({
   label: { ...type.label },
   note: { ...type.caption, padding: space.md, borderRadius: radius.md, borderWidth: 1, overflow: 'hidden' },
   btn: { minHeight: 52, borderRadius: radius.full, paddingHorizontal: space.xl, alignItems: 'center', justifyContent: 'center', marginTop: space.sm },
-  link: { minHeight: 44, minWidth: 44, alignSelf: 'flex-start', justifyContent: 'center' },
+  link: { minHeight: 44, minWidth: 44, maxWidth: '100%', alignSelf: 'flex-start', justifyContent: 'center' },
   card: { borderRadius: radius.lg, padding: space.lg, gap: space.sm },
   group: { gap: space.sm },
   opt: { borderRadius: radius.lg, padding: 16, gap: 2, minHeight: 56 },
   chip: { borderRadius: radius.full, paddingHorizontal: space.lg, minHeight: 44, justifyContent: 'center' },
+  switchHit: { minWidth: 44, minHeight: 44, alignSelf: 'flex-start', alignItems: 'center', justifyContent: 'center' },
   switchRing: { alignSelf: 'flex-start', borderRadius: radius.full },
   input: { minWidth: 90, flexGrow: 1, maxWidth: 160 },
 });

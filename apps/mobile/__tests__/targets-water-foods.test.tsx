@@ -1,3 +1,4 @@
+import { AccessibilityInfo, Platform } from 'react-native';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { WaterSizesSection } from '../src/targets/WaterAndFoods';
 import { pendingWrites } from '../src/db/pendingWrites';
@@ -119,6 +120,25 @@ describe('Targets: Water sizes and My foods', () => {
     await fireEvent.press(screen.getByLabelText('Delete Dal'));
     expect(await screen.findByText('Couldn’t save that. Try again.')).toBeTruthy();
     expect(await screen.findByText('Dal')).toBeTruthy();
+  });
+
+  it.each([['ios', 1], ['android', 0]] as const)('%s: the shared toast is announced %i time(s) (iOS has no live regions; Android reads the live region)', async (os, calls) => {
+    const orig = Platform.OS;
+    const say = jest.spyOn(AccessibilityInfo, 'announceForAccessibility').mockClear().mockImplementation(() => {});
+    Platform.OS = os;
+    try {
+      const db = memoryDb();
+      db.rows.set('user_foods:a', JSON.stringify(food('a', 'Dal')));
+      await setup(db);
+      await screen.findByText('Dal');
+      db.failWrites = true;
+      await fireEvent.press(screen.getByLabelText('Delete Dal'));
+      await screen.findByText('Couldn’t save that. Try again.');
+      expect(say.mock.calls.filter(([m]) => m === 'Couldn’t save that. Try again.')).toHaveLength(calls);
+    } finally {
+      Platform.OS = orig;
+      say.mockRestore();
+    }
   });
 
   const withSync = (db: ReturnType<typeof memoryDb>, n: number) => withProfile(db, <SyncContext.Provider value={{ dataVersion: n } as never}><TargetsScreen db={db} /></SyncContext.Provider>);
