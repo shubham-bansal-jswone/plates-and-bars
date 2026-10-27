@@ -13,7 +13,7 @@ import { useTheme } from '../../src/theme/useTheme';
 
 type IconName = keyof typeof Ionicons.glyphMap;
 
-// Same sections, in the same order, as the prototype's bottom nav. Filled icon when active, outline when not (DESIGN.md 8.7).
+// Same sections, in the same order, as the prototype's bottom nav. Filled icon when active, outline when not.
 const TABS: readonly { name: string; title: string; on: IconName; off: IconName }[] = [
   { name: 'index', title: 'Food', on: 'restaurant', off: 'restaurant-outline' },
   { name: 'workout', title: 'Workout', on: 'barbell', off: 'barbell-outline' },
@@ -49,8 +49,8 @@ function TabButton({ children, style, onPress, onLongPress, testID, role, 'aria-
   );
 }
 
-/** Tab bar height from DESIGN.md 8.7: 56 plus the bottom safe area. */
-const TAB_BAR_HEIGHT = 56;
+/** Tab bar height: 60 plus the bottom safe area. */
+const TAB_BAR_HEIGHT = 60;
 
 export default function TabsLayout() {
   const c = useTheme();
@@ -74,12 +74,12 @@ export default function TabsLayout() {
         // Each screen draws its own heading, so the navigator's header would show the title twice.
         headerShown: false,
         sceneStyle: { backgroundColor: c.bg, paddingTop: insets.top },
-        // 8.7: brand on light, link-dark on dark; the focus token is exactly that pair.
+        // Active = the brand signal (lime on the dark identity); inactive = the readable secondary text.
         tabBarActiveTintColor: c.focus,
         tabBarInactiveTintColor: c.muted,
         tabBarButton: (props) => <TabButton {...props} />,
         tabBarLabelPosition: 'below-icon',
-        tabBarLabelStyle: { ...type.small, lineHeight: 16 },
+        tabBarLabelStyle: { ...type.small, fontWeight: '700', lineHeight: 16 },
         tabBarStyle: {
           backgroundColor: c.surfaceElevated,
           borderTopColor: c.line,

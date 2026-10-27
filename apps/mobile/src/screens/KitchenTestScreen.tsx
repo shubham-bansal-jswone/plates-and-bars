@@ -3,7 +3,7 @@ import { AccessibilityInfo, Platform, StyleSheet, View } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { kitchenCompare, kitchenNoteTooLong, kitchenTable, kitchenTest, kitchenTestFood, type KitchenCompareFood, type KitchenTestFoodInput } from '@plate-and-bar/core';
 import { Text } from '../components/Text';
-import { Button, Caption, ErrorText, Field, H1, Hint, Label, Page, Press } from '../components/ui';
+import { Button, Caption, ErrorText, Field, H1, Hint, Label, Page, Press, Chip } from '../components/ui';
 import { newId } from '../db/records';
 import type { WorkoutDb } from '../db/workouts';
 import { CameraDenied, capturePhoto } from '../photos/capture';
@@ -17,7 +17,7 @@ import { getRawIngredients, getShippedRawNames } from '../recipes/content';
 import { IngredientRows } from '../recipes/IngredientRows';
 import { localDate } from '../setup/logic';
 import { useTheme } from '../theme/useTheme';
-import { Chip, ToastBar } from '../workout/parts';
+import { ToastBar } from '../workout/parts';
 
 const r1 = (n: number): string => (Math.round(n * 10) / 10).toString();
 const blank = (date: string): TestFields => ({ id: newId(), name: '', date, note: '', rows: [{ ingredient: 'Toor dal (dry)', amount: '', unit: 'g' }], pot: '', potFull: '', cooked: '', serving: '', sname: 'katori' });

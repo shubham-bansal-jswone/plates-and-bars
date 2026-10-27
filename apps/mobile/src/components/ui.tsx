@@ -1,6 +1,7 @@
-import { createContext, useCallback, useContext, useLayoutEffect, useRef, useState, type ComponentRef, type ReactNode } from 'react';
-import { Pressable, ScrollView, StyleSheet, Switch as RNSwitch, View, type PressableProps, type SwitchProps, type TextInputProps, type TextProps, type ViewProps } from 'react-native';
-import { dark, pressedShadow, radius, space, type } from '../theme/tokens';
+import { createContext, useCallback, useContext, useLayoutEffect, useRef, useState, type ComponentRef, type ReactNode, type Ref } from 'react';
+import { Pressable, ScrollView, StyleSheet, Switch as RNSwitch, useWindowDimensions, View, type PressableProps, type SwitchProps, type TextInputProps, type TextProps, type ViewProps } from 'react-native';
+import Svg, { Path } from 'react-native-svg';
+import { dark, glowShadow, pressedShadow, radius, space, tabular, type } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { useBottomInset } from './bottomInset';
 import { Input } from './Input';
@@ -13,8 +14,9 @@ const ScrollTop = createContext<() => void>(() => {});
  * The ScrollView is reused when the content under it changes, so the offset carries over (#1060); a child that swaps its
  * content in place passes `resetKey` (the page itself) or calls `useScrollToTopOn` (a child) to start the new content at the top.
  */
-export function Page({ children, resetKey }: { children: ReactNode; resetKey?: unknown }) {
+export function Page({ children, resetKey, wide }: { children: ReactNode; resetKey?: unknown; /** Let the column grow to 1040px on a wide screen (>= 900px) for a two-column card layout; forms leave it off. */ wide?: boolean }) {
   const c = useTheme();
+  const isWide = useWide();
   const bottom = useBottomInset();
   const ref = useRef<ComponentRef<typeof ScrollView>>(null);
   const toTop = useCallback(() => ref.current?.scrollTo({ x: 0, y: 0, animated: false }), []);
@@ -26,10 +28,15 @@ export function Page({ children, resetKey }: { children: ReactNode; resetKey?: u
   return (
     <ScrollView ref={ref} style={{ backgroundColor: c.bg }} contentContainerStyle={[styles.page, { paddingBottom: space.lg + bottom }]} keyboardShouldPersistTaps="handled">
       <ScrollTop.Provider value={toTop}>
-        <View role="main" style={styles.column}>{children}</View>
+        <View role="main" style={[styles.column, wide && isWide ? styles.columnWide : null]}>{children}</View>
       </ScrollTop.Provider>
     </ScrollView>
   );
+}
+
+/** True on a screen at least 900px wide: the width where `Page` lets a `wide` screen lay its cards out in two columns. */
+export function useWide(): boolean {
+  return useWindowDimensions().width >= 900;
 }
 
 /** Scrolls the enclosing `Page` back to the top whenever `key` changes (not on first render). */
@@ -118,7 +125,7 @@ export function ErrorText({ children }: { children: string }) {
   );
 }
 
-/** The surface a control sits on decides its ring colour (DESIGN.md 8.1): the theme's focus colour on canvas, surface and tint; `link-dark` on a dark surface; white on a brand fill. */
+/** The surface a control sits on decides its ring colour: the theme's focus colour on canvas, surface and tint; `link-dark` on a dark surface; white on a brand fill. */
 export type RingSurface = 'canvas' | 'dark' | 'brand';
 
 /** Focus ring for keyboard and switch-access focus: 2px, 2px offset. On web, mouse clicks do not show it (`:focus-visible`). */
@@ -137,7 +144,7 @@ export function useFocusRing(surface: RingSurface = 'canvas') {
 }
 
 /** Pressable with the focus ring. Every tappable control uses this, so none can miss the ring. */
-export function Press({ surface, style, onFocus, onBlur, ...rest }: PressableProps & { surface?: RingSurface }) {
+export function Press({ surface, style, onFocus, onBlur, ...rest }: PressableProps & { surface?: RingSurface; ref?: Ref<ComponentRef<typeof View>> }) {
   const f = useFocusRing(surface);
   return (
     <Pressable
@@ -198,6 +205,8 @@ export function Button({
         disabled && { opacity: 0.45 },
         kind !== 'link' && { backgroundColor: pressed ? palette.pressed : palette.bg, borderColor: palette.border, borderWidth: 1 },
         pressed && kind !== 'link' && { shadowColor: c.shadow, ...pressedShadow },
+        // The one glow of the identity: the primary action, at rest. Light's glow is white, so it draws nothing there.
+        kind === 'primary' && !disabled && !pressed && { shadowColor: c.glow, ...glowShadow },
       ]}
     >
       <Text style={[kind === 'link' ? type.bodyStrong : type.button, { color: palette.fg }]}>{label}</Text>
@@ -230,7 +239,7 @@ export function Choice({
       // A radio must announce its state on web too (WCAG 4.1.2).
       {...a11yState(action ? {} : { checked: selected })}
       onPress={onPress}
-      hitSlop={chip ? { top: 6, bottom: 6 } : undefined}
+      hitSlop={chip ? { top: 2, bottom: 2 } : undefined}
       style={[
         chip ? styles.chip : styles.opt,
         chip
@@ -244,8 +253,29 @@ export function Choice({
   );
 }
 
-export function Field({ label, ...rest }: TextInputProps & { label: string }) {
-  return <Input accessibilityLabel={label} style={styles.input} {...rest} />;
+/**
+ * A toggle chip: filter, rating and quick-answer buttons. `label` is the spoken name, `text` (default the label) what shows.
+ * Selected = lime fill with dark text. One component for the whole app.
+ */
+export function Chip({ label, text, pressed, danger, onPress }: { label: string; text?: string; pressed?: boolean; danger?: boolean; onPress: () => void }) {
+  const c = useTheme();
+  return (
+    <Press
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      {...a11yState({ pressed })}
+      onPress={onPress}
+      hitSlop={{ top: 2, bottom: 2 }}
+      style={[styles.chip, { backgroundColor: pressed ? c.brand : c.surfaceSoft }, danger ? { borderWidth: 1, borderColor: c.danger } : null]}
+    >
+      <Text style={[type.buttonSm, { color: pressed ? c.onBrand : danger ? c.danger : c.ink }]}>{text ?? label}</Text>
+    </Press>
+  );
+}
+
+export function Field({ label, invalid, style, ...rest }: TextInputProps & { label: string; /** The value is wrong: announces `aria-invalid` and draws a danger border (after the caller's style, so it wins). */ invalid?: boolean }) {
+  const c = useTheme();
+  return <Input accessibilityLabel={label} aria-invalid={invalid || undefined} {...rest} style={[styles.input, style, invalid ? { borderColor: c.danger } : null]} />;
 }
 
 export function Group({ children, label }: { children: ReactNode; label?: string }) {
@@ -256,7 +286,7 @@ export function Group({ children, label }: { children: ReactNode; label?: string
   );
 }
 
-/** Flat card: `surface` fill, 8px radius, 16 padding, no border or shadow. */
+/** Flat card: `surface` fill, 20px radius, 16 padding, no border or shadow. */
 export function Card({ style, ...rest }: ViewProps) {
   const c = useTheme();
   return <View {...rest} style={[styles.card, { backgroundColor: c.surface }, style]} />;
@@ -288,7 +318,7 @@ export function Switch(props: SwitchProps) {
     <View style={[styles.switchRing, f.ring]}>
       <RNSwitch
         trackColor={{ true: c.brand, false: c.muted }}
-        thumbColor={c.onBrand}
+        thumbColor={props.value ? c.onBrand : c.ink}
         {...webThumb(c.onBrand)}
         {...props}
         {...focusHandlers(f, props)}
@@ -305,16 +335,75 @@ export const layout = StyleSheet.create({
 const styles = StyleSheet.create({
   page: { padding: space.lg, alignItems: 'center', flexGrow: 1 },
   column: { width: '100%', maxWidth: 560, gap: space.sm },
+  columnWide: { maxWidth: 1040 },
   h1: { ...type.title, marginTop: space.sm },
   hint: { ...type.caption },
   label: { ...type.label },
   note: { ...type.caption, padding: space.md, borderRadius: radius.md, borderWidth: 1, overflow: 'hidden' },
-  btn: { minHeight: 48, borderRadius: radius.full, paddingHorizontal: space.xl, alignItems: 'center', justifyContent: 'center', marginTop: space.sm },
-  link: { minHeight: 44, paddingHorizontal: space.xs, alignSelf: 'flex-start', justifyContent: 'center' },
-  card: { borderRadius: radius.md, padding: space.lg, gap: space.sm },
+  btn: { minHeight: 52, borderRadius: radius.full, paddingHorizontal: space.xl, alignItems: 'center', justifyContent: 'center', marginTop: space.sm },
+  link: { minHeight: 44, minWidth: 44, alignSelf: 'flex-start', justifyContent: 'center' },
+  card: { borderRadius: radius.lg, padding: space.lg, gap: space.sm },
   group: { gap: space.sm },
-  opt: { borderRadius: radius.md, padding: 14, gap: 2, minHeight: 48 },
-  chip: { borderRadius: radius.full, paddingHorizontal: space.md, minHeight: 32, justifyContent: 'center' },
+  opt: { borderRadius: radius.lg, padding: 16, gap: 2, minHeight: 56 },
+  chip: { borderRadius: radius.full, paddingHorizontal: space.lg, minHeight: 44, justifyContent: 'center' },
   switchRing: { alignSelf: 'flex-start', borderRadius: radius.full },
   input: { minWidth: 90, flexGrow: 1, maxWidth: 160 },
+});
+
+function Chevron({ open, color }: { open: boolean; color: string }) {
+  return (
+    <Svg width={20} height={20} viewBox="0 0 20 20" aria-hidden style={{ transform: [{ rotate: open ? '90deg' : '0deg' }] }}>
+      <Path d="M7 4l6 6-6 6" stroke={color} strokeWidth={2} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+    </Svg>
+  );
+}
+
+/**
+ * A 56px row that shows or hides its children (`aria-expanded`). `defaultOpen` sets the first state; pass `open` to control it.
+ * Children are not mounted while closed.
+ */
+export function Disclosure({ label, defaultOpen = false, open: controlled, onOpenChange, a11yLabel, children }: { label: string; defaultOpen?: boolean; /** Controlled: the parent holds the state (so it can open the row itself). */ open?: boolean; onOpenChange?: (open: boolean) => void; a11yLabel?: string; children: ReactNode }) {
+  const c = useTheme();
+  const [own, setOwn] = useState(defaultOpen);
+  const open = controlled ?? own;
+  const setOpen = (o: boolean) => {
+    setOwn(o);
+    onOpenChange?.(o);
+  };
+  return (
+    <View style={{ gap: space.sm }}>
+      <Press
+        accessibilityRole="button"
+        accessibilityLabel={a11yLabel ?? label}
+        {...a11yState({ expanded: open })}
+        onPress={() => setOpen(!open)}
+        style={[extra.disclosure, { borderColor: c.line }]}
+      >
+        <Text style={[type.bodyStrong, { color: c.muted, flex: 1 }]}>{label}</Text>
+        <Chevron open={open} color={c.muted} />
+      </Press>
+      {open ? children : null}
+    </View>
+  );
+}
+
+/** A row of up to 3 figures with 1px dividers between them, each cell at least 56px tall. */
+export function MetricRow({ cells }: { cells: readonly { label: string; value: string }[] }) {
+  const c = useTheme();
+  return (
+    <View style={extra.metricRow}>
+      {cells.map((m, i) => (
+        <View key={m.label} accessible accessibilityLabel={`${m.label}: ${m.value}`} style={[extra.metricCell, i > 0 && { borderLeftWidth: 1, borderLeftColor: c.line }]}>
+          <Text style={[type.metricSm, tabular, { color: c.ink }]}>{m.value}</Text>
+          <Text style={[type.small, { color: c.muted }]}>{m.label}</Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+const extra = StyleSheet.create({
+  disclosure: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: space.sm, borderTopWidth: 1 },
+  metricRow: { flexDirection: 'row' },
+  metricCell: { flex: 1, minHeight: 56, paddingHorizontal: space.sm, justifyContent: 'center', alignItems: 'center' },
 });
