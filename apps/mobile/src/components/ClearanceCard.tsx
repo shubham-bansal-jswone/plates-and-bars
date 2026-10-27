@@ -1,7 +1,7 @@
 import { StyleSheet, View } from 'react-native';
 import { clearanceNote } from '../setup/results';
 import type { Profile } from '../setup/types';
-import { radius } from '../theme/tokens';
+import { radius, type } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { Text } from './Text';
 import { Button, Heading } from './ui';
@@ -16,7 +16,7 @@ export function ClearanceCard({ profile, onCleared }: { profile: Profile; onClea
   if (!clear) return null;
   return (
     <View style={[styles.card, { borderColor: c.danger, backgroundColor: c.surface }]}>
-      <Heading level={2} style={{ color: c.ink, fontWeight: '700', fontSize: 16 }}>
+      <Heading level={2} style={[type.label, { color: c.ink }]}>
         {clear.title}
       </Heading>
       <Text style={{ color: c.ink, lineHeight: 20 }}>{clear.body}</Text>
@@ -25,4 +25,4 @@ export function ClearanceCard({ profile, onCleared }: { profile: Profile; onClea
   );
 }
 
-const styles = StyleSheet.create({ card: { borderWidth: 2, borderRadius: radius.md, padding: 12, gap: 6 } });
+const styles = StyleSheet.create({ card: { borderWidth: 2, borderRadius: radius.lg, padding: 16, gap: 6 } });

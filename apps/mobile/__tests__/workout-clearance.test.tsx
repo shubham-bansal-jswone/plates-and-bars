@@ -38,7 +38,7 @@ describe('clearance card on Workout start (#692)', () => {
 
   it('is not shown when no clearance is needed or it was given', async () => {
     await open({});
-    await screen.findByText(/ day$/);
+    await screen.findByRole('header', { name: / day$/ });
     expect(screen.queryByText('Check with your doctor first')).toBeNull();
   });
 

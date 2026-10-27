@@ -1,4 +1,5 @@
 import { AccessibilityInfo } from 'react-native';
+import { expand, press, pressDay } from './disclosure-helpers';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { doneCoverage, type CoverageDay } from '@plate-and-bar/core';
 import { WorkoutScreen } from '../src/screens/WorkoutScreen';
@@ -28,7 +29,7 @@ async function setup(now = THURSDAY, adjustments: Record<string, unknown> = {}) 
   await render(withProfile(db, <WorkoutScreen db={db} now={now} />));
   return db;
 }
-const press = (label: string) => fireEvent.press(screen.getByLabelText(label));
+
 const nothingStored = (db: ReturnType<typeof memoryDb>) => {
   expect([...db.rows.keys()].filter((k) => k.startsWith('workouts:'))).toEqual([]);
   expect(db.sets.size).toBe(0);
@@ -38,7 +39,7 @@ describe('Choosing a workout previews it (#1005)', () => {
   it('shows the exercises and a way back, and leaves nothing in the store when going back', async () => {
     const db = await setup();
     await screen.findByText('Push B day');
-    await press('Choose Pull A');
+    await pressDay('Choose Pull A');
     expect(await screen.findByText('Pull A day')).toBeTruthy();
     expect(screen.getByLabelText('Exercise 1: Lat Pulldown')).toBeTruthy();
     expect(screen.getByLabelText('Start Pull A')).toBeTruthy();
@@ -47,6 +48,7 @@ describe('Choosing a workout previews it (#1005)', () => {
     nothingStored(db);
     await press('Back to workouts');
     expect(await screen.findByText('Push B day')).toBeTruthy();
+    await fireEvent.press(screen.getByLabelText('Choose another day'));
     expect(screen.getByLabelText('Choose Pull A')).toBeTruthy();
     expect(screen.queryByText('Session')).toBeNull();
     nothingStored(db);
@@ -57,7 +59,7 @@ describe('Choosing a workout previews it (#1005)', () => {
   it('Start in the preview starts that workout', async () => {
     const db = await setup();
     await screen.findByText('Push B day');
-    await press('Choose Pull A');
+    await pressDay('Choose Pull A');
     await press('Start Pull A');
     await screen.findByText('Pull A');
     await waitFor(() => expect(JSON.parse(db.rows.get(`workouts:${DATE}`) as string)).toMatchObject({ template: 'Pull A', base: 'Pull A' }));
@@ -67,7 +69,7 @@ describe('Choosing a workout previews it (#1005)', () => {
     // A week plan: the next workout is the first unfinished entry of its list, from the sessions logged.
     const db = await setup(NEXT_MONDAY, { weekPlan: FOUR });
     expect(await screen.findByText('Upper A day')).toBeTruthy();
-    await press('Choose Lower B');
+    await pressDay('Choose Lower B');
     expect(await screen.findByText('Lower B day')).toBeTruthy();
     await press('Back to workouts');
     expect(await screen.findByText('Upper A day')).toBeTruthy();
@@ -78,7 +80,7 @@ describe('Choosing a workout previews it (#1005)', () => {
   it('picking exercises from the workouts is also a preview, and back drops the picks', async () => {
     const db = await setup();
     await screen.findByText('Push B day');
-    await press('Pick exercises');
+    await pressDay('Pick exercises');
     await press('Add Lat Pulldown from Pull A');
     expect(await screen.findByText('Your exercises')).toBeTruthy();
     nothingStored(db);
@@ -92,7 +94,7 @@ describe('A session mixing exercises from several workouts (#1005)', () => {
   it('counts every logged set towards its own exercise muscles in the weekly volume', async () => {
     const db = await setup();
     await screen.findByText('Push B day');
-    await press('Pick exercises');
+    await pressDay('Pick exercises');
     await press('Add Lat Pulldown from Pull A');
     await press('Pick more exercises');
     await press('Add Barbell Bench Press from Push B');
@@ -101,6 +103,7 @@ describe('A session mixing exercises from several workouts (#1005)', () => {
     await fireEvent.changeText(screen.getByLabelText('Lat Pulldown set 1 kg'), '50');
     await fireEvent.changeText(screen.getByLabelText('Lat Pulldown set 1 reps'), '8');
     await press('Mark Lat Pulldown set 1 done');
+    await expand('Barbell Bench Press');
     await fireEvent.changeText(screen.getByLabelText('Barbell Bench Press set 1 kg'), '40');
     await fireEvent.changeText(screen.getByLabelText('Barbell Bench Press set 1 reps'), '8');
     await press('Mark Barbell Bench Press set 1 done');
@@ -129,7 +132,8 @@ describe('A session mixing exercises from several workouts (#1005)', () => {
     await screen.findByText('Push B');
     await press('Add exercise');
     await press('Add Lat Pulldown from Pull A');
-    await screen.findByLabelText('Lat Pulldown set 1 kg');
+    await screen.findByRole('button', { name: /^Lat Pulldown, / });
+    await expand('Lat Pulldown');
     await fireEvent.changeText(screen.getByLabelText('Lat Pulldown set 1 kg'), '50');
     await fireEvent.changeText(screen.getByLabelText('Lat Pulldown set 1 reps'), '8');
     await press('Mark Lat Pulldown set 1 done');
@@ -166,8 +170,8 @@ describe('Preview picks and announcements (#1005)', () => {
   it('Pick exercises in a preview starts from that workout, and a pick can be removed', async () => {
     const db = await setup();
     await screen.findByText('Push B day');
-    await press('Choose Pull A');
-    await press('Pick exercises');
+    await pressDay('Choose Pull A');
+    await pressDay('Pick exercises');
     await press('Add Barbell Bench Press from Push B');
     expect(await screen.findByText('Your exercises')).toBeTruthy();
     expect(screen.getByLabelText('Exercise 1: Lat Pulldown')).toBeTruthy();
@@ -184,10 +188,11 @@ describe('Preview picks and announcements (#1005)', () => {
   it('removing the last pick returns to the list of workouts', async () => {
     await setup();
     await screen.findByText('Push B day');
-    await press('Pick exercises');
+    await pressDay('Pick exercises');
     await press('Add Barbell Bench Press');
     await press('Remove Barbell Bench Press from your exercises');
     expect(await screen.findByText('Push B day')).toBeTruthy();
+    await fireEvent.press(screen.getByLabelText('Choose another day'));
     expect(screen.getByLabelText('Choose Pull A')).toBeTruthy();
   });
 
@@ -195,7 +200,7 @@ describe('Preview picks and announcements (#1005)', () => {
     const say = jest.spyOn(AccessibilityInfo, 'announceForAccessibility').mockImplementation(() => {});
     await setup();
     await screen.findByText('Push B day');
-    await press('Choose Pull A');
+    await pressDay('Choose Pull A');
     expect(say).toHaveBeenLastCalledWith('Pull A day preview. Nothing is saved until you start.');
     await press('Back to workouts');
     expect(say).toHaveBeenLastCalledWith('Back to the list of workouts.');

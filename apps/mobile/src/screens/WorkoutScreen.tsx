@@ -2,13 +2,14 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { profileWhyValues } from '../why/values';
 import { WhyLink } from '../why/WhyLink';
 import { useFocusEffect } from 'expo-router';
-import { AccessibilityInfo, Platform, StyleSheet, View } from 'react-native';
+import { AccessibilityInfo, Platform, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useDataVersion } from '../sync/useDataVersion';
 import { Text } from '../components/Text';
 import { HAND_PICKED, modsNote, overridesFromSettings, plannedCoverage, type WeekPlan, secondSessionChoices, sessionVolume, beginnerRamp, checkinFlags, isFocus, nextInList, coverageTemplates, mondayOf, planned, restFor, warmupSets, type Checkin, isLearning, exInfo, priorSessions, REST_EXTEND_SEC, type ExclusionReason } from '@plate-and-bar/core';
 import { fmt } from '../format';
 import { ClearanceCard } from '../components/ClearanceCard';
-import { Button, Card, H1, Hint, Note, Page, Press, a11yState, useScrollToTopOn, Chip } from '../components/ui';
+import { Button, Card, Chip, Disclosure, H1, Hint, MetricRow, Note, Page, useScrollToTopOn } from '../components/ui';
+import { type } from '../theme/tokens';
 import type { WorkoutDb } from '../db/workouts';
 import type { PullDb } from '../db/outbox';
 import { useProfile } from '../state/ProfileProvider';
@@ -28,6 +29,8 @@ import { BurnLine } from '../workout/BurnLine';
 import { CardioBlock } from '../workout/CardioBlock';
 import { ModeNote, WeekTools } from '../workout/ScheduleTools';
 import { CantSheet } from '../workout/CantSheet';
+import { LibraryEntryButton } from '../library/LibraryEntryButton';
+import { Hero, IndexThumb, SegmentBar, StartButton } from '../workout/SessionHeader';
 import { HowToSheet, RestBar, ToastBar, type RestState } from '../workout/parts';
 import { useRestNotification } from '../reminders/useRestNotification';
 import { useRules } from '../workout/useRules';
@@ -73,6 +76,8 @@ export function WorkoutScreen({ db, now = () => new Date() }: Props) {
   const dataVersion = useDataVersion();
   const rulesApi = useRules({ db, now, notify, reloadKey: shown + dataVersion });
   const { rules, addRule } = rulesApi;
+  const winW = useWindowDimensions().width;
+  const wide = winW >= 1024;
   const tune = useMemo(() => ({ overrides: overridesFromSettings(settings.exercise_overrides), returning: settings.returning }), [settings.exercise_overrides, settings.returning]);
   const v = useViewedDate(now);
   const labHold = useLabHold(db); // the lab hold (#1070): new sessions are lighter
@@ -89,7 +94,12 @@ export function WorkoutScreen({ db, now = () => new Date() }: Props) {
   // The date bar is in the one Page for every state, so it is not remounted when a day finishes loading (a tap that spans the remount is lost, #1032).
   let content: ReactNode;
   let sheets: ReactNode = null;
-  if (status !== 'ready' || !ready || !day.ready || !rules.ready || labHold === null) content = <Hint>Loading…</Hint>;
+  if (status !== 'ready' || !ready || !day.ready || !rules.ready || labHold === null) content = (
+      <>
+        <Hint>Loading…</Hint>
+        <Skeleton />
+      </>
+    );
   else if (!profile)
     content = (
       <>
@@ -131,12 +141,27 @@ export function WorkoutScreen({ db, now = () => new Date() }: Props) {
     <View style={styles.fill}>
       <DateAnnouncer v={v} />
       <Page resetKey={day.exs.length > 0}>
-        <DateBar v={v} />
-        {content}
+        {/* On a wide screen the content is two columns, wider than Page's phone-sized column: it overflows it evenly on both sides. */}
+        <View style={[styles.body, wide && { width: Math.min(1120, winW - 32), alignSelf: 'center' }]}>
+          <DateBar v={v} />
+          {content}
+        </View>
       </Page>
       {sheets}
       {restBar}
       <ToastBar message={toast} />
+    </View>
+  );
+}
+
+/** Placeholder rows while the day is read. */
+function Skeleton() {
+  const c = useTheme();
+  return (
+    <View aria-hidden style={{ gap: 8 }}>
+      {[0, 1, 2].map((i) => (
+        <View key={i} style={{ height: 56, borderRadius: 14, backgroundColor: c.surfaceSoft }} />
+      ))}
     </View>
   );
 }
@@ -208,14 +233,20 @@ function StartView({ now, w, labHold, profile, focus, rules, notify, tune }: { n
       ? profile.where === 'gym' ? 'Training away from your gym?' : 'Training somewhere else today?'
       : `Training ${where === 'gym' ? 'at a gym' : `with ${where === 'dumbbells' ? 'dumbbells only' : 'bodyweight only'}`} today`;
 
-  return (
+  const wide = useWindowDimensions().width >= 1024;
+  const hasBuilt = !!(built && startT) && !picked.length;
+  const list = picked.length ? picked : hasBuilt ? names : [];
+  const muscles = picked.length ? { prim: pickedPrim, sec: pickedSec } : { prim, sec };
+  const sets = hasBuilt && built ? built.exercises.reduce((t, e) => t + e.sets, 0) : null;
+  const cells = [
+    ...(list.length ? [{ label: 'Exercises', value: String(list.length) }] : []),
+    ...(sets !== null ? [{ label: 'Sets', value: String(sets) }] : []),
+    ...(hasBuilt && profile.minutes ? [{ label: 'Min per session', value: String(profile.minutes) }] : []),
+  ];
+
+  const hero = (
     <>
-      <Text testID="start-announce" accessibilityLiveRegion="polite" style={styles.srOnly}>{Platform.OS === 'ios' ? '' : said}</Text>
-      <ClearanceCard profile={profile} onCleared={() => void markCleared().then(() => notify('Thanks. Your normal plan is back.'), () => notify('Couldn’t save that. Try again.'))} />
-      {labHold ? <Note>{labs.workout_note}</Note> : null}
-      <RecheckCards date={date} lifts={day.lifts} rules={rules} notify={notify} />
-      <StartCards date={date} lifts={day.lifts} sessions={day.sessions} profile={profile} plan={plan} notify={notify} now={now} />
-      <H1>{picked.length ? 'Your exercises' : previewT ? `${previewT} day` : plan ? `${plan} day` : 'Rest day'}</H1>
+      <Hero title={picked.length ? 'Your exercises' : previewT ? `${previewT} day` : plan ? `${plan} day` : 'Rest day'} />
       <Hint>
         {picked.length
           ? 'Nothing is saved until you start. Add exercises from any workout.'
@@ -227,136 +258,220 @@ function StartView({ now, w, labHold, profile, focus, rules, notify, tune }: { n
             : 'Start with the planned exercises, then swap or add anything you like.'
           : 'Rest and recovery today. A walk and enough protein count. You can still log a session.'}
       </Hint>
-      {picked.length ? (
-        <Card>
-          <BodyMap primary={pickedPrim} secondary={pickedSec} />
-          {picked.map((n, i) => (
-            <View key={n} style={styles.pickRow}>
-              <Text accessibilityLabel={`Exercise ${i + 1}: ${n}`} style={{ color: c.ink, fontSize: 15, flex: 1 }}>
-                {i + 1}. <Text style={{ fontWeight: '700' }}>{n}</Text>
-                <Text style={{ color: c.muted }}> {listJoin((getCatalog().tags[n]?.primary ?? []).map((m) => muscleName(m)))}</Text>
-              </Text>
-              <Chip label={`Remove ${n} from your exercises`} text="Remove" onPress={() => {
-                const rest = picked.filter((x) => x !== n);
-                setPicked(rest);
-                if (!rest.length) setSeed(null); // back to the list: the next picks start from scratch
-              }} />
-            </View>
-          ))}
-          <Button label={`Start ${picked.length === 1 ? 'this exercise' : 'these exercises'}`} onPress={() => void w.startPicked(picked, override, choice, seed && picked.some((n) => seed.exercises.some((e) => e.name === n)) ? seed : null, ci.time ?? null)} />
-          <Button label="Pick more exercises" kind="ghost" onPress={() => setPicking(true)} />
-          <Button label="Back to workouts" kind="link" onPress={back} />
-        </Card>
-      ) : built && startT ? (
-        <Card>
-          <BodyMap primary={prim} secondary={sec} />
+      {cells.length ? <MetricRow cells={cells} /> : null}
+    </>
+  );
+
+  const action = picked.length ? (
+    <>
+      <StartButton label={`Start ${picked.length === 1 ? 'this exercise' : 'these exercises'}`} onPress={() => void w.startPicked(picked, override, choice, seed && picked.some((n) => seed.exercises.some((e) => e.name === n)) ? seed : null, ci.time ?? null)} />
+      <Button label="Pick more exercises" kind="ghost" onPress={() => setPicking(true)} />
+      <Button label="Back to workouts" kind="link" onPress={back} />
+    </>
+  ) : hasBuilt && startT ? (
+    <>
+      <StartButton label={`Start ${startT}`} onPress={() => void w.start(startT, ci, choice, override)} />
+      {previewT ? (
+        <Button
+          label="Pick exercises"
+          kind="ghost"
+          onPress={() => {
+            // Starts from this workout's exercises: drop some, add others from any workout, then Start.
+            setPicked(names);
+            if (built) setSeed({ template: startT as string, exercises: built.exercises });
+            setPreviewT(null);
+            setPicking(true);
+          }}
+        />
+      ) : null}
+      {previewT ? <Button label="Back to workouts" kind="link" onPress={back} /> : null}
+    </>
+  ) : null;
+
+  const cards = (
+    <>
+      <RecheckCards date={date} lifts={day.lifts} rules={rules} notify={notify} />
+      <StartCards date={date} lifts={day.lifts} sessions={day.sessions} profile={profile} plan={plan} notify={notify} now={now} />
+    </>
+  );
+
+  const musclesView = list.length ? (
+    <View style={{ gap: 8 }}>
+      <BodyMap primary={muscles.prim} secondary={muscles.sec} />
+      {picked.length ? null : (
+        <>
           <Text style={{ color: c.ink, fontSize: 15 }}>
             <Text style={{ fontWeight: '700' }}>Main focus: </Text>
             {listJoin(prim.map((m) => muscleName(m)))}
           </Text>
           {sec.length ? <Hint>Also working: {listJoin(sec.map((m) => muscleName(m)))}</Hint> : null}
-          {names.map((n, i) => (
-            <Text key={n} accessibilityLabel={`Exercise ${i + 1}: ${n}`} style={{ color: c.ink, fontSize: 15 }}>
-              {i + 1}. <Text style={{ fontWeight: '700' }}>{n}</Text>
-              <Text style={{ color: c.muted }}> {listJoin((getCatalog().tags[n]?.primary ?? []).map((m) => muscleName(m)))}</Text>
-              {isFocus(n, focus, getCatalog().tags) ? <Text style={{ color: c.link, fontWeight: '700' }}> Focus</Text> : null}
-            </Text>
-          ))}
-          <Hint>
-            {names.length} exercises{eachSets ? `, ${eachSets} sets each${beginnerRamp(profile, date) ? ' for your first 2 weeks' : ''}` : ''}
-            {names.some((n) => isFocus(n, focus, getCatalog().tags)) ? ', plus 1 on focus muscles' : ''}
-            {profile.minutes ? `, sized to your ${profile.minutes}-minute sessions` : ''}.
-            {built.left.length ? ` ${listJoin(built.left)} rotate in on other ${startT} days.` : ''}
-          </Hint>
-          {built.lost.map((n) => (
-            <Hint key={n}>
-              {n} is left out with no replacement{getCatalog().tags[n] ? `, so your ${listJoin(getCatalog().tags[n]!.primary.map((m) => muscleName(m)))} get fewer sets each week` : ''}.
-            </Hint>
-          ))}
+        </>
+      )}
+    </View>
+  ) : null;
 
-          <View style={[styles.checkin, { borderColor: c.line }]}>
-            <Text style={{ color: c.ink, fontWeight: '700' }}>Quick check-in <Text style={{ color: c.muted, fontWeight: '400' }}>Optional</Text></Text>
-            {CHECKIN.map((q) => (
-              <View key={q.key} style={{ gap: 6 }}>
-                <Text style={{ color: c.ink, fontSize: 14 }}>{q.label}</Text>
-                <View style={styles.wrap}>
-                  {q.options.map(([v, l]) => (
-                    <Chip key={v} label={`${q.label}: ${l}`} text={l} pressed={ci[q.key] === v} onPress={() => pick(q.key, v)} />
-                  ))}
-                </View>
-              </View>
-            ))}
-            {flags.flagged ? (
-              <View style={{ gap: 6 }}>
-                <Note>
-                  Lighter session suggested. With {flags.reasons.map((r) => REASON_TEXT[r]).join(' and ')}, keep the same exercises with 1 fewer set each and no weight increases today.
-                  {flags.swapTo ? ` Or swap with ${flags.swapTo}, which uses different muscles.` : ''}
-                </Note>
-                <WhyLink id={flags.reasons.includes('sore') ? 'soreness' : 'sleep'} />
-                <View style={styles.wrap}>
-                  <Chip label="Lighter session" pressed={choice === 'light'} onPress={() => setChoice('light')} />
-                  {flags.swapTo && !previewT ? <Chip label={`Swap with ${flags.swapTo}`} pressed={choice === 'swap'} onPress={() => setChoice('swap')} /> : null}
-                  <Chip label="Keep original" pressed={choice === 'orig'} onPress={() => setChoice('orig')} />
-                </View>
-              </View>
-            ) : flags.good ? (
-              <Hint>Good to go.</Hint>
-            ) : null}
-            {built?.mods.short ? <Hint>{ci.time} minutes: the main {built.exercises.length} exercises only.</Hint> : null}
-          </View>
-          <Button label={`Start ${startT}`} onPress={() => void w.start(startT, ci, choice, override)} />
-          {previewT ? (
-            <Button
-              label="Pick exercises"
-              kind="ghost"
-              onPress={() => {
-                // Starts from this workout's exercises: drop some, add others from any workout, then Start.
-                setPicked(names);
-                if (built) setSeed({ template: startT as string, exercises: built.exercises });
-                setPreviewT(null);
-                setPicking(true);
-              }}
-            />
+  const exerciseList = list.length ? (
+    <View>
+      {list.map((n, i) => (
+        <View key={n} style={[styles.exRow, { borderColor: c.line }]}>
+          <IndexThumb n={i + 1} name={n} />
+          <Text accessibilityLabel={`Exercise ${i + 1}: ${n}`} style={{ flex: 1 }}>
+            <Text style={[type.bodyStrong, { color: c.ink }]}>{n}</Text>
+            <Text style={[type.caption, { color: c.muted }]}>{'\n'}{listJoin((getCatalog().tags[n]?.primary ?? []).map((m) => muscleName(m)))}</Text>
+            {isFocus(n, focus, getCatalog().tags) ? <Text style={[type.bodyStrong, { color: c.link }]}> Focus</Text> : null}
+          </Text>
+          {picked.length ? (
+            <Chip label={`Remove ${n} from your exercises`} text="Remove" onPress={() => {
+              const rest = picked.filter((x) => x !== n);
+              setPicked(rest);
+              if (!rest.length) setSeed(null); // back to the list: the next picks start from scratch
+            }} />
           ) : null}
-          {previewT ? <Button label="Back to workouts" kind="link" onPress={back} /> : null}
-        </Card>
-      ) : null}
-      {previewT || picked.length ? null : (
-        <View style={styles.wrap}>
-          {others.map((k) => (
-            <Chip key={k} label={`Choose ${k}`} text={k} onPress={() => preview(k)} />
-          ))}
-          <Chip label="Pick exercises" onPress={() => setPicking(true)} />
         </View>
-      )}
-      <AddExerciseFlow open={picking} onClose={() => setPicking(false)} inSession={picked} workouts={lists} quiet add={(n) => {
-          setPicked((p) => (p.includes(n) ? p : [...p, n]));
-          setPreviewT(null);
-          return true;
-        }} notify={notify} />
-      <WeekTools date={date} notify={notify} />
+      ))}
+    </View>
+  ) : null;
+
+  const notes = hasBuilt && built && startT ? (
+    <>
+      <Hint>
+        {names.length} exercises{eachSets ? `, ${eachSets} sets each${beginnerRamp(profile, date) ? ' for your first 2 weeks' : ''}` : ''}
+        {names.some((n) => isFocus(n, focus, getCatalog().tags)) ? ', plus 1 on focus muscles' : ''}
+        {profile.minutes ? `, sized to your ${profile.minutes}-minute sessions` : ''}.
+        {built.left.length ? ` ${listJoin(built.left)} rotate in on other ${startT} days.` : ''}
+      </Hint>
+      {built.lost.map((n) => (
+        <Hint key={n}>
+          {n} is left out with no replacement{getCatalog().tags[n] ? `, so your ${listJoin(getCatalog().tags[n]!.primary.map((m) => muscleName(m)))} get fewer sets each week` : ''}.
+        </Hint>
+      ))}
+    </>
+  ) : null;
+
+  // Inline and above Start, as in the prototype: the answers shape the session Start builds, so they are never behind a tap.
+  const checkin = (
+    hasBuilt && built ? (
+      <View style={{ gap: 8 }}>
+        <Text style={[type.bodyStrong, { color: c.ink }]}>Quick check-in (optional)</Text>
+        {CHECKIN.map((q) => (
+          <View key={q.key} style={{ gap: 6 }}>
+            <Text style={{ color: c.ink, fontSize: 14 }}>{q.label}</Text>
+            <View style={styles.wrap}>
+              {q.options.map(([v, l]) => (
+                <Chip key={v} label={`${q.label}: ${l}`} text={l} pressed={ci[q.key] === v} onPress={() => pick(q.key, v)} />
+              ))}
+            </View>
+          </View>
+        ))}
+        {flags.flagged ? (
+          <View style={{ gap: 6 }}>
+            <Note>
+              Lighter session suggested. With {flags.reasons.map((r) => REASON_TEXT[r]).join(' and ')}, keep the same exercises with 1 fewer set each and no weight increases today.
+              {flags.swapTo ? ` Or swap with ${flags.swapTo}, which uses different muscles.` : ''}
+            </Note>
+            <WhyLink id={flags.reasons.includes('sore') ? 'soreness' : 'sleep'} />
+            <View style={styles.wrap}>
+              <Chip label="Lighter session" pressed={choice === 'light'} onPress={() => setChoice('light')} />
+              {flags.swapTo && !previewT ? <Chip label={`Swap with ${flags.swapTo}`} pressed={choice === 'swap'} onPress={() => setChoice('swap')} /> : null}
+              <Chip label="Keep original" pressed={choice === 'orig'} onPress={() => setChoice('orig')} />
+            </View>
+          </View>
+        ) : flags.good ? (
+          <Hint>Good to go.</Hint>
+        ) : null}
+        {built.mods.short ? <Hint>{ci.time} minutes: the main {built.exercises.length} exercises only.</Hint> : null}
+      </View>
+    ) : null
+  );
+
+  const disclosures = (
+    <>
       {seed ? null : (
-      <Press accessibilityRole="button" accessibilityLabel={awayLabel} {...a11yState({ expanded: away })} onPress={() => setAway(!away)} hitSlop={{ top: 6, bottom: 6 }}>
-        <Text style={{ color: c.link, fontSize: 14, textDecorationLine: 'underline' }}>{awayLabel}</Text>
-      </Press>
+        <Disclosure label={awayLabel} open={away} onOpenChange={setAway}>
+          <View style={styles.wrap}>
+            {WHERE_CHOICES.map(([v, l]) => (
+              <Chip
+                key={v}
+                label={l}
+                pressed={where === v}
+                onPress={() => {
+                  setOverride(v === profile.where ? null : v);
+                  setAway(false);
+                }}
+              />
+            ))}
+          </View>
+        </Disclosure>
       )}
-      {away && !seed ? (
-        <View style={styles.wrap}>
-          {WHERE_CHOICES.map(([v, l]) => (
-            <Chip
-              key={v}
-              label={l}
-              pressed={where === v}
-              onPress={() => {
-                setOverride(v === profile.where ? null : v);
-                setAway(false);
-              }}
-            />
-          ))}
-        </View>
-      ) : null}
+      <WeekTools date={date} notify={notify} />
+      {/* On a rest day "Choose another day" is the only way to start a session, so it is open. */}
+      {previewT || picked.length ? null : (
+        <Disclosure label="Choose another day" defaultOpen={!plan}>
+          <View style={styles.wrap}>
+            {others.map((k) => (
+              <Chip key={k} label={`Choose ${k}`} text={k} onPress={() => preview(k)} />
+            ))}
+            <Chip label="Pick exercises" onPress={() => setPicking(true)} />
+          </View>
+        </Disclosure>
+      )}
+      <LibraryEntryButton />
       <ModeNote notify={notify} />
-      <CardioBlock value={day.workout?.cardio_min ?? null} onSave={w.setCardio} />
+    </>
+  );
+
+  const flow = (
+    <AddExerciseFlow open={picking} onClose={() => setPicking(false)} inSession={picked} workouts={lists} quiet add={(n) => {
+        setPicked((p) => (p.includes(n) ? p : [...p, n]));
+        setPreviewT(null);
+        return true;
+      }} notify={notify} />
+  );
+
+  const top = (
+    <>
+      <Text testID="start-announce" accessibilityLiveRegion="polite" style={styles.srOnly}>{Platform.OS === 'ios' ? '' : said}</Text>
+      <ClearanceCard profile={profile} onCleared={() => void markCleared().then(() => notify('Thanks. Your normal plan is back.'), () => notify('Couldn’t save that. Try again.'))} />
+      {labHold ? <Note>{labs.workout_note}</Note> : null}
+    </>
+  );
+  const cardio = <CardioBlock value={day.workout?.cardio_min ?? null} onSave={w.setCardio} />;
+
+  if (wide)
+    return (
+      <>
+        {top}
+        <View style={styles.cols}>
+          <View style={styles.colLeft}>
+            {cards}
+            {hero}
+            {checkin}
+            {action}
+            {disclosures}
+            {cardio}
+          </View>
+          <View style={styles.colRight}>
+            {exerciseList}
+            {notes}
+            {musclesView}
+          </View>
+        </View>
+        {flow}
+      </>
+    );
+  return (
+    <>
+      {top}
+      {cards}
+      {hero}
+      {checkin}
+      {action}
+      {musclesView}
+      {exerciseList}
+      {notes}
+      {disclosures}
+      {cardio}
+      {flow}
     </>
   );
 }
@@ -365,10 +480,13 @@ function SessionView({ now, db, reloadKey, w, profile, focus, rules, notify, tun
   const c = useTheme();
   const { date, day } = w;
   const { settings } = useSettings();
+  const wide = useWindowDimensions().width >= 1024;
   const [open, setOpen] = useState(false);
   // The muscle map is open until the first set is ticked (prototype sessionMapHtml); once the user taps it, their choice stays.
   const [mapOpen, setMapOpen] = useState<boolean | null>(null);
   const [adding, setAdding] = useState(false);
+  // One exercise is expanded at a time: the user's pick, else the first with sets left. Acting on an exercise pins it, so its rating chips and form question stay put after its last tick.
+  const [pinned, setPinned] = useState<string | null>(null);
   const wk = day.workout as Workout;
   const ctx = progressionContext(date, day.lifts, profile, wk, tune);
   let done = 0;
@@ -376,50 +494,49 @@ function SessionView({ now, db, reloadKey, w, profile, focus, rules, notify, tun
   for (const ex of day.exs)
     for (const s of ex.sets) {
       all++;
-      if (s.done) {
-        done++;
-      }
+      if (s.done) done++;
     }
   const notes = modsNote(wk.mods).map(modsNoteText);
   const choices = secondSessionChoices({ exercises: day.exs, template: wk.template, base: wk.base }, profile);
   const vol = sessionVolume(day.exs);
   const { primary: mainMuscles, secondary: alsoMuscles } = musclesOf(day.exs.map((e) => e.name));
   const mapShown = mapOpen ?? done === 0;
+  const current = pinned && day.exs.some((e) => e.name === pinned) ? pinned : (day.exs.find((e) => e.sets.some((s) => !s.done))?.name ?? null);
 
-  return (
+  // The map is open until the first tick on every width (prototype sessionMapHtml).
+  const info = (
     <>
-      <H1>{wk.template || HAND_PICKED}</H1>
-      <WhyLink id="split" label="Why these exercises?" values={profileWhyValues(profile)} />
-      <Text accessibilityLabel={`${done} of ${all} sets done`} style={{ color: c.muted, fontSize: 14 }}>
-        {done} of {all} sets done, {fmt(vol)} kg lifted
-      </Text>
-      <BurnLine db={db} date={date} profileKg={profile.weight_kg} exs={day.exs} cardio={wk.cardio_min} reloadKey={reloadKey} />
-      {notes.length ? <Note>Today: {notes.join('; ')}.</Note> : null}
       {mainMuscles.length ? (
         <View>
           <Button kind="link" label={`Muscles today: ${listJoin(mainMuscles.map((m) => muscleName(m)))}`} expanded={mapShown} onPress={() => setMapOpen(!mapShown)} />
           {mapShown ? <BodyMap primary={mainMuscles} secondary={alsoMuscles} /> : null}
         </View>
       ) : null}
+    </>
+  );
+
+  const stack = (
+    <>
       {day.exs.map((ex, i) => {
         const { info, sug } = guidance(ex, ctx, wk);
+        const pin = () => setPinned(ex.name);
         const act: Actions = {
-          edit: (kind, j, f, v) => w.editSet(i, kind, j, f, v),
-          tick: (j) => w.tick(i, j),
-          rate: (j, v) => w.rate(i, j, v),
-          form: (v) => w.setForm(i, v),
-          rampStart: () => w.rampStart(i),
-          rampSkip: () => w.rampSkip(i),
-          rampAdd: () => w.rampAdd(i),
-          rampTick: (j) => w.rampTick(i, j),
-          rampRate: (j, v) => w.rampRated(i, j, v),
+          edit: (kind, j, f, v) => (pin(), w.editSet(i, kind, j, f, v)),
+          tick: (j) => (pin(), w.tick(i, j)),
+          rate: (j, v) => (pin(), w.rate(i, j, v)),
+          form: (v) => (pin(), w.setForm(i, v)),
+          rampStart: () => (pin(), w.rampStart(i)),
+          rampSkip: () => (pin(), w.rampSkip(i)),
+          rampAdd: () => (pin(), w.rampAdd(i)),
+          rampTick: (j) => (pin(), w.rampTick(i, j)),
+          rampRate: (j, v) => (pin(), w.rampRated(i, j, v)),
           howTo: () => onHowTo(ex.name),
           cant: () => onCant(i, ex.name),
           cantPain: () => onCant(i, ex.name, 'pain'),
-          feel: (v) => w.setFeel(i, v),
+          feel: (v) => (pin(), w.setFeel(i, v)),
           skipRest: () => w.skipRemaining(i),
-          addSet: () => w.addSet(i),
-          removeSet: () => w.removeSet(i),
+          addSet: () => (pin(), w.addSet(i)),
+          removeSet: () => (pin(), w.removeSet(i)),
           remove: () => {
             if (w.removeExercise(ex.name)) notify(`${ex.name} removed`);
           },
@@ -427,7 +544,7 @@ function SessionView({ now, db, reloadKey, w, profile, focus, rules, notify, tun
         return (
           <View key={ex.name} style={{ gap: 8 }}>
             {ex.part === 2 && day.exs[i - 1]?.part !== 2 ? <H1 level={2}>Second session</H1> : null}
-            <ExerciseCard notify={notify} lifts={day.lifts} prior={priorSessions(day.lifts[ex.name], date)} infoOf={(n) => exInfo(n, getCatalog(), ctx.overrides?.[n], ctx.where)} learning={isLearning(!!getCatalog().cards[ex.name], day.lifts[ex.name], date)} ex={ex} info={info} sug={sug} focus={focus} warm={warmupSets(ex, i, sug, day.exs, info, getCatalog().tags)} act={act} cards={<ExerciseCards ex={ex} info={info} date={date} lifts={day.lifts} rules={rules} notify={notify} now={now} where={wk.where ?? profile.where} />} />
+            <ExerciseCard expanded={ex.name === current} onToggle={pin} notify={notify} lifts={day.lifts} prior={priorSessions(day.lifts[ex.name], date)} infoOf={(n) => exInfo(n, getCatalog(), ctx.overrides?.[n], ctx.where)} learning={isLearning(!!getCatalog().cards[ex.name], day.lifts[ex.name], date)} ex={ex} info={info} sug={sug} focus={focus} warm={warmupSets(ex, i, sug, day.exs, info, getCatalog().tags)} act={act} cards={<ExerciseCards ex={ex} info={info} date={date} lifts={day.lifts} rules={rules} notify={notify} now={now} where={wk.where ?? profile.where} />} />
           </View>
         );
       })}
@@ -450,15 +567,53 @@ function SessionView({ now, db, reloadKey, w, profile, focus, rules, notify, tun
         </Card>
       ) : null}
       <CardioBlock value={wk.cardio_min} onSave={w.setCardio} />
-      <View style={{ height: 120 }} />
+    </>
+  );
+
+  const head = (
+    <>
+      <H1>{wk.template || HAND_PICKED}</H1>
+      <SegmentBar exs={day.exs} />
+      <Text accessibilityLabel={`${done} of ${all} sets done`} style={[type.caption, { color: c.muted }]}>
+        {done} of {all} sets done, {fmt(vol)} kg lifted
+      </Text>
+      <WhyLink id="split" label="Why these exercises?" values={profileWhyValues(profile)} />
+      <BurnLine db={db} date={date} profileKg={profile.weight_kg} exs={day.exs} cardio={wk.cardio_min} reloadKey={reloadKey} />
+      {notes.length ? <Note>Today: {notes.join('; ')}.</Note> : null}
+    </>
+  );
+
+  // Under the rest dock (about 150 high) the last controls stay reachable.
+  const spacer = <View style={{ height: 184 }} />;
+  if (wide)
+    return (
+      <>
+        {head}
+        <View style={styles.cols}>
+          <View style={styles.colLeft}>{stack}</View>
+          <View style={styles.colSide}>{info}</View>
+        </View>
+        {spacer}
+      </>
+    );
+  return (
+    <>
+      {head}
+      {info}
+      {stack}
+      {spacer}
     </>
   );
 }
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
+  body: { gap: 8 },
   wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center' },
-  checkin: { borderTopWidth: 1, paddingTop: 10, gap: 10 },
-  pickRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  exRow: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 56, paddingVertical: 8, borderTopWidth: 1 },
+  cols: { flexDirection: 'row', gap: 24, alignItems: 'flex-start' },
+  colLeft: { flex: 1, maxWidth: 560, gap: 8 },
+  colRight: { flex: 1, maxWidth: 560, gap: 8 },
+  colSide: { width: 360, gap: 8 },
   srOnly: { position: 'absolute', width: 1, height: 1, margin: -1, overflow: 'hidden', opacity: 0, pointerEvents: 'none' },
 });

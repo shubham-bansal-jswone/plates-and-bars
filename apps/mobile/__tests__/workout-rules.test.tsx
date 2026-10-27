@@ -1,4 +1,5 @@
 import { act, fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react-native';
+import { expand, press, reveal } from './disclosure-helpers';
 import { WorkoutScreen } from '../src/screens/WorkoutScreen';
 import { TargetsScreen } from '../src/screens/TargetsScreen';
 import { saveProfile } from '../src/db/records';
@@ -43,7 +44,7 @@ async function setup(seed?: (db: Db) => Promise<void>) {
   await render(withProfile(db, <WorkoutScreen db={db} now={THURSDAY} />));
   return db;
 }
-const press = (label: string) => fireEvent.press(screen.getByLabelText(label));
+
 
 describe('exercise rules in the session', () => {
   it('leaves an excluded exercise out, using its stored pick', async () => {
@@ -111,6 +112,7 @@ describe('Can’t do sheet', () => {
 
   it('Permanently: saves the rule with the pick, swaps the exercise in, and tombstones the old sets', async () => {
     const db = await started();
+    await reveal('Pec Deck Fly');
     await press('Can’t do Pec Deck Fly');
     await press('I don’t like it');
     await press('Permanently');
@@ -123,6 +125,7 @@ describe('Can’t do sheet', () => {
     await fireEvent.press(rows[0] as never);
 
     await waitFor(() => expect(screen.queryByLabelText('Can’t do Pec Deck Fly')).toBeNull());
+    await reveal(pick); // in the session, as a collapsed row until opened
     expect(screen.getByLabelText(`Can’t do ${pick}`)).toBeTruthy();
     const [r] = exclusionRows(db);
     expect(r).toMatchObject({ scope: 'exercise', key: 'Pec Deck Fly', reason: 'dislike', until: null, done: false, created: DATE, to: { 'Pec Deck Fly': pick }, deleted_at: null, version: 0 });
@@ -137,6 +140,7 @@ describe('Can’t do sheet', () => {
 
   it('Just today: replaces the exercise but saves no rule', async () => {
     const db = await started();
+    await reveal('Pec Deck Fly');
     await press('Can’t do Pec Deck Fly');
     await press('Equipment isn’t available');
     await press('Just today');
@@ -148,6 +152,7 @@ describe('Can’t do sheet', () => {
 
   it('a wider rule (pain, joint) also replaces other exercises it covers', async () => {
     const db = await started();
+    await reveal('Barbell Bench Press');
     await press('Can’t do Barbell Bench Press');
     await press('Pain or an injury');
     await press('Permanently');
@@ -164,9 +169,11 @@ describe('Can’t do sheet', () => {
   it('keeps ticked sets and puts the replacement after them', async () => {
     const db = await started();
     // empty fields use the suggested numbers; a first-time exercise asks for a weight, so type one
+    await expand('Pec Deck Fly');
     await fireEvent.changeText(screen.getByLabelText('Pec Deck Fly set 1 kg'), '40');
     await fireEvent.changeText(screen.getByLabelText('Pec Deck Fly set 1 reps'), '10');
     await press('Mark Pec Deck Fly set 1 done');
+    await reveal('Pec Deck Fly');
     await press('Can’t do Pec Deck Fly');
     await press('I don’t like it');
     await press('Just today');
