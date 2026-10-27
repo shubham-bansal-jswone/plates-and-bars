@@ -167,7 +167,10 @@ public class AiService {
             try {
                 reply = answer(userId, feature, call, held);
             } catch (BilledFailure e) {
-                throw e; // the provider answered and was billed: the unit stays used
+                if (e.refundUnit) {
+                    quotas.release(held); // unusable reply: the tokens stay in the monthly ledger, the daily unit goes back
+                }
+                throw e;
             } catch (RuntimeException e) {
                 quotas.release(held);
                 throw e;
@@ -204,20 +207,26 @@ public class AiService {
         if (c == null) {
             throw unavailable(); // no response at all, nothing billed: the unit is released
         }
-        // A response was received, so it was billed. From here on ANY failure (recording the tokens, no text, a reply
-        // that does not parse, a parser bug) is still 503 `unavailable` but the daily unit stays used.
-        ObjectNode reply;
+        // A response was received, so it was billed and the tokens go to the monthly ledger. If they cannot be
+        // recorded the daily unit stays used; if the reply is unusable (no text, does not parse, a parser bug) the
+        // answer is the same 503 `unavailable` but the daily unit is given back.
         try {
             quotas.recordTokens(held, c.inputTokens(), c.outputTokens());
+        } catch (RuntimeException e) {
+            log.warn("AI tokens not recorded for feature {} ({})", feature.key(), e.getClass().getSimpleName());
+            throw new BilledFailure(false);
+        }
+        ObjectNode reply;
+        try {
             if (c.text() == null) {
-                throw new BilledFailure();
+                throw new BilledFailure(true);
             }
-            reply = call.parser().apply(c.text()).orElseThrow(BilledFailure::new);
+            reply = call.parser().apply(c.text()).orElseThrow(() -> new BilledFailure(true));
         } catch (BilledFailure e) {
             throw e;
         } catch (RuntimeException e) {
             log.warn("AI reply unusable for feature {} ({})", feature.key(), e.getClass().getSimpleName());
-            throw new BilledFailure();
+            throw new BilledFailure(true);
         }
         if (key != null) {
             cache.put(key, reply);
@@ -225,10 +234,13 @@ public class AiService {
         return reply;
     }
 
-    /** 503 {@code unavailable} after the provider's billed response could not be used; keeps the quota unit. */
+    /** 503 {@code unavailable} after the provider's billed response could not be used; {@code refundUnit} gives the daily unit back. */
     private static final class BilledFailure extends ApiException {
-        BilledFailure() {
+        final boolean refundUnit;
+
+        BilledFailure(boolean refundUnit) {
             super(HttpStatus.SERVICE_UNAVAILABLE, "unavailable", "Couldn't get an answer just now. Try again.");
+            this.refundUnit = refundUnit;
         }
     }
 
