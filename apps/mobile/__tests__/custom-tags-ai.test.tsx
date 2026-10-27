@@ -142,6 +142,8 @@ describe('custom exercise tag suggestion', () => {
     expect(first).toHaveTextContent('Choose a main muscle first.');
     await tap('Add Pec deck with these muscles');
     expect(screen.getByRole('alert')).not.toBe(first);
+    await tap('Also working: chest');
+    expect(screen.getByText('Choose a main muscle first.')).toBeTruthy();
     await tap('Main muscle: chest');
     expect(screen.queryByText('Choose a main muscle first.')).toBeNull();
   });
