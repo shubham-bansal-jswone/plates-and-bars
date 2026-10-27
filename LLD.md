@@ -174,7 +174,7 @@ The chain is stateless (`SessionCreationPolicy.STATELESS`), CSRF/form/basic logi
 `FoodsController` -> `BarcodeService` -> (`BarcodeCache`, `OffClient`, `OffMapper`, `Gs1`).
 
 ### 4.7 `ratelimit`, `common`
-See section 15 (`ratelimit`) and sections 11 and 12 (`common`).
+See section 15 (`ratelimit`) and sections 4.1 and 11 (`common`).
 
 ---
 

@@ -152,7 +152,7 @@ All from the web export of the current branch, served by `tests/e2e/support/serv
 ### 2.4 Repo vs `LLD.md` discrepancies
 - `LLD.md` section 3.2 lists routes correctly, but does not say that the **Exercise library is reachable only from Targets** and that **no history or finish UI exists**. These are code facts, recorded here.
 - `tokens.ts`, `ui.tsx`, `fonts.tsx` and the tab layout cite `docs/design/DESIGN.md`, deleted in `19ec4dee`; the LLD does not mention it.
-- The app follows the system colour scheme (`apps/mobile/src/theme/useTheme.ts`), which means **there is no user-selectable theme**, relevant to a dark-first identity.
+- The app is dark by default and follows the system colour scheme only in a build with `EXPO_PUBLIC_THEME=system` (`apps/mobile/src/theme/useTheme.ts`); there is **no in-app theme setting**. The owner has decided production should follow the system scheme; a PR for that is in progress.
 
 ---
 
