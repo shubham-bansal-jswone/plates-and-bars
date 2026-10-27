@@ -1,10 +1,14 @@
+import { useEffect, useState } from 'react';
 import { View } from 'react-native';
 import { Text } from '../components/Text';
 import { Button, Card, H1, Heading, Hint, Page } from '../components/ui';
+import type { PullDb } from '../db/outbox';
+import type { WorkoutDb } from '../db/workouts';
 import { type } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { BodyMap } from '../workout/BodyMap';
 import { ExerciseFigure, hasDrawing } from '../workout/ExerciseFigure';
+import { addToStoredDay, inStoredDay, removeFromStoredDay } from '../workout/storedDay';
 import { VideoLink } from '../workout/VideoLink';
 import { equipmentLabel, jointLabel, muscleLabel, typeLabel, type LibraryExercise } from './exercises';
 
@@ -32,8 +36,65 @@ function NoDrawing() {
   );
 }
 
+/** Where today's session is stored: when given, the detail can add the exercise to it. */
+export interface SessionTarget {
+  db: WorkoutDb & PullDb;
+  date: string;
+  now: () => Date;
+}
+
+/**
+ * "Add to today's session", offline (a local write). Already in the session: a disabled, labelled state. Just added: a
+ * polite status with Undo, which removes it again. With no session yet it starts a hand-picked one (as picking on Start does).
+ */
+function AddToSession({ name, session }: { name: string; session: SessionTarget }) {
+  const c = useTheme();
+  const { db, date, now } = session;
+  const [state, setState] = useState<'unknown' | 'out' | 'in' | 'just'>('unknown');
+  const [error, setError] = useState(false);
+  useEffect(() => {
+    let live = true;
+    inStoredDay(db, date, name).then((i) => live && setState(i ? 'in' : 'out'), () => live && setState('out'));
+    return () => {
+      live = false;
+    };
+  }, [db, date, name]);
+  const onError = () => setError(true);
+  const add = async () => {
+    setError(false);
+    const r = await addToStoredDay({ db, date, now, name, onError });
+    if (r === 'added') setState('just');
+    else if (r === 'already') setState('in');
+  };
+  const undo = () => {
+    setError(false);
+    setState('out');
+    void removeFromStoredDay({ db, date, now, name, onError });
+  };
+  if (state === 'unknown') return null;
+  return (
+    <View style={{ gap: 4 }}>
+      {state === 'just' ? (
+        <>
+          <Text accessibilityLiveRegion="polite" style={[type.textBody, { color: c.body }]}>{`${name} added to today’s session.`}</Text>
+          <Button label="Undo" a11yLabel={`Undo adding ${name} to today’s session`} kind="ghost" onPress={undo} />
+        </>
+      ) : (
+        <Button
+          label={state === 'in' ? 'In today’s session' : 'Add to today’s session'}
+          a11yLabel={state === 'in' ? `${name} is already in today’s session` : `Add ${name} to today’s session`}
+          kind="ghost"
+          disabled={state === 'in'}
+          onPress={() => void add()}
+        />
+      )}
+      {error ? <Text accessibilityRole="alert" style={[type.textBody, { color: c.body }]}>Couldn’t save that. Try again.</Text> : null}
+    </View>
+  );
+}
+
 /** One exercise: name, its start and end drawing, muscle map, tags and the how-to notes. */
-export function ExerciseDetail({ exercise: e, onBack }: { exercise: LibraryExercise; onBack: () => void }) {
+export function ExerciseDetail({ exercise: e, onBack, session }: { exercise: LibraryExercise; onBack: () => void; session?: SessionTarget }) {
   const c = useTheme();
   const card = e.card;
   const row = (k: string, v: string) => (
@@ -46,6 +107,7 @@ export function ExerciseDetail({ exercise: e, onBack }: { exercise: LibraryExerc
     <Page>
       <Button label="Back to library" kind="link" onPress={onBack} />
       <H1>{e.name}</H1>
+      {session ? <AddToSession name={e.name} session={session} /> : null}
       {hasDrawing(e.name) ? <ExerciseFigure name={e.name} /> : <NoDrawing />}
       {e.primary.length ? <BodyMap primary={e.primary} secondary={e.secondary} /> : null}
       <Card accessibilityLabel="Tags">
