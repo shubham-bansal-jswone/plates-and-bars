@@ -21,6 +21,7 @@ name: Web app deploy
 # See infra/README.md (Web app deploy) and infra/RUNBOOK.md section 7.
 on:
   push:
+    # Deliberately main only: deploying every design-overhaul merge is not wanted until main is fast-forwarded.
     branches: [main]
     tags: ['v*']
     # No path filter on push: GitHub does not reliably combine `tags` with `paths`, and the export also bundles
