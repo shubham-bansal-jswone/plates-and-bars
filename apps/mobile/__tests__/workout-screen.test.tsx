@@ -490,7 +490,7 @@ describe('Workout tab: logging sets', () => {
     // One set, about 3 minutes, at the 82 kg profile weight: core's workoutBurn.
     await fireEvent.press(screen.getByLabelText('Session info'));
         expect(await screen.findByText('About 20 kcal burned')).toBeTruthy();
-    expect(screen.getByText(/Rough estimate from 1 sets \(about 3 minutes\) at your bodyweight; about 15 kcal of it is above what you’d burn resting/)).toBeTruthy();
+    expect(screen.getByText(/Rough estimate from 1 set \(about 3 minutes\) at your bodyweight; about 15 kcal of it is above what you’d burn resting/)).toBeTruthy();
 
     expect(screen.getByLabelText('Cardio minutes').props.value).toBe('');
     fireEvent.changeText(screen.getByLabelText('Cardio minutes'), '30');

@@ -336,7 +336,7 @@ function SetupFlow({ recalc, weight }: { recalc: boolean; weight: number | null 
         accessibilityValue={{ min: 0, max: STEPS + 1, now: Math.min(step + 1, STEPS + 1) }}
         style={{ flexDirection: 'row', gap: 4 }}
       >
-        {Array.from({ length: STEPS + 1 }, (_, i) => (
+        {Array.from({ length: STEPS }, (_, i) => (
           <View key={i} style={{ flex: 1, height: 6, borderRadius: radius.full, backgroundColor: i <= step ? c.brand : c.track }} />
         ))}
       </View>
