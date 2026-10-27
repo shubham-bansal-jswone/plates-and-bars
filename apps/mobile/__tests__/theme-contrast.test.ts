@@ -1,5 +1,6 @@
 import { dark, light, type Palette } from '../src/theme/tokens';
 import { toWeight } from '../src/theme/fonts';
+import { alsoFill } from '../src/workout/BodyMap';
 
 // WCAG 2.x relative luminance and contrast ratio.
 function lum(hex: string): number {
@@ -50,6 +51,9 @@ describe.each([['light', light], ['dark', dark]] as const)('%s palette', (_mode,
   // The Seven-days bar draws its fill at opacity 0.85, so what reaches the eye is the blend over `track` (#504).
   it.each(['bar', 'caution'] as const)('%s fill at 0.85 opacity over track is at least 3:1', (k) => {
     expect(contrast(blend(p[k], p.track, 0.85), p.track)).toBeGreaterThanOrEqual(3);
+  });
+  it('body map also-working fill is at least 3:1 against an untargeted region', () => {
+    expect(contrast(alsoFill(p), p.surfaceSoft)).toBeGreaterThanOrEqual(3);
   });
   it('only uses six-digit hex colours, so the maths above is what is drawn', () => {
     for (const v of Object.values(p)) expect(v).toMatch(/^#[0-9A-F]{6}$/);
