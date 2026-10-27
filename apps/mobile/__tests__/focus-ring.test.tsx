@@ -75,3 +75,36 @@ describe('focus ring', () => {
     expect(ring(screen.getByLabelText('Rest timer').parent as never)).toMatchObject({ width: 2, color: light.focus });
   });
 });
+
+describe('switch hit area (#1121)', () => {
+  it('is at least 44x44 around the 40x20 track, and a tap on the padding toggles once', async () => {
+    const onValueChange = jest.fn();
+    await render(<Switch accessibilityLabel="Rest timer" value={false} onValueChange={onValueChange} />);
+    const box = StyleSheet.flatten(screen.getByTestId('switch-hit-area').parent!.props.style as never) as Record<string, number>;
+    expect(box.minWidth).toBeGreaterThanOrEqual(44);
+    expect(box.minHeight).toBeGreaterThanOrEqual(44);
+    await fireEvent.press(screen.getByTestId('switch-hit-area'));
+    expect(onValueChange).toHaveBeenCalledTimes(1);
+    expect(onValueChange).toHaveBeenCalledWith(true);
+  });
+
+  it('a press on the switch itself is not forwarded to the hit area (no double fire on web)', async () => {
+    const onValueChange = jest.fn();
+    await render(<Switch accessibilityLabel="Rest timer" value={false} onValueChange={onValueChange} />);
+    // The switch has no press ancestor handler; the hit area is a sibling, so the press must not reach onValueChange.
+    await fireEvent.press(screen.getByLabelText('Rest timer'));
+    expect(onValueChange).not.toHaveBeenCalled();
+    await fireEvent(screen.getByLabelText('Rest timer'), 'valueChange', true);
+    expect(onValueChange).toHaveBeenCalledTimes(1);
+    expect(onValueChange).toHaveBeenCalledWith(true);
+  });
+
+  it.each([['dark', dark], ['light', light]])('keeps the off-state thumb and track visible in %s', async (_n, pal) => {
+    jest.spyOn(useThemeModule, 'useTheme').mockReturnValue(pal as never);
+    await render(<Switch accessibilityLabel="Rest timer" value={false} onValueChange={() => {}} />);
+    const sw = screen.getByLabelText("Rest timer");
+    expect(sw.props.thumbTintColor).toBe(pal.ink);
+    expect(sw.props.tintColor).toBe(pal.muted);
+    expect(pal.ink).not.toBe(pal.muted);
+  });
+});
