@@ -1,5 +1,5 @@
 import { AccessibilityInfo, Platform, StyleSheet, Vibration } from 'react-native';
-import { expand, press, pressDay, tickFirstSets } from './disclosure-helpers';
+import { expand, press, pressDay, reveal, tickFirstSets } from './disclosure-helpers';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { WorkoutScreen } from '../src/screens/WorkoutScreen';
 import { saveProfile } from '../src/db/records';
@@ -493,6 +493,22 @@ describe('Workout tab: logging sets', () => {
     await removeExercise('Pec Deck Fly');
     expect(screen.getByText('Next: Cable Lateral Raise')).toBeTruthy();
     expect(screen.queryByText('Next: Barbell Bench Press')).toBeNull();
+  });
+
+  it('a swap during a rest keeps the dock on the replacement, not the exercise after it (#1150)', async () => {
+    await started();
+    await cutToOneSet('Machine Shoulder Press');
+    await press('Mark Machine Shoulder Press set 1 done');
+    expect(screen.getByText('Next: Pec Deck Fly')).toBeTruthy();
+    await reveal('Pec Deck Fly');
+    await press('Can’t do Pec Deck Fly');
+    await press('Equipment isn’t available');
+    await press('Just today');
+    const rows = screen.getAllByRole('button').filter((b) => /Works your/.test(String(b.props.accessibilityLabel ?? '')));
+    const pick = String(rows[0]?.props.accessibilityLabel).split('. ')[0] as string;
+    await fireEvent.press(rows[0] as never);
+    await waitFor(() => expect(screen.queryByLabelText('Can’t do Pec Deck Fly')).toBeNull());
+    expect(screen.getByText(`Next: ${pick}`)).toBeTruthy();
   });
 
   it('ticking the final set closes the rest dock, so it does not cover the Session done panel (#1141)', async () => {
