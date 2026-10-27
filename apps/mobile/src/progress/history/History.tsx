@@ -89,7 +89,7 @@ export function WorkoutDay({ session, sessions, lifts, onBack }: { session: Hist
                     </View>
                   ))}
                 </View>
-                <Text style={[typeScale.small, { color: c.muted }]}>{`Volume, last ${t.points.length} sessions${t.heaviest ? `. Heaviest set ${t.heaviest} kg.` : '.'}`}</Text>
+                <Text style={[typeScale.small, { color: c.muted }]}>{`Volume, last ${t.points.length} sessions${t.heaviest ? `. Heaviest set ${fmt(t.heaviest)} kg.` : '.'}`}</Text>
               </View>
             ) : null}
           </Card>

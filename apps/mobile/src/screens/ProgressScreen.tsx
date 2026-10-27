@@ -67,13 +67,18 @@ export function ProgressScreen({ db, now = () => new Date() }: Props) {
   const [closedDay, setClosedDay] = useState<string | null>(null);
   const opened = openDay ? hist?.sessions.find((s) => s.date === openDay) : undefined;
 
+  // The open day vanished (a sync pulled it away): go back to the page, with focus on where it was.
+  if (openDay && hist && !opened) {
+    setClosedDay(openDay);
+    setOpenDay(null);
+  }
   const ready = status === 'ready' && p.ready;
   const showDay = ready && !!hist && !!opened;
   return (
     <View style={styles.fill}>
       <DateAnnouncer v={v} />
       <Page resetKey={openDay}>
-        {hist && opened ? <WorkoutDay session={opened} sessions={hist.sessions} lifts={hist.lifts} onBack={() => { setClosedDay(openDay); setOpenDay(null); }} /> : null}
+        {showDay && hist && opened ? <WorkoutDay session={opened} sessions={hist.sessions} lifts={hist.lifts} onBack={() => { setClosedDay(openDay); setOpenDay(null); }} /> : null}
         {/* Hidden, not unmounted, while a day is open: typed weights and the sections' state survive going back. */}
         <View style={showDay ? styles.hidden : styles.body}>
         {ready ? <H1>Progress</H1> : null}

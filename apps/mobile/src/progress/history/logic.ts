@@ -1,4 +1,4 @@
-import { checkBest, HAND_PICKED, sessionVolume, type LiftRecord, type SessionLog } from '@plate-and-bar/core';
+import { HAND_PICKED, sessionVolume, type LiftRecord, type SessionLog } from '@plate-and-bar/core';
 import type { WorkoutSet } from '../../workout/types';
 
 export interface HistorySet {
@@ -46,22 +46,20 @@ export interface ExerciseTrend {
   points: { date: string; volume: number }[];
   /** Heaviest logged weight among those sessions, kg; null when none had a weight. */
   heaviest: number | null;
-  /** Latest session date when core's `checkBest` says it beat the earlier best, else null. */
+  /** Latest session date when core stored a personal-best toast for it (`pbToast`), else null. */
   pbDate: string | null;
 }
 
-/** Recent sessions of one exercise from the stored sets, plus a personal best only when core's lift record verifies it. */
+/** Recent sessions of one exercise from the stored sets, plus a personal best only when core's lift record says the toast fired that day. */
 export function exerciseTrend(sessions: readonly HistorySession[], name: string, lift: LiftRecord | undefined): ExerciseTrend {
   const mine = sessions.flatMap((s) => {
     const e = s.exercises.find((x) => x.name === name);
     return e ? [{ date: s.date, ex: e }] : [];
   }).reverse();
   const weights = mine.flatMap((m) => m.ex.sets.map((s) => s.w ?? 0)).filter((w) => w > 0);
-  // `pbToast` only says the toast was shown that day; the history asks the same question without it.
-  const hist = lift?.hist ?? [];
-  const last = hist[hist.length - 1];
-  const before = hist.slice(0, -1).reduce((m, h) => Math.max(m, h.e), 0);
-  const pbDate = last && checkBest({ hist, pbToast: null }, before, last.date) ? last.date : null;
+  // Core decided the best when the set was ticked (`updateLift`, on the full history); the app does not re-derive it from the capped `hist`.
+  const last = lift?.hist?.[lift.hist.length - 1];
+  const pbDate = last && lift?.pbToast === last.date ? last.date : null;
   return { points: mine.map((m) => ({ date: m.date, volume: m.ex.volume })), heaviest: weights.length ? Math.max(...weights) : null, pbDate };
 }
 
