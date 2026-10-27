@@ -34,6 +34,10 @@ export interface RestState {
   end: number;
   total: number;
   label: string;
+  /** Exercise names in order from the one just ticked onward. The label names the first still having an undone set (never an earlier exercise); the rest is cleared when none has. */
+  from?: string[];
+  /** The day the rest started on. */
+  date?: string;
 }
 
 const REST_DONE = 'Rest done, go!';
