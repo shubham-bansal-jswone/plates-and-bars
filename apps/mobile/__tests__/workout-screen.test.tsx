@@ -1,4 +1,4 @@
-import { StyleSheet, Vibration } from 'react-native';
+import { AccessibilityInfo, Platform, StyleSheet, Vibration } from 'react-native';
 import { expand, press, pressDay, tickFirstSets } from './disclosure-helpers';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { WorkoutScreen } from '../src/screens/WorkoutScreen';
@@ -576,6 +576,24 @@ describe('Workout tab: logging sets', () => {
     await press('Mark Barbell Bench Press set 1 done');
     expect(await screen.findByText('Enter the weight and reps first.')).toBeTruthy();
     expect(storedSets(db).some((s) => s.done)).toBe(false);
+  });
+
+  it('announces the empty-tick message to screen readers (iOS has no live regions)', async () => {
+    const os = Platform.OS;
+    const say = jest.spyOn(AccessibilityInfo, 'announceForAccessibility').mockImplementation(() => {});
+    Platform.OS = 'ios';
+    try {
+      await setup();
+      await press('Start Push B');
+      await screen.findByText('Push B');
+      await press('Mark Barbell Bench Press set 1 done');
+      await screen.findByText('Enter the weight and reps first.');
+      expect(say).toHaveBeenCalledWith('Enter the weight and reps first.');
+      expect(screen.getByText('Enter the weight and reps first.').props.accessibilityLiveRegion).toBe('polite');
+    } finally {
+      Platform.OS = os;
+      say.mockRestore();
+    }
   });
 
   it('rating a set stores it and adjusts the next target (Easy adds a step)', async () => {
