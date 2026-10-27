@@ -13,6 +13,8 @@ import type { WorkoutDb } from '../db/workouts';
 import { fmt, shortDate } from '../format';
 import { BF_HINT, BF_MISSING, BF_NO_PROFILE, HOW_TO_MEASURE, getMeasures, SCALE_JUMP_BODY, SCALE_JUMP_TITLE, TREND_NONE, WEIGHT_HINT } from '../progress/copy';
 import { CheckinCard, RapidLossCard } from '../progress/CheckinCard';
+import { RecentWorkouts, WorkoutDay } from '../progress/history/History';
+import { useHistory } from '../progress/history/useHistory';
 import { WeekCard } from '../progress/WeekCard';
 import { useCheckin } from '../progress/useCheckin';
 import { TrendChart } from '../progress/TrendChart';
@@ -59,15 +61,26 @@ export function ProgressScreen({ db, now = () => new Date() }: Props) {
   const labs = useLabs({ db, today: v.today, notify, reloadKey: dataVersion });
   const ci = useCheckin({ db, date: p.date, weights: p.weights, now, notify, reloadKey: dataVersion });
 
+  const hist = useHistory(db, dataVersion);
+  const [openDay, setOpenDay] = useState<string | null>(null);
+  // The day just closed: focus returns to its row.
+  const [closedDay, setClosedDay] = useState<string | null>(null);
+  const opened = openDay ? hist?.sessions.find((s) => s.date === openDay) : undefined;
+
   const ready = status === 'ready' && p.ready;
+  const showDay = ready && !!hist && !!opened;
   return (
     <View style={styles.fill}>
       <DateAnnouncer v={v} />
-      <Page>
+      <Page resetKey={openDay}>
+        {hist && opened ? <WorkoutDay session={opened} sessions={hist.sessions} lifts={hist.lifts} onBack={() => { setClosedDay(openDay); setOpenDay(null); }} /> : null}
+        {/* Hidden, not unmounted, while a day is open: typed weights and the sections' state survive going back. */}
+        <View style={showDay ? styles.hidden : styles.body}>
         {ready ? <H1>Progress</H1> : null}
         <DateBar v={v} />
         {ready ? (
           <>
+            {hist ? <RecentWorkouts sessions={hist.sessions} onOpen={(d) => { setClosedDay(null); setOpenDay(d); }} focusDate={closedDay} /> : null}
             <CheckinCard date={p.date} c={ci} cycleNote={!!cycle.info && waterRetentionPhase(cycle.info)} />
             <RapidLossCard c={ci} />
             <DailyRead sex={profile?.sex} values={profile ? profileWhyValues(profile, { date: p.date, flex: settings?.settings.flex, labHold: labs.holdOn }) : undefined} now={now} />
@@ -83,6 +96,7 @@ export function ProgressScreen({ db, now = () => new Date() }: Props) {
         ) : (
           <Hint>Loading…</Hint>
         )}
+        </View>
       </Page>
       <ToastBar message={toast} />
     </View>
@@ -199,6 +213,8 @@ function StepsSleepSection({ p }: { p: Progress }) {
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
+  body: { gap: 8 },
+  hidden: { display: 'none' },
   section: { gap: 8, marginTop: 16 },
   inline: { gap: 8 },
   field: { gap: 4 },
