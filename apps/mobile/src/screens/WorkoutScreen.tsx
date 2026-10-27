@@ -142,9 +142,9 @@ export function WorkoutScreen({ db, now = () => new Date() }: Props) {
   return (
     <View style={styles.fill}>
       <DateAnnouncer v={v} />
-      <Page resetKey={day.exs.length > 0}>
-        {/* On a wide screen the content is two columns, wider than Page's phone-sized column: it overflows it evenly on both sides. */}
-        <View style={[styles.body, wide && { width: Math.min(1120, winW - 32), alignSelf: 'center' }]}>
+      <Page resetKey={day.exs.length > 0} wide={wide}>
+        {/* On a wide screen the content is two columns in Page's wide container, the same one Food and Targets use. */}
+        <View style={styles.body}>
           <DateBar v={v} />
           {content}
         </View>
@@ -502,11 +502,12 @@ function SessionView({ now, db, reloadKey, w, profile, focus, rules, notify, tun
   const choices = secondSessionChoices({ exercises: day.exs, template: wk.template, base: wk.base }, profile);
   const vol = sessionVolume(day.exs);
   const { primary: mainMuscles, secondary: alsoMuscles } = musclesOf(day.exs.map((e) => e.name));
-  const mapShown = mapOpen ?? done === 0;
+  // On a wide screen the map has its own column, so it stays open there rather than leaving a lone link beside the exercises.
+  const mapShown = mapOpen ?? (wide || done === 0);
   const complete = all > 0 && done === all;
   const current = pinned && day.exs.some((e) => e.name === pinned) ? pinned : (day.exs.find((e) => e.sets.some((s) => !s.done))?.name ?? null);
 
-  // The map is open until the first tick on every width (prototype sessionMapHtml).
+  // The map is open until the first tick (prototype sessionMapHtml), and stays open in the side column on a wide screen.
   const info = (
     <>
       {mainMuscles.length ? (
@@ -597,7 +598,7 @@ function SessionView({ now, db, reloadKey, w, profile, focus, rules, notify, tun
       <>
         {head}
         <View style={styles.cols}>
-          <View style={styles.colLeft}>{stack}</View>
+          <View style={[styles.colLeft, { maxWidth: undefined }]}>{stack}</View>
           <View style={styles.colSide}>{info}</View>
         </View>
         {spacer}
