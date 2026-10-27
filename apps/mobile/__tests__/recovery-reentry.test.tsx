@@ -7,6 +7,7 @@ import { defaultSettings, type Settings } from '../src/settings/types';
 import { buildSession } from '../src/workout/buildSession';
 import { buildProfile, emptyDraft } from '../src/setup/logic';
 import { memoryDb, withProfile } from './helpers';
+import { expand } from './disclosure-helpers';
 
 jest.mock('expo-router', () => ({
   useRouter: () => ({ replace: jest.fn(), push: jest.fn() }),
@@ -185,7 +186,10 @@ describe('recovery week on the start screen', () => {
     await screen.findByLabelText('Start Push B'); // the screen reads its day first: wait for it, as the other tests do
     await press('Start Push B');
     await screen.findByText('Push B');
-    for (const n of PUSH_B) await press(`Mark ${n} set 1 done`);
+    for (const n of PUSH_B) {
+      await expand(n);
+      await press(`Mark ${n} set 1 done`);
+    }
     await press('Training again later today?');
     await press('Add Pull B');
     await waitFor(() => expect(JSON.parse(db.rows.get(`workouts:${DATE}`) as string).template).toBe('Push B + Pull B'));

@@ -33,7 +33,7 @@ function card(name: string, done: boolean[], edit = jest.fn()) {
   const sets = done.map((d) => ({ ...blankRow(), w: '10', r: '', done: d }));
   const ex: ExState = { name, part: 1, bridge: false, form: null, found: null, skipRamp: true, feel: null, ramp: [], sets };
   const act = new Proxy({ edit }, { get: (t, k) => (k in t ? t[k as 'edit'] : jest.fn()) }) as unknown as Actions;
-  return { edit, ui: <ExerciseCard ex={ex} info={exInfo(name, getCatalog())} sug={SUG} focus={[]} warm={null} act={act} infoOf={(n) => exInfo(n, getCatalog())} /> };
+  return { edit, ui: <ExerciseCard ex={ex} info={exInfo(name, getCatalog())} sug={SUG} focus={[]} warm={null} act={act} prior={0} infoOf={(n) => exInfo(n, getCatalog())} /> };
 }
 
 beforeEach(() => {

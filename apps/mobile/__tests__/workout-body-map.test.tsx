@@ -74,6 +74,18 @@ describe('Workout start preview: muscle map', () => {
   });
 });
 
+describe('Workout start preview: check-in', () => {
+  it('is inline above Start, with its questions answerable without opening anything', async () => {
+    await mount();
+    await screen.findByText('Push B day');
+    expect(screen.getByText('Quick check-in (optional)')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /check-in/i })).toBeNull(); // not a disclosure
+    const order = (JSON.stringify(screen.toJSON()).match(/Quick check-in \(optional\)|Start Push B/g) ?? []);
+    expect(order[0]).toBe('Quick check-in (optional)');
+    await fireEvent.press(screen.getByLabelText('Sleep last night: Poor'));
+  });
+});
+
 describe('Workout session: Muscles today', () => {
   async function started() {
     const db = await mount();
