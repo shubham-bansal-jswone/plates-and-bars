@@ -19,13 +19,13 @@ describe('RestBar live region', () => {
     expect(screen.getByTestId('rest-announce').props.accessibilityLiveRegion).toBe('polite');
   });
 
-  it('draws a decorative ring with the percentage as its accessible label, 132 wide with an 8 stroke', async () => {
+  it('draws a decorative ring with the percentage as its accessible label, 100 wide with a 7 stroke', async () => {
     await render(<RestBar rest={{ id: 1, end: Date.now() + 1000, total: 2, label: 'Next: set 2' }} onAdd={() => {}} onSkip={() => {}} />);
     const ring = screen.getByLabelText(/^Rest \d+% done$/);
     expect(ring).toBeOnTheScreen();
     const arc = screen.getByTestId('ring-progress');
-    expect(arc.props.strokeWidth).toBe(8);
-    expect(StyleSheet.flatten(ring.parent?.props.style)).toMatchObject({ width: 132, height: 132 });
+    expect(arc.props.strokeWidth).toBe(7);
+    expect(StyleSheet.flatten(ring.parent?.props.style)).toMatchObject({ width: 100, height: 100 });
   });
 
   it('hides the live region visually only: 1x1, negative margin, transparent, not touchable, and never display none', async () => {

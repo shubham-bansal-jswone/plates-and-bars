@@ -150,7 +150,7 @@ export function WorkoutScreen({ db, now = () => new Date() }: Props) {
       </Page>
       {sheets}
       {restBar}
-      <ToastBar message={toast} />
+      <ToastBar message={toast} lift={rest ? 130 : 0} />
     </View>
   );
 }

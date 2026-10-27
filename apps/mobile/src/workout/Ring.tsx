@@ -6,8 +6,8 @@ import { useTheme } from '../theme/useTheme';
 
 export const TICK_SIZE = 56;
 export const SET_ROW_H = 64;
-export const RING_SIZE = 132;
-export const RING_STROKE = 8;
+export const RING_SIZE = 100;
+export const RING_STROKE = 7;
 
 /** A progress ring: `track` under, `brand` over, `children` centred. `progress` is 0 to 1. Decorative: the label gives the percentage. */
 export function Ring({ progress, label, size = RING_SIZE, stroke = RING_STROKE, children }: { progress: number; label: string; size?: number; stroke?: number; children?: ReactNode }) {

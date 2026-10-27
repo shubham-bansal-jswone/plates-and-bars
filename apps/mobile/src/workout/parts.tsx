@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { SheetModal } from '../components/Sheet';
-import { AccessibilityInfo, Platform, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { AccessibilityInfo, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { Text } from '../components/Text';
 import { Chip, Heading, Button, Hint } from '../components/ui';
 import { pressedShadow, radius, tabular, type } from '../theme/tokens';
@@ -17,11 +17,12 @@ import { VideoLink } from './VideoLink';
 export { Chip };
 
 /** The short message at the bottom of the screen (prototype `toast`). */
-export function ToastBar({ message }: { message: string | null }) {
+/** `lift` raises the toast by that many px (the Workout tab lifts it above the rest dock, which would otherwise cover it). */
+export function ToastBar({ message, lift = 0 }: { message: string | null; lift?: number }) {
   const c = useTheme();
   if (!message) return null;
   return (
-    <View pointerEvents="none" style={styles.toastWrap}>
+    <View pointerEvents="none" style={[styles.toastWrap, lift ? { bottom: 90 + lift } : null]}>
       <Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={[styles.toast, { backgroundColor: c.toastBg, color: c.toastFg, shadowColor: c.shadow, ...pressedShadow }]}>
         {message}
       </Text>
@@ -68,12 +69,11 @@ function RunningRest({ rest, onAdd, onSkip }: { rest: RestState; onAdd: () => vo
     }
   }, [ended, rest.end]);
   const pct = Math.min(100, (1 - left / rest.total) * 100);
-  const wide = useWindowDimensions().width >= 1024;
   const time = mmss(left);
   return (
-    // The dock is opaque and runs to the screen edge, so the page behind never shows through. On a wide screen it is a floating panel bottom-right.
-    <View style={[styles.restDock, wide ? styles.restWide : { backgroundColor: c.bg, borderColor: c.line, borderTopWidth: 1, borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg }]}>
-      <View accessibilityLabel="Rest timer" style={[styles.rest, wide && { backgroundColor: c.surface, borderColor: c.line, borderWidth: 1, borderRadius: radius.lg }]}>
+    // The dock is opaque and runs to the screen edge, so the page behind never shows through; on wide screens its panel stays a 560 px column in the middle.
+    <View style={[styles.restDock, { backgroundColor: c.bg, borderColor: c.line, borderTopWidth: 1, borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg }]}>
+      <View accessibilityLabel="Rest timer" style={styles.rest}>
         <Ring progress={pct / 100} label={`Rest ${Math.round(pct)}% done`}>
           {/* At zero on Android and web the visible "Rest done, go!" is hidden from assistive tech: the live region below says it,
               so a swipe through the bar does not read it twice. On iOS the live region does not speak and its transparent text is
@@ -183,11 +183,10 @@ const styles = StyleSheet.create({
   toast: { ...type.textBody, paddingHorizontal: 16, paddingVertical: 12, borderRadius: radius.md, maxWidth: 520 },
   srOnly: { position: 'absolute', width: 1, height: 1, margin: -1, overflow: 'hidden', opacity: 0, pointerEvents: 'none' },
   restDock: { position: 'absolute', left: 0, right: 0, bottom: 0, padding: 12, alignItems: 'center' },
-  restWide: { left: 'auto', right: 16, bottom: 16, width: 360, padding: 0 },
-  rest: { width: '100%', flexDirection: 'row', alignItems: 'center', gap: 16, maxWidth: 560, padding: 8 },
+  rest: { width: '100%', flexDirection: 'row', alignItems: 'center', gap: 16, maxWidth: 560, padding: 4 },
   restSide: { flex: 1, gap: 4 },
-  // The 56 px metric size is wider than the 116 px inside the ring's stroke for "2:30"; 48 sits inside it.
-  count: { fontSize: 48, lineHeight: 52 },
+  // The 56 px metric size is wider than the ring holds for "2:30"; 34 sits inside the 100 px ring.
+  count: { fontSize: 34, lineHeight: 38 },
   restBtns: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
   sheet: { padding: 16, alignItems: 'center', flexGrow: 1 },
   sheetBody: { width: '100%', maxWidth: 560, gap: 8 },
