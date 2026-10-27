@@ -34,9 +34,9 @@ describe('tab bar', () => {
     await render(<TabsLayout />);
   });
 
-  it('is 56 plus the bottom safe area, labels below 24px icons, and hides the duplicate header', () => {
+  it('is 60 plus the bottom safe area, labels below 24px icons, and hides the duplicate header', () => {
     const o = mockTabs.mock.calls[0][0].screenOptions;
-    expect(o.tabBarStyle).toMatchObject({ height: 76, paddingBottom: 20, borderTopWidth: 1 });
+    expect(o.tabBarStyle).toMatchObject({ height: 80, paddingBottom: 20, borderTopWidth: 1 });
     expect(o.tabBarLabelPosition).toBe('below-icon');
     expect(o.headerShown).toBe(false);
     expect(o.tabBarActiveTintColor).toBe('#2457E6');

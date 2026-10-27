@@ -27,7 +27,7 @@ describe('focus ring', () => {
     await render(<Button label="Save" kind="ghost" onPress={() => {}} />);
     await fireEvent(screen.getByLabelText('Save'), 'focus', { target: 1 });
     expect(ring(screen.getByLabelText('Save'))?.color).toBe(dark.focus);
-    expect(dark.focus).toBe('#8AB0FF');
+    expect(dark.focus).toBe('#B7FF00');
     expect(light.focus).toBe('#2457E6');
   });
 

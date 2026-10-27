@@ -4,13 +4,12 @@ import { ScrollView, StyleSheet, View } from 'react-native';
 import { DEFAULT_STEP, EXERCISE_SHEET_TYPES, EXERCISE_STEP_CHOICES, exerciseOverrideEntry, exerciseOverridesWouldExceed, noLoad, repWord, type ExInfo, type ExType } from '@plate-and-bar/core';
 import { Text } from '../components/Text';
 import { Input } from '../components/Input';
-import { a11yState, Button, Caption, ErrorText, Heading, Hint, Label, Press } from '../components/ui';
+import { a11yState, Button, Caption, ErrorText, Heading, Hint, Label, Press, Chip } from '../components/ui';
 import { SETTINGS_UNREADABLE } from '../progress/copy';
 import { useOptionalSettings } from '../state/SettingsProvider';
 import { useTheme } from '../theme/useTheme';
 import { TYPE_LABEL } from './copy';
 import { OVERRIDES_FULL, RANGE_INVALID, STEP_INVALID, withOverride, withoutOverride } from './exerciseSettings';
-import { Chip } from './parts';
 
 const SAVED = 'Saved for this exercise';
 const RESET = 'Back to defaults';
