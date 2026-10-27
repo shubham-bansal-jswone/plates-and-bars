@@ -144,6 +144,20 @@ describe('exercise library screen', () => {
     expect(screen.getByLabelText(/^Muscles worked: /)).toBeTruthy();
   });
 
+  it('the detail numbers Setup, bullets cues, and shows a placeholder when there is no drawing', async () => {
+    await loadContent(await openDb());
+    await render(<ExerciseLibraryScreen onBack={() => {}} />);
+    await fireEvent.press(screen.getByText('Barbell Bench Press'));
+    expect(screen.queryByTestId('no-drawing')).toBeNull();
+    expect(screen.getAllByText(/^1\. /).length).toBe(1);
+    expect(screen.getAllByText(/^\u2022 /).length).toBeGreaterThan(0);
+    await fireEvent.press(screen.getByLabelText('Back to library'));
+    await fireEvent.changeText(screen.getByLabelText('Search exercises'), 'archer');
+    await fireEvent.press(screen.getByText('Archer Push-ups'));
+    expect(screen.getByTestId('no-drawing')).toBeTruthy();
+    expect(screen.getByText('No drawing for this exercise yet')).toBeTruthy();
+  });
+
   it('LibraryEntryButton closes the caller then opens the library route', async () => {
     const before = jest.fn();
     await render(<LibraryEntryButton onBeforeOpen={before} />);
