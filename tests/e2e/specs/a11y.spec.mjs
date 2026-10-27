@@ -87,6 +87,8 @@ const screens = {
     await reloadTo(page, 'Workout');
     await startSession(page);
     await expect(page.locator('[aria-label^="Mark "][aria-label$=" set 1 done"]').first()).toBeVisible();
+    // The exercise's guide is a disclosure: closed, since the first lift was logged before.
+    await label(page, `Guide and tools for ${exercise}`).click();
     await expect(why(page, 'How your sessions are built')).toHaveCount(1);
     await expect(why(page, 'Why rest 2–3 minutes on big lifts?').first()).toBeVisible();
     await expect(why(page, 'Why warm up before the first big lift?').first()).toBeVisible();

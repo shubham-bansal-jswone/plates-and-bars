@@ -12,18 +12,20 @@ describe('RestBar live region', () => {
     const live = screen.getByTestId('rest-announce');
     expect(live.props.accessibilityLiveRegion).toBe('polite');
     expect(live.props.children).toBe('');
-    expect(screen.getByText('Rest 0:02').props.accessibilityLiveRegion).toBeUndefined();
+    expect(screen.getByLabelText('Rest 0:02').props.accessibilityLiveRegion).toBeUndefined();
 
     await act(async () => { jest.advanceTimersByTime(2500); });
     expect(screen.getByTestId('rest-announce').props.children).toBe('Rest done, go!');
     expect(screen.getByTestId('rest-announce').props.accessibilityLiveRegion).toBe('polite');
   });
 
-  it('draws the track and the fill 8 high, the DESIGN.md 8.5 bar height', async () => {
-    await render(<RestBar rest={{ id: 1, end: Date.now() + 2000, total: 2, label: 'Next: set 2' }} onAdd={() => {}} onSkip={() => {}} />);
-    const fill = screen.getByLabelText(/^Rest \d+% done$/);
-    expect(StyleSheet.flatten(fill.props.style).height).toBe(8);
-    expect(StyleSheet.flatten(fill.parent?.props.style).height).toBe(8);
+  it('draws a decorative ring with the percentage as its accessible label, 100 wide with a 7 stroke', async () => {
+    await render(<RestBar rest={{ id: 1, end: Date.now() + 1000, total: 2, label: 'Next: set 2' }} onAdd={() => {}} onSkip={() => {}} />);
+    const ring = screen.getByLabelText(/^Rest \d+% done$/);
+    expect(ring).toBeOnTheScreen();
+    const arc = screen.getByTestId('ring-progress');
+    expect(arc.props.strokeWidth).toBe(7);
+    expect(StyleSheet.flatten(ring.parent?.props.style)).toMatchObject({ width: 100, height: 100 });
   });
 
   it('hides the live region visually only: 1x1, negative margin, transparent, not touchable, and never display none', async () => {
@@ -53,7 +55,7 @@ describe('RestBar live region', () => {
       await rest();
       // While counting, the visible time stays readable.
       expect(screen.getByTestId('rest-title').props['aria-hidden']).toBeUndefined();
-      expect(screen.getByText('Rest 0:02')).toBeOnTheScreen();
+      expect(screen.getByLabelText('Rest 0:02')).toBeOnTheScreen();
 
       await act(async () => { jest.advanceTimersByTime(2500); });
       expect(screen.getByTestId('rest-title', { includeHiddenElements: true }).props['aria-hidden']).toBe(true);
@@ -89,7 +91,7 @@ describe('RestBar live region', () => {
       expect(announce).toHaveBeenCalledTimes(1);
       await view.rerender(<RestBar rest={{ id: 1, end: Date.now() + 2000, total: 32, label: 'Next: set 2' }} onAdd={() => {}} onSkip={() => {}} />);
       await act(async () => { jest.advanceTimersByTime(600); });
-      expect(screen.getByText(/^Rest 0:0/)).toBeOnTheScreen();
+      expect(screen.getByLabelText(/^Rest 0:0/)).toBeOnTheScreen();
       await act(async () => { jest.advanceTimersByTime(2500); });
       expect(announce).toHaveBeenCalledTimes(2);
     });

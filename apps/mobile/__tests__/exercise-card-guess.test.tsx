@@ -16,7 +16,7 @@ function state(name: string, o: Partial<ExState> = {}): ExState {
 
 async function card(name: string, o: { lifts?: Record<string, LiftRecord>; ex?: Partial<ExState>; sug?: Suggestion; infoOf?: (n: string) => ExInfo } = {}) {
   const info = exInfo(name, getCatalog());
-  await render(<ExerciseCard ex={state(name, o.ex)} info={info} sug={o.sug ?? NEW} focus={[]} warm={null} act={act} lifts={o.lifts} infoOf={o.infoOf ?? ((n) => exInfo(n, getCatalog()))} />);
+  await render(<ExerciseCard ex={state(name, o.ex)} info={info} sug={o.sug ?? NEW} focus={[]} warm={null} act={act} prior={0} lifts={o.lifts} infoOf={o.infoOf ?? ((n) => exInfo(n, getCatalog()))} />);
 }
 
 describe('first-time rough guess', () => {
