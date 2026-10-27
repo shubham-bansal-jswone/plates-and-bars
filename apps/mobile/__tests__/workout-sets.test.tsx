@@ -638,3 +638,31 @@ describe('a write queued during Start, when Start adopts another device\'s sessi
     expect(await db.getAllAsync('SELECT 1 FROM lift_stats')).toEqual([]);
   });
 });
+
+describe('finish early (#1157)', () => {
+  it('keeps ticked sets, drops unticked sets and untouched exercises in one write, and a reload shows the same', async () => {
+    const { db, result } = await started();
+    const [a, b] = result.current.day.exs;
+    await act(async () => result.current.editSet(0, 'work', 0, 'w', '20'));
+    await act(async () => result.current.editSet(0, 'work', 0, 'r', '5'));
+    await act(async () => result.current.tick(0, 0));
+    await settle();
+    const total = result.current.day.exs.length;
+    await act(async () => void result.current.finishEarly());
+    await settle();
+    expect(result.current.day.exs.map((e) => [e.name, e.sets.length])).toEqual([[a!.name, 1]]);
+    expect((await live(db, a!.name)).map((s) => s.done)).toEqual([true]);
+    expect(await live(db, b!.name)).toEqual([]);
+    expect((await loadWorkout(db, DATE))?.exercises.map((e) => e.name)).toEqual([a!.name]);
+    expect(total).toBeGreaterThan(1);
+  });
+
+  it('does nothing when no set is ticked', async () => {
+    const { result } = await started();
+    const before = result.current.day.exs.length;
+    let ok = true;
+    await act(async () => void (ok = result.current.finishEarly()));
+    expect(ok).toBe(false);
+    expect(result.current.day.exs).toHaveLength(before);
+  });
+});
