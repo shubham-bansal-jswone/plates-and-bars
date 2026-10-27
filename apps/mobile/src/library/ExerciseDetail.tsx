@@ -96,7 +96,7 @@ function AddToSession({ name, session }: { name: string; session: SessionTarget 
         </>
       ) : state === 'in' ? (
         // Not the faded disabled Button: this text is the only sign the exercise is already in, so it keeps full contrast.
-        <View accessible accessibilityRole="text" accessibilityLabel={`${name} is already in today’s session`} accessibilityState={{ disabled: true }} style={{ minHeight: 44, borderRadius: 999, borderWidth: 1, borderColor: c.line, alignItems: 'center', justifyContent: 'center' }}>
+        <View accessible accessibilityRole="text" accessibilityLabel={`${name} is already in today’s session`} style={{ minHeight: 44, borderRadius: 999, borderWidth: 1, borderColor: c.line, alignItems: 'center', justifyContent: 'center' }}>
           <Text style={[type.buttonSm, { color: c.body }]}>In today’s session</Text>
         </View>
       ) : (

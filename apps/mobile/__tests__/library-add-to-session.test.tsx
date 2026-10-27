@@ -57,8 +57,7 @@ describe('library: add to today’s session (#1122)', () => {
     // Reopening the detail reads the stored session.
     await fireEvent.press(screen.getByLabelText('Back to library'));
     await fireEvent.press(screen.getByText(NAME));
-    const done = await screen.findByLabelText(`${NAME} is already in today’s session`);
-    expect(done.props.accessibilityState?.disabled).toBe(true);
+    await screen.findByLabelText(`${NAME} is already in today’s session`);
     expect(stored(db).exercises).toHaveLength(1);
   });
 
