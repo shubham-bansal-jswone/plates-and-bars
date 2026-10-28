@@ -1,14 +1,18 @@
 import { useEffect, useRef, useState, type ComponentRef } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Platform, StyleSheet, View } from 'react-native';
 import { fromKg, type LiftRecord, type WeightUnit } from '@plate-and-bar/core';
 import { Text } from '../../components/Text';
-import { Button, Card, Heading, Hint, MetricRow, Press } from '../../components/ui';
+import { Button, Card, Note, Heading, Hint, MetricRow, Press } from '../../components/ui';
 import { fmt, shortDate, weekdayLong } from '../../format';
 import { space, tabular, type as typeScale } from '../../theme/tokens';
 import { useTheme } from '../../theme/useTheme';
 import { useWeightUnit } from '../../settings/weightUnit';
 import { weightWithUnit } from '../../workout/unitText';
 import { focusNode, useFocusOnMount } from '../../labelscan/focus';
+import { blankRow, type ExState } from '../../workout/model';
+import { buildShareCard } from '../../workout/shareModel';
+import { ShareCard } from '../../workout/ShareCard';
+import { useShareCard } from '../../workout/useShareCard';
 import { getLibrary } from '../../library/exercises';
 import { E1RM_NOTE, E1rmTrend } from '../E1rmTrend';
 import { HISTORY_LIMIT, exerciseE1rm, exerciseTrend, setText, type HistorySession } from './logic';
@@ -70,6 +74,13 @@ export function WorkoutDay({ session, sessions, lifts, onBack }: { session: Hist
   const c = useTheme();
   const { unit } = useWeightUnit();
   const focus = useFocusOnMount();
+  const { cardRef, busy, note, share } = useShareCard();
+  // The picture is built from the stored day's ticked work sets (weights are kg, as the workout screen keeps them).
+  const exs: ExState[] = session.exercises.map((e) => ({
+    name: e.name, part: 1, bridge: false, form: null, found: null, skipRamp: true, feel: null, ramp: [],
+    sets: e.sets.map((s) => ({ ...blankRow(), w: s.w ? String(s.w) : '', r: s.r ? String(s.r) : '', done: true })),
+  }));
+  const card = session.setsDone > 0 ? buildShareCard({ date: session.date, exs, cardio: session.cardio, lifts, unit }) : null;
   return (
     <View style={styles.section}>
       <Button kind="link" label="Back to progress" onPress={onBack} />
@@ -85,6 +96,13 @@ export function WorkoutDay({ session, sessions, lifts, onBack }: { session: Hist
           { value: String(session.exercises.length), label: 'exercises', spoken: count(session.exercises.length, 'exercise') },
         ]} />
       </Card>
+      {card ? (
+        <>
+          <Button kind="ghost" label="Share" a11yLabel={`Share summary picture of ${shortDate(session.date)}`} onPress={() => share(card)} disabled={busy} busy={busy} />
+          {note ? <Note>{note}</Note> : null}
+          {Platform.OS === 'web' ? null : <ShareCard model={card} cardRef={cardRef} />}
+        </>
+      ) : null}
       {session.exercises.map((e) => {
         const t = exerciseTrend(sessions, e.name, lifts[e.name]);
         const e1 = exerciseE1rm(sessions, e.name, typeOf(e.name));

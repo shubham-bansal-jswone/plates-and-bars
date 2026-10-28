@@ -23,6 +23,8 @@ export interface HistorySession {
   exercises: HistoryExercise[];
   /** Elapsed training time as text (core's `sessionElapsed`), null when any done set lacks a tick or there is no span. */
   elapsed: string | null;
+  /** Cardio minutes stored for the day, null when none. */
+  cardio: number | null;
 }
 
 /** How many of the latest sessions are read. */
@@ -32,7 +34,7 @@ export const HISTORY_LIMIT = 20;
 export const recentDates = (log: SessionLog): string[] => Object.keys(log).sort().reverse().slice(0, HISTORY_LIMIT);
 
 /** One session per logged day: its done work sets grouped by exercise, in the order they were logged. Volume is core's `sessionVolume`. */
-export function buildSessions(log: SessionLog, setsByDate: Readonly<Record<string, readonly WorkoutSet[]>>): HistorySession[] {
+export function buildSessions(log: SessionLog, setsByDate: Readonly<Record<string, readonly WorkoutSet[]>>, cardioByDate: Readonly<Record<string, number | null>> = {}): HistorySession[] {
   return recentDates(log).flatMap((date) => {
     const done = (setsByDate[date] ?? []).filter((s) => s.kind === 'work' && s.done && !s.deleted_at);
     if (!done.length) return [];
@@ -44,7 +46,7 @@ export function buildSessions(log: SessionLog, setsByDate: Readonly<Record<strin
     });
     // Time counts every ticked set of the day, ramp sets too: one without a tick makes the duration unknown, never a guess.
     const ticked = (setsByDate[date] ?? []).filter((s) => s.done && !s.deleted_at);
-    return [{ date, name: log[date]?.t ?? HAND_PICKED, setsDone: done.length, volume: exercises.reduce((n, e) => n + e.volume, 0), exercises, elapsed: sessionTimeLine(ticked) }];
+    return [{ date, name: log[date]?.t ?? HAND_PICKED, setsDone: done.length, volume: exercises.reduce((n, e) => n + e.volume, 0), exercises, elapsed: sessionTimeLine(ticked), cardio: cardioByDate[date] || null }];
   });
 }
 
