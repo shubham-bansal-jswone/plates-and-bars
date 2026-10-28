@@ -32,11 +32,11 @@ jest.mock('../src/sync/Stores', () => ({ Stores: ({ children }: { children: unkn
 jest.mock('../src/sync/SyncProvider', () => ({ SyncProvider: ({ children }: { children: unknown }) => children }));
 jest.mock('../src/steps/DeviceStepsProvider', () => ({ DeviceStepsProvider: ({ children }: { children: unknown }) => children }));
 jest.mock('../src/reminders/RestColdStart', () => ({ RestColdStart: () => null }));
-jest.mock('../src/telemetry/errors', () => ({ initErrorTracking: () => undefined }));
+const mockReport = jest.fn();
+jest.mock('../src/telemetry/errors', () => ({ initErrorTracking: () => undefined, reportDbOpenBlocked: () => mockReport() }));
 jest.mock('../src/web/registerServiceWorker', () => ({ registerServiceWorker: () => undefined }));
 
 const HANDLE = new Error("Failed to execute 'createSyncAccessHandle' on 'FileSystemFileHandle': Access Handles cannot be created if there is another open Access Handle or Writable stream");
-const VFS = new Error('Invalid VFS state'); // what wa-sqlite hands back after the handle failure
 const MESSAGE = 'Plate & Bar is open in another tab. Close it, then retry.';
 const original = Platform.OS;
 const g = globalThis as unknown as { location: unknown; sessionStorage: unknown };
@@ -59,6 +59,7 @@ beforeEach(() => {
   jest.useFakeTimers();
   store = new Map();
   reload.mockReset();
+  mockReport.mockReset();
   g.location = { reload };
   g.sessionStorage = { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => store.set(k, v), removeItem: (k: string) => store.delete(k) };
   jest.spyOn(console, 'error').mockImplementation(() => undefined); // React logs caught render errors
@@ -93,12 +94,13 @@ describe('second tab on web', () => {
     await elapse(1);
     expect(reload).toHaveBeenCalledTimes(1);
     expect(store.get('pb-db-open-tries')).toBe('1');
+    expect(mockReport).not.toHaveBeenCalled();
     await view.unmount();
     // The page loads again and fails again: the second and third waits are longer.
     for (const [tries, wait] of [[1, 500], [2, 1250]] as const) {
       reload.mockReset();
       store.set('pb-db-open-tries', String(tries));
-      mockOpens = [VFS];
+      mockOpens = [HANDLE];
       const next = await render(<RootLayout />);
       await act(async () => {});
       await elapse(wait - 1);
@@ -111,11 +113,12 @@ describe('second tab on web', () => {
 
   it('after the last retry it shows the other-tab message with Retry and stops reloading', async () => {
     store.set('pb-db-open-tries', '3');
-    mockOpens = [VFS];
+    mockOpens = [HANDLE];
     await render(<RootLayout />);
     await act(async () => {});
     expect(screen.getByText(MESSAGE)).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Retry' })).toBeTruthy();
+    expect(mockReport).toHaveBeenCalledTimes(1);
     await elapse(10000);
     expect(reload).not.toHaveBeenCalled();
   });
@@ -141,14 +144,38 @@ describe('second tab on web', () => {
     expect(screen.queryByText(MESSAGE)).toBeNull();
   });
 
-  it('does not show the other-tab message for any other error, and does not reload', async () => {
-    mockOpens = [new Error('disk full')];
+  it.each([['getItem'], ['setItem']])('with sessionStorage throwing on %s it shows the message at once and never reloads', async (method) => {
+    g.sessionStorage = { getItem: () => null, setItem: () => undefined, removeItem: () => undefined, [method]: () => { throw new Error('SecurityError'); } };
+    for (let load = 0; load < 5; load += 1) {
+      mockOpens = [HANDLE];
+      const view = await render(<RootLayout />);
+      await act(async () => {});
+      expect(screen.getByText(MESSAGE)).toBeTruthy();
+      await elapse(5000);
+      await view.unmount();
+    }
+    expect(reload).not.toHaveBeenCalled();
+  });
+
+  it('a sessionStorage that drops writes shows the message at once instead of reloading forever', async () => {
+    g.sessionStorage = { getItem: () => null, setItem: () => undefined, removeItem: () => undefined };
+    mockOpens = [HANDLE];
+    await render(<RootLayout />);
+    await act(async () => {});
+    expect(screen.getByText(MESSAGE)).toBeTruthy();
+    await elapse(5000);
+    expect(reload).not.toHaveBeenCalled();
+  });
+
+  it.each([['disk full'], ['Invalid VFS state']])('does not show the other-tab message for %s, nor reload or report it as one', async (text) => {
+    mockOpens = [new Error(text)];
     await render(<Catcher><RootLayout /></Catcher>);
     await act(async () => {});
-    expect(screen.getByText('surfaced: disk full')).toBeTruthy();
+    expect(screen.getByText(`surfaced: ${text}`)).toBeTruthy();
     expect(screen.queryByText(MESSAGE)).toBeNull();
     await elapse(10000);
     expect(reload).not.toHaveBeenCalled();
+    expect(mockReport).not.toHaveBeenCalled();
   });
 });
 

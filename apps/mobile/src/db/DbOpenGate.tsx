@@ -1,6 +1,7 @@
 import { Component, type ReactNode } from 'react';
 import { Platform, View } from 'react-native';
 import { Button, Heading } from '../components/ui';
+import { reportDbOpenBlocked } from '../telemetry/errors';
 import { type } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 
@@ -10,29 +11,38 @@ const TRIES_KEY = 'pb-db-open-tries';
 
 /**
  * The web database keeps an exclusive OPFS access handle, so a second tab of the same origin cannot open it (#1232).
- * The browser's own message is logged inside wa-sqlite; what `SQLiteProvider` gets back is its "Invalid VFS state"
- * (measured in Chromium), so both count. Neither is expected for any other reason on web.
+ * Measured in Chromium: the first rejection `SQLiteProvider` gets carries the browser's `createSyncAccessHandle` text.
+ * Later worker calls answer "Invalid VFS state" for any storage failure (blocked site data, quota), so that string is not matched.
  */
 export function isAccessHandleError(e: unknown): boolean {
   const text = `${(e as { name?: unknown } | null)?.name ?? ''} ${(e as { message?: unknown } | null)?.message ?? ''}`;
-  return /access handle|NoModificationAllowedError|Invalid VFS state/i.test(text);
+  return /access handle|NoModificationAllowedError/i.test(text);
 }
 
-// Per tab, survives a reload. A failed open leaves expo-sqlite's web worker unusable for good ("Invalid VFS state" on every
-// later call), so retrying means loading the page again, not remounting the provider.
-function tries(): number {
+// Per tab, survives a reload. A failed open leaves expo-sqlite's web worker unusable for good, so retrying means loading the
+// page again, not remounting the provider. When the count cannot be kept (storage blocked) there is no way to bound the
+// reloads, so null means "do not reload".
+function tries(): number | null {
   try {
-    return Number(globalThis.sessionStorage?.getItem(TRIES_KEY)) || 0;
+    const store = globalThis.sessionStorage;
+    return store ? Number(store.getItem(TRIES_KEY)) || 0 : null;
   } catch {
-    return 0;
+    return null;
   }
 }
-function setTries(n: number) {
+/** Stores the count and reads it back; false when it did not stick. */
+function setTries(n: number): boolean {
   try {
-    if (n > 0) globalThis.sessionStorage?.setItem(TRIES_KEY, String(n));
-    else globalThis.sessionStorage?.removeItem(TRIES_KEY);
+    const store = globalThis.sessionStorage;
+    if (!store) return false;
+    if (n > 0) {
+      store.setItem(TRIES_KEY, String(n));
+      return store.getItem(TRIES_KEY) === String(n);
+    }
+    store.removeItem(TRIES_KEY);
+    return true;
   } catch {
-    // storage blocked: the count restarts at each load, so the automatic retries repeat; the message still shows after the last one.
+    return false;
   }
 }
 
@@ -58,12 +68,10 @@ export class DbOpenGate extends Component<{ children: ReactNode }, State> {
   componentDidCatch(error: unknown) {
     if (Platform.OS !== 'web' || !isAccessHandleError(error)) return;
     const n = tries();
-    if (n < OPEN_RETRY_DELAYS_MS.length) {
-      this.timer = setTimeout(() => {
-        setTries(n + 1);
-        globalThis.location.reload();
-      }, OPEN_RETRY_DELAYS_MS[n]);
+    if (n !== null && n < OPEN_RETRY_DELAYS_MS.length && setTries(n + 1)) {
+      this.timer = setTimeout(() => globalThis.location.reload(), OPEN_RETRY_DELAYS_MS[n]);
     } else {
+      reportDbOpenBlocked(); // the gate hides it from the boundary above, so error tracking would not see it
       this.setState({ held: true });
     }
   }
