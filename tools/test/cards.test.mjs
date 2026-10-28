@@ -26,7 +26,7 @@ test('#549 overrides: exactly the five weak-source cards, honest evidence labels
   for (const id of Object.keys(CARD_OVERRIDES)) assert.equal(byId[id].review_status, 'draft');
 });
 
-test('the 12 LEARN cards keep their order; bulky is the female-only extra', () => {
+test('there are 12 LEARN cards; bulky is the female-only extra', () => {
   const cards = load('cards.json').cards;
   const learn = cards.filter((c) => c.learn_order !== null).sort((a, b) => a.learn_order - b.learn_order).map((c) => c.id);
   assert.equal(learn.length, 12);

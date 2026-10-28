@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-  ALCOHOLIC, ALIAS_PHRASES, HELD_BACK, PRODUCE, SOURCES, SOURCE_OF, UNIT_GRAMS_RE, foodId, importFoods, serialize, servingGrams,
+  ALCOHOLIC, ALIAS_PHRASES, HELD_BACK, SOURCES, SOURCE_OF, UNIT_GRAMS_RE, foodId, importFoods, serialize, servingGrams,
 } from '../foods-import/import.mjs';
 
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -109,8 +109,8 @@ test('sources: contract codes, packaged foods are label_typical, FSSAI dairy per
   assert.ok(Object.keys(SOURCE_OF).every((n) => golden.foods.some((f) => f.name === n)));
 });
 
-test('fruit and veg servings are carried onto the rows (PRODUCE is checked against the prototype oracle in packages/core food.test.ts)', () => {
-  assert.ok(Object.keys(PRODUCE).every((n) => byName[n].fruit_veg_servings === PRODUCE[n]));
+// Spot checks only. The real guards for PRODUCE are the content drift test above and core food.test.ts:164.
+test('fruit and veg servings are set on a few known rows', () => {
   assert.equal(byName['Fruit bowl'].fruit_veg_servings, 2);
   assert.equal(byName.Paneer.fruit_veg_servings, 0);
 });
