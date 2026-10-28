@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AccessibilityInfo, AppState, StyleSheet, View } from 'react-native';
+import { AppState, StyleSheet, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import Svg, { Circle, Line } from 'react-native-svg';
 import { Text } from '../components/Text';
+import { useReducedMotion } from '../components/reducedMotion';
 import { Press } from '../components/ui';
 import { type } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
@@ -17,21 +18,6 @@ const H = 240;
 const WIDTH = { foot: 7, sh: 12, th: 17, torso: 26, ua: 11, fa: 9 } as const;
 /** Redraws per second. The pose is computed from the clock, so a slow device skips frames instead of slowing the motion down. */
 const TICK_FPS = 15;
-
-/**
- * Whether the system asks for reduced motion: undefined until it has answered (the first paint then shows frame 0, starts no timer and
- * has no Pause button), true when it asks or the lookup fails (nothing moves), false otherwise.
- */
-function useReducedMotion(): boolean | undefined {
-  const [reduced, setReduced] = useState<boolean | undefined>(undefined);
-  useEffect(() => {
-    let alive = true;
-    AccessibilityInfo.isReduceMotionEnabled().then((v) => { if (alive) setReduced(v); }, () => { if (alive) setReduced(true); });
-    const sub = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduced);
-    return () => { alive = false; sub.remove(); };
-  }, []);
-  return reduced;
-}
 
 /** True while this screen has focus (a tab or stack screen that is covered keeps its components mounted, so they must stop themselves). */
 function useScreenFocused(): boolean {

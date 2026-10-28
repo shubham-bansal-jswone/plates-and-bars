@@ -6,6 +6,7 @@ import { putStored } from '../src/content/store';
 import { ExerciseFigure } from '../src/workout/ExerciseFigure';
 import { getCatalog } from '../src/workout/catalog';
 import { motionAlt } from '../src/motion/data';
+import { setReducedMotionForTests } from '../src/components/reducedMotion';
 import { MOTION_ENTRY_NAME, motionFixtureBundle } from './motion-helpers';
 import { openDb } from './sync-helpers';
 
@@ -50,7 +51,10 @@ function lines(): string[] {
   walk(screen.toJSON());
   return out;
 }
-const reduced = (on: boolean) => jest.spyOn(AccessibilityInfo, 'isReduceMotionEnabled').mockResolvedValue(on);
+const reduced = (on: boolean) => {
+  setReducedMotionForTests(on); // the app asks once at load; here each test is its own system
+  return jest.spyOn(AccessibilityInfo, 'isReduceMotionEnabled').mockResolvedValue(on);
+};
 /** Intervals set and not yet cleared: the player's tick is the only one this screen starts. */
 const openIntervals = new Set<unknown>();
 const playerTimers = () => openIntervals.size;
@@ -161,6 +165,7 @@ describe('ExerciseFigure with the exercise-motion flag', () => {
     expect(lines().join('|')).not.toBe(held);
   });
   it('before the system answers about reduced motion: frame 0, the moving alt text, no timer and no Pause button', async () => {
+    setReducedMotionForTests(undefined);
     jest.spyOn(AccessibilityInfo, 'isReduceMotionEnabled').mockReturnValue(new Promise(() => {}));
     await render(<ExerciseFigure name={MOTION_ENTRY_NAME} />);
     expect(playerTimers()).toBe(0);

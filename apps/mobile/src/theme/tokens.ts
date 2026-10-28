@@ -29,9 +29,9 @@ export interface Palette {
   brand: string;
   /** Fill of a goal bar drawn on `track` (3:1, also at the 0.85 opacity the Seven-days bar uses). `brand` is too dark for that in dark mode (#504). */
   bar: string;
-  /** Body map: a muscle not worked. 3:1 against the page and the cards, so the outline shows (#1197). */
+  /** Body map: the stroke round every muscle, 3:1 against the page and the cards, so the silhouette shows (#1197). Unworked muscles are filled with `surfaceSoft`. */
   muscleOff: string;
-  /** Body map: a muscle that also works. Between `muscleOff` and `brand` in lightness, so the three read apart. */
+  /** Body map: fill of a muscle that also works. 3:1 against the page, the cards and `surfaceSoft`; main (`brand`) vs this is lower (see theme-contrast.test.ts). */
   muscleAlso: string;
   brandPressed: string;
   brandActive: string;
@@ -75,7 +75,7 @@ export const light: Palette = {
   brand: '#2457E6',
   bar: '#2457E6',
   muscleOff: '#8E8E8E',
-  muscleAlso: '#BDCDF8',
+  muscleAlso: '#6286EA',
   brandPressed: '#1D48C2',
   brandActive: '#16389A',
   onBrand: '#FFFFFF',
@@ -112,7 +112,7 @@ export const dark: Palette = {
   brand: '#B7FF00',
   bar: '#B7FF00',
   muscleOff: '#667066',
-  muscleAlso: '#8FB833',
+  muscleAlso: '#6D9412',
   brandPressed: '#9EE000',
   brandActive: '#86C400',
   onBrand: '#090B09',

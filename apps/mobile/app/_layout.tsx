@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { useReducedMotion } from '../src/components/reducedMotion';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SQLiteProvider, useSQLiteContext } from 'expo-sqlite';
@@ -25,6 +26,7 @@ function Providers() {
   // Everything that writes goes through the app write lock; sync transactions take the same lock on the raw database.
   const db = useMemo(() => lockedDb(sqlite), [sqlite]);
   const sdb = useMemo(() => syncDb(sqlite), [sqlite]);
+  const reduced = useReducedMotion();
   return (
     <SyncProvider db={sdb}>
       <Stores db={db}>
@@ -32,7 +34,7 @@ function Providers() {
           <ContentRefresher />
           <RestColdStart />
           <StatusBar style="auto" />
-          <Stack screenOptions={{ headerShown: false }} />
+          <Stack screenOptions={{ headerShown: false, animation: reduced ? 'none' : 'default' }} />
           <Gate />
           <SyncBadge />
         </DeviceStepsProvider>

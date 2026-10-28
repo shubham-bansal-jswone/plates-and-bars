@@ -5,6 +5,7 @@ import type { ReactNode } from 'react';
 import { Platform, View, useWindowDimensions } from 'react-native';
 import type { PressableProps, StyleProp, ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { InactiveScreenHidden } from '../../src/components/InactiveScreenHidden';
 import { BottomInsetPadded } from '../../src/components/bottomInset';
 import { Press, useWide } from '../../src/components/ui';
 import { ViewedDateProvider } from '../../src/state/ViewedDate';
@@ -62,6 +63,7 @@ export default function TabsLayout() {
     <ViewedDateProvider>
     <BottomInsetPadded.Provider value>
     <Tabs
+      screenLayout={({ children }) => <InactiveScreenHidden>{children}</InactiveScreenHidden>}
       // The tab bar is the page's navigation landmark.
       tabBar={(props) =>
         // Web only: on a phone the wrapper would add a screen-reader stop of its own.
