@@ -20,12 +20,12 @@ function shades(map: Record<string, string[]>, primary: readonly string[], secon
   return out;
 }
 
-/** The front and back muscle map (`bodyMapSvg`): main muscles in the brand colour, also-working in `muscleAlso`, the rest in `muscleOff`. */
+/** The front and back muscle map (`bodyMapSvg`): main muscles in the brand colour, also-working in `muscleAlso`, the rest in `surfaceSoft`; every region is stroked with `muscleOff` so the silhouette shows. */
 export function BodyMap({ primary, secondary }: { primary: readonly string[]; secondary: readonly string[] }) {
   const c = useTheme();
   const fontFamily = useFontFamily()('400');
   const also = c.muscleAlso;
-  const fill = (v: number) => (v === 2 ? c.brand : v === 1 ? also : c.muscleOff);
+  const fill = (v: number) => (v === 2 ? c.brand : v === 1 ? also : c.surfaceSoft);
   const label = `Muscles worked: ${primary.length ? listJoin(primary.map(muscleName)) : 'none'}${secondary.length ? `. Also working: ${listJoin(secondary.map(muscleName))}` : ''}`;
   const views = [
     { view: 'front', map: FRONT, dx: 0, name: 'Front' },
@@ -38,7 +38,7 @@ export function BodyMap({ primary, secondary }: { primary: readonly string[]; se
           const state = shades(map, primary, secondary);
           return (
             <G key={view} transform={`translate(${dx} 0)`}>
-              {REGIONS[view].map(([region, polygons]) => polygons.map((points, i) => <Polygon key={`${region}${i}`} points={points} fill={fill(state.get(region) ?? 0)} />))}
+              {REGIONS[view].map(([region, polygons]) => polygons.map((points, i) => <Polygon key={`${region}${i}`} points={points} fill={fill(state.get(region) ?? 0)} stroke={c.muscleOff} strokeWidth={0.6} />))}
               <SvgText x={50} y={216} textAnchor="middle" fontSize={12} fill={c.muted} fontFamily={fontFamily}>
                 {name}
               </SvgText>

@@ -56,9 +56,17 @@ describe.each([['light', light], ['dark', dark]] as const)('%s palette', (_mode,
   it.each(['bar', 'caution'] as const)('%s fill at 0.85 opacity over track is at least 3:1', (k) => {
     expect(contrast(blend(p[k], p.track, 0.85), p.track)).toBeGreaterThanOrEqual(3);
   });
-  // Light cannot have both 3:1 against white and 3:1 against the brand blue, so the three map tones are told apart by lightness steps (floors below are measured, light is the tight one).
-  it.each([['brand', 'muscleOff', 1.7], ['muscleAlso', 'muscleOff', 2], ['muscleAlso', 'brand', 1.9]] as const)('body map %s vs %s is at least %f:1', (a, b, min) => {
-    expect(contrast(p[a], p[b])).toBeGreaterThanOrEqual(min);
+  // #1190: Seven-days labels sit on a `bg` chip, so they never meet the fill (lime, blue, caution). bar-colours.test.tsx asserts the chip.
+  it('Seven-days label ink on its bg chip is at least 4.5:1', () => {
+    expect(contrast(p.ink, p.bg)).toBeGreaterThanOrEqual(4.5);
+  });
+  // The map's silhouette is the `muscleOff` stroke (3:1, in GRAPHIC); an also-working fill must show against the page, the cards and the unworked fill.
+  it.each(['bg', 'surface', 'surfaceElevated', 'surfaceSoft'] as const)('body map also-working fill vs %s is at least 3:1', (bg) => {
+    expect(contrast(p.muscleAlso, p[bg])).toBeGreaterThanOrEqual(3);
+  });
+  // Main vs also-working stays low (light 1.71, dark 2.94): the legend and the muscle names in text carry the difference, not the fill alone. Pinned at the measured values.
+  it('body map main vs also-working is at least 1.7:1', () => {
+    expect(contrast(p.brand, p.muscleAlso)).toBeGreaterThanOrEqual(1.7);
   });
   it('only uses six-digit hex colours, so the maths above is what is drawn', () => {
     for (const v of Object.values(p).filter((x) => typeof x === 'string')) expect(v).toMatch(/^#[0-9A-F]{6}$/);

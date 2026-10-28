@@ -35,7 +35,7 @@ describe('BodyMap', () => {
     const d = drawn();
     expect(d.get('CHEST')).toEqual(new Set([argb(light.brand)]));
     expect(d.get('TRICEPS')).toEqual(new Set([argb(also)]));
-    expect(d.get('ABS')).toEqual(new Set([argb(light.muscleOff)]));
+    expect(d.get('ABS')).toEqual(new Set([argb(light.surfaceSoft)]));
     expect(regionsWith(light.brand)).toEqual(['CHEST']);
     expect(regionsWith(also)).toEqual(['TRICEPS']);
   });
