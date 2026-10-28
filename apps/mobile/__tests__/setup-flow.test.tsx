@@ -68,7 +68,7 @@ describe('setup flow', () => {
 
   it('consent first, then answers stored as the contract Profile; results match calcTargets', async () => {
     const db = memoryDb();
-    await render(withProfile(db, <SetupScreen />));
+    await render(withProfile(db, <><ToastProbe /><SetupScreen /></>));
     await consent();
 
     await screen.findByText('Let’s work out your targets');
@@ -120,6 +120,8 @@ describe('setup flow', () => {
 
     await press('Use these targets');
     await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/'));
+    await act(async () => refocus()); // the Food tab coming into focus
+    expect(screen.getByText('no toast')).toBeTruthy(); // first setup updated nothing (#1194)
     const p = await loadProfile(db);
     expect(p).toMatchObject({
       id: null,

@@ -6,7 +6,7 @@ import { Text } from '../components/Text';
 import { customFood, highProtein, num, quantityFromGrams, searchFoods, servingUnitTooLong, SERVINGS_MAX, SERVINGS_MIN, stepServings, type UserFoodFacts, type UserFoodFields } from '@plate-and-bar/core';
 import { fmt } from '../format';
 import { a11yState, Heading, Button, ErrorText, Field, Caption, Hint, Label, Switch, Press } from '../components/ui';
-import { radius, type } from '../theme/tokens';
+import { radius, space, type } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { AI_COPY } from '../ai/copy';
 import { BARCODE_COPY } from '../barcode/copy';
@@ -66,9 +66,18 @@ export function AddSheet({ meal, mine, mineFacts, onAdd, onSaveMine, onClose, ca
   const [scanningLabel, setScanningLabel] = useState(false);
   return (
     <SheetModal title={`Add to ${meal.toLowerCase()}`} onClose={onClose}>
-      <ScrollView style={{ backgroundColor: c.bg }} contentContainerStyle={styles.sheet} keyboardShouldPersistTaps="handled">
+      {/* Title and Close stay pinned above the list, Done below it: a 60-row list never strands either one out of reach (#1194). */}
+      <View style={[styles.bar, { backgroundColor: c.bg }]}>
+        <View style={[styles.barIn, styles.row]}>
+          <Heading level={2} style={[type.heading, { color: c.ink, flex: 1 }]}>{`Add to ${meal.toLowerCase()}`}</Heading>
+          {/* Button's default top margin would sit Close below the heading's centre line; cancel it here. */}
+          <View style={{ marginTop: -space.sm }}>
+            <Button label="Close" a11yLabel={`Close add to ${meal.toLowerCase()}`} kind="ghost" onPress={onClose} />
+          </View>
+        </View>
+      </View>
+      <ScrollView style={{ backgroundColor: c.bg, flex: 1 }} contentContainerStyle={styles.sheet} keyboardShouldPersistTaps="handled">
         <View style={styles.body}>
-          <Heading level={2} style={{ color: c.ink, fontWeight: '300', fontSize: 22 }}>{`Add to ${meal.toLowerCase()}`}</Heading>
           <View accessibilityRole="tablist" style={styles.row}>
             {[...MODES, ...(canDescribe || mode === 'describe' ? [DESCRIBE_MODE] : []), ...(canPhoto || mode === 'photo' ? [PHOTO_MODE] : [])].map(([k, l]) => (
               <Press key={k} accessibilityRole="tab" accessibilityLabel={l} {...a11yState({ selected: mode === k })} onPress={() => { setMode(k); setStatus(null); if (k !== 'custom') setCustomCode(null); if (k === 'describe') setSeenDescribe(true); if (k === 'photo') setSeenPhoto(true); }}
@@ -92,10 +101,14 @@ export function AddSheet({ meal, mine, mineFacts, onAdd, onSaveMine, onClose, ca
               <PhotoBody meal={meal} foods={[...own, ...getFoodCatalog()]} onAdd={onAdd} onSaveMine={onSaveMine} onAdded={(n) => onToast?.(AI_COPY.photoAdded(n))} onClose={onClose} />
             </View>
           ) : null}
+        </View>
+      </ScrollView>
+      <View style={[styles.bar, { backgroundColor: c.bg, borderTopColor: c.line, borderTopWidth: 1 }]}>
+        <View style={[styles.barIn, styles.gap]}>
           {status ? (status.error ? <ErrorText>{status.text}</ErrorText> : <Text accessibilityRole="alert" style={{ color: c.link, fontWeight: '600' }}>{status.text}</Text>) : null}
           <Button label="Done" onPress={onClose} kind="ghost" />
         </View>
-      </ScrollView>
+      </View>
       {scanning ? (
         <ScanFlow meal={meal} mine={mine} onAdd={onAdd} onSaveMine={onSaveMine} onClose={() => setScanning(false)} onDone={() => { setScanning(false); onClose(); }}
           onCustom={(code) => { setScanning(false); setCustomCode(code); setMode('custom'); setStatus(null); }} />
@@ -239,6 +252,8 @@ function CustomTab({ meal, onAdd, onSaveMine, onClose, say, barcode }: { barcode
 
 const styles = StyleSheet.create({
   sheet: { padding: 16, alignItems: 'center', flexGrow: 1 },
+  bar: { paddingHorizontal: 16, paddingVertical: 8, alignItems: 'center' },
+  barIn: { width: '100%', maxWidth: 560 },
   body: { width: '100%', maxWidth: 560, gap: 10 },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center' },
   gap: { gap: 8 },
