@@ -11,6 +11,8 @@
 #     web, check-sentry-origin.sh with both the origin and the DSN;
 #   - the feature flags EXPO_PUBLIC_BARCODE_SCAN, _POSE_TRACKING, _EXERCISE_MOTION, _LABEL_SCAN and _LAB_REPORTS are held to the same rules (a duplicate on another step
 #     or at job or workflow level fails), come from `vars` on that step, and on Android are blank on pull requests and design-overhaul pushes (not manual runs);
+#   - on Android EXPO_PUBLIC_HOME_WIDGET (#1295) is set on exactly two steps, expo prebuild and the bundling step, each with
+#     the same blank-on-PR expression as the flags; never at workflow or job level;
 #   - web tag builds stamp the tag's version (without the v) into app.json before expo export.
 # Needs python3 with PyYAML (present on GitHub's Ubuntu runners). Run from anywhere: infra/scripts/test-release-env.sh
 set -euo pipefail
@@ -29,6 +31,7 @@ DSN_ANDROID = "${{ github.event_name != 'pull_request' && !(github.event_name ==
 SITE = "${{ vars.EXPO_PUBLIC_SITE_URL }}"
 FLAG_ANDROID = "${{ github.event_name != 'pull_request' && !(github.event_name == 'push' && github.ref == 'refs/heads/design-overhaul') && vars.%s || '' }}"
 FLAG_WEB = "${{ vars.%s }}"
+HOME_WIDGET = "EXPO_PUBLIC_HOME_WIDGET"
 bad = []
 
 
@@ -45,7 +48,7 @@ def index(steps, pred):
 for path in sys.argv[1:]:
     wf = yaml.safe_load(open(path))
     base = path.rsplit("/", 1)[-1]
-    check(not any(n in (wf.get("env") or {}) for n in names), f"{base}: a variable is set at workflow level")
+    check(not any(n in (wf.get("env") or {}) for n in names + [HOME_WIDGET]), f"{base}: a variable is set at workflow level")
     for jname, job in wf["jobs"].items():
         check(not any(n in (job.get("env") or {}) for n in names), f"{base}: {jname} sets a variable at job level")
         steps = job.get("steps", [])
@@ -70,6 +73,13 @@ for path in sys.argv[1:]:
             check(env.get("EXPO_PUBLIC_SENTRY_ENVIRONMENT") == TAG_ENV,
                   f"{base}: the environment must be exactly {TAG_ENV}")
         if base == "android-release.yml" and jname == "build":
+            check(HOME_WIDGET not in (job.get("env") or {}), f"{base}: {HOME_WIDGET} is set at job level")
+            hw = [s for s in steps if HOME_WIDGET in (s.get("env") or {})]
+            check(len(hw) == 2 and "expo prebuild" in hw[0].get("run", "") and "gradlew" in hw[-1].get("run", ""),
+                  f"{base}: {HOME_WIDGET} must be set on exactly the expo prebuild step and the bundling step")
+            for s in hw:
+                check(s["env"][HOME_WIDGET] == FLAG_ANDROID % HOME_WIDGET,
+                      f"{base}: {HOME_WIDGET} must be exactly {FLAG_ANDROID % HOME_WIDGET}")
             check(found == 1, f"{base}: expected the variables on exactly one step, found {found}")
             site = index(steps, lambda s: s.get("run", "").strip().startswith("../../infra/scripts/check-site-url.sh"))
             check(len(site) == 1 and build_idx is not None and site[0] < build_idx,

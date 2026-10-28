@@ -14,7 +14,7 @@ name: Android release build
 #   ANDROID_API_URL            https://<API_HOST>/api/v1, baked into the build as EXPO_PUBLIC_API_URL. REQUIRED on v* tags (the job fails
 #                              without it); optional, with a warning, on manual and PR runs. Not a secret.
 # Optional variables of the `android-release` environment (all inert when unset; they reach only the Gradle step, which
-# bundles the JS, never npm ci or expo prebuild):
+# bundles the JS, never npm ci; EXPO_PUBLIC_HOME_WIDGET also reaches expo prebuild, see below):
 #   EXPO_PUBLIC_SENTRY_DSN     error-tracking DSN baked into the build; empty = the app sends nothing. Set it only after the
 #                              privacy page and the Play data-safety answers name crash reports (#748, #827).
 #   EXPO_PUBLIC_SITE_URL       https origin of the website; the app hides its privacy, terms and deletion links without it (#825).
@@ -24,7 +24,9 @@ name: Android release build
 #   EXPO_PUBLIC_LABEL_SCAN     set to 1 to switch on label scanning (on-device OCR, #1067); unset = off.
 #   EXPO_PUBLIC_EXERCISE_MOTION  set to 1 to play exercise motion loops where a clip exists (#1069); unset = off.
 #   EXPO_PUBLIC_LAB_REPORTS    set to 1 to show Lab reports on the Progress tab and apply the lab hold (#1070); unset = off.
-# PR runs and design-overhaul pushes (not manual runs) never get the DSN or the five flags (no environment, and the workflow blanks them).
+#   EXPO_PUBLIC_HOME_WIDGET    set to 1 to build the Android home-screen widget (#1181); unset = off. Unlike the others it is also passed
+#                              to expo prebuild (the plugin reads it there). Set it only after the owner device check in #1181.
+# PR runs and design-overhaul pushes (not manual runs) never get the DSN or the six flags (no environment, and the workflow blanks them).
 # EXPO_PUBLIC_SENTRY_ENVIRONMENT is set here, not by you: `production` on a v* tag, `staging` otherwise.
 # Nothing here uploads to Google Play: take the .aab from a v* tag run and upload it by hand. Staged rollout (10 % -> 50 % -> 100 %), halting
 # a rollout and content-only fixes: infra/RUNBOOK.md section 8 and tests/e2e/RELEASE_CHECKLIST.md.
@@ -157,6 +159,9 @@ jobs:
           SITE_URL_CHECK: ${{ vars.EXPO_PUBLIC_SITE_URL }}
         run: ../../infra/scripts/check-site-url.sh "$IS_RELEASE" "$SITE_URL_CHECK"
       - name: Generate the native project
+        env:
+          # the plugin adds the widget to the manifest only when this is exactly "1" at prebuild (#1295); same value as the Gradle step
+          EXPO_PUBLIC_HOME_WIDGET: ${{ github.event_name != 'pull_request' && !(github.event_name == 'push' && github.ref == 'refs/heads/design-overhaul') && vars.EXPO_PUBLIC_HOME_WIDGET || '' }}
         run: npx expo prebuild --platform android --no-install
       # ccache for the CMake/NDK build. CMake reads CMAKE_<LANG>_COMPILER_LAUNCHER from the environment (set on the build step).
       # Key: OS + NDK version (from React Native's pinned version); no lockfile hash, since ccache is content-addressed and a
@@ -236,6 +241,7 @@ jobs:
           EXPO_PUBLIC_LABEL_SCAN: ${{ github.event_name != 'pull_request' && !(github.event_name == 'push' && github.ref == 'refs/heads/design-overhaul') && vars.EXPO_PUBLIC_LABEL_SCAN || '' }}
           EXPO_PUBLIC_EXERCISE_MOTION: ${{ github.event_name != 'pull_request' && !(github.event_name == 'push' && github.ref == 'refs/heads/design-overhaul') && vars.EXPO_PUBLIC_EXERCISE_MOTION || '' }}
           EXPO_PUBLIC_LAB_REPORTS: ${{ github.event_name != 'pull_request' && !(github.event_name == 'push' && github.ref == 'refs/heads/design-overhaul') && vars.EXPO_PUBLIC_LAB_REPORTS || '' }}
+          EXPO_PUBLIC_HOME_WIDGET: ${{ github.event_name != 'pull_request' && !(github.event_name == 'push' && github.ref == 'refs/heads/design-overhaul') && vars.EXPO_PUBLIC_HOME_WIDGET || '' }}
           ANDROID_KEYSTORE_PASSWORD: ${{ github.event_name != 'pull_request' && !(github.event_name == 'push' && github.ref == 'refs/heads/design-overhaul') && secrets.ANDROID_KEYSTORE_PASSWORD || '' }}
           ANDROID_KEY_ALIAS: ${{ github.event_name != 'pull_request' && !(github.event_name == 'push' && github.ref == 'refs/heads/design-overhaul') && secrets.ANDROID_KEY_ALIAS || '' }}
           ANDROID_KEY_PASSWORD: ${{ github.event_name != 'pull_request' && !(github.event_name == 'push' && github.ref == 'refs/heads/design-overhaul') && secrets.ANDROID_KEY_PASSWORD || '' }}
