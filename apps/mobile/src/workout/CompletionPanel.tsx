@@ -1,4 +1,4 @@
-import { useRef, useState, type ComponentRef, type Ref } from 'react';
+import { type ComponentRef, type Ref } from 'react';
 import { Platform, StyleSheet, Text as RNText, View } from 'react-native';
 import { type LiftRecord } from '@plate-and-bar/core';
 import { Text } from '../components/Text';
@@ -12,7 +12,7 @@ import { RATE_LABEL } from './copy';
 import type { ExState } from './model';
 import { buildShareCard } from './shareModel';
 import { ShareCard } from './ShareCard';
-import { shareWorkoutImage } from './shareImage';
+import { useShareCard } from './useShareCard';
 import { useWeightUnit } from '../settings/weightUnit';
 
 /**
@@ -22,30 +22,12 @@ import { useWeightUnit } from '../settings/weightUnit';
 export function CompletionPanel({ db, date, profileKg, exs, cardio, lifts, reloadKey, headingRef }: { headingRef?: Ref<ComponentRef<typeof RNText>>; db: WorkoutDb; date: string; profileKg: number; exs: readonly ExState[]; cardio: number | null; lifts: Readonly<Record<string, LiftRecord>>; reloadKey: number }) {
   const c = useTheme();
   const { unit } = useWeightUnit();
-  const cardRef = useRef<ComponentRef<typeof View>>(null);
-  const sharing = useRef(false);
-  const [busy, setBusy] = useState(false);
-  const [shareNote, setShareNote] = useState<string | null>(null);
+  const { cardRef, busy, note: shareNote, share } = useShareCard();
   const sets = exs.flatMap((e) => e.sets);
   const done = sets.filter((s) => s.done).length;
   if (sets.length === 0 || done !== sets.length) return null;
   const card = buildShareCard({ date, exs, cardio, lifts, unit });
   const elapsed = sessionTimeLine(exs.flatMap((e) => [...e.ramp, ...e.sets]));
-  const share = () => {
-    if (sharing.current) return; // a second tap while one runs would race on the same cache file
-    sharing.current = true;
-    setBusy(true);
-    setShareNote(null);
-    shareWorkoutImage(card, cardRef)
-      .then(
-        (res) => setShareNote(res === 'unavailable' ? 'Sharing is not available on this device.' : res === 'saved' ? 'Picture saved to your downloads.' : null),
-        () => setShareNote('Could not share the picture. Try again.'),
-      )
-      .finally(() => {
-        sharing.current = false;
-        setBusy(false);
-      });
-  };
   const twoSessions = exs.some((e) => e.part === 2);
   return (
     <Card testID="completion-panel">
@@ -70,7 +52,7 @@ export function CompletionPanel({ db, date, profileKg, exs, cardio, lifts, reloa
         );
       })}
       <BurnLine db={db} date={date} profileKg={profileKg} exs={exs} cardio={cardio} reloadKey={reloadKey} />
-      <Button kind="ghost" label="Share" a11yLabel="Share workout summary picture" onPress={share} disabled={busy} busy={busy} />
+      <Button kind="ghost" label="Share" a11yLabel="Share workout summary picture" onPress={() => share(card)} disabled={busy} busy={busy} />
       {shareNote ? <Note>{shareNote}</Note> : null}
       {Platform.OS === 'web' ? null : <ShareCard model={card} cardRef={cardRef} />}
     </Card>
