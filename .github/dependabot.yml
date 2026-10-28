@@ -69,6 +69,8 @@ updates:
       # barcode-detector pins an exact zxing-wasm, and the app self-hosts that
       # wasm under public/zxing/<version>/ (#1221): they must arrive in one PR.
       # The wasm copy and path changes still need a manual commit.
+      # A PR that bumps zxing-wasm alone (before barcode-detector moves its pin)
+      # is closed: barcode-web-assets.test.ts fails it, since the two must match.
       barcode-zxing:
         patterns: ["barcode-detector", "zxing-wasm"]
   - package-ecosystem: npm
