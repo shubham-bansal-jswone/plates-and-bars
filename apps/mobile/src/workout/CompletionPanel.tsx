@@ -1,6 +1,6 @@
 import { type ComponentRef, type Ref } from 'react';
 import { StyleSheet, Text as RNText, View } from 'react-native';
-import { sessionVolume, type LiftRecord } from '@plate-and-bar/core';
+import { formatWeight, fromKg, sessionVolume, type LiftRecord } from '@plate-and-bar/core';
 import { Text } from '../components/Text';
 import { Card, Heading, MetricRow } from '../components/ui';
 import { fmt } from '../format';
@@ -11,9 +11,9 @@ import { useTheme } from '../theme/useTheme';
 import { BurnLine } from './BurnLine';
 import { RATE_LABEL } from './copy';
 import type { ExState, Row } from './model';
+import { useWeightUnit } from '../settings/weightUnit';
 
 const n = (s: string): number => Number(s) || 0;
-const r1 = (x: number): number => Math.round(x * 10) / 10;
 
 /** The heaviest ticked set (then the most reps); display only. */
 function bestSet(sets: readonly Row[]): Row | null {
@@ -28,6 +28,7 @@ function bestSet(sets: readonly Row[]): Row | null {
  */
 export function CompletionPanel({ db, date, profileKg, exs, cardio, lifts, reloadKey, headingRef }: { headingRef?: Ref<ComponentRef<typeof RNText>>; db: WorkoutDb; date: string; profileKg: number; exs: readonly ExState[]; cardio: number | null; lifts: Readonly<Record<string, LiftRecord>>; reloadKey: number }) {
   const c = useTheme();
+  const { unit } = useWeightUnit();
   const sets = exs.flatMap((e) => e.sets);
   const done = sets.filter((s) => s.done).length;
   if (sets.length === 0 || done !== sets.length) return null;
@@ -35,7 +36,7 @@ export function CompletionPanel({ db, date, profileKg, exs, cardio, lifts, reloa
   const reps = sets.reduce((t, s) => t + n(s.r), 0);
   const cells = [
     { label: 'Sets', value: `${done}/${sets.length}` },
-    vol > 0 ? { label: 'Volume (kg)', value: fmt(vol) } : { label: 'Reps', value: fmt(reps) },
+    vol > 0 ? { label: `Volume (${unit})`, value: fmt(fromKg(vol, unit)) } : { label: 'Reps', value: fmt(reps) },
     { label: 'Exercises', value: String(exs.length) },
     ...(cardio ? [{ label: 'Cardio (min)', value: fmt(cardio) }] : []),
   ];
@@ -60,7 +61,7 @@ export function CompletionPanel({ db, date, profileKg, exs, cardio, lifts, reloa
               {rates.length ? <Text style={[type.caption, { color: c.muted }]}>Felt: {rates.join(', ')}</Text> : null}
             </View>
             {pr ? <Text style={[type.small, styles.pr, { backgroundColor: c.brand, color: c.onBrand }]}>Personal record</Text> : null}
-            {b ? <Text style={[type.heading, tabular, { color: c.ink }]}>{n(b.w) ? `${r1(n(b.w))} x ${n(b.r)}` : `${n(b.r)} reps`}</Text> : null}
+            {b ? <Text style={[type.heading, tabular, { color: c.ink }]}>{n(b.w) ? `${formatWeight(n(b.w), unit)} x ${n(b.r)}` : `${n(b.r)} reps`}</Text> : null}
           </View>
         );
       })}
