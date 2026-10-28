@@ -764,6 +764,14 @@ export {
 export type { WeightUnit } from './weightUnit';
 
 /**
+ * Plate calculator (#1176): new, no prototype counterpart. `platesFor` gives the per-side plates for a barbell target (exact for any
+ * plate set; nearest at or below by default), `nearestLoadable` the nearest loadable kg (for warm-up rounding, #1241),
+ * `loadableNeighbours` the loads either side, `describePlates` the screen-reader line.
+ */
+export { platesFor, nearestLoadable, loadableNeighbours, describePlates, DEFAULT_BAR, DEFAULT_PLATES } from './plates';
+export type { PlateOptions, PlateLoad, PlateCount } from './plates';
+
+/**
  * Estimated one-rep max and session time (#1178): new rules, not prototype ports. `epley` is the estimate inside prototype `sessionScore`
  * (now shared with stalls.ts). `e1rm` is Epley in kg to 0.1, one rep = the weight, null above `E1RM_MAX_REPS` (12). `setE1rm` counts only done
  * `work` sets not rated `fail` on loaded (not bodyweight, time or assisted) exercises. `e1rmHistory` is the best estimate per session (optional `session` key, else date), oldest first.
