@@ -318,9 +318,11 @@ export function suggestBase(ex: { name: string }, c: ProgressionContext): Sugges
     if (early && !allEasy) return { mode: 'hold', w: grid(top), reps: info.hi, text: `${kgLabel(grid(top), info, unit)} × ${range}`, reason: `${summary} First 2 weeks on this exercise: keep the weight and own the movement before adding more.` };
     const nw = grid(harder(top, info));
     const gtop = grid(top);
-    const jump = top > 0 ? Math.abs(nw - top) / top : 0;
+    const jump = gtop > 0 ? Math.abs(nw - gtop) / gtop : 0;
+    // In lb, history off the grid (logged in kg) gets the target, not a step that would not add up.
+    const offGrid = formatWeight(gtop, unit) !== formatWeight(top, unit);
     const big = jump > (older(c.profile) ? 0.05 : 0.1) ? ` That’s a ${Math.round(jump * 100)}% jump. If you can’t reach ${info.lo} ${rw}, go back to ${formatWeight(gtop, unit)} ${unit} and add reps instead.` : '';
-    return { mode: 'up', w: nw, reps: info.lo, text: `${kgLabel(nw, info, unit)} × ${range}`, reason: `${summary} Top of the range on every set, so ${info.type === 'assisted' ? 'use less assistance' : `add ${formatWeight(info.step, unit)} ${unit}`} and aim for ${info.lo}+ ${rw}.${big}` };
+    return { mode: 'up', w: nw, reps: info.lo, text: `${kgLabel(nw, info, unit)} × ${range}`, reason: `${summary} Top of the range on every set, so ${offGrid ? `move to ${formatWeight(nw, unit)} ${unit}` : info.type === 'assisted' ? 'use less assistance' : `add ${formatWeight(info.step, unit)} ${unit}`} and aim for ${info.lo}+ ${rw}.${big}` };
   }
   const target = Math.min(info.hi, Math.max(info.lo, Math.round(avg) + 1));
   return { mode: 'hold', w: grid(top), reps: target, text: `${kgLabel(grid(top), info, unit)} × ${target} ${rw}`, reason: `${summary} ${avg < info.lo ? `Stay at this weight and work up to ${info.lo}+ ${rw}.` : `Same weight, aim for ${target} ${rw} a set. Add weight once you reach ${info.hi} on every set.`}` };
@@ -365,6 +367,8 @@ export function applyMods(sug: Suggestion, ex: { name: string; bridge?: boolean 
   if (sug.w === undefined || sug.w === '') return sug;
   const info = infoFor(ex.name, c);
   const unit = c.unit ?? 'kg';
+  /** As in `suggestBase`: in lb the weights built from the raw kg `top` land on the lb grid; kg is untouched. */
+  const grid = (x: number): number => (unit === 'lb' ? snapToLbStep(x, info) : x);
   if (noLoad(info.type)) return sug;
   const last = lastFor(ex.name, c.lifts, c.date);
   if (!last) return sug;
@@ -377,11 +381,11 @@ export function applyMods(sug: Suggestion, ex: { name: string; bridge?: boolean 
     w = info.type === 'assisted' ? (bw ? snap(bw - 0.55 * (bw - top), info.step || 1) : w + snap(w * 0.45, info.step || 1)) : Math.max(0, snap(top * 0.55, info.step || 1));
     note = ' Coming back to this exercise: about 55% of your old weight for 2 weeks.';
   } else if (ex.bridge) {
-    w = info.type === 'assisted' ? top + info.step : Math.max(0, snap(top * 0.85, info.step || 1));
+    w = info.type === 'assisted' ? grid(top) + info.step : Math.max(0, snap(top * 0.85, info.step || 1));
     note = ' Bridge set: lighter, after your new exercise.';
   }
   if ((m.light || m.deload || m.reentry) && sug.mode === 'up' && !note) {
-    w = top;
+    w = grid(top);
     note = ' No weight increase today.';
   }
   const pct = m.deload ? 0.1 : m.reentry || 0;

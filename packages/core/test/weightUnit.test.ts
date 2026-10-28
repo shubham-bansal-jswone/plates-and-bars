@@ -281,3 +281,74 @@ describe('weightEntry in lb', () => {
     expect(weightEntry('abc', 'lb').kind).toBe('bad');
   });
 });
+
+describe('applyMods and reason text in lb from kg history', () => {
+  const lbOnGrid = (kg: number, step: number): boolean => {
+    const lb = fromKg(kg, 'lb');
+    return Math.abs(lb / step - Math.round(lb / step)) < 1e-9;
+  };
+  const make = (name: string, kg: number, unit: 'kg' | 'lb', extra: Record<string, unknown> = {}) =>
+    ({
+      date: '2026-03-01',
+      lifts: { [name]: { date: '2026-02-20', sets: [1, 2, 3].map(() => ({ w: kg, r: 40, rate: 'easy' })), first: '2026-01-01' } },
+      catalog,
+      unit,
+      ...extra,
+    }) as unknown as Parameters<typeof applyMods>[2];
+  const run = (name: string, kg: number, unit: 'kg' | 'lb', extra: Record<string, unknown> = {}, bridge = false) => {
+    const c = make(name, kg, unit, extra);
+    return applyMods(suggestBase({ name }, c), { name, bridge }, c);
+  };
+
+  it('light day lands on the grid (barbell 60, dumbbell 41, machine 41); kg is untouched', () => {
+    for (const [name, kg, step] of [['Barbell Row', 60, 5], ['Incline Dumbbell Press', 41, 2.5], ['Machine Chest Press', 41, 5]] as const) {
+      const s = run(name, kg, 'lb', { mods: { light: true } });
+      expect(s.reason).toContain('No weight increase today.');
+      expect(lbOnGrid(s.w as number, step)).toBe(true);
+      expect(s.text).not.toContain('132.3');
+      expect(run(name, kg, 'kg', { mods: { light: true } }).w).toBe(kg);
+    }
+    expect(run('Barbell Row', 60, 'lb', { mods: { light: true } }).text).toBe('130 lb × 8–12 reps');
+  });
+  it('assisted bridge lands on the grid (32 and 41 kg)', () => {
+    for (const kg of [32, 41]) {
+      const s = run('Assisted Dips', kg, 'lb', {}, true);
+      expect(s.reason).toContain('Bridge set');
+      expect(lbOnGrid(s.w as number, 5)).toBe(true);
+      expect(s.text).toMatch(/^\d+ lb assist/);
+      expect(run('Assisted Dips', kg, 'kg', {}, true).w).toBe(kg + 5);
+    }
+  });
+  it('every mod on every type from several kg histories stays on the grid in lb', () => {
+    const names: [string, number][] = [['Barbell Row', 5], ['Incline Dumbbell Press', 2.5], ['Machine Chest Press', 5], ['Assisted Dips', 5], ['Cable Crossover', 5]];
+    for (const [name, step] of names)
+      for (const kg of [17, 20, 32, 41, 60, 62.5, 100])
+        for (const extra of [{ mods: { light: true } }, { mods: { deload: true } }, { mods: { reentry: 0.15 } }, { returning: { [name]: { until: '2026-04-01' } }, bodyweight: 80 }, { returning: { [name]: { until: '2026-04-01' } } }]) {
+          for (const bridge of [false, true]) {
+            const s = run(name, kg, 'lb', extra, bridge);
+            if (typeof s.w === 'number') expect(lbOnGrid(s.w, step)).toBe(true);
+          }
+        }
+  });
+  it('off-grid history says "move to" and measures the jump from the grid weight', () => {
+    const s = run('Barbell Row', 62.5, 'lb');
+    expect(s.text).toBe('145 lb × 8–12 reps');
+    expect(s.reason).toContain('move to 145 lb');
+    expect(s.reason).not.toContain('add 5 lb');
+    expect(s.reason).not.toContain('go back to');
+    const old = run('Barbell Row', 62.5, 'lb', { profile: { age: 65 } });
+    expect(old.reason).not.toContain('go back to');
+    expect(run('Barbell Row', 62.5, 'kg', { profile: { age: 65 } }).reason).not.toContain('go back to');
+  });
+  it('on-grid history keeps "add 5 lb"', () => {
+    const s = run('Barbell Row', lbToKg(135), 'lb');
+    expect(s.reason).toContain('add 5 lb');
+    expect(s.reason).not.toContain('move to');
+    expect(s.text).toBe('140 lb × 8–12 reps');
+  });
+  it('a typed off-grid lb set rated Easy is not snapped (as in kg)', () => {
+    const sug = { mode: 'hold' as const, reps: 8, w: 0, text: '', reason: '' };
+    const t = setTarget([{ w: '132.3', r: '8', done: true, rate: 'easy' }], 1, sug, infoForUnit(info('barbell'), 'lb'), undefined, 'lb');
+    expect(formatWeight(t.w as number, 'lb')).toBe('137.3');
+  });
+});

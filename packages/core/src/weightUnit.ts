@@ -49,7 +49,7 @@ const THOUSANDS_COMMA = /^\s*\d+,\d{3}\s*$/;
  * with at most one decimal separator (`.` or `,`): empty, junk, trailing text (`12abc`), exponents (`1e3`),
  * a sign, thousands separators (`1,000`, `1.234,5`) and NaN or infinite numbers are all null. A number
  * (not text) must be finite and not negative. Zero is valid. The kg is exact, not rounded: 225 lb is
- * 102.05828325 kg and shows back as 225. In kg the typed number passes through unchanged. Stricter than
+ * 102.05828325 kg and shows back as 225. There is no ceiling here: the caller validates the range against the contract bound for what it stores (body weight `weight_kg`, or a lifted load) before saving. In kg the typed number passes through unchanged. Stricter than
  * `num` on purpose; new, no prototype counterpart.
  */
 export function parseWeightInput(text: unknown, unit: WeightUnit = 'kg'): number | null {
