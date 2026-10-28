@@ -105,8 +105,16 @@ const screens = {
     await expect(why(page, 'Why warm up before the first big lift?').first()).toBeVisible();
   },
   progress: async (page) => {
+    // Log one food first so the Seven days card has a logged day: a kcal and protein chip over a fill, which a blank
+    // week never draws (#1204). The bar's label starts with today's name and has a "kcal" figure only when logged.
+    await tab(page, 'Food');
+    await label(page, '+ Add to breakfast').click();
+    await page.locator('[aria-label^="Roti / chapati"]').first().click();
+    await label(page, 'Done').click();
+    await expect(label(page, '102 of 1,990 kcal eaten')).toBeVisible();
     await tab(page, 'Progress');
     await expect(label(page, 'Save weight')).toBeVisible();
+    await expect(page.locator('[role=img][aria-label*=" kcal, "]')).toHaveCount(1);
   },
   targets: async (page) => {
     await tab(page, 'Targets');
