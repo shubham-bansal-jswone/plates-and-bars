@@ -3,7 +3,7 @@ import type { Schemas } from '@plate-and-bar/api';
 import { has, isProtoName, ownOr } from '../content/own';
 import { contentReader, isObj, isText } from '../content/reader';
 import { harder, kgLabel, num, repWord, type WeightUnit, type ModsNotePart, type Checkin, type CheckinReason, type ExInfo, type ExType, type Rate } from '@plate-and-bar/core';
-import { isBlank } from '../text/blank';
+import { isBlank } from '@plate-and-bar/core';
 
 // Display text from the prototype's workout screen (TYPE_LABEL, MUSCLE, RATES, CI_Q).
 

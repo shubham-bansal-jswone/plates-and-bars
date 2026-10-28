@@ -8,7 +8,7 @@ import { useTheme } from '../theme/useTheme';
 import { useAi } from './AiProvider';
 import { AI_COPY, failureMessage } from './copy';
 import { ASK_CARDS, cardTitle } from './cards';
-import { isBlank } from '../text/blank';
+import { isBlank } from '@plate-and-bar/core';
 
 const QUESTION_MAX = 300;
 const QUESTION_LABEL = 'Your question';

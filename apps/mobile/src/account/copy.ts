@@ -1,5 +1,5 @@
 /** Copy for the data screen (#27). No message holds any user data. */
-import { ROUTINE_LIMITS } from '../db/routines';
+import { ROUTINE_MAX_LIVE } from '@plate-and-bar/core';
 const rc_name = (n: string): string => RESTORE_COPY.tables[n] ?? n;
 
 export const RESTORE_COPY = {
@@ -12,7 +12,7 @@ export const RESTORE_COPY = {
     profiles: 'Profile', consents: 'Consents', food_logs: 'Food log', water_logs: 'Water log', day_notes: 'Day notes', workouts: 'Workouts', workout_sets: 'Workout sets', lift_stats: 'Lift progress', weights: 'Weights', measurements: 'Measurements', user_foods: 'Your foods', recipes: 'Recipes', kitchen_tests: 'Kitchen tests', exclusions: 'Exclusions', swaps: 'Swaps', settings: 'Settings', routines: 'Routines',
   } as Record<string, string>,
   table: (name: string, c: { added: number; newer: number; older: number; conflicts: number; overCap?: number; from?: string; to?: string }, otherAccount = false) =>
-    `${rc_name(name)}: ${c.added} new, ${otherAccount ? '' : `${c.newer} newer than here, `}${c.older} ${otherAccount ? 'already here (kept)' : 'older (kept as is)'}${otherAccount ? '' : `, ${c.conflicts} changed here and not synced yet (kept)`}${c.overCap ? `, ${c.overCap} skipped (over the limit of ${ROUTINE_LIMITS.maxLive})` : ''}${c.from && c.to ? `. Dates ${c.from} to ${c.to}` : ''}`,
+    `${rc_name(name)}: ${c.added} new, ${otherAccount ? '' : `${c.newer} newer than here, `}${c.older} ${otherAccount ? 'already here (kept)' : 'older (kept as is)'}${otherAccount ? '' : `, ${c.conflicts} changed here and not synced yet (kept)`}${c.overCap ? `, ${c.overCap} skipped (over the limit of ${ROUTINE_MAX_LIVE})` : ''}${c.from && c.to ? `. Dates ${c.from} to ${c.to}` : ''}`,
   deviceOnly: (cycle: boolean, reports: number, hold: boolean) =>
     `Kept on this device only: ${[cycle ? 'cycle log' : '', reports ? `${reports} lab report${reports === 1 ? '' : 's'}` : '', hold ? 'lab hold' : ''].filter(Boolean).join(', ')}.`,
   nothing: 'Nothing in this file is newer than what is on this device.',

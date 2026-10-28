@@ -1,5 +1,5 @@
 import type { Schemas } from '@plate-and-bar/api';
-import { isBlank } from '../text/blank';
+import { ROUTINE_EXERCISES_MAX, ROUTINE_MAX_LIVE, ROUTINE_NAME_MAX, ROUTINE_SETS_MAX, ROUTINE_SETS_MIN, isBlank } from '@plate-and-bar/core';
 import { exclusive } from './exclusive';
 import { newId, type StoreDb } from './records';
 import type { WorkoutDb } from './workouts';
@@ -12,7 +12,8 @@ export type Routine = Omit<Schemas['Routine'], 'exercises'> & { exercises: Routi
 /** Name and set count are ours; any other key is a newer client's field and is kept when the routine is rewritten. */
 export type RoutineExercise = Schemas['RoutineExercise'];
 
-export const ROUTINE_LIMITS = { nameMax: 60, exercisesMax: 50, exerciseNameMax: 200, setsMax: 20, maxLive: 100 } as const;
+// Not in core (the contract's maxLength for an exercise name).
+const EXERCISE_NAME_MAX = 200;
 
 export type RoutineErrorCode = 'name' | 'exercises' | 'sets' | 'too_many' | 'missing';
 /** A refused save. Carries a code only, never the routine's content. */
@@ -26,7 +27,7 @@ const len = (s: string) => [...s].length;
 
 function checkName(name: string): string {
   const n = name.trim();
-  if (isBlank(n) || len(n) > ROUTINE_LIMITS.nameMax) throw new RoutineError('name');
+  if (isBlank(n) || len(n) > ROUTINE_NAME_MAX) throw new RoutineError('name');
   return n;
 }
 
@@ -37,16 +38,16 @@ function checkExercises(list: RoutineExercise[]): RoutineExercise[] {
   for (const raw of list) {
     // JSON.stringify drops a key whose value is undefined, so it is dropped here too rather than refused.
     const e = Object.fromEntries(Object.entries(raw).filter(([, v]) => v !== undefined)) as RoutineExercise;
-    if (typeof e.name !== 'string' || isBlank(e.name) || len(e.name) > ROUTINE_LIMITS.exerciseNameMax) throw new RoutineError('exercises');
+    if (typeof e.name !== 'string' || isBlank(e.name) || len(e.name) > EXERCISE_NAME_MAX) throw new RoutineError('exercises');
     // Bounded-open like the contract: at most 20 keys, each value a boolean, number, string up to 200, or null.
     const keys = Object.entries(e);
     if (keys.length > 20 || keys.some(([k, v]) => len(k) > 50 || (v !== null && !['boolean', 'number', 'string'].includes(typeof v)) || (typeof v === 'string' && len(v) > 200 && k !== 'name'))) throw new RoutineError('exercises');
-    if (!Number.isInteger(e.sets) || e.sets < 1 || e.sets > ROUTINE_LIMITS.setsMax) throw new RoutineError('sets');
+    if (!Number.isInteger(e.sets) || e.sets < ROUTINE_SETS_MIN || e.sets > ROUTINE_SETS_MAX) throw new RoutineError('sets');
     if (seen.has(e.name)) continue;
     seen.add(e.name);
     out.push(e);
   }
-  if (out.length < 1 || out.length > ROUTINE_LIMITS.exercisesMax) throw new RoutineError('exercises');
+  if (out.length < 1 || out.length > ROUTINE_EXERCISES_MAX) throw new RoutineError('exercises');
   return out;
 }
 
@@ -93,7 +94,7 @@ export async function createRoutine(db: WorkoutDb, name: string, exercises: Rout
   const at = now.toISOString();
   const r: Routine = { id: newId(), version: 0, updated_at: at, deleted_at: null, name: n, exercises: list, created_at: at };
   await locked(db, async (d) => {
-    if ((await liveCount(d)) >= ROUTINE_LIMITS.maxLive) throw new RoutineError('too_many');
+    if ((await liveCount(d)) >= ROUTINE_MAX_LIVE) throw new RoutineError('too_many');
     await write(d, r);
   });
   return r;
@@ -120,7 +121,7 @@ export async function undoDeleteRoutine(db: WorkoutDb, id: string, now: Date = n
   await locked(db, async (d) => {
     const r = await load(d, id);
     if (!r.deleted_at) return;
-    if ((await liveCount(d)) >= ROUTINE_LIMITS.maxLive) throw new RoutineError('too_many');
+    if ((await liveCount(d)) >= ROUTINE_MAX_LIVE) throw new RoutineError('too_many');
     await write(d, { ...r, deleted_at: null, updated_at: now.toISOString() });
   });
 }

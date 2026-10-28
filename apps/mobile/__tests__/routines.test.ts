@@ -1,7 +1,8 @@
 /** @jest-environment node */
 import { buildLocalExport } from '../src/account/exportLocal';
 import { applyRestore, parseRestore, previewRestore } from '../src/account/restoreLocal';
-import { ROUTINE_LIMITS, RoutineError, createRoutine, deleteRoutine, loadRoutines, renameRoutine, undoDeleteRoutine, type RoutineExercise } from '../src/db/routines';
+import { ROUTINE_EXERCISES_MAX, ROUTINE_MAX_LIVE, ROUTINE_NAME_MAX, ROUTINE_SETS_MAX } from '@plate-and-bar/core';
+import { RoutineError, createRoutine, deleteRoutine, loadRoutines, renameRoutine, undoDeleteRoutine, type RoutineExercise } from '../src/db/routines';
 import { pendingChanges } from '../src/db/outbox';
 import { wipeLocalStore } from '../src/sync/guard';
 import { RESTORE_COPY } from '../src/account/copy';
@@ -63,7 +64,7 @@ describe('routines store (#1184)', () => {
   it('refuses the 101st live routine locally, writes nothing, and allows one after a delete', async () => {
     const db = await openDb();
     let last = '';
-    for (let i = 0; i < ROUTINE_LIMITS.maxLive; i++) last = (await createRoutine(db, `R${i}`, squat, T(1))).id as string;
+    for (let i = 0; i < ROUTINE_MAX_LIVE; i++) last = (await createRoutine(db, `R${i}`, squat, T(1))).id as string;
     await expect(createRoutine(db, 'one more', squat)).rejects.toMatchObject({ code: 'too_many' });
     expect(await db.getAllAsync('SELECT key FROM routines')).toHaveLength(100);
     await deleteRoutine(db, last, T(2));
@@ -199,7 +200,7 @@ describe('routines in the device export and restore', () => {
     const summary = await applyRestore(dst, parsed, null);
     expect(summary.tables.routines).toMatchObject({ added: 2, overCap: 3 });
     expect(await loadRoutines(dst)).toHaveLength(100);
-    expect(RESTORE_COPY.table('Routines', summary.tables.routines!)).toContain(`3 skipped (over the limit of ${ROUTINE_LIMITS.maxLive})`);
+    expect(RESTORE_COPY.table('Routines', summary.tables.routines!)).toContain(`3 skipped (over the limit of ${ROUTINE_MAX_LIVE})`);
   });
 
   it('restore still takes tombstones when the device is at 100', async () => {
@@ -247,10 +248,17 @@ describe('routines in the device export and restore', () => {
     expect((await loadRoutines(dst)).map((x) => x.name)).toContain('Renamed');
   });
 
+  it('enforces the limits exported by core', async () => {
+    const db = await openDb();
+    await expect(createRoutine(db, 'n'.repeat(ROUTINE_NAME_MAX), squat)).resolves.toBeDefined();
+    await expect(createRoutine(db, 'n'.repeat(ROUTINE_NAME_MAX + 1), squat)).rejects.toMatchObject({ code: 'name' });
+    const many = Array.from({ length: ROUTINE_EXERCISES_MAX + 1 }, (_, i) => ({ name: `Lift ${i}`, sets: 3 }));
+    await expect(createRoutine(db, 'Many', many)).rejects.toMatchObject({ code: 'exercises' });
+    await expect(createRoutine(db, 'Sets', [{ name: 'Squat', sets: ROUTINE_SETS_MAX + 1 }])).rejects.toMatchObject({ code: 'sets' });
+  });
+
   it('the over-limit copy takes its number from the routine limit', () => {
-    const spy = jest.replaceProperty(ROUTINE_LIMITS, 'maxLive', 7 as never);
-    expect(RESTORE_COPY.table('Routines', { added: 0, newer: 0, older: 0, conflicts: 0, overCap: 1 })).toContain('(over the limit of 7)');
-    spy.restore();
+    expect(RESTORE_COPY.table('Routines', { added: 0, newer: 0, older: 0, conflicts: 0, overCap: 1 })).toContain(`(over the limit of ${ROUTINE_MAX_LIVE})`);
   });
 
   it('refuses a routine row that is not a routine', async () => {
