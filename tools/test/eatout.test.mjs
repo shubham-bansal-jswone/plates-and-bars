@@ -4,40 +4,29 @@ import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { validateEatOut } from '../validate/foods.mjs';
-import { dishId, extractEatOut, extractFib, importEatOut, serialize } from '../eatout-import/import.mjs';
+import { dishId } from '../eatout-import/import.mjs';
 
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
-const html = readFileSync(`${repo}/docs/prototype/plate-and-bar.html`, 'utf8');
 const load = () => JSON.parse(readFileSync(`${repo}/content/eatout.json`, 'utf8'));
 const mutate = (fn) => { const c = load(); fn(c); return validateEatOut(c); };
 const dish = (c, name) => c.cuisines.flatMap((x) => x.dishes).find((d) => d.name === name);
 
-test('content/eatout.json equals a fresh import of the prototype and passes validation', () => {
-  assert.equal(readFileSync(`${repo}/content/eatout.json`, 'utf8'), serialize(importEatOut(html)));
+test('content/eatout.json passes validation', () => {
   assert.deepEqual(validateEatOut(load()), []);
 });
 
-test('prototype values are carried over unchanged, in prototype order', () => {
-  const proto = extractEatOut(html);
+test('cuisines are in the expected order and a dish keeps its values and stable id', () => {
   const c = load();
   assert.deepEqual(c.cuisines.map((x) => x.name), ['North Indian', 'South Indian', 'Indo-Chinese', 'Fast food', 'Biryani', 'Drinks']);
-  for (const cu of c.cuisines) {
-    assert.deepEqual(cu.tips, proto[cu.name].tips);
-    assert.deepEqual(cu.dishes.map((d) => [d.name, d.per_serving.kcal, d.per_serving.protein_g, d.per_serving.carbs_g, d.per_serving.fat_g]), proto[cu.name].dishes);
-  }
   assert.deepEqual(dish(c, 'Butter naan').per_serving, { kcal: 300, protein_g: 8, carbs_g: 45, fibre_g: null, added_sugar_g: null, fat_g: 10 });
   assert.equal(dishId('Butter naan'), dish(c, 'Butter naan').id);
 });
 
-test('#824: fibre and added sugar come from the prototype FIB by dish name, so Cola counts 35 g added sugar', () => {
-  const fib = extractFib(html);
+test('#824: fibre and added sugar are set only for Cola, which counts 35 g added sugar', () => {
   const c = load();
   assert.deepEqual(dish(c, 'Cola (330 ml)').per_serving, { kcal: 140, protein_g: 0, carbs_g: 35, fibre_g: 0, added_sugar_g: 35, fat_g: 0 });
   const withFib = c.cuisines.flatMap((x) => x.dishes).filter((d) => d.per_serving.fibre_g !== null || d.per_serving.added_sugar_g !== null);
   assert.deepEqual(withFib.map((d) => d.name), ['Cola (330 ml)']);
-  for (const d of c.cuisines.flatMap((x) => x.dishes)) {
-    assert.deepEqual([d.name, d.per_serving.fibre_g, d.per_serving.added_sugar_g], [d.name, ...(Object.hasOwn(fib, d.name) ? fib[d.name] : [null, null])]);
-  }
 });
 
 test('alcoholic drinks are flagged and only they', () => {

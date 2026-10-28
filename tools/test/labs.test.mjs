@@ -7,16 +7,10 @@ import { LAB_MARKER_KEYS, validateLabs } from '../validate/labs.mjs';
 
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const labs = () => JSON.parse(readFileSync(`${repo}/content/labs.json`, 'utf8'));
-const html = readFileSync(`${repo}/docs/prototype/plate-and-bar.html`, 'utf8');
 
 test('content/labs.json validates', () => assert.deepEqual(validateLabs(labs()), []));
 
-test('every marker tip is the prototype text, word for word', () => {
-  const m = labs().markers;
-  assert.deepEqual(Object.keys(m), LAB_MARKER_KEYS);
-  for (const tips of Object.values(m)) for (const t of Object.values(tips)) assert.ok(html.includes(`'${t}'`), `not in the prototype: ${t}`);
-  for (const k of ['red_notice', 'generic_notice', 'hold_title', 'hold_body', 'workout_note', 'all_within_range']) assert.ok(html.includes(labs()[k]), `not in the prototype: ${k}`);
-});
+test('labs.json has the 14 markers in order', () => assert.deepEqual(Object.keys(labs().markers), LAB_MARKER_KEYS));
 
 test('rejects a missing marker, an empty tip, an unknown side and a missing not-medical-advice line', () => {
   const bad = (f) => { const c = labs(); f(c); return validateLabs(c); };

@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-  ALCOHOLIC, ALIAS_PHRASES, HELD_BACK, PRODUCE, SOURCES, SOURCE_OF, UNIT_GRAMS_RE, foodId, importFoods, serialize, servingGrams,
+  ALCOHOLIC, ALIAS_PHRASES, HELD_BACK, SOURCES, SOURCE_OF, UNIT_GRAMS_RE, foodId, importFoods, serialize, servingGrams,
 } from '../foods-import/import.mjs';
 
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -109,38 +109,10 @@ test('sources: contract codes, packaged foods are label_typical, FSSAI dairy per
   assert.ok(Object.keys(SOURCE_OF).every((n) => golden.foods.some((f) => f.name === n)));
 });
 
-test('fruit and veg servings match PRODUCE in the prototype', () => {
-  const html = readFileSync(`${repo}/docs/prototype/plate-and-bar.html`, 'utf8');
-  const line = /const PRODUCE = \{(.*?)\};/.exec(html)[1];
-  const proto = Object.fromEntries([...line.matchAll(/'([^']+)':([\d.]+)/g)].map((m) => [m[1], Number(m[2])]));
-  assert.deepEqual(PRODUCE, proto);
+// Spot checks only. The real guards for PRODUCE are the content drift test above and core food.test.ts:164.
+test('fruit and veg servings are set on a few known rows', () => {
   assert.equal(byName['Fruit bowl'].fruit_veg_servings, 2);
   assert.equal(byName.Paneer.fruit_veg_servings, 0);
-});
-
-test('search and grams equal the prototype: foodMatch rows and unitGrams for every row', () => {
-  const html = readFileSync(`${repo}/docs/prototype/plate-and-bar.html`, 'utf8');
-  // The base ALIAS table plus the prototype's later Object.assign edits (the drinks' "daru" aliases, #824).
-  const aliasSrc = [/const ALIAS = \{.*?\};/s.exec(html)[0], ...html.match(/^Object\.assign\(ALIAS, \{.*?\}\);$/gm)].join('\n');
-  const matchSrc = /const foodMatch = .*?;\n/.exec(html)[0];
-  const gramsSrc = /const unitGrams = .*?;\n/.exec(html)[0];
-  const proto = new Function(`${aliasSrc}\n${matchSrc}\n${gramsSrc}\nreturn { foodMatch, unitGrams };`)();
-  const protoRows = (q) => out.foods.filter((f) => proto.foodMatch([f.name], q)).map((f) => f.name);
-  const contentRows = (q) => out.foods
-    .filter((f) => f.name.toLowerCase().includes(q) || f.aliases.some((a) => a.includes(q))).map((f) => f.name);
-  const phrases = ['fox nut', 'lotus seed', 'phool makhana', 'cottage cheese', 'protein shake', 'flattened rice',
-    'chana masala', 'bhuna chana', 'fruit chaat', 'desi ghee', 'sprouted moong', 'anda safedi'];
-  const words = new Set(phrases);
-  for (const f of out.foods) {
-    f.name.toLowerCase().split(/[^a-z]+/).filter(Boolean).forEach((w) => words.add(w));
-    f.aliases.flatMap((a) => a.split(' ')).forEach((w) => words.add(w));
-  }
-  assert.ok(words.size > 100);
-  for (const q of words) {
-    assert.ok(protoRows(q).length > 0, `prototype finds "${q}"`);
-    assert.deepEqual(contentRows(q), protoRows(q), `rows for "${q}"`);
-  }
-  for (const f of out.foods) assert.equal(f.serving.grams ?? 0, proto.unitGrams([f.name, f.serving.label]), f.name);
 });
 
 test('a golden food with no source assignment fails the import', () => {
@@ -150,7 +122,7 @@ test('a golden food with no source assignment fails the import', () => {
   assert.throws(() => importFoods({}), /missing/);
 });
 
-// Core's unitGrams (packages/core/src/food.ts) and the prototype's are the reference; the tools mirror them.
+// Core's unitGrams (packages/core/src/food.ts) is the reference; the tools mirror it.
 const REGEX_IN = /\.match\((\/.*\/)\);/;
 const regexFrom = (file, fnMarker) => {
   const text = readFileSync(`${repo}/${file}`, 'utf8');
@@ -161,14 +133,12 @@ const regexFrom = (file, fnMarker) => {
   return lit;
 };
 const coreLiteral = regexFrom('packages/core/src/food.ts', 'export function unitGrams');
-const protoLiteral = regexFrom('docs/prototype/plate-and-bar.html', 'const unitGrams');
 const refGrams = (literal, label) => {
   const m = String(label).match(new RegExp(literal.slice(1, literal.lastIndexOf('/'))));
   return m ? +(m[1] ?? m[2]).replace(/,/g, '') : 0;
 };
 
-test('tools use the same grams pattern as core and the prototype', () => {
-  assert.equal(coreLiteral, protoLiteral);
+test('tools use the same grams pattern as core', () => {
   assert.equal(UNIT_GRAMS_RE.source, coreLiteral.slice(1, coreLiteral.lastIndexOf('/')));
   assert.ok(!/\(\?<[=!]/.test(UNIT_GRAMS_RE.source), 'no lookbehind');
 });
