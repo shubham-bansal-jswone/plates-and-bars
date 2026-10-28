@@ -14,7 +14,7 @@ name: Android release build
 #   ANDROID_API_URL            https://<API_HOST>/api/v1, baked into the build as EXPO_PUBLIC_API_URL. REQUIRED on v* tags (the job fails
 #                              without it); optional, with a warning, on manual and PR runs. Not a secret.
 # Optional variables of the `android-release` environment (all inert when unset; they reach only the Gradle step, which
-# bundles the JS, never npm ci or expo prebuild):
+# bundles the JS, never npm ci; EXPO_PUBLIC_HOME_WIDGET also reaches expo prebuild, see below):
 #   EXPO_PUBLIC_SENTRY_DSN     error-tracking DSN baked into the build; empty = the app sends nothing. Set it only after the
 #                              privacy page and the Play data-safety answers name crash reports (#748, #827).
 #   EXPO_PUBLIC_SITE_URL       https origin of the website; the app hides its privacy, terms and deletion links without it (#825).
