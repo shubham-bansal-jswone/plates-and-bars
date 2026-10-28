@@ -36,7 +36,7 @@ export interface Palette {
   brandPressed: string;
   brandActive: string;
   onBrand: string;
-  /** Blue used as text or icon on the canvas. */
+  /** Secondary actions and links (Recipes, Why?, credits, Back): the neutral ink, underlined by `linkText`. The accent (`brand`) is only the key number and the one primary action (#1271). */
   link: string;
   /** Focus ring colour. */
   focus: string;
@@ -79,7 +79,7 @@ export const light: Palette = {
   brandPressed: '#1D48C2',
   brandActive: '#16389A',
   onBrand: '#FFFFFF',
-  link: '#1D48C2',
+  link: '#000000',
   focus: '#2457E6',
   protein: '#2457E6',
   carbs: '#0E8F8E',
@@ -116,7 +116,7 @@ export const dark: Palette = {
   brandPressed: '#9EE000',
   brandActive: '#86C400',
   onBrand: '#090B09',
-  link: '#B7FF00',
+  link: '#F5F7F2',
   focus: '#B7FF00',
   protein: '#B7FF00',
   carbs: '#2DD4BF',
@@ -167,6 +167,9 @@ export const type = {
 
 /** Digits of equal width, so a ticking timer or a column of weights does not jitter. */
 export const tabular = { fontVariant: ['tabular-nums'] } as const;
+
+/** Underline for a link: the neutral ink needs more than colour to read as a link. Spread it into the link's Text style. */
+export const linkText = { textDecorationLine: 'underline' } as const;
 
 /** The glow of a primary action: lime, low opacity, no offset. Dark theme only in effect (light's `glow` is #FFFFFF). */
 export const glowShadow = { shadowOffset: { width: 0, height: 0 }, shadowRadius: 16, shadowOpacity: 0.3 } as const;

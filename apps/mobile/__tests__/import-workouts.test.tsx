@@ -5,6 +5,8 @@ import { SyncContext, type SyncState } from '../src/sync/SyncProvider';
 import { SettingsProvider } from '../src/state/SettingsProvider';
 import { IMPORT_COPY as t } from '../src/import/copy';
 import { memoryDb } from './helpers';
+import { loadSessionLog } from '../src/db/workouts';
+import { planned } from '@plate-and-bar/core';
 
 jest.mock('expo-router', () => ({ useRouter: () => ({ back: jest.fn(), push: jest.fn(), replace: jest.fn(), canGoBack: () => true }) }));
 jest.mock('../src/account/saveFile', () => ({ clearOldExports: () => undefined, saveTextFile: async () => 'saved' }));
@@ -80,7 +82,7 @@ describe('import workouts (#1179)', () => {
 
     expect(workoutRows(db).map(([k]) => k).sort()).toEqual(['workouts:2024-03-27', 'workouts:2024-03-28']);
     const w = JSON.parse(db.rows.get('workouts:2024-03-27')!);
-    expect(w).toMatchObject({ date: '2024-03-27', template: 'Push Day', id: null, deleted_at: null });
+    expect(w).toMatchObject({ date: '2024-03-27', template: 'Session', base: null, id: null, deleted_at: null });
     expect(w.exercises.map((e: { name: string }) => e.name)).toEqual(['Barbell Bench Press', 'Zottman Curl']);
     const sets = [...db.sets.values()].filter((s) => s.date === '2024-03-27').map((s) => JSON.parse(s.data));
     expect(sets).toHaveLength(3);
@@ -117,6 +119,21 @@ describe('import workouts (#1179)', () => {
     expect(db.rows.get('workouts:2024-03-27')).toBe(mine);
     expect(workoutRows(db)).toHaveLength(2);
     expect([...db.sets.values()].every((s) => s.date === '2024-03-28')).toBe(true);
+  });
+
+  it('an imported day cannot change which session is suggested next (even titled like a real template)', async () => {
+    const db = memoryDb();
+    await setup(db);
+    await open();
+    const csv = [HEAD, '2024-03-26 18:00:00,Mystery,Bench Press (Barbell),1,60,5,0,0,,,', '2024-03-27 18:00:00,Pull A,Bench Press (Barbell),1,60,5,0,0,,,'].join('\n');
+    await chooseFile(csv);
+    await screen.findByText(t.previewTitle);
+    await fireEvent.press(screen.getByLabelText(t.importBtn));
+    await screen.findByText(t.imported(2, 2));
+    const sessions = await loadSessionLog(db);
+    expect(Object.values(sessions).map((e) => e.t)).toEqual(['Session', 'Session']);
+    const profile = { days: 3 } as never;
+    expect(planned('2024-04-01', { profile, sessions, mode: 'sequence' })).toBe(planned('2024-04-01', { profile, sessions: {}, mode: 'sequence' }));
   });
 
   it('imports a Hevy file in kg without asking for a unit', async () => {

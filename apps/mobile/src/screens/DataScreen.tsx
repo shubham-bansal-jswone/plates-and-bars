@@ -2,7 +2,11 @@ import { useEffect, useState } from 'react';
 import { Platform, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { buildLocalExport } from '../account/exportLocal';
-import { DATA_COPY as t } from '../account/copy';
+import { DATA_COPY as t, RESTORE_COPY as rc } from '../account/copy';
+import { pickExportText } from '../account/pickFile';
+import { RestoreError, applyRestore, parseRestore, previewRestore, type ParsedRestore, type RestoreSummary } from '../account/restoreLocal';
+import { notifyLabsChanged } from '../db/labs';
+import { getUserId } from '../sync/store';
 import { clearOldExports, saveTextFile, type SaveResult } from '../account/saveFile';
 import type { DeleteResult, ServerExportResult } from '../account/server';
 import { Button, Card, ErrorText, H1, Hint, Note, Page } from '../components/ui';
@@ -14,7 +18,7 @@ import { IMPORT_COPY } from '../import/copy';
 import { hasConsent } from '../sync/engine';
 import { useSync } from '../sync/SyncProvider';
 
-type Step = 'home' | 'confirm' | 'done' | 'import';
+type Step = 'home' | 'confirm' | 'done' | 'restore' | 'import';
 
 const saved = (name: string, r: SaveResult) => (r === 'saved' ? t.exportSaved(name) : r === 'shared' ? t.exportShared : t.exportNoShare);
 const serverMessage = (r: Exclude<ServerExportResult, { kind: 'ok' }>): string =>
@@ -84,6 +88,35 @@ export function DataScreen({ db, now = () => new Date() }: { db: WorkoutDb & Pul
       }
     });
 
+  const [restoring, setRestoring] = useState<{ parsed: ParsedRestore; summary: RestoreSummary } | null>(null);
+  const chooseRestore = () =>
+    run(async () => {
+      try {
+        const text = await pickExportText();
+        if (text === null) return;
+        const parsed = await parseRestore(text);
+        setRestoring({ parsed, summary: await previewRestore(db, parsed, await getUserId(db)) });
+        setStep('restore');
+      } catch (e) {
+        setError(e instanceof RestoreError ? rc.errors[e.code] : rc.failed);
+      }
+    });
+  const confirmRestore = () =>
+    run(async () => {
+      if (!restoring) return;
+      try {
+        await applyRestore(db, restoring.parsed, await getUserId(db));
+        s.dataChanged(); // the profile and settings stores read SQLite again, so a later save cannot overwrite the restored rows
+        notifyLabsChanged(); // a restored lab hold takes effect without a remount
+        setMessage(rc.done);
+        void s.syncNow();
+      } catch {
+        setError(rc.failed);
+      }
+      setRestoring(null);
+      setStep('home');
+    });
+
   const confirmDelete = (only = false) =>
     run(async () => {
       const r = await s.deleteEverything(only ? { deviceOnly: true } : undefined);
@@ -106,6 +139,25 @@ export function DataScreen({ db, now = () => new Date() }: { db: WorkoutDb & Pul
         <H1>{t.title}</H1>
         <Note>{deleted?.kind === 'deleted' && deleted.server ? t.deletedAll : t.deletedLocal}</Note>
         <Button label={t.done} onPress={() => router.replace('/' as never)} />
+      </Page>
+    );
+  }
+
+  if (step === 'restore' && restoring) {
+    const rows = Object.entries(restoring.summary.tables).filter(([, c]) => c);
+    const { cycle, labReports, hold } = restoring.summary.deviceOnly;
+    const changes = rows.some(([, c]) => c.added + c.newer > 0) || cycle || labReports > 0 || hold;
+    return (
+      <Page>
+        <H1>{rc.title}</H1>
+        {restoring.summary.differentAccount ? <Note>{rc.differentAccount}</Note> : null}
+        {rows.map(([name, c]) => <Hint key={name}>{rc.table(name, c, restoring.summary.differentAccount)}</Hint>)}
+        {cycle || labReports > 0 || hold ? <Hint>{rc.deviceOnly(cycle, labReports, hold)}</Hint> : null}
+        {changes ? null : <Note>{rc.nothing}</Note>}
+        <View style={{ gap: 12 }}>
+          {changes ? <Button label={busy ? rc.restoring : rc.confirm} onPress={() => void confirmRestore()} /> : null}
+          <Button kind="ghost" label={rc.cancel} onPress={() => { setRestoring(null); setStep('home'); }} />
+        </View>
       </Page>
     );
   }
@@ -168,6 +220,8 @@ export function DataScreen({ db, now = () => new Date() }: { db: WorkoutDb & Pul
             <Button kind="ghost" label={t.signInToExport} onPress={toSignIn} />
           </>
         ) : null}
+        <Hint>{rc.hint}</Hint>
+        <Button kind="ghost" label={rc.action} onPress={() => void chooseRestore()} />
         <Button kind="ghost" label={IMPORT_COPY.open} onPress={() => setStep('import')} />
         <Button
           kind="ghost"

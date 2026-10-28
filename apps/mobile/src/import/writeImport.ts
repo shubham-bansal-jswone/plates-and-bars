@@ -1,4 +1,4 @@
-import type { ImportPlan } from '@plate-and-bar/core';
+import { HAND_PICKED, type ImportPlan } from '@plate-and-bar/core';
 import { inTransaction, type PullDb } from '../db/outbox';
 import { newId } from '../db/records';
 import { loadWorkout, saveSet, saveWorkout, type WorkoutDb } from '../db/workouts';
@@ -53,7 +53,9 @@ export async function writeImport(db: Db, plan: ImportPlan, now: Date = new Date
           updated_at: at,
           deleted_at: null,
           date: d.date,
-          template: d.title,
+          // The label of a hand-picked session, never the imported title: the session log reads `base || template`, and the plan engine's
+          // sequence mode and variant rotation key on it. An unknown or look-alike title ("Push A") must not move what is suggested next.
+          template: HAND_PICKED,
           base: null,
           where: null,
           cardio_min: null,
