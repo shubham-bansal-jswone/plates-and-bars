@@ -50,6 +50,7 @@ androidx.lifecycle:lifecycle-livedata:2.6.2
 androidx.lifecycle:lifecycle-process:2.6.2
 androidx.lifecycle:lifecycle-runtime-ktx:2.6.2
 androidx.lifecycle:lifecycle-runtime:2.6.2
+androidx.lifecycle:lifecycle-service:2.6.2
 androidx.lifecycle:lifecycle-viewmodel-ktx:2.6.2
 androidx.lifecycle:lifecycle-viewmodel-savedstate:2.6.2
 androidx.lifecycle:lifecycle-viewmodel:2.6.2
@@ -57,8 +58,12 @@ androidx.loader:loader:1.0.0
 androidx.profileinstaller:profileinstaller:1.4.0
 androidx.recyclerview:recyclerview:1.2.1
 androidx.resourceinspection:resourceinspection-annotation:1.0.1
+androidx.room:room-common:2.5.0
+androidx.room:room-runtime:2.5.0
 androidx.savedstate:savedstate-ktx:1.2.1
 androidx.savedstate:savedstate:1.2.1
+androidx.sqlite:sqlite-framework:2.3.0
+androidx.sqlite:sqlite:2.3.0
 androidx.startup:startup-runtime:1.1.1
 androidx.swiperefreshlayout:swiperefreshlayout:1.1.0
 androidx.tracing:tracing-ktx:1.2.0
@@ -73,8 +78,10 @@ androidx.viewpager:viewpager:1.0.0
 androidx.window:window-core-android:1.5.1
 androidx.window:window-core:1.5.1
 androidx.window:window:1.5.1
+androidx.work:work-runtime:2.8.1
 app.plateandbar.vendor:tesseract4android:4.9.0
 com.abovevacant:epitaph:0.1.1
+com.caverock:androidsvg-aar:1.4
 com.facebook.fbjni:fbjni:0.7.0
 com.facebook.fresco:animated-base:3.7.0
 com.facebook.fresco:animated-drawable:3.7.0

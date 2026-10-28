@@ -17,6 +17,7 @@ import { SyncProvider } from '../src/sync/SyncProvider';
 import { WeightUnitProvider } from '../src/settings/weightUnit';
 import { DeviceStepsProvider } from '../src/steps/DeviceStepsProvider';
 import { RestColdStart } from '../src/reminders/RestColdStart';
+import { HomeWidgetSync } from '../src/widget/HomeWidgetSync';
 import { initErrorTracking } from '../src/telemetry/errors';
 import { registerServiceWorker } from '../src/web/registerServiceWorker';
 
@@ -37,6 +38,7 @@ function Providers() {
           <DeviceStepsProvider db={db}>
             <ContentRefresher />
             <RestColdStart />
+            <HomeWidgetSync />
             <StatusBar style="auto" />
             <Stack screenOptions={{ headerShown: false, animation: reduced ? 'none' : 'default' }} />
             <Gate />
