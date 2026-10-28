@@ -6,7 +6,7 @@ import { Text } from '../components/Text';
 import { customFood, highProtein, num, quantityFromGrams, searchFoods, servingUnitTooLong, SERVINGS_MAX, SERVINGS_MIN, stepServings, type UserFoodFacts, type UserFoodFields } from '@plate-and-bar/core';
 import { fmt } from '../format';
 import { a11yState, Heading, Button, ErrorText, Field, Caption, Hint, Label, Switch, Press } from '../components/ui';
-import { radius, type } from '../theme/tokens';
+import { radius, space, type } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { AI_COPY } from '../ai/copy';
 import { BARCODE_COPY } from '../barcode/copy';
@@ -70,7 +70,10 @@ export function AddSheet({ meal, mine, mineFacts, onAdd, onSaveMine, onClose, ca
       <View style={[styles.bar, { backgroundColor: c.bg }]}>
         <View style={[styles.barIn, styles.row]}>
           <Heading level={2} style={[type.heading, { color: c.ink, flex: 1 }]}>{`Add to ${meal.toLowerCase()}`}</Heading>
-          <Button label="Close" a11yLabel={`Close add to ${meal.toLowerCase()}`} kind="ghost" onPress={onClose} />
+          {/* Button's default top margin would sit Close below the heading's centre line; cancel it here. */}
+          <View style={{ marginTop: -space.sm }}>
+            <Button label="Close" a11yLabel={`Close add to ${meal.toLowerCase()}`} kind="ghost" onPress={onClose} />
+          </View>
         </View>
       </View>
       <ScrollView style={{ backgroundColor: c.bg, flex: 1 }} contentContainerStyle={styles.sheet} keyboardShouldPersistTaps="handled">

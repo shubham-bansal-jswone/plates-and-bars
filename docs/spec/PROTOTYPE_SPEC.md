@@ -10,6 +10,9 @@ When this spec, the fixtures and the prototype disagree, the prototype wins; fil
 
 ## 0. Changes since the Development Plan was written
 
+**2026-10-28 — no "Targets updated" toast after first setup (deliberate difference; prototype and golden fixtures unchanged).**
+- #1233 (decision), #1194 (implemented in PR #1228). The prototype toasts "Targets updated" after any "Use these targets", first setup included (`docs/prototype/plate-and-bar.html:4387`, no `hadSettings` check). The app posts no toast after first setup, because nothing was updated; a redo of setup still toasts "Targets updated", or "Setup saved, targets unchanged" when the targets are kept. Regenerating the app from the prototype must not revert this.
+
 **2026-10-27 — the active session expands one exercise at a time (deliberate difference; prototype and golden fixtures unchanged).**
 - #1138 (owner decision; see `docs/ui-redesign-audit.md` and PR #1133). The prototype expands every exercise in the session. The app expands one and collapses the others to a row that still shows the suggestion, reason, warm-up, Learn mode and stall/ladder cards. Inside an exercise only "Guide and tools" is collapsed. Regenerating the app from the prototype must not revert this.
 

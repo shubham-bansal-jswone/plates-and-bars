@@ -921,11 +921,33 @@ describe('toast posted by setup', () => {
   });
 });
 
+describe('fibre row (#1194)', () => {
+  it('centres the Why? link on the row of the fibre and fruit and veg text', async () => {
+    const db = memoryDb();
+    await saveProfile(db, profile());
+    db.rows.set('food_logs:a', JSON.stringify({ version: 0, updated_at: '2026-10-08T00:00:00Z', deleted_at: null, date: DATE, qty: 1, carbs_g: 0, fat_g: 0, food_id: null, id: 'a', meal: 'Breakfast', name: 'Oats', kcal: 100, protein_g: 3 }));
+    await setup({ db });
+    await screen.findByText('Oats');
+    let row = screen.getByLabelText('Why? Why track fibre and fruit and veg?').parent;
+    while (row && StyleSheet.flatten(row.props.style)?.flexDirection !== 'row') row = row.parent;
+    expect(StyleSheet.flatten(row!.props.style).alignItems).toBe('center');
+  });
+});
+
 describe('add sheet frame (#1194)', () => {
   it('has a title heading and a Close control outside the scrolling list; Close and Done both close it', async () => {
     await setup();
     await open();
     expect(screen.getByRole('header', { name: 'Add to breakfast' })).toBeTruthy();
+    // The sheet's ScrollView is the nearest one above the search field; it holds the list, not the title, Close or Done.
+    let sheetScroll = screen.getByLabelText('Search foods').parent;
+    while (sheetScroll && sheetScroll.type !== 'RCTScrollView') sheetScroll = sheetScroll.parent;
+    expect(sheetScroll).toBeTruthy();
+    expect(within(sheetScroll!).getByLabelText('Search foods')).toBeTruthy();
+    expect(within(sheetScroll!).queryByRole('header', { name: 'Add to breakfast' })).toBeNull();
+    expect(within(sheetScroll!).queryByLabelText('Close add to breakfast')).toBeNull();
+    expect(within(sheetScroll!).queryByLabelText('Done')).toBeNull();
+    expect(screen.getByLabelText('Done')).toBeTruthy();
     await fireEvent.press(screen.getByLabelText('Close add to breakfast'));
     expect(screen.queryByLabelText('Search foods')).toBeNull();
     await open();
