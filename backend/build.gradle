@@ -46,7 +46,7 @@ dependencies {
     implementation 'org.flywaydb:flyway-mysql'
     runtimeOnly 'com.mysql:mysql-connector-j'
     // Error tracking (MIT; sentry-spring-boot-4 targets Spring Boot 4 / Spring 7 / Jakarta). Off unless SENTRY_DSN is set (#687).
-    implementation 'io.sentry:sentry-spring-boot-4:8.61.0'
+    implementation 'io.sentry:sentry-spring-boot-4:8.61.1'
 
     testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
     testImplementation 'org.springframework.boot:spring-boot-starter-security-test'
