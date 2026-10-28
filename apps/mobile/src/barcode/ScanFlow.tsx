@@ -49,6 +49,7 @@ interface Props {
  * lookup is one request and the rest of the app keeps working underneath.
  */
 export function ScanFlow({ meal, mine, onAdd, onSaveMine, onCustom, onClose, onDone, lookup }: Props) {
+  const animation = useSheetAnimation();
   const api = useMemo<ApiClient | null>(() => (API_URL ? createClient(API_URL, () => null) : null), []);
   const [step, setStep] = useState<Step>({ k: 'scan', round: 0 });
   const live = useRef(true);
@@ -91,7 +92,7 @@ export function ScanFlow({ meal, mine, onAdd, onSaveMine, onCustom, onClose, onD
   };
 
   return (
-    <Modal visible animationType={useSheetAnimation()} onRequestClose={onClose}>
+    <Modal visible animationType={animation} onRequestClose={onClose}>
       <PaddedWindow>
         {step.k === 'scan' ? <BarcodeScanScreen key={step.round} onCode={onCode} onClose={onClose} /> : null}
         {step.k === 'looking' ? (

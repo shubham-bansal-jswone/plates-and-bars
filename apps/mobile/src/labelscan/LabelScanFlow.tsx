@@ -42,6 +42,7 @@ const problemText = (p: Problem): string => (p === 'unreadable' ? t.unreadable :
  * flow closes. Every failure has "Try again" and "Type it in". Nothing waits on the network: there is none.
  */
 export function LabelScanFlow({ meal, onAdd, onSaveMine, onCustom, onClose, onDone }: Props) {
+  const animation = useSheetAnimation();
   const [step, setStep] = useState<Step>({ k: 'capture' });
   const photo = useRef<string | undefined>(undefined);
   const run = useRef(0);
@@ -109,7 +110,7 @@ export function LabelScanFlow({ meal, onAdd, onSaveMine, onCustom, onClose, onDo
   };
 
   return (
-    <Modal visible animationType={useSheetAnimation()} onRequestClose={close}>
+    <Modal visible animationType={animation} onRequestClose={close}>
       <PaddedWindow>
         {step.k === 'capture' ? <CaptureView onTake={(s) => void capture(s)} onCustom={onCustom} onClose={close} /> : null}
         {step.k === 'crop' ? <CropStep photo={step.photo} onRead={(c) => void read(c)} onRetake={again} onClose={close} /> : null}

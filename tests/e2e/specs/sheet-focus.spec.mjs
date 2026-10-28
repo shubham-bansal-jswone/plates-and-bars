@@ -27,13 +27,14 @@ for (const [motion, animated] of [['reduce', false], ['no-preference', true]]) {
     // The slide lasts 0.25 s, so record the start event instead of sampling styles after it has ended.
     await page.evaluate(() => {
       window.__animations = [];
-      document.addEventListener('animationstart', (e) => window.__animations.push(e.animationName), true);
+      document.addEventListener('animationstart', (e) => window.__animations.push(e.target), true);
     });
     const title = 'Why a health check before training?';
     await page.getByRole('button', { name: title }).click();
     const dialog = page.locator(`[role="dialog"][aria-label=${JSON.stringify(title)}]`);
     await expect(dialog).toBeVisible();
-    const names = await page.evaluate(() => window.__animations);
-    expect(names.length > 0).toBe(animated);
+    // Only animations on the dialog (or its container, which carries the slide), not any other on the page.
+    const own = await dialog.evaluate((d) => window.__animations.filter((t) => t.contains(d) || d.contains(t)).length);
+    expect(own > 0).toBe(animated);
   });
 }

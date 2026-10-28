@@ -32,6 +32,7 @@ const GIVE_UP_TICKS = 125;
  * announced by name, initial focus on that heading on the web, and focus returned to the opener on close.
  */
 export function SheetModal({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
+  const animation = useSheetAnimation();
   const opener = useRef<HTMLElement | null | undefined>(undefined);
   if (opener.current === undefined) opener.current = Platform.OS === 'web' ? activeElement() : null; // before the modal takes focus
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -62,7 +63,7 @@ export function SheetModal({ title, onClose, children }: { title: string; onClos
   // modal labelled like the button that opened it would only be a second match for that label).
   const named = (Platform.OS === 'web' ? { 'aria-label': title } : {}) as object;
   return (
-    <Modal visible animationType={useSheetAnimation()} onRequestClose={onClose} onShow={onShow} {...named}>
+    <Modal visible animationType={animation} onRequestClose={onClose} onShow={onShow} {...named}>
       <PaddedWindow>{children}</PaddedWindow>
     </Modal>
   );
