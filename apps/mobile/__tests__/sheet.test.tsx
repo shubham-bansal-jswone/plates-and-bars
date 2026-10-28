@@ -47,6 +47,19 @@ describe('SheetModal', () => {
     expect(() => focusSheetTitle('No such sheet')).not.toThrow();
   });
 
+  it('takes react-native-web’s empty focus-trap stops out of the tab order, so Tab goes from the title to the first control (#1144)', () => {
+    document.body.innerHTML = `
+      <div id="trap"><div role="none" tabindex="0" id="b1"></div>
+        <div role="dialog" aria-label="Add exercise"><h2 role="heading" id="title">Add exercise</h2><button id="x">Close</button></div>
+      <div role="none" tabindex="0" id="b2"></div></div>
+      <div role="none" tabindex="0" id="other"></div>`;
+    document.getElementById('x')?.focus();
+    expect(focusSheetTitle('Add exercise')).toBe(true);
+    expect(document.getElementById('b1')?.getAttribute('tabindex')).toBe('-1');
+    expect(document.getElementById('b2')?.getAttribute('tabindex')).toBe('-1');
+    expect(document.getElementById('other')?.getAttribute('tabindex')).toBe('0');
+  });
+
   // Not covered here: react-native-web's real timing (its dialog role and focus trap switch on after `onShow`, which follows the slide animation).
   // The Playwright check in tests/e2e/specs/sheet-focus.spec.mjs covers that in a browser. Here `onShow` is called by hand.
   it('on the web it focuses the title once the dialog is on and the trap has moved focus in, keeps focus on a title change, and gives it back to the opener on close', async () => {
