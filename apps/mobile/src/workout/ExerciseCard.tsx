@@ -15,6 +15,7 @@ import { FormCheckButton } from '../ai/FormCheck';
 import { ExerciseFigure } from './ExerciseFigure';
 import { TICK_SIZE } from './setSizes';
 import { SetRow } from './SetRow';
+import { PlatesLink } from './PlateSheet';
 import { useWeightUnit } from '../settings/weightUnit';
 import { displayRow } from './unitText';
 import Svg, { Path } from 'react-native-svg';
@@ -155,6 +156,15 @@ const warmSteps = (warm: readonly WarmupSet[], info: ExInfo, unit: WeightUnit): 
   warm.map((s, k) => `${s.reps}${k === 0 ? ' reps' : ''} at ${kgLabel(s.w, info, unit)}`).join(', then ');
 /** The whole warm-up line as one sentence, for screen readers. */
 const warmLine = (warm: readonly WarmupSet[], info: ExInfo, unit: WeightUnit): string => `Warm up first: ${warmSteps(warm, info, unit)}. Not logged.`;
+
+/** The weight a set's plates are worked for, in kg: what is typed in the row (stored kg text), else the suggestion. Null when neither is a number. */
+function plateTarget(typed: string, suggested: string | number | undefined): number | null {
+  for (const v of [typed, String(suggested ?? '')]) {
+    const n = v.trim() === '' ? NaN : Number(v);
+    if (Number.isFinite(n) && n > 0) return n;
+  }
+  return null;
+}
 
 /** One exercise: suggestion, warm-up line, ramp or working sets, ratings and the form question. */
 export function ExerciseCard({ ex, info, sug, focus, warm, act, cards, learning, lifts, infoOf, prior, notify, expanded = true, onToggle }: Props) {
@@ -312,6 +322,7 @@ export function ExerciseCard({ ex, info, sug, focus, warm, act, cards, learning,
           return (
             <View key={s.id} style={{ gap: 6 }}>
               <SetRow n={String(j + 1)} label={label} focusWeight={skipped && j === 0} onFocused={() => setSkipped(false)} row={s} wHead={wHead} repsHead={rw} unit={unit} locked={!ready} ph={{ w: t.w !== '' && t.w !== undefined ? formatWeight(Number(t.w), unit) : nl ? 'BW' : '–', r: t.r ? String(t.r) : '–' }} onEdit={(f, v) => act.edit('work', j, f, v)} onTick={() => act.tick(j)} current={!s.done && ex.sets.findIndex((x) => !x.done) === j} />
+              {info.type === 'barbell' && !s.done ? <PlatesLink name={ex.name} label={`Plates for ${label}`} targetKg={plateTarget(s.w, t.w)} onApply={(loaded) => act.edit('work', j, 'w', String(loaded))} /> : null}
               <RateRow row={s} label={label} onRate={(v) => act.rate(j, v)} />
             </View>
           );
