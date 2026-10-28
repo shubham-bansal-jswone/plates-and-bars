@@ -10,6 +10,9 @@ import { saveConsent, saveProfile } from '../src/db/records';
 import { saveLift, saveSet, saveWorkout } from '../src/db/workouts';
 import { saveMeasurement, saveWeight } from '../src/db/progress';
 import { addDays, targetFromBurn } from '@plate-and-bar/core';
+import { saveCycle } from '../src/db/cycle';
+import { WEEK_CURRENT } from '../src/progress/copy';
+import { PHOTOS_NEW } from '../src/photos/copy';
 import { saveSettings } from '../src/db/settings';
 import { defaultSettings } from '../src/settings/types';
 import { buildProfile, emptyDraft } from '../src/setup/logic';
@@ -166,10 +169,19 @@ describe('Progress screen', () => {
     expect(screen.getByText(/How to measure\./).props.children).toMatch(/Hips: the widest point/);
   });
 
-  it('keeps one filled primary button for the data saves: they are outline buttons', async () => {
-    await setup();
-    const bg = (label: string) => StyleSheet.flatten(screen.getByLabelText(label).props.style)?.backgroundColor;
-    for (const l of ['Save weight', 'Save for today', 'Save steps and sleep']) expect(bg(l)).toBe('transparent');
+  it('keeps one filled primary button on Progress: every data save, photo, lab and cycle button is outline', async () => {
+    const realFlag = process.env.EXPO_PUBLIC_LAB_REPORTS;
+    process.env.EXPO_PUBLIC_LAB_REPORTS = '1';
+    try {
+      const db = memoryDb();
+      await saveCycle(db, { len: 28, on: true, starts: [] });
+      await setup({ db, sex: 'female' });
+      const bg = (label: string) => StyleSheet.flatten(screen.getByLabelText(label).props.style)?.backgroundColor;
+      for (const l of ['Save weight', 'Save for today', 'Save steps and sleep', PHOTOS_NEW(false), 'Add a report', 'Period started']) expect([l, bg(l)]).toEqual([l, 'transparent']);
+    } finally {
+      if (realFlag === undefined) delete process.env.EXPO_PUBLIC_LAB_REPORTS;
+      else process.env.EXPO_PUBLIC_LAB_REPORTS = realFlag;
+    }
   });
 
   it('saves steps and sleep on the day note and keeps its other fields', async () => {
@@ -878,6 +890,16 @@ describe('Progress screen, seven days', () => {
     const flat = (el: unknown) => StyleSheet.flatten((el as { props: { style?: unknown } }).props.style as never) as Record<string, unknown>;
     return { fill: flat(fill), tgt: flat(tgt) };
   };
+
+  it('says the week follows today, not the viewed day, only while a past day is open', async () => {
+    await setup();
+    expect(screen.queryByText(WEEK_CURRENT)).toBeNull();
+    await fireEvent.press(screen.getByRole('button', { name: 'Previous day' }));
+    expect(await screen.findByText(WEEK_CURRENT)).toBeTruthy();
+    expect(screen.getByRole('header', { name: 'Seven days to 8 Oct' })).toBeTruthy();
+    await fireEvent.press(screen.getByRole('button', { name: 'Next day' }));
+    await waitFor(() => expect(screen.queryByText(WEEK_CURRENT)).toBeNull());
+  });
 
   it('shows a bar per day with the average and sessions, and "not logged" for empty days', async () => {
     const db = memoryDb();
