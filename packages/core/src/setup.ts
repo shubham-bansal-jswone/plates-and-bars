@@ -4,6 +4,7 @@ import { num } from './num';
 import { older } from './plan';
 import type { Experience, Where } from './plan';
 import { calcTargets } from './targets';
+import { lbToKg, type WeightUnit } from './weightUnit';
 import type { Activity, Goal, Pace, Sex, Special, TargetsProfile, TargetsResult } from './targets';
 
 /** Youngest age setup accepts. Mirrors `age < 18` in prototype `validateStep`. */
@@ -123,6 +124,12 @@ export interface PreviousProfile {
 
 const r1 = (n: number): number => Math.round(n * 10) / 10;
 
+/** The weight box in kg: kg is the typed number (rounded to 0.1 only when saved); lb is rounded to 0.1 lb, then exact kg. */
+function weightKgOf(a: SetupAnswers, unit: WeightUnit, save: boolean): number {
+  const n = num(a.weight);
+  return unit === 'lb' ? lbToKg(r1(n)) : save ? r1(n) : n;
+}
+
 /**
  * Feet and inches to cm, unrounded (the value setup validates). Setup stores it rounded to 0.1 cm.
  *
@@ -165,7 +172,7 @@ const answered = (screen: SetupAnswers['screen'], i: number): boolean => {
  * The health check counts questions 0–5 answered yes or no (the prototype counts the keys of
  * `p.screen`, which it only ever sets to 0–5 with yes or no).
  */
-export function validateSetupStep(step: number, a: SetupAnswers): SetupError | null {
+export function validateSetupStep(step: number, a: SetupAnswers, unit: WeightUnit = 'kg'): SetupError | null {
   if (step === 0) {
     if (!a.sex) return 'sex_missing';
     const age = Math.round(num(a.age));
@@ -174,7 +181,7 @@ export function validateSetupStep(step: number, a: SetupAnswers): SetupError | n
     if (age > AGE_MAX) return 'age_over_max';
     const cm = heightOf(a);
     if (cm < HEIGHT_MIN_CM || cm > HEIGHT_MAX_CM) return a.unit === 'ft' ? 'height_ft_out_of_range' : 'height_cm_out_of_range';
-    const w = num(a.weight);
+    const w = weightKgOf(a, unit, false);
     if (w < WEIGHT_MIN_KG || w > WEIGHT_MAX_KG) return 'weight_out_of_range';
   }
   if (step === 1 && !a.activity) return 'activity_missing';
@@ -192,9 +199,9 @@ export function validateSetupStep(step: number, a: SetupAnswers): SetupError | n
 }
 
 /** The first problem across all four steps, with its step, or `null` when setup is complete. */
-export function validateSetup(a: SetupAnswers): { step: number; error: SetupError } | null {
+export function validateSetup(a: SetupAnswers, unit: WeightUnit = 'kg'): { step: number; error: SetupError } | null {
   for (let step = 0; step < SETUP_STEPS; step++) {
-    const error = validateSetupStep(step, a);
+    const error = validateSetupStep(step, a, unit);
     if (error) return { step, error };
   }
   return null;
@@ -231,10 +238,14 @@ export function toTargetsProfile(
  * object keyed 0–5.
  * Not done here: the prototype also logs `weight` as today's weigh-in when no weights exist yet.
  *
+ * With `unit` 'lb' the weight box is pounds: rounded to 0.1 lb and converted once to the exact kg (as `weightEntry` does for a weigh-in), so
+ * `weight_kg` and the targets come from the same number; whole pounds read back unchanged. `exactKg` (lb only) is a stored kg whose box was
+ * left alone: it is kept as it is, with the targets from it, instead of passing through rounded lb text. kg is unchanged.
+ *
  * @param today `YYYY-MM-DD`, the local date (prototype `TODAY()`).
  */
-export function normaliseSetup(a: SetupAnswers, today: string, previous?: PreviousProfile | null): SetupProfile {
-  const bad = validateSetup(a);
+export function normaliseSetup(a: SetupAnswers, today: string, previous?: PreviousProfile | null, unit: WeightUnit = 'kg', exactKg?: number): SetupProfile {
+  const bad = validateSetup(a, unit);
   if (bad) throw new Error(`normaliseSetup: step ${bad.step}: ${bad.error}`);
   const days = a.days as number;
   const training = days > 0;
@@ -242,7 +253,7 @@ export function normaliseSetup(a: SetupAnswers, today: string, previous?: Previo
     sex: a.sex as Sex,
     age: Math.round(num(a.age)),
     height_cm: Math.round(heightOf(a) * 10) / 10,
-    weight_kg: r1(num(a.weight)),
+    weight_kg: exactKg !== undefined && unit === 'lb' && Number.isFinite(exactKg) ? exactKg : weightKgOf(a, unit, true),
     activity: a.activity as Activity,
     where: a.where || 'gym',
     days,

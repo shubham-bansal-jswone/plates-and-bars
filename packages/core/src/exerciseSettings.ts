@@ -14,6 +14,12 @@ export const EXERCISE_SHEET_TYPES: readonly ExType[] = Object.freeze(['barbell',
  */
 export const EXERCISE_STEP_CHOICES: readonly number[] = Object.freeze([1, 1.25, 2, 2.5, 5, 10]);
 
+/**
+ * The same chips for an lb user, in pounds: plates and stacks come in lb, so these are their own list, not the kg list converted. The sheet stores
+ * the step as the exact kg (`lbToKg`); `lbStepFor` reads each back as the same lb step.
+ */
+export const LB_STEP_CHOICES: readonly number[] = Object.freeze([2.5, 5, 10]);
+
 /** What the exercise settings sheet holds when the user taps Save (prototype `ES.v` and the `#esLo`/`#esHi` boxes). */
 export interface ExerciseSettingsDraft {
   type: ExType;
