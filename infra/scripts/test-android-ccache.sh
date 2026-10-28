@@ -7,7 +7,7 @@ set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
 root="$(cd "$here/../.." && pwd)"
 python3 -I - "$root/.github/workflows/android-release.yml" <<'PY'
-import sys, yaml
+import re, sys, yaml
 
 wf = yaml.safe_load(open(sys.argv[1]))
 bad = []
@@ -43,18 +43,31 @@ for s in saves:
           and "github.ref == 'refs/heads/design-overhaul'" in cond,
           "the ccache save must be limited to non-PR runs on main or design-overhaul")
 
-# design-overhaul pushes must run unsigned: no environment (it allows only main and v* tags) and no secret or variable.
-DO = "github.ref != 'refs/heads/design-overhaul'"
+# design-overhaul PUSHES must run unsigned: no environment (the push would run the PR fast path) and no secret or variable.
+# Manual runs on design-overhaul behave like main (environment, secrets, all ABIs). Evaluate each guard for the cases.
+def ev(expr, event, ref):
+    py = str(expr).strip()[3:-2].strip().replace("&&", " and ").replace("||", " or ").replace("!(", "not (")
+    py = py.replace("github.event_name", "EVENT").replace("github.ref", "REF")
+    py = re.sub(r"(secrets|vars)\.\w+|'android-release'", "'V'", py)
+    return eval(py, {"EVENT": event, "REF": ref})  # our own workflow expression, not external input
+
+def guard_cases(label, expr):
+    check(ev(expr, "pull_request", "refs/pull/1/merge") == "", f"{label}: must be blank on pull requests")
+    check(ev(expr, "push", "refs/heads/design-overhaul") == "", f"{label}: must be blank on design-overhaul pushes")
+    check(ev(expr, "workflow_dispatch", "refs/heads/design-overhaul") == "V", f"{label}: must be kept on manual runs of design-overhaul")
+    check(ev(expr, "push", "refs/heads/main") == "V", f"{label}: must be kept on pushes to main")
+
 build = wf["jobs"]["build"]
-check(DO in str(build.get("environment", "")), "build environment: must exclude design-overhaul")
+guard_cases("build environment", build.get("environment", ""))
 # the website origin is public and already reaches PR runs unguarded; everything else is a secret or an environment variable
 PUBLIC = {"SITE_URL_CHECK", "EXPO_PUBLIC_SITE_URL"}
 guarded = [(k, v) for st in steps for k, v in (st.get("env") or {}).items() if ("secrets." in str(v) or "vars." in str(v)) and k not in PUBLIC]
 check(len(guarded) > 0, "no secret/variable guards found")
 for k, v in guarded:
-    check(DO in str(v), f"{k}: secret/variable guard must exclude design-overhaul")
-check(any("GITHUB_REF\" = refs/heads/design-overhaul" in st.get("run", "") for st in steps),
-      "the Gradle step must build arm64 only on design-overhaul")
+    guard_cases(k, v)
+gradle = [st.get("run", "") for st in steps if "gradlew assembleRelease" in st.get("run", "")]
+check(len(gradle) == 1 and "$GITHUB_EVENT_NAME\" = push ] && [ \"$GITHUB_REF\" = refs/heads/design-overhaul" in gradle[0],
+      "the Gradle step must build arm64 only on design-overhaul pushes (not manual runs)")
 
 if prune:
     cond = prune.get("if", "")
