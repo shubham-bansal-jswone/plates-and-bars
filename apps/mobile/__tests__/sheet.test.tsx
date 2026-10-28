@@ -2,7 +2,7 @@
 import { JSDOM } from 'jsdom';
 import { Platform, Text } from 'react-native';
 import { render, screen } from '@testing-library/react-native';
-import { focusSheetTitle, SheetModal } from '../src/components/Sheet';
+import { focusSheetTitle, refuseScrollerFocus, SheetModal } from '../src/components/Sheet';
 import { AddExerciseSheet } from '../src/workout/AddExerciseSheet';
 
 /** Sheets are named dialogs with initial focus on the title on the web, and give focus back on close (#661). */
@@ -44,7 +44,57 @@ describe('SheetModal', () => {
     focusSheetTitle('Add exercise');
     expect(document.activeElement?.id).toBe('title');
     expect(document.getElementById('title')?.getAttribute('tabindex')).toBe('-1');
+    jest.useFakeTimers();
+    try {
+      // Focus leaves and comes back before the timer fires (a fast wrap): the title keeps its tabindex.
+      document.getElementById('first')?.focus();
+      document.getElementById('title')?.focus();
+      jest.runOnlyPendingTimers();
+      expect(document.getElementById('title')?.getAttribute('tabindex')).toBe('-1');
+      // The next blur still removes it: the title is not a stop any more, once the blur is handled.
+      document.getElementById('first')?.focus();
+      expect(document.getElementById('title')?.getAttribute('tabindex')).toBe('-1');
+      jest.runOnlyPendingTimers();
+      expect(document.getElementById('title')?.hasAttribute('tabindex')).toBe(false);
+    } finally {
+      jest.useRealTimers();
+    }
     expect(() => focusSheetTitle('No such sheet')).not.toThrow();
+  });
+
+  it('each open sheet keeps its own focus guard when a sheet above it closes', async () => {
+    const add = jest.spyOn(document, 'addEventListener');
+    const remove = jest.spyOn(document, 'removeEventListener');
+    const sheet = (title: string) => (
+      <SheetModal title={title} onClose={() => {}}>
+        <Text>body</Text>
+      </SheetModal>
+    );
+    const lower = await render(sheet('Lower'));
+    const upper = await render(sheet('Upper'));
+    const guards = add.mock.calls.filter(([type]) => type === 'focus').map(([, fn]) => fn);
+    expect(guards).toHaveLength(2);
+    expect(guards[0]).not.toBe(guards[1]); // the same function twice would be one registration in a browser
+    await upper.unmount();
+    const removed = remove.mock.calls.filter(([type]) => type === 'focus').map(([, fn]) => fn);
+    expect(removed).toEqual([guards[1]]); // only the top sheet's guard went; the lower one's is still registered
+    document.body.innerHTML = '<div id="scroller">text</div>';
+    const el = document.getElementById('scroller') as HTMLElement;
+    const blur = jest.spyOn(el, 'blur');
+    (guards[0] as (e: Event) => void)({ target: el } as unknown as Event);
+    expect(blur).toHaveBeenCalledTimes(1);
+    await lower.unmount();
+  });
+
+  it('refuseScrollerFocus drops focus from a scrolling container but not from a control or the title (#1275)', () => {
+    document.body.innerHTML = '<div id="scroller">text</div><button id="b">Close</button><h2 id="t" tabindex="-1">Title</h2><div id="p" tabindex="0" role="link">link</div>';
+    for (const [id, kept] of [['scroller', false], ['b', true], ['t', true], ['p', true]] as const) {
+      const el = document.getElementById(id) as HTMLElement;
+      const blur = jest.spyOn(el, 'blur');
+      refuseScrollerFocus({ target: el });
+      expect(blur).toHaveBeenCalledTimes(kept ? 0 : 1);
+    }
+    expect(() => refuseScrollerFocus({ target: null })).not.toThrow();
   });
 
   // Not covered here: react-native-web's real timing (its dialog role and focus trap switch on after `onShow`, which follows the slide animation).
