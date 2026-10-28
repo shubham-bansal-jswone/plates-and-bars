@@ -155,6 +155,17 @@ Notes on judgement calls:
 | App info and performance > Other app performance data | No scrolling or screen-usage data. Session reports (start time, duration, crash status) and, for native crashes, battery level are declared under Diagnostics above |
 | Personal info (name, address, phone, race, beliefs, orientation), Financial info, Messages, Audio, Calendar, Contacts, Web browsing | Not asked for or sent anywhere |
 
+## Draft rows for the deferred pre-production pass (#975)
+
+Draft, not submitted. Per the owner decision on #975 (2026-10-20) the Play Console declarations are deferred until the owner says so. These rows summarise Screen 4 and the privacy page "Device features and permissions" for the three v1.1 permissions plus label scanning; re-check each against the code before submitting.
+
+| Permission or feature | Status | Data safety answer (draft) | Backed by |
+| --- | --- | --- | --- |
+| Physical activity (`ACTIVITY_RECOGNITION`) | draft, not submitted | Fitness info: the day's step total syncs like typed steps, optional, only after the user turns the step counter on and signs in with sync agreed. The sensor stream does not leave the phone | `modules/device-steps/android/src/main/AndroidManifest.xml`, `apps/mobile/src/steps/` |
+| Notifications (`POST_NOTIFICATIONS`) | draft, not submitted | Nothing collected for this permission: local reminders only, no push service or token | `apps/mobile/src/reminders/`, no push dependency in `apps/mobile/package.json` |
+| Camera (`CAMERA`) | draft, not submitted | Barcode and pose frames are processed on the device and not sent. Barcode digits (not the image) go to our server for lookup, so the app still collects data | `modules/plate-barcode-scanner`, `modules/plate-pose`, `apps/mobile/src/barcode/lookup.ts` |
+| Label scan (uses the camera or a picked photo, no new permission) | draft, not submitted | Read on the device by Tesseract; the app deletes its cached working copy after the scan; only reviewed numbers are saved as a food. Add to the Camera rationale when declaring | ADR 010, `apps/mobile/src/labelscan/capture.ts` (`releasePhoto`), `photos/capture.ts` (`discard`) |
+
 ## Permissions
 
 The Android permissions in the merged manifest (full list in checklist Screen 4), with the reason and the source, are in checklist Screen 4. `@sentry/react-native` adds `android.permission.ACCESS_NETWORK_STATE`, which lets it tell whether the phone is online; the privacy page lists it. The Data safety form asks about data, not permissions. **Owner:** check the built manifest, because several permissions (the Sentry one, the local modules' CAMERA, ACTIVITY_RECOGNITION, POST_NOTIFICATIONS and RECEIVE_BOOT_COMPLETED, and anything the picker library adds) are merged in at build time.
