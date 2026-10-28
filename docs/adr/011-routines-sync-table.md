@@ -37,7 +37,9 @@ Users want to save a named workout (exercises with set counts) and start it late
 3. The backend `routines` PR (migration, `SyncTable`, validator, the cap).
 4. The app.
 
-An app that sends `routines` to a server that does not store them gets `unsupported_table` per record, sets those records aside and retries them on a later sync; the rest of the push (food logs and so on) goes through. No capability flag is needed. The app never sends `routines` against a server that answers 400 on `changes` as a whole, because step 1 is deployed before any app build that has the table.
+A server that does not implement a contract table refuses its records per record with 400 `invalid_request`, issue `unsupported_table`, path `changes.<table>[<i>]` (#1281). The app sets those records aside by that path and the rest of the push goes through, so a new app against an old server does not stall.
+
+The app routines PR must not leave those records set aside for good. It either sends `routines` only once the server supports the table, or clears the records it set aside with `unsupported_table` once after the server is upgraded (for example when a later sync succeeds with `routines` accepted, or on the next app update). Otherwise they stay set aside until the user retries or edits them.
 
 ## More consequences
 

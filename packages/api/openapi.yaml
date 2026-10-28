@@ -810,10 +810,12 @@ paths:
 
         **Tables the server does not implement.** The contract may list a table before the
         backend stores it. A server that does not implement a listed table refuses each
-        record of it with a per-record `unsupported_table` refusal and stores nothing for it,
-        and the app sets those records aside and retries them later. The app therefore sends
-        `routines` without a capability check: until the server supports the table the
-        records stay on the device, and the rest of the push goes through.
+        record of it per record: 400 `invalid_request`, one `details` entry per record with
+        `field` = `changes.<table>[<i>]` and issue `unsupported_table`, never echoing record
+        content. Nothing is applied, as for any 400, and the app sets those records aside
+        and sends the rest. The app sends a new table only once the server supports it, or
+        clears records it set aside with `unsupported_table` once after the server is
+        upgraded; otherwise they would stay set aside until the user retries or edits.
 
         **Derived data is not synced.** Stores the prototype keeps that can be rebuilt from
         synced records have no table. The app rebuilds them locally after every pull; see
