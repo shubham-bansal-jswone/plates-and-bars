@@ -1,7 +1,6 @@
 import { dark, light, type Palette } from '../src/theme/tokens';
 import { blend } from '../src/theme/blend';
 import { toWeight } from '../src/theme/fonts';
-import { alsoFill } from '../src/workout/BodyMap';
 
 // WCAG 2.x relative luminance and contrast ratio.
 function lum(hex: string): number {
@@ -39,6 +38,8 @@ const GRAPHIC: [K, K][] = [
   ['focus', 'bg'], ['focus', 'surface'],
   // The off state of a switch (#153): its track must be visible against the page.
   ['muted', 'bg'], ['muted', 'surface'],
+  // Body map: an unworked muscle must show against the page and the cards (#1197).
+  ['muscleOff', 'bg'], ['muscleOff', 'surface'], ['muscleOff', 'surfaceElevated'],
 ];
 
 describe.each([['light', light], ['dark', dark]] as const)('%s palette', (_mode, p) => {
@@ -59,16 +60,17 @@ describe.each([['light', light], ['dark', dark]] as const)('%s palette', (_mode,
   it('Seven-days label ink on its bg chip is at least 4.5:1', () => {
     expect(contrast(p.ink, p.bg)).toBeGreaterThanOrEqual(4.5);
   });
-  it('body map also-working fill is at least 3:1 against an untargeted region', () => {
-    expect(contrast(alsoFill(p), p.surfaceSoft)).toBeGreaterThanOrEqual(3);
+  // The map's silhouette is the `muscleOff` stroke (3:1, in GRAPHIC); an also-working fill must show against the page, the cards and the unworked fill.
+  it.each(['bg', 'surface', 'surfaceElevated', 'surfaceSoft'] as const)('body map also-working fill vs %s is at least 3:1', (bg) => {
+    expect(contrast(p.muscleAlso, p[bg])).toBeGreaterThanOrEqual(3);
+  });
+  // Main vs also-working stays low (light 1.71, dark 2.94): the legend and the muscle names in text carry the difference, not the fill alone. Pinned at the measured values.
+  it('body map main vs also-working is at least 1.7:1', () => {
+    expect(contrast(p.brand, p.muscleAlso)).toBeGreaterThanOrEqual(1.7);
   });
   it('only uses six-digit hex colours, so the maths above is what is drawn', () => {
     for (const v of Object.values(p).filter((x) => typeof x === 'string')) expect(v).toMatch(/^#[0-9A-F]{6}$/);
   });
-});
-
-it('also-working alpha comes from the palette, so a copied palette keeps it', () => {
-  expect(alsoFill({ ...light })).toBe(alsoFill(light));
 });
 
 describe('font weights', () => {
