@@ -638,3 +638,55 @@ describe('a write queued during Start, when Start adopts another device\'s sessi
     expect(await db.getAllAsync('SELECT 1 FROM lift_stats')).toEqual([]);
   });
 });
+
+describe('finish early (#1157)', () => {
+  it('keeps ticked sets, drops unticked sets and untouched exercises in one write, and a reload shows the same', async () => {
+    const { db, result } = await started();
+    const [a, b] = result.current.day.exs;
+    await act(async () => result.current.editSet(0, 'work', 0, 'w', '20'));
+    await act(async () => result.current.editSet(0, 'work', 0, 'r', '5'));
+    await act(async () => result.current.tick(0, 0));
+    await settle();
+    const total = result.current.day.exs.length;
+    await act(async () => void result.current.finishEarly());
+    await settle();
+    expect(result.current.day.exs.map((e) => [e.name, e.sets.length])).toEqual([[a!.name, 1]]);
+    expect((await live(db, a!.name)).map((s) => s.done)).toEqual([true]);
+    expect(await live(db, b!.name)).toEqual([]);
+    expect((await loadWorkout(db, DATE))?.exercises.map((e) => e.name)).toEqual([a!.name]);
+    expect(total).toBeGreaterThan(1);
+  });
+
+  it('removes an exercise with only ticked warm-ups (and its warm-ups), keeps a kept exercise\'s unticked warm-ups, drops a second session never started', async () => {
+    const { db, result } = await started();
+    const [a, b] = result.current.day.exs;
+    await act(async () => result.current.editSet(0, 'work', 0, 'w', '20'));
+    await act(async () => result.current.editSet(0, 'work', 0, 'r', '5'));
+    await act(async () => result.current.tick(0, 0));
+    await act(async () => result.current.rampStart(0)); // an unticked warm-up on the kept exercise
+    await act(async () => result.current.rampStart(1));
+    await act(async () => result.current.editSet(1, 'ramp', 0, 'w', '20'));
+    await act(async () => result.current.rampTick(1, 0)); // a ticked warm-up, no ticked work set
+    await act(async () => void (await result.current.addSecond('Lower A')));
+    await settle();
+    expect((await live(db, b!.name, 'ramp')).some((s) => s.done)).toBe(true);
+    expect(result.current.day.exs.some((e) => e.part === 2)).toBe(true);
+    await act(async () => void result.current.finishEarly());
+    await settle();
+    expect(result.current.day.exs.map((e) => e.name)).toEqual([a!.name]);
+    expect(result.current.day.exs.some((e) => e.part === 2)).toBe(false);
+    expect(await live(db, b!.name, 'ramp')).toEqual([]);
+    expect(await live(db, b!.name)).toEqual([]);
+    expect((await live(db, a!.name, 'ramp')).map((s) => s.done)).toEqual([false]);
+    expect((await loadSets(db, DATE)).filter((s) => !s.deleted_at && s.exercise !== a!.name)).toEqual([]);
+  });
+
+  it('does nothing when no set is ticked', async () => {
+    const { result } = await started();
+    const before = result.current.day.exs.length;
+    let ok = true;
+    await act(async () => void (ok = result.current.finishEarly()));
+    expect(ok).toBe(false);
+    expect(result.current.day.exs).toHaveLength(before);
+  });
+});

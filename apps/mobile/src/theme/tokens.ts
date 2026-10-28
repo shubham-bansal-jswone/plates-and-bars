@@ -1,6 +1,6 @@
 // Design tokens. "TRAIN HARD. TRACK EVERYTHING.": black canvas, electric lime as the one high-energy signal (primary actions,
-// active states, workout progress, key metrics). `dark` is the identity and the default (see useTheme); `light` is the older
-// "Plate blue" palette, kept working behind EXPO_PUBLIC_THEME=system.
+// active states, workout progress, key metrics). `dark` is the identity; `light` is the older
+// "Plate blue" palette. useTheme picks one from the system colour scheme.
 // This is the only file with colour values. Macro colours are for bars, rings, dots and icons, never text.
 export interface Palette {
   /** Page canvas. */
