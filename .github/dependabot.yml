@@ -58,10 +58,21 @@ updates:
       - dependency-name: "react-native*"
       - dependency-name: "@types/react"
       - dependency-name: "@types/jest"
+      # @sentry/react-native is also pinned by the SDK's bundledNativeModules.json
+      # (#1092 and #1219 were closed for this); it moves with the SDK upgrade too.
+      - dependency-name: "@sentry/react-native"
       # eslint-plugin-react does not support ESLint 10, so a human reviews the
       # major bump (#113)
       - dependency-name: "eslint"
         update-types: ["version-update:semver-major"]
+    groups:
+      # barcode-detector pins an exact zxing-wasm, and the app self-hosts that
+      # wasm under public/zxing/<version>/ (#1221): they must arrive in one PR.
+      # The wasm copy and path changes still need a manual commit.
+      # A PR that bumps zxing-wasm alone (before barcode-detector moves its pin)
+      # is closed: barcode-web-assets.test.ts fails it, since the two must match.
+      barcode-zxing:
+        patterns: ["barcode-detector", "zxing-wasm"]
   - package-ecosystem: npm
     directory: /apps/site
     target-branch: design-overhaul
