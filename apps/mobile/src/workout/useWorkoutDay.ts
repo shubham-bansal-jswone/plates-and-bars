@@ -420,6 +420,7 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
     const ctx = progressionContext(date, d0.lifts, profile, d0.workout, tune);
     const { info, sug } = guidance(ex0, ctx, d0.workout);
     let id = '';
+    let empty: 'w' | 'r' | undefined;
     change(
       i,
       (ex, d) => {
@@ -435,6 +436,7 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
         }
         const f = tickFill(s, setTarget(ex.sets, j, sug, info, ex.found), info);
         if (!f.ok) {
+          empty = f.w === '' && !noLoad(info.type) ? 'w' : 'r';
           notify(`Enter the ${noLoad(info.type) ? '' : 'weight and '}${repWord(info.type)} first.`);
           return false;
         }
@@ -457,6 +459,7 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
         await syncLift(name);
       },
     );
+    return empty;
   };
 
   const rate = (i: number, j: number, value: Rate | null) => {
@@ -735,6 +738,7 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
     if (!profile || !ex0) return;
     const { info } = guidance(ex0, progressionContext(date, d0.lifts, profile, d0.workout, tune), d0.workout);
     let id = '';
+    let empty: 'w' | undefined;
     change(
       i,
       (ex) => {
@@ -750,6 +754,7 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
         }
         const f = rampTickFill(ex.ramp, j, info);
         if (!f.ok) {
+          empty = 'w';
           notify('Enter the weight first.');
           return false;
         }
@@ -765,6 +770,7 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
         });
       },
     );
+    return empty;
   };
 
   const rampRated = (i: number, j: number, value: Rate | null) => {

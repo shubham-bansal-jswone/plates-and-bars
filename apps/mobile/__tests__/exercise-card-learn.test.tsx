@@ -41,6 +41,19 @@ describe('Learn mode block', () => {
     expect(screen.queryByText(`1. ${steps()[0]}`)).toBeNull();
   });
 
+  it('shows no Setup heading when the exercise has no setup steps', async () => {
+    const c = getCatalog().cards[NAME]!;
+    const saved = c.setup;
+    (c as { setup: string[] }).setup = [];
+    try {
+      await card({ prior: 1 });
+      expect(screen.getByText('Learn mode')).toBeTruthy();
+      expect(screen.queryByRole('button', { name: `Setup steps for ${NAME}` })).toBeNull();
+    } finally {
+      (c as { setup: string[] }).setup = saved;
+    }
+  });
+
   it('closes Setup on the first session once a set is done, and moves the cue to the next one', async () => {
     await card({ prior: 0, done: 1 });
     expect(setup().props.accessibilityState).toMatchObject({ expanded: false });

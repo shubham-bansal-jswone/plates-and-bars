@@ -705,6 +705,21 @@ describe('Workout tab: logging sets', () => {
     expect(storedSets(db).some((s) => s.done)).toBe(false);
   });
 
+  it('focuses the first empty field and marks it invalid on a refused tick, clearing it on edit', async () => {
+    await setup();
+    await press('Start Push B');
+    await screen.findByText('Push B');
+    await press('Mark Barbell Bench Press set 1 done');
+    await screen.findByText('Enter the weight and reps first.');
+    const w = screen.getByLabelText('Barbell Bench Press set 1 kg');
+    expect(w.props['aria-invalid']).toBe(true);
+    expect(screen.getByLabelText('Barbell Bench Press set 1 reps').props['aria-invalid']).toBeUndefined();
+    await fireEvent.changeText(w, '40');
+    expect(screen.getByLabelText('Barbell Bench Press set 1 kg').props['aria-invalid']).toBeUndefined();
+    await press('Mark Barbell Bench Press set 1 done'); // weight typed; reps fill from the suggestion
+    expect(screen.getByLabelText('Mark Barbell Bench Press set 1 done').props.accessibilityState).toMatchObject({ checked: true });
+  });
+
   it('announces the empty-tick message to screen readers (iOS has no live regions)', async () => {
     const os = Platform.OS;
     const say = jest.spyOn(AccessibilityInfo, 'announceForAccessibility').mockImplementation(() => {});
