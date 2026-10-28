@@ -26,3 +26,26 @@ paths = [
 ]
 regexTarget = "line"
 regexes = ['''(access|refresh|id)_token''']
+
+# Weekly `--all` scan findings on stale branches (#1186), each checked by hand: none is a credential.
+# Each entry is pinned to one commit, one file and one rule, so the same text in any other commit still alerts.
+[[allowlists]]
+description = "Golden-fixture case names (key: '...') on the old tools/golden-fixtures branch, commit fb3b9c05"
+targetRules = ["generic-api-key"]
+condition = "AND"
+commits = ["fb3b9c051879d02d4211faeba35f225a4e1c0181"]
+paths = ['''tools/golden-gen/cases\.mjs''']
+
+[[allowlists]]
+description = "Fake token examples in the old backend OpenAPI copy on the backend/sync branch, commit 5d646b2e"
+targetRules = ["generic-api-key", "jwt"]
+condition = "AND"
+commits = ["5d646b2ed0d77a2f02afafb3fa939a82328f276a"]
+paths = ['''backend/src/main/resources/openapi\.yaml''']
+
+[[allowlists]]
+description = "Unsigned (alg none) JWT used as a bad-token test input on the backend/auth branch, commit 6c693c58"
+targetRules = ["jwt"]
+condition = "AND"
+commits = ["6c693c581b6657de4aae6c53ba9f29d815232a8e"]
+paths = ['''backend/src/test/java/app/plateandbar/api/auth/JwtServiceTest\.java''']

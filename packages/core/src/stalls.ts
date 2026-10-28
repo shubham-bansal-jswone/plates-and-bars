@@ -1,5 +1,6 @@
 import { addDays, daysBetween, mondayOf } from './dates';
 import type { ReentryRange } from './day';
+import { epley } from './e1rm';
 import { num } from './num';
 import { sessionDates, type SessionLog } from './plan';
 import { noLoad, type ExInfo, type ExType, type ExerciseOverride, type LiftRecord, type LiftSet, type ScoreEntry, type SetEntry, type SettingsExerciseOverride } from './progression';
@@ -18,7 +19,7 @@ export function sessionScore(sets: readonly Pick<LiftSet, 'w' | 'r'>[], type: Ex
   if (noLoad(type)) return sets.reduce((n, s) => n + s.r, 0);
   const bw = bodyweight || 0;
   if (type === 'assisted') return Math.max(...sets.map((s) => (bw ? s.r * Math.max(0, bw - s.w) : s.r * 2 - s.w)));
-  return Math.max(...sets.map((s) => s.w * (1 + s.r / 30)));
+  return Math.max(...sets.map((s) => epley(s.w, s.r)));
 }
 
 /**

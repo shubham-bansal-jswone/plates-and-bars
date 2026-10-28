@@ -335,7 +335,7 @@ export function suggestBase(ex: { name: string }, c: ProgressionContext): Sugges
     if (early && !allEasy) return { mode: 'hold', w: hold(top), reps: info.hi, text: `${kgLabel(hold(top), info, unit)} × ${range}`, reason: `${summary} First 2 weeks on this exercise: keep the weight and own the movement before adding more.` };
     const nw = grid(harder(top, info));
     const back = hold(top);
-    const jump = back > 0 ? Math.abs(nw - back) / back : 0;
+    const jump = top > 0 ? Math.abs(nw - top) / top : 0;
     // In lb, history off the grid (logged in kg) gets the target, not a step that would not add up.
     const offGrid = formatWeight(back, unit) !== formatWeight(top, unit);
     const big = jump > (older(c.profile) ? 0.05 : 0.1) ? ` That’s a ${Math.round(jump * 100)}% jump. If you can’t reach ${info.lo} ${rw}, go back to ${formatWeight(back, unit)} ${unit} and add reps instead.` : '';

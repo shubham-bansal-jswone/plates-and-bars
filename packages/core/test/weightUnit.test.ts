@@ -425,10 +425,36 @@ describe('"go back to" is never heavier or less assisted than last time (lb)', (
           const m = /go back to ([\d.]+) lb/.exec(s.reason);
           if (!m) continue;
           seen++;
-          const back = lbToKg(Number(m[1]));
-          if (name === 'Assisted Dips') expect(back).toBeGreaterThanOrEqual(kg - 0.03);
-          else expect(back).toBeLessThanOrEqual(kg + 0.03);
+          const back = Number(m[1]);
+          if (name === 'Assisted Dips') expect(back).toBeGreaterThanOrEqual(kgToLb(kg) - 1e-6);
+          else expect(back).toBeLessThanOrEqual(kgToLb(kg) + 1e-6);
         }
     expect(seen).toBeGreaterThan(20);
+  });
+  it('the stated jump % is measured from the weight lifted, as displayed', () => {
+    let seen = 0;
+    for (const name of ['Barbell Row', 'Machine Chest Press', 'Assisted Dips', 'Lateral Raise'])
+      for (let kg = 5; kg <= 150; kg += 0.7)
+        for (const profile of [null, { age: 65 }]) {
+          const s = suggestBase({ name }, lastOf(name, kg, { profile }));
+          const m = /That’s a (\d+)% jump/.exec(s.reason);
+          const jump = Math.abs((s.w as number) - kg) / kg;
+          if (!m) {
+            expect(jump).toBeLessThanOrEqual(profile ? 0.05 : 0.1);
+            continue;
+          }
+          seen++;
+          expect(Number(m[1])).toBe(Math.round(jump * 100));
+          expect(jump).toBeGreaterThan(profile ? 0.05 : 0.1);
+        }
+    expect(seen).toBeGreaterThan(20);
+  });
+  it('62.5 kg at 60+ says 5% from the 137.8 lb lifted; 158.3 lb to 165 lb (4.2%) does not warn', () => {
+    const a = suggestBase({ name: 'Barbell Row' }, lastOf('Barbell Row', 62.5, { profile: { age: 65 } }));
+    expect(a.reason).toContain('That’s a 5% jump');
+    expect(a.reason).toContain('go back to 135 lb');
+    const b = suggestBase({ name: 'Barbell Row' }, lastOf('Barbell Row', lbToKg(158.3), { profile: { age: 65 } }));
+    expect(b.text).toBe('165 lb × 8–12 reps');
+    expect(b.reason).not.toContain('jump');
   });
 });
