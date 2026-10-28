@@ -25,7 +25,7 @@ class SyncRepository {
     /** A stored record. {@code data} holds every field except id, version, updated_at and deleted_at. */
     record Stored(String id, int version, Instant updatedAt, Instant deletedAt, long seq, JsonNode data) {}
 
-    /** The user's bookkeeping row: the last change number and the number of stored rows over all 16 tables. */
+    /** The user's bookkeeping row: the last change number and the number of stored rows over all 17 tables. */
     record State(long seq, long records) {}
 
     private final JdbcTemplate jdbc;
@@ -85,6 +85,13 @@ class SyncRepository {
                 },
                 args);
         return found;
+    }
+
+    /** Rows of the table that are not tombstones, for this user only. */
+    long countLive(SyncTable table, String userId) {
+        Long n = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM " + table.sqlName() + " WHERE user_id = ? AND deleted_at IS NULL", Long.class, userId);
+        return n == null ? 0 : n;
     }
 
     void insert(SyncTable table, String userId, Stored r) {

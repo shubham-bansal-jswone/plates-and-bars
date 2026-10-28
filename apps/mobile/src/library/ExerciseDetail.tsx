@@ -12,6 +12,7 @@ import { useTheme } from '../theme/useTheme';
 import { BodyMap } from '../workout/BodyMap';
 import { ExerciseFigure, hasDrawing } from '../workout/ExerciseFigure';
 import { addToStoredDay, inStoredDay, removeFromStoredDay } from '../workout/storedDay';
+import { PlatesLink } from '../workout/PlateSheet';
 import { VideoLink } from '../workout/VideoLink';
 import { equipmentLabel, jointLabel, muscleLabel, typeLabel, type LibraryExercise } from './exercises';
 
@@ -145,6 +146,7 @@ export function ExerciseDetail({ exercise: e, onBack, session }: { exercise: Lib
       <Button label="Back to library" kind="link" onPress={onBack} />
       <H1>{e.name}</H1>
       {session ? <AddToSession name={e.name} session={session} /> : null}
+      {e.type === 'barbell' ? <PlatesLink name={e.name} label={`Plate calculator for ${e.name}`} targetKg={null} /> : null}
       {hasDrawing(e.name) ? <ExerciseFigure name={e.name} /> : <NoDrawing />}
       {session ? <History name={e.name} kind={e.type} db={session.db} /> : null}
       {e.primary.length ? <BodyMap primary={e.primary} secondary={e.secondary} /> : null}
