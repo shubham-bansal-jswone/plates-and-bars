@@ -38,7 +38,7 @@ export async function pickExportText(): Promise<string | null> {
     try {
       file.delete();
     } catch {
-      // a cache file; the next export sweep or the OS clears it
+      // the picker's copy: `clearOldExports` also removes its cache folder (app start, sign-out, delete everything)
     }
   }
 }

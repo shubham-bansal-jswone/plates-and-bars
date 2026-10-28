@@ -10,8 +10,8 @@ export const RESTORE_COPY = {
   tables: {
     profiles: 'Profile', consents: 'Consents', food_logs: 'Food log', water_logs: 'Water log', day_notes: 'Day notes', workouts: 'Workouts', workout_sets: 'Workout sets', lift_stats: 'Lift progress', weights: 'Weights', measurements: 'Measurements', user_foods: 'Your foods', recipes: 'Recipes', kitchen_tests: 'Kitchen tests', exclusions: 'Exclusions', swaps: 'Swaps', settings: 'Settings',
   } as Record<string, string>,
-  table: (name: string, c: { added: number; newer: number; older: number; conflicts: number; from?: string; to?: string }) =>
-    `${rc_name(name)}: ${c.added} new, ${c.newer} newer than here, ${c.older} older (kept as is), ${c.conflicts} changed here and not synced yet (kept)${c.from && c.to ? `. Dates ${c.from} to ${c.to}` : ''}`,
+  table: (name: string, c: { added: number; newer: number; older: number; conflicts: number; from?: string; to?: string }, otherAccount = false) =>
+    `${rc_name(name)}: ${c.added} new, ${otherAccount ? '' : `${c.newer} newer than here, `}${c.older} ${otherAccount ? 'already here (kept)' : 'older (kept as is)'}${otherAccount ? '' : `, ${c.conflicts} changed here and not synced yet (kept)`}${c.from && c.to ? `. Dates ${c.from} to ${c.to}` : ''}`,
   deviceOnly: (cycle: boolean, reports: number, hold: boolean) =>
     `Kept on this device only: ${[cycle ? 'cycle log' : '', reports ? `${reports} lab report${reports === 1 ? '' : 's'}` : '', hold ? 'lab hold' : ''].filter(Boolean).join(', ')}.`,
   nothing: 'Nothing in this file is newer than what is on this device.',

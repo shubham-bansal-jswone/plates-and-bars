@@ -147,7 +147,7 @@ export function DataScreen({ db, now = () => new Date() }: { db: WorkoutDb & Pul
       <Page>
         <H1>{rc.title}</H1>
         {restoring.summary.differentAccount ? <Note>{rc.differentAccount}</Note> : null}
-        {rows.map(([name, c]) => <Hint key={name}>{rc.table(name, c)}</Hint>)}
+        {rows.map(([name, c]) => <Hint key={name}>{rc.table(name, c, restoring.summary.differentAccount)}</Hint>)}
         {cycle || labReports > 0 || hold ? <Hint>{rc.deviceOnly(cycle, labReports, hold)}</Hint> : null}
         {changes ? null : <Note>{rc.nothing}</Note>}
         <View style={{ gap: 12 }}>

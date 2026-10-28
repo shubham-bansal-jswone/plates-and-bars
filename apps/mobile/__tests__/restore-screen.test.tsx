@@ -8,6 +8,7 @@ import { memoryDb } from './helpers';
 jest.mock('expo-router', () => ({ useRouter: () => ({ back: jest.fn(), push: jest.fn(), replace: jest.fn(), canGoBack: () => true }) }));
 const mockPick = jest.fn();
 jest.mock('../src/account/pickFile', () => ({ pickExportText: () => mockPick() }));
+const mockOther = { on: false };
 const mockApply = jest.fn(async () => undefined);
 const mockParse = jest.fn();
 jest.mock('../src/account/restoreLocal', () => {
@@ -21,7 +22,7 @@ jest.mock('../src/account/restoreLocal', () => {
   return {
     RestoreError,
     parseRestore: (t: string) => mockParse(t),
-    previewRestore: async () => ({ tables: { food_logs: { added: 2, newer: 1, older: 0, conflicts: 0, same: 0 } }, differentAccount: false, deviceOnly: { cycle: false, labReports: 0, hold: false } }),
+    previewRestore: async () => ({ tables: { food_logs: { added: 2, newer: 1, older: 0, conflicts: 0, same: 0 } }, differentAccount: mockOther.on, deviceOnly: { cycle: false, labReports: 0, hold: false } }),
     applyRestore: () => mockApply(),
   };
 });
@@ -31,6 +32,7 @@ const show = () => render(<SyncContext.Provider value={state}><DataScreen db={me
 
 beforeEach(() => {
   mockApply.mockClear();
+  mockOther.on = false;
   mockParse.mockReset();
   mockPick.mockReset();
 });
@@ -46,6 +48,17 @@ describe('restore from a file on the data screen (#1177)', () => {
     await fireEvent.press(screen.getByLabelText(rc.cancel));
     expect(mockApply).not.toHaveBeenCalled();
     expect(screen.getByLabelText(rc.action)).toBeTruthy();
+  });
+
+  it('for another account\'s file, rows already on the device read "already here (kept)", not "older"', async () => {
+    mockOther.on = true;
+    mockPick.mockResolvedValue('{}');
+    mockParse.mockResolvedValue({});
+    await show();
+    await fireEvent.press(screen.getByLabelText(rc.action));
+    expect(await screen.findByText(rc.differentAccount)).toBeTruthy();
+    expect(screen.getByText(/Food log: 2 new, 0 already here \(kept\)/)).toBeTruthy();
+    expect(screen.queryByText(/older/)).toBeNull();
   });
 
   it('applies only after the explicit confirmation', async () => {

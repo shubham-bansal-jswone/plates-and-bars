@@ -193,6 +193,9 @@ describe('restore from an export file (#1177)', () => {
       ['a food log id that is not a uuid', (t: Tables) => ({ ...t, food_logs: [{ ...t.food_logs?.[0], id: 'nope' }] })],
       ['a set without a boolean done', (t: Tables) => ({ ...t, workout_sets: [{ ...t.workout_sets?.[0], done: 'yes' }] })],
       ['a version past the server range', (t: Tables) => ({ ...t, food_logs: [{ ...t.food_logs?.[0], version: 2 ** 31 }] })],
+      ['a lift stat without updated_at', (t: Tables) => ({ ...t, lift_stats: [{ ...t.lift_stats?.find((r) => r.exercise === 'Bench'), updated_at: undefined }] })],
+      ['a live lift stat with sets that are not a list', (t: Tables) => ({ ...t, lift_stats: [{ ...t.lift_stats?.find((r) => r.exercise === 'Bench'), sets: 'x' }] })],
+      ['a live lift stat with a bad date', (t: Tables) => ({ ...t, lift_stats: [{ ...t.lift_stats?.find((r) => r.exercise === 'Bench'), date: 'monday' }] })],
       ['an inherited table name', (t: Tables) => ({ ...t, toString: [] })],
     ])('%s', async (_n, bad) => {
       const g = await good();

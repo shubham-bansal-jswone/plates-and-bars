@@ -89,7 +89,9 @@ function shapeOk(tbl: SyncTableName, key: string, rec: Doc): boolean {
   if (tbl === 'food_logs') return UUID.test(key) && isYmd(rec.date) && typeof rec.qty === 'number';
   if (tbl === 'water_logs') return UUID.test(key) && isYmd(rec.date) && typeof rec.ml === 'number';
   if (tbl === 'workout_sets') return UUID.test(key) && typeof rec.kind === 'string' && typeof rec.done === 'boolean';
-  if (tbl === 'lift_stats' || tbl === 'swaps') return key.length > 0;
+  // A live lift stat is core's record shape: its day and its sets. A tombstone carries neither.
+  if (tbl === 'lift_stats') return !!key && (rec.deleted_at != null || (isYmd(rec.date) && Array.isArray(rec.sets)));
+  if (tbl === 'swaps') return key.length > 0;
   if (tbl === 'profiles' || tbl === 'settings') return true;
   return UUID.test(key);
 }
@@ -130,7 +132,7 @@ export async function parseRestore(text: string): Promise<ParsedRestore> {
         throw e;
       }
       const key = keyOf(tbl, rec);
-      const sync = typeof rec.version === 'number' && Number.isInteger(rec.version) && rec.version >= 0 && rec.version <= MAX_VERSION && (tbl === 'lift_stats' || typeof rec.updated_at === 'string');
+      const sync = typeof rec.version === 'number' && Number.isInteger(rec.version) && rec.version >= 0 && rec.version <= MAX_VERSION && typeof rec.updated_at === 'string';
       if (!key || !sync || !shapeOk(tbl, key, rec) || (rec.deleted_at != null && typeof rec.deleted_at !== 'string')) throw new RestoreError('bad_rows');
       if (tbl === 'workouts') dates.set(await naturalId(ns, 'workouts', key), key);
       let setDate: string | null = null;
