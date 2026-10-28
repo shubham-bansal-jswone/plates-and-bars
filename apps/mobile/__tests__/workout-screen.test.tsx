@@ -975,8 +975,25 @@ describe('Workout tab: first-time ramp', () => {
     // react-native's jest mock puts one shared jest.fn `focus` on TextInput's prototype.
     const focus = (TextInput as unknown as { prototype: { focus: jest.Mock } }).prototype.focus;
     focus.mockClear();
+    expect(focus).not.toHaveBeenCalled(); // expanding alone does not focus
     await press('I know my weight for Machine Shoulder Press');
     await waitFor(() => expect(focus).toHaveBeenCalledTimes(1));
+    expect((focus.mock.contexts[0] as { props: { accessibilityLabel: string } }).props.accessibilityLabel).toBe('Machine Shoulder Press set 1 kg');
+  });
+
+  it('focuses only once: expanding the exercise again after "I know my weight" does not refocus (#1144)', async () => {
+    await setup();
+    await press('Start Push B');
+    await screen.findByText('Push B');
+    await expand('Machine Shoulder Press');
+    const focus = (TextInput as unknown as { prototype: { focus: jest.Mock } }).prototype.focus;
+    focus.mockClear();
+    await press('I know my weight for Machine Shoulder Press');
+    await waitFor(() => expect(focus).toHaveBeenCalledTimes(1));
+    await expand('Barbell Bench Press');
+    await expand('Machine Shoulder Press');
+    expect(screen.getByLabelText('Machine Shoulder Press set 1 kg')).toBeTruthy();
+    expect(focus).toHaveBeenCalledTimes(1);
   });
 
   it('starts a ramp, stores its sets as kind ramp, and the rated weight becomes the working target', async () => {

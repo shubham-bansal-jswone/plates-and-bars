@@ -33,6 +33,13 @@ describe('RestBar live region', () => {
     const style = StyleSheet.flatten(screen.getByTestId('rest-title').props.style);
     expect(style.fontSize).toBeLessThanOrEqual(14);
     expect(style.paddingHorizontal).toBeGreaterThanOrEqual(14);
+    // At large system text the label must still fit as three short lines, so the scale is capped.
+    expect(screen.getByTestId('rest-title').props.maxFontSizeMultiplier).toBe(1.5);
+  });
+
+  it('caps text scaling on the countdown too, so it stays in the ring (#1144)', async () => {
+    await render(<RestBar rest={{ id: 1, end: Date.now() + 5000, total: 5, label: 'Next: set 2' }} onAdd={() => {}} onSkip={() => {}} />);
+    expect(screen.getByTestId('rest-title').props.maxFontSizeMultiplier).toBe(1.5);
   });
 
   it('hides the live region visually only: 1x1, negative margin, transparent, not touchable, and never display none', async () => {

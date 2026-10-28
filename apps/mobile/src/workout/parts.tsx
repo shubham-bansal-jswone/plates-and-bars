@@ -86,6 +86,7 @@ function RunningRest({ rest, onAdd, onSkip }: { rest: RestState; onAdd: () => vo
               skipped, so the visible text stays readable there. While counting, the text stays readable everywhere. */}
           <Text
             testID="rest-title"
+            maxFontSizeMultiplier={1.5}
             accessibilityLabel={left ? `Rest ${time}` : REST_DONE}
             aria-hidden={ended && Platform.OS !== 'ios' ? true : undefined}
             style={[left ? (time.length > 4 ? type.metricSm : [type.metric, styles.count]) : styles.done, tabular, { color: c.ink, textAlign: 'center' }]}

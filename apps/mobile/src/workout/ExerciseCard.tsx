@@ -307,7 +307,7 @@ export function ExerciseCard({ ex, info, sug, focus, warm, act, cards, learning,
           const label = `${ex.name} set ${j + 1}`;
           return (
             <View key={s.id} style={{ gap: 6 }}>
-              <SetRow n={String(j + 1)} label={label} focusWeight={skipped && j === 0} row={s} wHead={wHead} repsHead={rw} ph={{ w: t.w !== '' && t.w !== undefined ? String(r1(t.w)) : nl ? 'BW' : '–', r: t.r ? String(t.r) : '–' }} onEdit={(f, v) => act.edit('work', j, f, v)} onTick={() => act.tick(j)} current={!s.done && ex.sets.findIndex((x) => !x.done) === j} />
+              <SetRow n={String(j + 1)} label={label} focusWeight={skipped && j === 0} onFocused={() => setSkipped(false)} row={s} wHead={wHead} repsHead={rw} ph={{ w: t.w !== '' && t.w !== undefined ? String(r1(t.w)) : nl ? 'BW' : '–', r: t.r ? String(t.r) : '–' }} onEdit={(f, v) => act.edit('work', j, f, v)} onTick={() => act.tick(j)} current={!s.done && ex.sets.findIndex((x) => !x.done) === j} />
               <RateRow row={s} label={label} onRate={(v) => act.rate(j, v)} />
             </View>
           );
