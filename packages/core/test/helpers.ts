@@ -9,9 +9,9 @@ export function loadGolden<T>(area: string): T {
   return JSON.parse(readFileSync(resolve(REPO_ROOT, 'docs/spec/golden', `${area}.json`), 'utf8')) as T;
 }
 
-/** Source text of the prototype, for differential tests that run the prototype's own functions. */
+/** Source text of the frozen prototype script (test/fixtures/prototype-oracle.js, see its README), for differential tests that run the prototype's own functions. */
 export function prototypeSource(): string {
-  return readFileSync(resolve(REPO_ROOT, 'docs/prototype/plate-and-bar.html'), 'utf8');
+  return readFileSync(resolve(__dirname, 'fixtures/prototype-oracle.js'), 'utf8');
 }
 
 /** Returns the text from the first line starting with `start` up to and including the first line after it equal to `end`. */
