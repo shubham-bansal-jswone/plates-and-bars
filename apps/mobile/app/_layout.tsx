@@ -1,9 +1,10 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useReducedMotion } from '../src/components/reducedMotion';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SQLiteProvider, useSQLiteContext } from 'expo-sqlite';
 import { DB_NAME } from '../src/db/migrations';
+import { clearOpenRetries, DbOpenGate } from '../src/db/DbOpenGate';
 import { initDb } from '../src/db/initDb';
 import { lockedDb } from '../src/db/lockedDb';
 import { ContentRefresher } from '../src/content/ContentRefresher';
@@ -27,6 +28,7 @@ function Providers() {
   const db = useMemo(() => lockedDb(sqlite), [sqlite]);
   const sdb = useMemo(() => syncDb(sqlite), [sqlite]);
   const reduced = useReducedMotion();
+  useEffect(clearOpenRetries, []); // the database opened
   return (
     <SyncProvider db={sdb}>
       <Stores db={db}>
@@ -47,9 +49,11 @@ function Providers() {
 export default function RootLayout() {
   return (
     <FontsProvider>
-      <SQLiteProvider databaseName={DB_NAME} onInit={initDb}>
-        <Providers />
-      </SQLiteProvider>
+      <DbOpenGate>
+        <SQLiteProvider databaseName={DB_NAME} onInit={initDb}>
+          <Providers />
+        </SQLiteProvider>
+      </DbOpenGate>
     </FontsProvider>
   );
 }
