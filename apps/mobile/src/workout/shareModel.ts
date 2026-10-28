@@ -39,8 +39,6 @@ export interface ShareCardModel {
   bests: string[];
   rows: { name: string; best: string; pr: boolean }[];
   more: number;
-  /** Text alternative handed to the share sheet. */
-  alt: string;
 }
 
 /**
@@ -71,7 +69,6 @@ export function buildShareCard(p: { date: string; exs: readonly ExState[]; cardi
   });
   const title = `${weekdayLong(p.date)} workout`;
   const dateLabel = `${shortDate(p.date)} ${p.date.slice(0, 4)}`;
-  const prs = rows.filter((r) => r.pr).length;
   return {
     title,
     dateLabel,
@@ -80,6 +77,5 @@ export function buildShareCard(p: { date: string; exs: readonly ExState[]; cardi
     bests: rows.map((r) => r.best),
     rows: rows.slice(0, CARD_MAX_ROWS),
     more: Math.max(0, rows.length - CARD_MAX_ROWS),
-    alt: `${title}, ${dateLabel}. ${stats.map((s) => `${s.label} ${s.value}`).join(', ')}.${prs ? ` ${prs} personal ${prs === 1 ? 'record' : 'records'}.` : ''}`,
   };
 }

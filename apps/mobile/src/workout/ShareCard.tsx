@@ -15,26 +15,26 @@ export function ShareCard({ model, cardRef }: { model: ShareCardModel; cardRef: 
   return (
     <View ref={cardRef} collapsable={false} testID="share-card" accessible={false} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden style={[styles.card, { left: -(width + CARD_W) }]}>
       <View style={styles.header}>
-        <Text numberOfLines={1} style={[type.small, { color: c.brand }]}>PLATE AND BAR</Text>
-        <Text numberOfLines={1} style={[type.heading, { color: c.ink }]}>{model.title}</Text>
-        <Text numberOfLines={1} style={[type.caption, { color: c.body }]}>{model.dateLabel}</Text>
+        <Text allowFontScaling={false} numberOfLines={1} style={[type.small, { color: c.brand }]}>PLATE AND BAR</Text>
+        <Text allowFontScaling={false} numberOfLines={1} style={[type.heading, { color: c.ink }]}>{model.title}</Text>
+        <Text allowFontScaling={false} numberOfLines={1} style={[type.caption, { color: c.body }]}>{model.dateLabel}</Text>
       </View>
       <View style={styles.stats}>
         {model.cardStats.map((s) => (
           <View key={s.label} style={styles.stat}>
-            <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} style={[type.label, tabular, { color: c.ink }]}>{s.value}</Text>
-            <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} style={[type.small, { color: c.muted }]}>{s.label}</Text>
+            <Text allowFontScaling={false} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} style={[type.label, tabular, { color: c.ink }]}>{s.value}</Text>
+            <Text allowFontScaling={false} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} style={[type.small, { color: c.muted }]}>{s.label}</Text>
           </View>
         ))}
       </View>
       {model.rows.map((r, i) => (
         <View key={`${i}-${r.name}`} style={styles.row}>
-          <Text numberOfLines={1} ellipsizeMode="tail" style={[type.bodyStrong, styles.name, { color: c.ink }]}>{r.name}</Text>
-          {r.pr ? <Text style={[type.small, styles.pr]}>PR</Text> : null}
-          <Text numberOfLines={1} style={[type.bodyStrong, tabular, styles.best, { color: c.ink }]}>{r.best}</Text>
+          <Text allowFontScaling={false} numberOfLines={1} ellipsizeMode="tail" style={[type.bodyStrong, styles.name, { color: c.ink }]}>{r.name}</Text>
+          {r.pr ? <Text allowFontScaling={false} style={[type.small, styles.pr]}>PR</Text> : null}
+          <Text allowFontScaling={false} numberOfLines={1} style={[type.bodyStrong, tabular, styles.best, { color: c.ink }]}>{r.best}</Text>
         </View>
       ))}
-      {model.more ? <Text numberOfLines={1} style={[type.caption, styles.more, { color: c.muted }]}>+{model.more} more</Text> : null}
+      {model.more ? <Text allowFontScaling={false} numberOfLines={1} style={[type.caption, styles.more, { color: c.muted }]}>+{model.more} more</Text> : null}
     </View>
   );
 }

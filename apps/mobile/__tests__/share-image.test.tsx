@@ -135,10 +135,24 @@ describe('share the workout summary picture', () => {
   });
 
   it('the card sits off screen even on a wide window', async () => {
+    const before = Dimensions.get('window');
     Dimensions.set({ window: { width: 1280, height: 800, scale: 1, fontScale: 1 } });
+    try {
+      await panel();
+      const left = (StyleSheet.flatten(screen.getByTestId('share-card', { includeHiddenElements: true }).props.style) as { left: number }).left;
+      expect(left).toBeLessThanOrEqual(-(1280 + CARD_W));
+    } finally {
+      Dimensions.set({ window: before });
+    }
+  });
+
+  it('every text in the card ignores the system text size (it is a fixed-size picture)', async () => {
     await panel();
-    const left = (StyleSheet.flatten(screen.getByTestId('share-card', { includeHiddenElements: true }).props.style) as { left: number }).left;
-    expect(left).toBeLessThanOrEqual(-(1280 + CARD_W));
+    const walk = (n: { type?: unknown; props?: Record<string, unknown>; children?: unknown[] }): { type?: unknown; props?: Record<string, unknown> }[] =>
+      [...(n.type === 'Text' ? [n] : []), ...(n.children ?? []).flatMap((c) => (typeof c === 'string' ? [] : walk(c as never)))];
+    const texts = walk(screen.getByTestId('share-card', { includeHiddenElements: true }) as never);
+    expect(texts.length).toBeGreaterThan(8);
+    expect(texts.every((t) => t.props?.allowFontScaling === false)).toBe(true);
   });
 });
 
