@@ -99,7 +99,7 @@ export function CoverageSection({ db, profile, settings, today }: { db: WorkoutD
           <Meter title="Weekly coverage: your plan" rows={rows.planned} />
           <Hint>Approximate hard sets per week from your plan, counting secondary muscles as half. Around 10 is a good target for most muscles; under 6 is flagged.</Hint>
           <WhyLink id="volume" />
-          <Hint>{`Bars: grey is planned, coloured is done. A low count (under ${COVER_LOW} sets) shows in amber.`}</Hint>
+          <Hint>{`Bars: grey is planned, coloured is done. A low count (under ${COVER_LOW} sets) shows in orange.`}</Hint>
           <Meter title="Done in the last 7 days" rows={rows.done} done />
         </>
       ) : null}

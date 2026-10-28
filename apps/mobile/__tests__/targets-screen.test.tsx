@@ -349,7 +349,7 @@ describe('TargetsScreen', () => {
       // planned: core's count for the 6-day split, no hard-coded figure here
       const planned = screen.getByLabelText(/^Weekly coverage: your plan, Chest: \d+ sets/);
       expect(planned).toBeTruthy();
-      expect(screen.getByText(`Bars: grey is planned, coloured is done. A low count (under ${COVER_LOW} sets) shows in amber.`)).toBeTruthy(); // legend for the bar colours
+      expect(screen.getByText(`Bars: grey is planned, coloured is done. A low count (under ${COVER_LOW} sets) shows in orange.`)).toBeTruthy(); // legend for the bar colours
       expect(screen.getByLabelText(/^Done in the last 7 days, Calves: 0 sets, low$/)).toBeTruthy();
     });
 
