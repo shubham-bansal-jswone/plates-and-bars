@@ -50,25 +50,25 @@ class SyncRecordCountIT extends SyncITBase {
     }
 
     @Test
-    void theCounterFollowsNewRecordsAcrossAllSixteenTablesAndNotEditsDeletesOrRetries() {
+    void theCounterFollowsNewRecordsAcrossAllSyncTablesAndNotEditsDeletesOrRetries() {
         String user = newUser();
         var records = oneOfEach(user, T);
         Req first = Req.of(null);
         records.forEach(first::add);
         ok(user, first.build());
-        assertThat(rows(user)).isEqualTo(16);
-        assertThat(counter(user)).isEqualTo(16);
+        assertThat(rows(user)).isEqualTo(SyncTable.values().length);
+        assertThat(counter(user)).isEqualTo(SyncTable.values().length);
 
         // Retry of the same push (still version 0), an edit and a delete: no new rows.
         ok(user, Req.of(null).add(SyncTable.water_logs, records.get(SyncTable.water_logs)).build());
         String rid = jdbc.queryForObject("SELECT id FROM water_logs WHERE user_id = ?", String.class, user);
         ok(user, Req.of(null).add(SyncTable.water_logs, waterLog(rid, 1, "2026-10-08T11:30:00Z", "2026-10-08T11:30:00Z", 250)).build());
-        assertThat(rows(user)).isEqualTo(16);
-        assertThat(counter(user)).isEqualTo(16);
+        assertThat(rows(user)).isEqualTo(SyncTable.values().length);
+        assertThat(counter(user)).isEqualTo(SyncTable.values().length);
 
         // A tombstone for a record the server never saw is stored, so it counts.
         ok(user, Req.of(null).add(SyncTable.water_logs, waterLog(id(), 0, T, T, 250)).build());
-        assertThat(counter(user)).isEqualTo(17).isEqualTo(rows(user));
+        assertThat(counter(user)).isEqualTo(SyncTable.values().length + 1).isEqualTo(rows(user));
     }
 
     @Test
@@ -93,6 +93,9 @@ class SyncRecordCountIT extends SyncITBase {
                 // User a: one row in each of the 16 tables, two of them tombstones, plus a conflict log entry (not counted).
                 int n = 0;
                 for (SyncTable t : SyncTable.values()) {
+                    if (t == SyncTable.routines) {
+                        continue; // V11 adds the table; this backfill test stops at V7 and then runs V8
+                    }
                     st.execute("INSERT INTO " + schema + "." + t.sqlName() + " (user_id, id, version, updated_at, deleted_at, seq, data)"
                             + " VALUES ('" + a + "', '" + UUID.randomUUID() + "', 1, NOW(3), " + (n++ < 2 ? "NOW(3)" : "NULL") + ", 1, '{}')");
                 }

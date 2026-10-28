@@ -15,6 +15,7 @@ import { SyncBadge } from '../src/sync/SyncBadge';
 import { Stores } from '../src/sync/Stores';
 import { SyncProvider } from '../src/sync/SyncProvider';
 import { WeightUnitProvider } from '../src/settings/weightUnit';
+import { PlateSettingsProvider } from '../src/settings/plateSettings';
 import { DeviceStepsProvider } from '../src/steps/DeviceStepsProvider';
 import { RestColdStart } from '../src/reminders/RestColdStart';
 import { HomeWidgetSync } from '../src/widget/HomeWidgetSync';
@@ -35,6 +36,7 @@ function Providers() {
     <SyncProvider db={sdb}>
       <Stores db={db}>
         <WeightUnitProvider db={db}>
+          <PlateSettingsProvider db={db}>
           <DeviceStepsProvider db={db}>
             <ContentRefresher />
             <RestColdStart />
@@ -44,6 +46,7 @@ function Providers() {
             <Gate />
             <SyncBadge />
           </DeviceStepsProvider>
+          </PlateSettingsProvider>
         </WeightUnitProvider>
       </Stores>
     </SyncProvider>
