@@ -11,8 +11,8 @@ type Key = keyof TargetSet;
 
 /** Calories show grouped ("2,240", as everywhere else); other fields stay plain. */
 const show = (k: Key, n: number): string => (k === 'kcal' ? fmt(n) : String(n));
-/** `cleanTarget` reads a comma as a decimal point, so a grouped "2,240" would be 2: drop grouping commas first. */
-const clean = (v: string): number => cleanTarget(/^\d{1,3}(,\d{2,3})+(\.\d+)?$/.test(v.trim()) ? v.replace(/,/g, '') : v);
+/** `cleanTarget` reads a comma as a decimal point, so the grouped "2,240" `fmt` shows would be 2: for calories only, drop commas in exactly that shape ("1,990", "1,00,000"). */
+const clean = (k: Key, v: string): number => cleanTarget(k === 'kcal' && /^\d{1,3}(,\d{2})*,\d{3}(\.\d+)?$/.test(v.trim()) ? v.replace(/,/g, '') : v);
 const FIELDS: [Key, string][] = [
   ['kcal', 'Calories (kcal)'],
   ['protein_g', 'Protein (g)'],
@@ -45,7 +45,7 @@ export function TargetsEditor({ profile, setProfile, now, notify }: Props) {
     latest.current = t;
     setText((cur) => {
       const next = { ...cur };
-      for (const [k] of FIELDS) if (clean(cur[k]) !== t[k]) next[k] = show(k, t[k]);
+      for (const [k] of FIELDS) if (clean(k, cur[k]) !== t[k]) next[k] = show(k, t[k]);
       return next;
     });
   }, [t.kcal, t.protein_g, t.carbs_g, t.fat_g]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -58,7 +58,7 @@ export function TargetsEditor({ profile, setProfile, now, notify }: Props) {
   };
   const change = (k: Key, v: string) => {
     setText({ ...text, [k]: v });
-    save({ ...latest.current, [k]: clean(v) });
+    save({ ...latest.current, [k]: clean(k, v) });
   };
   const off = macrosOff(t);
   return (
@@ -66,7 +66,7 @@ export function TargetsEditor({ profile, setProfile, now, notify }: Props) {
       {FIELDS.map(([k, label]) => (
         <View key={k} style={{ gap: 4 }}>
           <Caption>{label}</Caption>
-          <Field label={label} inputMode="numeric" value={text[k]} onChangeText={(v) => change(k, v)} onBlur={() => setText((cur) => ({ ...cur, [k]: show(k, clean(cur[k])) }))} />
+          <Field label={label} inputMode="numeric" value={text[k]} onChangeText={(v) => change(k, v)} onBlur={() => setText((cur) => ({ ...cur, [k]: show(k, clean(k, cur[k])) }))} />
         </View>
       ))}
       <Hint>{`Your macros add up to ${fmt(macroKcal(t))} kcal.${off ? ' That doesn’t match your calorie target.' : ''}`}</Hint>

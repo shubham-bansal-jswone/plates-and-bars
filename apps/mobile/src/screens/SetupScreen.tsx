@@ -83,7 +83,7 @@ function StepBody({ step, d, set, errs, focus }: { step: number; d: Draft; set: 
         <Hint>Four quick steps. You can change any answer later.</Hint>
         <View style={layout.field}>
           <Label>Sex</Label>
-          <Group label="Sex">
+          <Group label="Sex" error={hint('sex')}>
             <View style={layout.row}>
               <Choice focusRef={focus('sex')} chip label="Male" selected={d.sex === 'male'} onPress={() => set('sex', 'male')} />
               <Choice chip label="Female" selected={d.sex === 'female'} onPress={() => set('sex', 'female')} />
@@ -143,7 +143,7 @@ function StepBody({ step, d, set, errs, focus }: { step: number; d: Draft; set: 
       <>
         <H1>How active is your day, outside the gym?</H1>
         <Hint>Think of a typical weekday. Training comes in the next step.</Hint>
-        <Group label="Activity">
+        <Group label="Activity" error={hint('activity')}>
           {entries(ACTIVITY).map(([k, [l, s]], i) => (
             <Choice key={k} focusRef={i === 0 ? focus('activity') : undefined} label={l} sub={s} selected={d.activity === k} onPress={() => set('activity', k)} />
           ))}
@@ -157,7 +157,7 @@ function StepBody({ step, d, set, errs, focus }: { step: number; d: Draft; set: 
         <H1>How do you train?</H1>
         <View style={layout.field}>
           <Label>Sessions per week</Label>
-          <Group label="Sessions per week">
+          <Group label="Sessions per week" error={hint('days')}>
             <View style={layout.row}>
               {DAY_CHOICES.map((n) => (
                 <Choice key={n} focusRef={n === DAY_CHOICES[0] ? focus('days') : undefined} chip label={n === 0 ? 'None yet' : String(n)} selected={d.days === n} onPress={() => set('days', n)} />
@@ -170,7 +170,7 @@ function StepBody({ step, d, set, errs, focus }: { step: number; d: Draft; set: 
           <>
             <View style={layout.field}>
               <Label>Where do you train?</Label>
-              <Group label="Where do you train?">
+              <Group label="Where do you train?" error={hint('where')}>
                 {entries(WHERE).map(([k, [l, s]], i) => (
                   <Choice key={k} focusRef={i === 0 ? focus('where') : undefined} label={l} sub={s} selected={d.where === k} onPress={() => set('where', k)} />
                 ))}
@@ -179,7 +179,7 @@ function StepBody({ step, d, set, errs, focus }: { step: number; d: Draft; set: 
             </View>
             <View style={layout.field}>
               <Label>Training experience</Label>
-              <Group label="Training experience">
+              <Group label="Training experience" error={hint('exp')}>
                 {entries(EXPERIENCE).map(([k, [l, s]], i) => (
                   <Choice key={k} focusRef={i === 0 ? focus('exp') : undefined} label={l} sub={s} selected={d.exp === k} onPress={() => set('exp', k)} />
                 ))}
@@ -188,7 +188,7 @@ function StepBody({ step, d, set, errs, focus }: { step: number; d: Draft; set: 
             </View>
             <View style={layout.field}>
               <Label>Typical session length</Label>
-              <Group label="Typical session length">
+              <Group label="Typical session length" error={hint('minutes')}>
                 <View style={layout.row}>
                   {SESSION_MINUTES.map((m, i) => (
                     <Choice key={m} focusRef={i === 0 ? focus('minutes') : undefined} chip label={`${m} min`} selected={d.minutes === m} onPress={() => set('minutes', m)} />
@@ -204,7 +204,7 @@ function StepBody({ step, d, set, errs, focus }: { step: number; d: Draft; set: 
   return (
     <>
       <H1>What’s your main goal?</H1>
-      <Group label="Main goal">
+      <Group label="Main goal" error={hint('goal')}>
         {entries(GOALS).map(([k, [l, s]], i) => (
           <Choice key={k} focusRef={i === 0 ? focus('goal') : undefined} label={l} sub={s} selected={d.goal === k} onPress={() => set('goal', k)} />
         ))}
@@ -216,12 +216,12 @@ function StepBody({ step, d, set, errs, focus }: { step: number; d: Draft; set: 
         {SCREEN_Q.map((q, i) => (
           <View key={q} style={{ gap: 6, marginBottom: 8 }}>
             <Text style={{ color: c.ink, fontSize: 15, lineHeight: 21 }}>{q}</Text>
-            <Group label={q}>
+            <Group label={q} error={d.screen[i] ? undefined : hint('screen')}>
               <View style={layout.row}>
                 {(['no', 'yes'] as const).map((a) => (
                   <Choice
                     key={a}
-                    focusRef={i === 0 && a === 'no' ? focus('screen') : undefined}
+                    focusRef={a === 'no' && i === d.screen.findIndex((x) => !x) ? focus('screen') : undefined}
                     chip
                     label={a === 'no' ? 'No' : 'Yes'}
                     selected={d.screen[i] === a}

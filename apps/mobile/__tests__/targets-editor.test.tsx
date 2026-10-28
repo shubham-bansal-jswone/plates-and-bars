@@ -46,6 +46,12 @@ describe('editable daily targets', () => {
     expect(screen.getByLabelText('Calories (kcal)').props.value).toBe('2,300');
   });
 
+  it('reads a comma as a decimal point in the macro fields, so "12,50" protein is 13, not 1250 (#1196)', async () => {
+    const db = await open();
+    await fireEvent.changeText(screen.getByLabelText('Protein (g)'), '12,50');
+    await waitFor(async () => expect((await loadProfile(db))?.targets.protein_g).toBe(13));
+  });
+
   it('keeps two quick edits', async () => {
     const db = await open();
     await fireEvent.changeText(screen.getByLabelText('Calories (kcal)'), '2100');

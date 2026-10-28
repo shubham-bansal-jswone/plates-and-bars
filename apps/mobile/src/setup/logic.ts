@@ -114,6 +114,7 @@ export function stepErrors(step: number, d: Draft): [SetupField, string][] {
   const out: [SetupField, string][] = [];
   let cur = d;
   for (let e = validateSetupStep(step, cur); e; e = validateSetupStep(step, cur)) {
+    if (out.some(([f]) => f === FIELD_OF[e])) break; // a stand-in core still rejects: stop, never loop
     out.push([FIELD_OF[e], ERROR_COPY[e]]);
     cur = { ...cur, ...FIX[FIELD_OF[e]] };
   }

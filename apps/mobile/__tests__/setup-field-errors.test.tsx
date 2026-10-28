@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
+import { View } from 'react-native';
 import { SetupScreen } from '../src/screens/SetupScreen';
 import { emptyDraft, stepErrors, validateStep } from '../src/setup/logic';
 import { memoryDb, withProfile } from './helpers';
@@ -55,9 +56,14 @@ describe('setup all errors at once', () => {
     await fireEvent(screen.getByLabelText('I understand and agree to my data being stored as described'), 'valueChange', true);
     await fireEvent.press(screen.getByLabelText('Continue'));
     await screen.findByText('Let’s work out your targets');
+    const focus = jest.spyOn(View.prototype as never, 'focus' as never);
     await fireEvent.press(screen.getByLabelText('Continue'));
     for (const t of ['Choose male or female for the calorie formula.', 'Enter your age.', 'Enter your height in feet and inches, like 5 and 7.', 'Enter your weight in kg, like 72.5.'])
       expect(screen.getByText(t)).toBeTruthy();
+    // The first invalid field's control (the Male chip) was focused.
+    expect(focus.mock.contexts.some((c) => (c as { props?: { accessibilityLabel?: string } }).props?.accessibilityLabel === 'Male')).toBe(true);
+    expect(screen.getByLabelText('Sex', { exact: true }).props['aria-invalid']).toBe(true);
+    expect(screen.getByLabelText('Sex', { exact: true }).props.accessibilityHint).toBe('Choose male or female for the calorie formula.');
     for (const l of ['Age', 'Height feet', 'Height inches', 'Weight in kg']) expect(screen.getByLabelText(l).props['aria-invalid']).toBe(true);
   });
 });

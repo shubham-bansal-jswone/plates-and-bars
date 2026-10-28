@@ -297,9 +297,10 @@ export function Field({ label, invalid, style, ...rest }: TextInputProps & { ref
   return <Input accessibilityLabel={label} aria-invalid={invalid || undefined} {...rest} style={[styles.input, style, invalid ? { borderColor: c.danger } : null]} />;
 }
 
-export function Group({ children, label }: { children: ReactNode; label?: string }) {
+/** `error` marks the group invalid and is its hint, so a screen reader hears why on entering it. */
+export function Group({ children, label, error }: { children: ReactNode; label?: string; error?: string }) {
   return (
-    <View accessibilityRole="radiogroup" accessibilityLabel={label} style={styles.group}>
+    <View accessibilityRole="radiogroup" accessibilityLabel={label} accessibilityHint={error} aria-invalid={error ? true : undefined} style={styles.group}>
       {children}
     </View>
   );
