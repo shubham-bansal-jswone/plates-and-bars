@@ -1,9 +1,11 @@
 /** @jest-environment node */
 import { buildLocalExport } from '../src/account/exportLocal';
-import { applyRestore, parseRestore } from '../src/account/restoreLocal';
+import { applyRestore, parseRestore, previewRestore } from '../src/account/restoreLocal';
 import { ROUTINE_LIMITS, RoutineError, createRoutine, deleteRoutine, loadRoutines, renameRoutine, undoDeleteRoutine, type RoutineExercise } from '../src/db/routines';
 import { pendingChanges } from '../src/db/outbox';
 import { wipeLocalStore } from '../src/sync/guard';
+import { RESTORE_COPY } from '../src/account/copy';
+import { exclusive } from '../src/db/exclusive';
 import { openDb } from './sync-helpers';
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -69,6 +71,50 @@ describe('routines store (#1184)', () => {
     await expect(undoDeleteRoutine(db, last)).rejects.toMatchObject({ code: 'too_many' }); // the revive counts as a new one
   });
 
+  it('a row that is not JSON does not break create or undo (the count ignores it)', async () => {
+    const db = await openDb();
+    await db.runAsync("INSERT INTO routines (key, data) VALUES ('bad', 'not json')");
+    const r = await createRoutine(db, 'A', squat, T(1));
+    await deleteRoutine(db, r.id as string, T(2));
+    await expect(undoDeleteRoutine(db, r.id as string, T(3))).resolves.toBeUndefined();
+    expect((await loadRoutines(db)).map((x) => x.name)).toEqual(['A']);
+  });
+
+  it('two creates at 99 end at 100, never 101', async () => {
+    const db = await openDb();
+    for (let i = 0; i < 99; i++) await createRoutine(db, `R${i}`, squat, T(1));
+    const res = await Promise.allSettled([createRoutine(db, 'X', squat), createRoutine(db, 'Y', squat)]);
+    expect(res.map((x) => x.status).sort()).toEqual(['fulfilled', 'rejected']);
+    expect(await loadRoutines(db)).toHaveLength(100);
+  });
+
+  it('a rename and a pull landing together both survive (no stale overwrite)', async () => {
+    const db = await openDb();
+    const r = await createRoutine(db, 'A', squat, T(1));
+    const pull = exclusive(db, async (d) => {
+      const row = await (d as typeof db).getFirstAsync<{ data: string }>('SELECT data FROM routines WHERE key = ?', r.id as string);
+      await d.runAsync('INSERT OR REPLACE INTO routines (key, data) VALUES (?, ?)', r.id as string, JSON.stringify({ ...JSON.parse(row!.data), version: 5 }));
+    });
+    await Promise.all([renameRoutine(db, r.id as string, 'B', T(2)), pull]);
+    expect((await loadRoutines(db))[0]).toMatchObject({ name: 'B', version: 5 });
+  });
+
+  it('renaming a deleted routine is refused and queues nothing', async () => {
+    const db = await openDb();
+    const r = await createRoutine(db, 'A', squat, T(1));
+    await deleteRoutine(db, r.id as string, T(2));
+    await clear(db);
+    await expect(renameRoutine(db, r.id as string, 'B', T(3))).rejects.toMatchObject({ code: 'missing' });
+    expect(await queue(db)).toEqual([]);
+  });
+
+  it('an exercise key whose value is undefined is dropped, as JSON does', async () => {
+    const db = await openDb();
+    const r = await createRoutine(db, 'A', [{ name: 'Squat', sets: 3, part: undefined } as unknown as RoutineExercise]);
+    expect(r.exercises).toEqual([{ name: 'Squat', sets: 3 }]);
+    expect('part' in r.exercises[0]!).toBe(false);
+  });
+
   it('a rename keeps the exercises, including keys this app does not know', async () => {
     const db = await openDb();
     const r = await createRoutine(db, 'A', [{ name: 'Squat', sets: 3, group: 'ss1', note: null }], T(1));
@@ -125,6 +171,32 @@ describe('routines in the device export and restore', () => {
     expect(summary.tables.routines).toMatchObject({ older: 1, newer: 1 });
     expect((await loadRoutines(dst)).map((x) => x.name)).toEqual(['A here']);
     expect((await queue(dst)).map((e) => e.key)).toEqual([b.id]);
+  });
+
+  it('restore does not take the live routines past 100: the first that fit are kept, the rest counted as over', async () => {
+    const src = await openDb();
+    for (let i = 0; i < 5; i++) await createRoutine(src, `S${i}`, squat, T(1));
+    const file = JSON.parse(JSON.stringify((await buildLocalExport(src)).file)) as { tables: { routines: { version: number }[] } };
+    const parsed = await parseRestore(JSON.stringify(file));
+    const dst = await openDb();
+    for (let i = 0; i < 98; i++) await createRoutine(dst, `D${i}`, squat, T(1));
+    const preview = await previewRestore(dst, parsed, null);
+    expect(preview.tables.routines).toMatchObject({ added: 2, overCap: 3 });
+    const summary = await applyRestore(dst, parsed, null);
+    expect(summary.tables.routines).toMatchObject({ added: 2, overCap: 3 });
+    expect(await loadRoutines(dst)).toHaveLength(100);
+    expect(RESTORE_COPY.table('Routines', summary.tables.routines!)).toContain('3 skipped (over the limit of 100)');
+  });
+
+  it('restore still takes tombstones when the device is at 100', async () => {
+    const src = await openDb();
+    const a = await createRoutine(src, 'A', squat, T(1));
+    await deleteRoutine(src, a.id as string, T(2));
+    const parsed = await parseRestore(JSON.stringify((await buildLocalExport(src)).file));
+    const dst = await openDb();
+    for (let i = 0; i < 100; i++) await createRoutine(dst, `D${i}`, squat, T(1));
+    expect((await applyRestore(dst, parsed, null)).tables.routines).toMatchObject({ added: 1 });
+    expect(await loadRoutines(dst)).toHaveLength(100);
   });
 
   it('refuses a routine row that is not a routine', async () => {

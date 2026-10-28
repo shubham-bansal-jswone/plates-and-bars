@@ -1,5 +1,6 @@
 import type { Schemas } from '@plate-and-bar/api';
 import { isBlank } from '../text/blank';
+import { exclusive } from './exclusive';
 import { newId, type StoreDb } from './records';
 import type { WorkoutDb } from './workouts';
 
@@ -33,7 +34,9 @@ function checkName(name: string): string {
 function checkExercises(list: RoutineExercise[]): RoutineExercise[] {
   const seen = new Set<string>();
   const out: RoutineExercise[] = [];
-  for (const e of list) {
+  for (const raw of list) {
+    // JSON.stringify drops a key whose value is undefined, so it is dropped here too rather than refused.
+    const e = Object.fromEntries(Object.entries(raw).filter(([, v]) => v !== undefined)) as RoutineExercise;
     if (typeof e.name !== 'string' || isBlank(e.name) || len(e.name) > ROUTINE_LIMITS.exerciseNameMax) throw new RoutineError('exercises');
     // Bounded-open like the contract: at most 20 keys, each value a boolean, number, string up to 200, or null.
     const keys = Object.entries(e);
@@ -56,11 +59,16 @@ const parse = (data: string): Routine | null => {
   }
 };
 
-async function liveCount(db: WorkoutDb): Promise<number> {
-  return (await db.getFirstAsync<{ n: number }>("SELECT COUNT(*) AS n FROM routines WHERE json_extract(data, '$.deleted_at') IS NULL"))?.n ?? 0;
+type Rd = StoreDb & Pick<WorkoutDb, 'getFirstAsync'>;
+
+async function liveCount(db: Rd): Promise<number> {
+  return (await db.getFirstAsync<{ n: number }>("SELECT COUNT(*) AS n FROM routines WHERE json_valid(data) AND json_extract(data, '$.deleted_at') IS NULL"))?.n ?? 0;
 }
 
-async function load(db: WorkoutDb, id: string): Promise<Routine> {
+/** Read-then-write under the write lock, so a pull or another save cannot land between the read and the write. */
+const locked = (db: WorkoutDb, task: (d: Rd) => Promise<void>) => exclusive(db, (d) => task(d as Rd));
+
+async function load(db: Rd, id: string): Promise<Routine> {
   const row = await db.getFirstAsync<{ data: string }>('SELECT data FROM routines WHERE key = ?', id);
   const r = row ? parse(row.data) : null;
   if (!r) throw new RoutineError('missing');
@@ -82,29 +90,37 @@ export async function loadRoutines(db: WorkoutDb): Promise<Routine[]> {
 export async function createRoutine(db: WorkoutDb, name: string, exercises: RoutineExercise[], now: Date = new Date()): Promise<Routine> {
   const n = checkName(name);
   const list = checkExercises(exercises);
-  if ((await liveCount(db)) >= ROUTINE_LIMITS.maxLive) throw new RoutineError('too_many');
   const at = now.toISOString();
   const r: Routine = { id: newId(), version: 0, updated_at: at, deleted_at: null, name: n, exercises: list, created_at: at };
-  await write(db, r);
+  await locked(db, async (d) => {
+    if ((await liveCount(d)) >= ROUTINE_LIMITS.maxLive) throw new RoutineError('too_many');
+    await write(d, r);
+  });
   return r;
 }
 
-/** Renames; the exercises, including keys this app does not know, are written back as stored. */
+/** Renames; the exercises, including keys this app does not know, are written back as stored. A deleted routine is `missing`. */
 export async function renameRoutine(db: WorkoutDb, id: string, name: string, now: Date = new Date()): Promise<void> {
   const n = checkName(name);
-  await write(db, { ...(await load(db, id)), name: n, updated_at: now.toISOString() });
+  await locked(db, async (d) => {
+    const r = await load(d, id);
+    if (r.deleted_at) throw new RoutineError('missing');
+    await write(d, { ...r, name: n, updated_at: now.toISOString() });
+  });
 }
 
 /** Deletes by tombstone. */
 export async function deleteRoutine(db: WorkoutDb, id: string, now: Date = new Date()): Promise<void> {
   const at = now.toISOString();
-  await write(db, { ...(await load(db, id)), deleted_at: at, updated_at: at });
+  await locked(db, async (d) => void (await write(d, { ...(await load(d, id)), deleted_at: at, updated_at: at })));
 }
 
 /** Brings a deleted routine back under the same id. Refused at 100 live routines, as a new one is. */
 export async function undoDeleteRoutine(db: WorkoutDb, id: string, now: Date = new Date()): Promise<void> {
-  const r = await load(db, id);
-  if (!r.deleted_at) return;
-  if ((await liveCount(db)) >= ROUTINE_LIMITS.maxLive) throw new RoutineError('too_many');
-  await write(db, { ...r, deleted_at: null, updated_at: now.toISOString() });
+  await locked(db, async (d) => {
+    const r = await load(d, id);
+    if (!r.deleted_at) return;
+    if ((await liveCount(d)) >= ROUTINE_LIMITS.maxLive) throw new RoutineError('too_many');
+    await write(d, { ...r, deleted_at: null, updated_at: now.toISOString() });
+  });
 }

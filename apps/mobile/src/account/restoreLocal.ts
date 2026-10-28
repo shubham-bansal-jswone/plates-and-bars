@@ -7,6 +7,7 @@ import { NO_USER, type LocalExport } from './exportLocal';
 import { InvalidRecord, normalizeTimestamps, storeRecord, type Doc } from '../sync/records';
 import { naturalId } from '../sync/ids';
 import { getLiftVersion } from '../sync/store';
+import { ROUTINE_LIMITS } from '../db/routines';
 import { deleteKitchenPhoto } from '../photos/vault';
 
 // Restore from a device export file (#1177). It merges by record id using the record version and tombstones, the rule sync
@@ -158,6 +159,8 @@ export interface TableCounts {
   conflicts: number;
   /** Same version and time: nothing to do. */
   same: number;
+  /** Routines only: live routines that would take this device past 100. The first that fit are stored, these are skipped. */
+  overCap?: number;
   /** First and last day among the file's rows of this table that have a date. */
   from?: string;
   to?: string;
@@ -190,6 +193,9 @@ interface Merged extends Omit<RestoreSummary, 'differentAccount'> {
 async function merge(db: WorkoutDb, parsed: ParsedRestore, apply: boolean, addOnly: boolean): Promise<Merged> {
   const deletedKitchen: string[] = [];
   const tables: RestoreSummary['tables'] = {};
+  // Live routines by key, kept up to date as rows are (or would be) stored, so the 100 cap holds for the whole file.
+  const live = new Set<string>();
+  for (const r of await db.getAllAsync<{ key: string; data: string }>("SELECT key, data FROM routines WHERE json_valid(data) AND json_extract(data, '$.deleted_at') IS NULL")) live.add(r.key);
   for (const { tbl, key, rec, setDate } of parsed.rows) {
     if (SKIPPED.has(tbl)) continue;
     const c = (tables[tbl] ??= zero());
@@ -205,6 +211,14 @@ async function merge(db: WorkoutDb, parsed: ParsedRestore, apply: boolean, addOn
     else {
       const doc = JSON.parse(row.data) as Doc;
       outcome = compare(rec, { version: tbl === 'lift_stats' ? await getLiftVersion(db, key) : Number(doc.version ?? 0), at: tbl === 'lift_stats' ? null : stamp(doc) });
+    }
+    if (tbl === 'routines' && (outcome === 'added' || outcome === 'newer')) {
+      if (!rec.deleted_at && !live.has(key) && live.size >= ROUTINE_LIMITS.maxLive) {
+        c.overCap = (c.overCap ?? 0) + 1; // ADR 011: the server would refuse it; skipped here instead
+        continue;
+      }
+      if (rec.deleted_at) live.delete(key);
+      else live.add(key);
     }
     c[outcome]++;
     // The table triggers queue the write, so it syncs up like any edit made here.

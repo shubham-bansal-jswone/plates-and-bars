@@ -6,7 +6,7 @@ import { forgetHeldRetry, syncOnce } from '../src/sync/engine';
 import { listQuarantined } from '../src/sync/quarantine';
 import { KEY_CURSOR, getCursor, getKv, setKv, KEY_USER } from '../src/sync/store';
 import { saveWeightDoc } from './sync-fixtures';
-import { fakeServer, memoryTokens, openDb, seedConsent } from './sync-helpers';
+import { failInTxn, fakeServer, memoryTokens, openDb, seedConsent } from './sync-helpers';
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 jest.mock('expo-crypto', () => require('./sync-crypto-mock'));
@@ -147,5 +147,37 @@ describe('routines sync (#1184)', () => {
     const cursor = await getCursor(a.db);
     await a.sync();
     expect(server.calls.filter((c) => c.path === '/sync').at(-1)!.body.cursor).toBe(cursor); // not reset again
+  });
+  it('only the unsupported_table record is retried; one set aside for another reason stays, and no marker is left behind', async () => {
+    const server = fakeServer(USER);
+    server.unsupported = ['weights'];
+    server.maxLiveRoutines = 1;
+    let t = Date.parse('2026-10-29T10:00:00Z');
+    const a = await device(server, () => t);
+    await createRoutine(a.db, 'Fits', squat);
+    await a.sync();
+    await createRoutine(a.db, 'Over', squat);
+    await saveWeightDoc(a.db, { id: null, version: 0, updated_at: '2026-10-09T06:00:00Z', deleted_at: null, date: '2026-10-08', weight_kg: 80 });
+    expect(await a.sync()).toMatchObject({ status: 'ok', quarantined: 2 });
+    server.unsupported = []; // the server is upgraded; the cap still holds
+    t += 2 * 86_400_000;
+    const routinePushes = server.pushed().filter((p) => p.table === 'routines').length;
+    await a.sync();
+    expect(server.pushed().filter((p) => p.table === 'routines')).toHaveLength(routinePushes); // not sent again
+    expect((await listQuarantined(a.db)).map((q) => q.tbl)).toEqual(['routines']);
+    expect(server.log.filter((l) => l.table === 'weights')).toHaveLength(1);
+    expect(await a.db.getAllAsync("SELECT key FROM settings WHERE key LIKE 'sync.unsupported.%'")).toEqual([]);
+  });
+
+  it('the one-time re-pull resets the cursor and sets its marker in one transaction', async () => {
+    const server = fakeServer(USER);
+    const a = await device(server);
+    await a.db.runAsync("DELETE FROM settings WHERE key = 'sync.routines_pulled'");
+    await setKv(a.db, KEY_CURSOR, 'c_old');
+    const f = failInTxn(a.db, 'INSERT OR REPLACE INTO settings'); // the marker write
+    await a.sync().catch(() => undefined);
+    f.restore();
+    expect(await getKv(a.db, KEY_CURSOR)).toBe('c_old'); // rolled back with the marker
+    expect(await getKv(a.db, 'sync.routines_pulled')).toBeNull();
   });
 });
