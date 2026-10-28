@@ -3,7 +3,7 @@ import { WhyLink } from '../why/WhyLink';
 import { StyleSheet, View } from 'react-native';
 import { radius, tabular, type } from '../theme/tokens';
 import { Text } from '../components/Text';
-import { estimateFor, feelResult, isFocus, ladderOf, showFeel, rampTickFill, kgLabel, noLoad, repWord, restLabel, setTarget, type ExInfo, type LiftRecord, type Rate, type Suggestion, type WarmupSet } from '@plate-and-bar/core';
+import { estimateFor, feelResult, isFocus, ladderOf, showFeel, rampTickFill, kgLabel, formatWeight, infoForUnit, noLoad, repWord, restLabel, setTarget, type ExInfo, type LiftRecord, type Rate, type Suggestion, type WarmupSet, type WeightUnit } from '@plate-and-bar/core';
 import { a11yState, Chip, Disclosure, Heading, Button, Card, Hint, Note, Press } from '../components/ui';
 import { useTheme } from '../theme/useTheme';
 import { getCatalog } from './catalog';
@@ -15,9 +15,9 @@ import { FormCheckButton } from '../ai/FormCheck';
 import { ExerciseFigure } from './ExerciseFigure';
 import { TICK_SIZE } from './setSizes';
 import { SetRow } from './SetRow';
+import { useWeightUnit } from '../settings/weightUnit';
+import { displayRow } from './unitText';
 import Svg, { Path } from 'react-native-svg';
-
-const r1 = (n: number | string): number => Math.round(Number(n) * 10) / 10;
 
 export interface Actions {
   edit(kind: 'work' | 'ramp', j: number, field: 'w' | 'r', v: string): void;
@@ -151,10 +151,10 @@ function LearnBlock({ ex, first, done }: { ex: ExState; first: boolean; done: nu
 }
 
 /** "8 reps at 24 kg, then 5 at 36 kg": the first step spells out "reps", later ones give the count only. */
-const warmSteps = (warm: readonly WarmupSet[], info: ExInfo): string =>
-  warm.map((s, k) => `${s.reps}${k === 0 ? ' reps' : ''} at ${kgLabel(s.w, info)}`).join(', then ');
+const warmSteps = (warm: readonly WarmupSet[], info: ExInfo, unit: WeightUnit): string =>
+  warm.map((s, k) => `${s.reps}${k === 0 ? ' reps' : ''} at ${kgLabel(s.w, info, unit)}`).join(', then ');
 /** The whole warm-up line as one sentence, for screen readers. */
-const warmLine = (warm: readonly WarmupSet[], info: ExInfo): string => `Warm up first: ${warmSteps(warm, info)}. Not logged.`;
+const warmLine = (warm: readonly WarmupSet[], info: ExInfo, unit: WeightUnit): string => `Warm up first: ${warmSteps(warm, info, unit)}. Not logged.`;
 
 /** One exercise: suggestion, warm-up line, ramp or working sets, ratings and the form question. */
 export function ExerciseCard({ ex, info, sug, focus, warm, act, cards, learning, lifts, infoOf, prior, notify, expanded = true, onToggle }: Props) {
@@ -166,9 +166,13 @@ export function ExerciseCard({ ex, info, sug, focus, warm, act, cards, learning,
     return () => clearTimeout(t);
   }, [armed]);
   const c = useTheme();
+  const { unit, ready } = useWeightUnit();
+  // Rows hold kg text; core's lb steps and rounding come from the lb info, and rows are shown to core in the display unit (#1185).
+  const uinfo = infoForUnit(info, unit);
+  const shown = (rows: readonly Row[]) => rows.map((r) => displayRow(r, unit));
   const nl = noLoad(info.type);
   const rw = repWord(info.type);
-  const wHead = info.type === 'dumbbell' ? 'kg each' : info.type === 'assisted' ? 'Assist kg' : nl ? '+kg' : 'kg';
+  const wHead = info.type === 'dumbbell' ? `${unit} each` : info.type === 'assisted' ? `Assist ${unit}` : nl ? `+${unit}` : unit;
   const tag = getCatalog().tags[ex.name];
   const working = ex.sets.some((s) => s.done);
   const doneCount = ex.sets.filter((s) => s.done).length;
@@ -176,13 +180,13 @@ export function ExerciseCard({ ex, info, sug, focus, warm, act, cards, learning,
   const showRamp = sug.mode === 'new' && !working && !ex.skipRamp;
   // Ramp placeholders and the first ramp set's reps come from core's `rampTickFill`.
   const rampPh = (j: number) => {
-    const f = rampTickFill(ex.ramp, j, info);
-    return { w: f.w || 'kg', r: f.r };
+    const f = rampTickFill(shown(ex.ramp), j, uinfo, unit);
+    return { w: f.w || unit, r: f.r };
   };
-  const easyNote = rampEasyNote(ex.ramp, info);
-  const est = showRamp && ex.ramp.length === 0 && lifts ? estimateFor(ex.name, lifts, info) : null;
+  const easyNote = rampEasyNote(ex.ramp, uinfo, unit);
+  const est = showRamp && ex.ramp.length === 0 && lifts ? estimateFor(ex.name, lifts, uinfo) : null;
   const ladder = ladderOf(ex.name, getCatalog().ladders);
-  const firstRampReps = rampTickFill([{ w: '', r: '', done: false }], 0, info).r;
+  const firstRampReps = rampTickFill([{ w: '', r: '', done: false }], 0, uinfo, unit).r;
 
   const heads = (w: string, r: string) => (
     <View aria-hidden style={styles.heads}>
@@ -205,8 +209,8 @@ export function ExerciseCard({ ex, info, sug, focus, warm, act, cards, learning,
       ) : null}
       {warm && warm.length ? (
         <View>
-          <Text accessibilityLabel={warmLine(warm, info)} style={{ color: c.muted, fontSize: 14, lineHeight: 20 }}>
-            <Text style={{ fontWeight: '700', color: c.ink }}>Warm up first: </Text>{warmSteps(warm, info)}. Not logged.
+          <Text accessibilityLabel={warmLine(warm, uinfo, unit)} style={{ color: c.muted, fontSize: 14, lineHeight: 20 }}>
+            <Text style={{ fontWeight: '700', color: c.ink }}>Warm up first: </Text>{warmSteps(warm, uinfo, unit)}. Not logged.
           </Text>
           <WhyLink id="warmup" subject={ex.name} />
         </View>
@@ -264,7 +268,7 @@ export function ExerciseCard({ ex, info, sug, focus, warm, act, cards, learning,
           <Text style={{ color: c.ink, fontWeight: '700' }}>First time: find your weight</Text>
           {ex.ramp.length === 0 ? (
             <>
-              {est ? <Hint>Rough guess from your {est.from} ({kgLabel(est.fromW, infoOf(est.from))}): about {kgLabel(est.w, info)}. Use the ramp to confirm.</Hint> : null}
+              {est ? <Hint>Rough guess from your {est.from} ({kgLabel(est.fromW, infoOf(est.from), unit)}): about {kgLabel(est.w, uinfo, unit)}. Use the ramp to confirm.</Hint> : null}
               <Text style={{ color: c.ink, fontSize: 14, lineHeight: 20 }}>
                 1. Do {firstRampReps} easy reps with a light weight to learn the movement.{'\n'}2. Add a step and do {info.lo} reps. Rate how it felt.{'\n'}3. Keep adding until {info.lo} reps feel hard but doable, with 2–3 left in the tank.
               </Text>
@@ -276,16 +280,16 @@ export function ExerciseCard({ ex, info, sug, focus, warm, act, cards, learning,
           ) : (
             <>
               <Hint>These don’t count as working sets.</Hint>
-              {heads('kg', 'reps')}
+              {heads(unit, 'reps')}
               {ex.ramp.map((s, j) => (
                 <View key={s.id} style={{ gap: 6 }}>
-                  <SetRow n={`R${j + 1}`} label={`${ex.name} ramp set ${j + 1}`} row={s} wHead="weight" repsHead="reps" ph={rampPh(j)} onEdit={(f, v) => act.edit('ramp', j, f, v)} onTick={() => act.rampTick(j)} current={!s.done && ex.ramp.findIndex((x) => !x.done) === j} />
+                  <SetRow n={`R${j + 1}`} label={`${ex.name} ramp set ${j + 1}`} row={s} wHead="weight" repsHead="reps" ph={rampPh(j)} onEdit={(f, v) => act.edit('ramp', j, f, v)} onTick={() => act.rampTick(j)} unit={unit} locked={!ready} current={!s.done && ex.ramp.findIndex((x) => !x.done) === j} />
                   <RateRow row={s} label={`${ex.name} ramp set ${j + 1}`} onRate={(v) => act.rampRate(j, v)} />
                 </View>
               ))}
               {ex.found !== null ? (
                 <Text style={{ color: c.ink, fontSize: 14 }}>
-                  Working weight found: <Text style={{ fontWeight: '700' }}>{kgLabel(ex.found, info)}</Text>. Your working sets below start there.
+                  Working weight found: <Text style={{ fontWeight: '700' }}>{kgLabel(ex.found, uinfo, unit)}</Text>. Your working sets below start there.
                 </Text>
               ) : (
                 <>
@@ -303,11 +307,11 @@ export function ExerciseCard({ ex, info, sug, focus, warm, act, cards, learning,
       {heads(wHead, rw)}
       <View style={{ gap: 8 }}>
         {ex.sets.map((s, j) => {
-          const t = setTarget(ex.sets, j, sug, info, ex.found);
+          const t = setTarget(shown(ex.sets), j, sug, uinfo, ex.found, unit);
           const label = `${ex.name} set ${j + 1}`;
           return (
             <View key={s.id} style={{ gap: 6 }}>
-              <SetRow n={String(j + 1)} label={label} focusWeight={skipped && j === 0} onFocused={() => setSkipped(false)} row={s} wHead={wHead} repsHead={rw} ph={{ w: t.w !== '' && t.w !== undefined ? String(r1(t.w)) : nl ? 'BW' : '–', r: t.r ? String(t.r) : '–' }} onEdit={(f, v) => act.edit('work', j, f, v)} onTick={() => act.tick(j)} current={!s.done && ex.sets.findIndex((x) => !x.done) === j} />
+              <SetRow n={String(j + 1)} label={label} focusWeight={skipped && j === 0} onFocused={() => setSkipped(false)} row={s} wHead={wHead} repsHead={rw} unit={unit} locked={!ready} ph={{ w: t.w !== '' && t.w !== undefined ? formatWeight(Number(t.w), unit) : nl ? 'BW' : '–', r: t.r ? String(t.r) : '–' }} onEdit={(f, v) => act.edit('work', j, f, v)} onTick={() => act.tick(j)} current={!s.done && ex.sets.findIndex((x) => !x.done) === j} />
               <RateRow row={s} label={label} onRate={(v) => act.rate(j, v)} />
             </View>
           );
@@ -340,7 +344,7 @@ export function ExerciseCard({ ex, info, sug, focus, warm, act, cards, learning,
       <Disclosure label="Guide and tools" a11yLabel={`Guide and tools for ${ex.name}`} defaultOpen={prior === 0}>
         <Text style={{ color: c.muted, fontSize: 14, lineHeight: 20 }}>
           {TYPE_LABEL[info.type]}, {info.lo}–{info.hi} {rw}
-          {!nl && info.step ? `, steps of ${r1(info.step)} kg` : ''}
+          {!nl && info.step ? `, steps of ${formatWeight(uinfo.step, unit)} ${unit}` : ''}
           {'\n'}Rest {restLabel(ex.name, getCatalog().tags)} between sets{ladder ? `\n${ladder.label} ladder: step ${ladder.i + 1} of ${ladder.steps.length}` : ''}{ex.bridge ? '\nBridge: a lighter version after your new exercise' : ''}
         </Text>
         <WhyLink id="rest" subject={ex.name} />

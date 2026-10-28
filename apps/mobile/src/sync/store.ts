@@ -12,6 +12,8 @@ export const KEY_SETTINGS_KEPT = 'device.settings_kept';
 export const KEY_REMINDERS = 'device.reminders';
 /** The running rest dock (#1143): end time, label and list, so a reload resumes it. Device-only, removed by a store wipe with the day it belongs to. */
 export const KEY_REST = 'device.rest';
+/** The weight unit shown and typed, `kg` or `lb` (#1185). Device-only, never synced, and kept by a store wipe: a display preference holds no personal data. */
+export const KEY_WEIGHT_UNIT = 'device.weight_unit';
 export const KEY_CURSOR = 'sync.cursor';
 const liftKey = (exercise: string) => `sync.lift.${exercise}`;
 

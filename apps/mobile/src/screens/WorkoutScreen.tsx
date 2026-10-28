@@ -5,7 +5,7 @@ import { useFocusEffect } from 'expo-router';
 import { AccessibilityInfo, Platform, StyleSheet, Text as RNText, useWindowDimensions, View } from 'react-native';
 import { useDataVersion } from '../sync/useDataVersion';
 import { Text } from '../components/Text';
-import { HAND_PICKED, modsNote, overridesFromSettings, plannedCoverage, type WeekPlan, secondSessionChoices, sessionVolume, beginnerRamp, checkinFlags, isFocus, nextInList, coverageTemplates, mondayOf, planned, restFor, warmupRamp, type Checkin, isLearning, exInfo, priorSessions, REST_EXTEND_SEC, type ExclusionReason } from '@plate-and-bar/core';
+import { HAND_PICKED, modsNote, overridesFromSettings, plannedCoverage, type WeekPlan, secondSessionChoices, sessionVolume, beginnerRamp, checkinFlags, isFocus, nextInList, coverageTemplates, mondayOf, planned, restFor, warmupRamp, type Checkin, isLearning, exInfo, fromKg, infoForUnit, priorSessions, REST_EXTEND_SEC, type ExclusionReason } from '@plate-and-bar/core';
 import { fmt } from '../format';
 import { ClearanceCard } from '../components/ClearanceCard';
 import { Button, Card, Chip, Disclosure, H1, Hint, MetricRow, Note, Page, useScrollToTopOn } from '../components/ui';
@@ -39,6 +39,7 @@ import { HowToSheet, RestBar, ToastBar, type RestState } from '../workout/parts'
 import { useRestNotification } from '../reminders/useRestNotification';
 import { usePersistedRest } from '../workout/restStore';
 import { useRules } from '../workout/useRules';
+import { useWeightUnit } from '../settings/weightUnit';
 import { useWorkoutDay, type PickSeed } from '../workout/useWorkoutDay';
 import { useLabHold } from '../labs/useLabHold';
 import { labs } from '../labs/content';
@@ -84,7 +85,8 @@ export function WorkoutScreen({ db, now = () => new Date() }: Props) {
   const { rules, addRule } = rulesApi;
   const winW = useWindowDimensions().width;
   const wide = winW >= 1024;
-  const tune = useMemo(() => ({ overrides: overridesFromSettings(settings.exercise_overrides), returning: settings.returning }), [settings.exercise_overrides, settings.returning]);
+  const { unit } = useWeightUnit();
+  const tune = useMemo(() => ({ overrides: overridesFromSettings(settings.exercise_overrides), returning: settings.returning, unit }), [settings.exercise_overrides, settings.returning, unit]);
   const labHold = useLabHold(db); // the lab hold (#1070): new sessions are lighter
   const w = useWorkoutDay({ db, date: v.date, profile, now, focus, notify, startRest, labHold: labHold === true, adjustments: settings.adjustments, exclusions: rules.exclusions, swaps: rules.swaps, saveRule: addRule, tune, reloadKey: shown + dataVersion });
   const { day } = w;
@@ -498,6 +500,7 @@ function SessionView({ now, db, reloadKey, w, profile, focus, rules, notify, tun
   const c = useTheme();
   const { date, day } = w;
   const { settings } = useSettings();
+  const { unit } = useWeightUnit();
   const wide = useWindowDimensions().width >= 1024;
   const [open, setOpen] = useState(false);
   // The muscle map is open until the first set is ticked (prototype sessionMapHtml); once the user taps it, their choice stays.
@@ -572,7 +575,7 @@ function SessionView({ now, db, reloadKey, w, profile, focus, rules, notify, tun
         return (
           <View key={ex.name} style={{ gap: 8 }}>
             {ex.part === 2 && day.exs[i - 1]?.part !== 2 ? <H1 level={2}>Second session</H1> : null}
-            <ExerciseCard expanded={ex.name === current} onToggle={pin} notify={notify} lifts={day.lifts} prior={priorSessions(day.lifts[ex.name], date)} infoOf={(n) => exInfo(n, getCatalog(), ctx.overrides?.[n], ctx.where)} learning={isLearning(!!getCatalog().cards[ex.name], day.lifts[ex.name], date)} ex={ex} info={info} sug={sug} focus={focus} warm={warmupRamp(ex, i, sug, day.exs, info, getCatalog().tags)} act={act} cards={<ExerciseCards ex={ex} info={info} date={date} lifts={day.lifts} rules={rules} notify={notify} now={now} where={wk.where ?? profile.where} />} />
+            <ExerciseCard expanded={ex.name === current} onToggle={pin} notify={notify} lifts={day.lifts} prior={priorSessions(day.lifts[ex.name], date)} infoOf={(n) => exInfo(n, getCatalog(), ctx.overrides?.[n], ctx.where)} learning={isLearning(!!getCatalog().cards[ex.name], day.lifts[ex.name], date)} ex={ex} info={info} sug={sug} focus={focus} warm={warmupRamp(ex, i, sug, day.exs, infoForUnit(info, unit), getCatalog().tags)} act={act} cards={<ExerciseCards ex={ex} info={info} date={date} lifts={day.lifts} rules={rules} notify={notify} now={now} where={wk.where ?? profile.where} />} />
           </View>
         );
       })}
@@ -604,7 +607,7 @@ function SessionView({ now, db, reloadKey, w, profile, focus, rules, notify, tun
       <H1>{wk.template || HAND_PICKED}</H1>
       <SegmentBar exs={day.exs} />
       <Text accessibilityLabel={`${done} of ${all} sets done`} style={[type.caption, { color: c.muted }]}>
-        {done} of {all} sets done, {fmt(vol)} kg lifted
+        {done} of {all} sets done, {fmt(fromKg(vol, unit))} {unit} lifted
       </Text>
       <WhyLink id="split" label="Why these exercises?" values={profileWhyValues(profile)} />
       {/* Once every set is ticked the completion panel shows the burn estimate; showing it here too would repeat it. */}
