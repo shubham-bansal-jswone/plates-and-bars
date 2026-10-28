@@ -47,6 +47,13 @@ describe('History day: share a summary picture', () => {
     expect(screen.queryByLabelText(LABEL)).toBeNull();
   });
 
+  it('still shows it when only deleted or warm-up sets are unticked', async () => {
+    const s = sessions([wset('a', 'Row', 0, 60, 8), { ...wset('b', 'Row', 1, 60, 8, false), deleted_at: '2026-10-08T10:00:00Z' }, { ...wset('c', 'Row', 2, 20, 8, false), kind: 'ramp' }]);
+    expect(s[0]).toMatchObject({ setsDone: 1, finished: true });
+    await day(s);
+    expect(screen.getByLabelText(LABEL)).toBeTruthy();
+  });
+
   it('carries the stored cardio minutes through the real load path to the card', async () => {
     const db = memoryDb();
     await saveWorkout(db, { ...meta, id: null, date: DATE, template: 'Push', base: 'Push', where: 'gym', cardio_min: 25, mods: {}, exercises: [], ci_choice: null });
@@ -90,8 +97,8 @@ describe('History day: share a summary picture', () => {
     let done: (v: 'shared') => void = () => undefined;
     mockShare.mockImplementationOnce(() => new Promise((ok) => void (done = ok)));
     await day();
-    fireEvent.press(screen.getByLabelText(LABEL));
-    fireEvent.press(screen.getByLabelText(LABEL));
+    await fireEvent.press(screen.getByLabelText(LABEL));
+    await fireEvent.press(screen.getByLabelText(LABEL));
     expect(mockShare).toHaveBeenCalledTimes(1);
     await waitFor(() => expect(screen.getByLabelText(LABEL).props.accessibilityState).toMatchObject({ busy: true }));
     done('shared');
