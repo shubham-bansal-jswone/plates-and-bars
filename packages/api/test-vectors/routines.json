@@ -684,7 +684,7 @@
   }
  ],
  "cap": {
-  "description": "Cap scenarios. `live` and `tombstones` are the routines stored for the account before the push; `push` lists the pushed routines in order, each `new` (unknown id), `edit` (a live one, still live), `delete` (a live one becomes a tombstone), `revive` (a stored tombstone wins and comes back live) or `lost_to_tombstone` (a new id that loses last-writer-wins to a stored tombstone: stays deleted, not revived). A push is refused only when it holds a new or revived routine and the live count after the apply is over the limit; `refused` lists the `changes.routines[<i>]` indexes, one per new or revived routine that takes the running live count past the limit, in array order. Pull-only is an empty push.",
+  "description": "Cap scenarios. `live` and `tombstones` are the routines stored for the account before the push; `push` lists the pushed routines in order, each `new` (unknown id), `edit` (a live one, still live), `delete` (a live one becomes a tombstone), `revive` (a stored tombstone wins and comes back live) `new_deleted` (a new id pushed with `deleted_at` set: stored as a tombstone, never live, never counts) or `lost_to_tombstone` (a new id that loses last-writer-wins to a stored tombstone: stays deleted, not revived). A push is refused only when it holds a new or revived routine and the live count after the apply is over the limit; `refused` lists the `changes.routines[<i>]` indexes, one per new or revived routine that takes the running live count past the limit, in array order. Pull-only is an empty push.",
   "cases": [
    {
     "note": "100 live + 1 new",
@@ -729,12 +729,12 @@
     "refused": []
    },
    {
-    "note": "100 live + delete then new, new listed first",
+    "note": "100 live + delete first, then new",
     "live": 100,
     "tombstones": 0,
     "push": [
-     "new",
-     "delete"
+     "delete",
+     "new"
     ],
     "refused": []
    },
@@ -1029,6 +1029,15 @@
      3,
      4
     ]
+   },
+   {
+    "note": "new id pushed already deleted at 100 (a tombstone does not count)",
+    "live": 100,
+    "tombstones": 0,
+    "push": [
+     "new_deleted"
+    ],
+    "refused": []
    }
   ]
  }

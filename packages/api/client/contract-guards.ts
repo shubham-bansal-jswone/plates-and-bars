@@ -16,6 +16,5 @@ export type ImportRecipeRequestIsTyped = Assert<Equal<IsUnknown<Schemas["ImportR
 export type ImportRecipeRequestRejectsUnknownKeys = Assert<Equal<"nonsense" extends keyof Schemas["ImportRecipeRequest"] ? true : false, false>>;
 
 // Routines (#1184): a routine exercise is bounded-open like `WorkoutExercise` (unknown keys are kept), with a required
-// name and set count and no `part`.
+// name and set count.
 export type RoutineExerciseNameAndSets = Assert<Equal<Pick<Schemas["RoutineExercise"], "name" | "sets">, { name: string; sets: number }>>;
-export type RoutineExerciseHasNoPart = Assert<Equal<"part" extends keyof Pick<Schemas["RoutineExercise"], "name" | "sets"> ? true : false, false>>;
