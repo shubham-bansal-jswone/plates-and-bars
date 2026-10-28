@@ -903,7 +903,7 @@ Running:
 - 2026-10-21 owner stopped OCI launch loop again (never got A1 capacity).
 - 2026-10-21 Owner build 39488523206 success (android-release artifact 184 MB, expires 2026-11-03): barcode, pose, lab reports, label scan on.
 
-## UI redesign and follow-ups: state at 2026-10-28 (read this first)
+## UI redesign and follow-ups: state at 2026-10-28 (superseded: see the next section)
 Default branch is `design-overhaul`; `main` is behind it and gets fast-forwarded later (owner: "later"). Merge policy: reviewer approval plus green CI, squash, one PR per command. PRs that were stacked on an old branch are rebuilt by cherry-picking their own commits onto `design-overhaul` (never a blind `--ours` merge; check `git diff --stat origin/design-overhaul HEAD` equals the PR's own files). Force push is denied; push a `-s ours` merge instead.
 
 **Do this first**
@@ -918,3 +918,33 @@ Default branch is `design-overhaul`; `main` is behind it and gets fast-forwarded
 **Open owner questions:** (a) a session started from the Library has no check-in answer so the morning check-in is skipped (alternative: disable the button until a session exists); (b) should Confirm in Complete workout be the primary button; (c) #1120 Prone Y-T-W Raise and Archer Push-ups need a front or top view in the drawing rig; (d) the pounds setting: synced or device-local; (e) the Play Store screenshots were kept dark when the app began following the system scheme: confirm that is wanted.
 **Issues filed 2026-10-28:** features #1176 plate calculator, #1177 restore from export, #1178 e1RM trends and elapsed time, #1179 import Strong/Hevy/MyFitnessPal, #1180 share image, #1181 Android widget, #1182 supersets and circuits, #1184 saved routines, #1185 weight unit; infra #1186 weekly gitleaks scan failing on stale branches, #1187 caches saved only on main; QA #1190-#1200.
 **Housekeeping:** `apps/mobile/node_modules` can be stale against the lockfile, which makes `licences-script.test.ts` fail locally (run `npm ci` in `apps/mobile`; CI is fine). Agent worktrees symlink that folder. `../wt-qa-scratch` holds three untracked e2e spec files from two weeks ago (food-plan, photos, workout-edit): check before deleting. Dependabot reports open alerts (fast-uri in `packages/core`, medium/low). #926 (real Claude provider) must add a per-user cap on refunded failures before it ships.
+
+## State at 2026-10-28 evening (read this first)
+Coordinator session resumed from the section above. Base branch is still `design-overhaul`. Owner rules added today: **at most 5 agents in parallel**; each agent worktree runs its own `npm ci` (never symlink or `npm ci` the main checkout's `apps/mobile/node_modules` while agents run: concurrent installs wiped it and broke other agents' jest runs). The main checkout is now on `design-overhaul` (was the stale local `ui-redesign` branch, whose lockfile pinned old `node-forge` and made `licences-script.test.ts` fail locally). Its `apps/mobile/node_modules` may be incomplete (missing `ci-info`, `error-stack-parser`): run `npm ci` there once no agent is running.
+
+**Merged today (this session):** #1207 (Progress polish, Fixes #1195), #1208 (Setup validation, Fixes #1196), #1223 and #1234 (Workout/Targets/Library polish; #1198 closed), #1227 (audit doc), #1230 (light theme: body-map stroke test, Library detail axe scan, "Add to today’s session, <name>" label fix; Refs #1197), #1231 (QA reload / second-tab / health-check specs).
+
+**Open PRs and next step**
+- #1228 Food add page (Fixes #1194): approved, CI running on bd2f62fd after a base merge (kept both 2026-10-28 entries in PROTOTYPE_SPEC section 0). Merge on green.
+- #1235 second-tab blank page (Fixes #1232): review fixes pushed (dd6ed4bb: no reload when sessionStorage fails, match only the access-handle error, `DbOpenBlockedError` telemetry). Opus re-review running. Merge on Approve + green.
+- #1236 web aria-describedby for field errors/hints (Fixes #1229): Opus review running. Only Setup is wired; reviewer is checking whether other forms with `invalid`/`error` need it.
+- Dependabot #1210-#1221: triage pushed fixes on #1218 (`check-latest: true` on setup-node for astro's Node >=22.23.4), #1219 (Android Sentry licence rows), #1221 (barcode-detector 3.2.3 + zxing-wasm 3.1.6 together; #1222 closed as superseded). Opus batch review in progress: verdicts and labels are on each PR (#1219 changes requested, #1218 nits pending at time of writing). Several touch `apps/mobile/package-lock.json`: merge one at a time and let Dependabot rebase the rest.
+
+**Check first:** the #1235 author saw `tsc --noEmit` fail at `apps/mobile/src/components/ui.tsx:300` (TextInput ref type on `Field`) after merging design-overhaul, possibly from #1208. The design-overhaul CI run for #1208 was cancelled by a newer push; confirm the latest design-overhaul `mobile` job is green, and fix on design-overhaul if not.
+
+**Decisions made today (owner delegated):** no "Targets updated" toast after first setup (#1233, spec entry); collapsed exercise cards keep the Learn panel (#1138); empty-tick toast stays at the bottom; native `aria-invalid` gap accepted (focus + danger outline + announced toast); Library "8" reps placeholder matches the prototype; small toast overlaps at 360/1280 accepted (toast passes taps through); Progress Labs "Add a report" and cycle "Period started" are ghost buttons (one primary per viewport); `#1198` docs label so app PRs may add PROTOTYPE_SPEC section 0 entries.
+
+**Issues filed today:** #1225 (expose `X-Request-Id` in CORS when a client reads it), #1226 (MDC TaskDecorator for export worker threads), #1229 (in #1236), #1232 (in #1235), #1233 (spec decision).
+
+**Still open after the PRs above**
+- #1197: light-theme keyboard focus colours, Library filters and empty states need a browser check; Library search placeholder clip may be fixed by #1209 (unverified).
+- #1200: investigation done (second tab only; fix in #1235). Remaining sweep gaps listed in the issue (375/390/1280 widths, Maestro never run, etc.).
+- #1232 low-priority item: `SetupScreen.tsx` health-check answers use render-time state (`d.screen`); switch to a functional update. Start after #1228 merges (both touch SetupScreen).
+- #1204 leftovers not covered by #1207: check the issue.
+- Owner questions (a)-(e) from the section above are still unanswered.
+
+**Housekeeping**
+- Merge watcher: a small script waits on `gh pr checks --watch`, then polls until no check is pending (the watch can return early), then squash-merges with `--match-head-commit`. Don't edit a watcher script while a run of it is in progress.
+- Flaky: `tests/e2e/specs/data.spec.mjs` "delete everything: cancel keeps the data…" timed out once on #1234 ("no SQLite write was sent and answered within 15 s"); passed on rerun. File an issue if it recurs.
+- Worktrees: `../rb-1194` (#1228), `../rb-1198` (merged #1223, local branch `app/workout-targets-polish-2`, removable), `../wt-1232` (#1235). `../wt-qa-scratch` holds three untracked e2e specs from two weeks ago: check before deleting. `stash@{0}` ("On main: GitHub_Desktop") is the owner's; leave it.
+- The local `ui-redesign` branch is one commit ahead of `origin/ui-redesign` (e447679a); its work landed through #1112-#1119. Left untouched.
