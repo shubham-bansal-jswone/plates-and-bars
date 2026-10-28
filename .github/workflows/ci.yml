@@ -7,7 +7,7 @@ name: CI
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [main, design-overhaul]
   workflow_dispatch:
 
 permissions:
@@ -307,19 +307,7 @@ jobs:
         run: npm run test:port
       - name: Playwright tests
         working-directory: tests/e2e
-        run: npx playwright test --grep-invert 'light mode'
-      # The default build is dark (#1111), so the light axe specs need their own build with the system theme on.
-      - name: Build the web app with the system theme
-        working-directory: apps/mobile
-        env:
-          EXPO_NO_TELEMETRY: 1
-          EXPO_PUBLIC_THEME: system
-        run: npx expo export --platform web --output-dir ../../tests/e2e/.light-dist
-      - name: Light mode accessibility tests
-        working-directory: tests/e2e
-        env:
-          E2E_DIST: .light-dist
-        run: npx playwright test specs/a11y.spec.mjs --grep 'light mode'
+        run: npx playwright test
       # Live pose tracking (#947) is off in the build above. Its own build has the flag on; the spec runs it with a fake camera.
       - name: Build the web app with live pose tracking on
         working-directory: apps/mobile

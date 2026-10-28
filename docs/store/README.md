@@ -31,7 +31,7 @@ npm run store:screenshots   # phone-*.png
 Both commands write into `docs/store/` (set `STORE_OUT=<dir>` to write elsewhere). Neither runs in CI and neither is a Playwright spec, so `npx playwright test` never picks them up.
 
 - `tests/e2e/store/export-graphics.mjs` draws `docs/store/feature-graphic.svg` and `apps/mobile/assets/brand/icon.svg` with Chromium (a Playwright screenshot of the SVG) and embeds the two fonts from the app's own font packages at export time.
-- `tests/e2e/store/screenshots.mjs` serves the web export on a free port and opens it at a 360 x 640 phone viewport at 3x (1080 x 1920), light theme, with the clock pinned to Monday 12 October 2026 and only `127.0.0.1` reachable. It answers the setup, then logs the demo data in `tests/e2e/store/demo-seed.json` through the UI: six earlier days of food, water and weigh-ins, today's meals, and three sets of the planned workout.
+- `tests/e2e/store/screenshots.mjs` serves the web export on a free port and opens it at a 360 x 640 phone viewport at 3x (1080 x 1920), dark theme (the app follows the system scheme, so the script asks for dark), with the clock pinned to Monday 12 October 2026 and only `127.0.0.1` reachable. It answers the setup, then logs the demo data in `tests/e2e/store/demo-seed.json` through the UI: six earlier days of food, water and weigh-ins, today's meals, and three sets of the planned workout.
 - To change what a screenshot shows, edit `demo-seed.json` (or the framing in `screenshots.mjs`) and regenerate. Look at every PNG before committing: no error banner, no placeholder text, the right screen.
 
 ## Demo data
