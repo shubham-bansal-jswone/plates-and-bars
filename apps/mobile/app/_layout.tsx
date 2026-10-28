@@ -4,6 +4,7 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SQLiteProvider, useSQLiteContext } from 'expo-sqlite';
 import { DB_NAME } from '../src/db/migrations';
+import { DbOpenGate } from '../src/db/DbOpenGate';
 import { initDb } from '../src/db/initDb';
 import { lockedDb } from '../src/db/lockedDb';
 import { ContentRefresher } from '../src/content/ContentRefresher';
@@ -47,9 +48,13 @@ function Providers() {
 export default function RootLayout() {
   return (
     <FontsProvider>
-      <SQLiteProvider databaseName={DB_NAME} onInit={initDb}>
-        <Providers />
-      </SQLiteProvider>
+      <DbOpenGate
+        render={(attempt) => (
+          <SQLiteProvider key={attempt} databaseName={DB_NAME} onInit={initDb}>
+            <Providers />
+          </SQLiteProvider>
+        )}
+      />
     </FontsProvider>
   );
 }
