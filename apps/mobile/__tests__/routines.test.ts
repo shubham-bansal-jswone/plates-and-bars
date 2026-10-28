@@ -1,7 +1,7 @@
 /** @jest-environment node */
 import { buildLocalExport } from '../src/account/exportLocal';
 import { applyRestore, parseRestore, previewRestore } from '../src/account/restoreLocal';
-import { ROUTINE_EXERCISES_MAX, ROUTINE_MAX_LIVE, ROUTINE_NAME_MAX, ROUTINE_SETS_MAX } from '@plate-and-bar/core';
+import { ROUTINE_EXERCISES_MAX, ROUTINE_MAX_LIVE, EXERCISE_NAME_MAX, ROUTINE_NAME_MAX, ROUTINE_SETS_MAX, ROUTINE_SETS_MIN } from '@plate-and-bar/core';
 import { RoutineError, createRoutine, deleteRoutine, loadRoutines, renameRoutine, undoDeleteRoutine, type RoutineExercise } from '../src/db/routines';
 import { pendingChanges } from '../src/db/outbox';
 import { wipeLocalStore } from '../src/sync/guard';
@@ -248,17 +248,29 @@ describe('routines in the device export and restore', () => {
     expect((await loadRoutines(dst)).map((x) => x.name)).toContain('Renamed');
   });
 
-  it('enforces the limits exported by core', async () => {
+  it('enforces the limits exported by core, at the boundary', async () => {
     const db = await openDb();
+    const ex = (n: number) => Array.from({ length: n }, (_, i) => ({ name: `Lift ${i}`, sets: 3 }));
     await expect(createRoutine(db, 'n'.repeat(ROUTINE_NAME_MAX), squat)).resolves.toBeDefined();
     await expect(createRoutine(db, 'n'.repeat(ROUTINE_NAME_MAX + 1), squat)).rejects.toMatchObject({ code: 'name' });
-    const many = Array.from({ length: ROUTINE_EXERCISES_MAX + 1 }, (_, i) => ({ name: `Lift ${i}`, sets: 3 }));
-    await expect(createRoutine(db, 'Many', many)).rejects.toMatchObject({ code: 'exercises' });
+    await expect(createRoutine(db, 'Many', ex(ROUTINE_EXERCISES_MAX))).resolves.toBeDefined();
+    await expect(createRoutine(db, 'Many', ex(ROUTINE_EXERCISES_MAX + 1))).rejects.toMatchObject({ code: 'exercises' });
+    await expect(createRoutine(db, 'Sets', [{ name: 'Squat', sets: ROUTINE_SETS_MIN }])).resolves.toBeDefined();
+    await expect(createRoutine(db, 'Sets', [{ name: 'Squat', sets: ROUTINE_SETS_MIN - 1 }])).rejects.toMatchObject({ code: 'sets' });
+    await expect(createRoutine(db, 'Sets', [{ name: 'Squat', sets: ROUTINE_SETS_MAX }])).resolves.toBeDefined();
     await expect(createRoutine(db, 'Sets', [{ name: 'Squat', sets: ROUTINE_SETS_MAX + 1 }])).rejects.toMatchObject({ code: 'sets' });
+    await expect(createRoutine(db, 'Ex', [{ name: 'x'.repeat(EXERCISE_NAME_MAX), sets: 3 }])).resolves.toBeDefined();
+    await expect(createRoutine(db, 'Ex', [{ name: 'x'.repeat(EXERCISE_NAME_MAX + 1), sets: 3 }])).rejects.toMatchObject({ code: 'exercises' });
   });
 
-  it('the over-limit copy takes its number from the routine limit', () => {
-    expect(RESTORE_COPY.table('Routines', { added: 0, newer: 0, older: 0, conflicts: 0, overCap: 1 })).toContain(`(over the limit of ${ROUTINE_MAX_LIVE})`);
+  it('caps live routines at ROUTINE_MAX_LIVE', async () => {
+    const db = await openDb();
+    for (let i = 0; i < ROUTINE_MAX_LIVE; i++) await createRoutine(db, `D${i}`, squat, T(1));
+    await expect(createRoutine(db, 'One more', squat)).rejects.toMatchObject({ code: 'too_many' });
+  });
+
+  it('the over-limit copy states the contract limit of 100', () => {
+    expect(RESTORE_COPY.table('Routines', { added: 0, newer: 0, older: 0, conflicts: 0, overCap: 1 })).toContain('(over the limit of 100)');
   });
 
   it('refuses a routine row that is not a routine', async () => {

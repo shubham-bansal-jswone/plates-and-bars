@@ -1,5 +1,5 @@
 import type { Schemas } from '@plate-and-bar/api';
-import { ROUTINE_EXERCISES_MAX, ROUTINE_MAX_LIVE, ROUTINE_NAME_MAX, ROUTINE_SETS_MAX, ROUTINE_SETS_MIN, isBlank } from '@plate-and-bar/core';
+import { EXERCISE_NAME_MAX, ROUTINE_EXERCISES_MAX, ROUTINE_MAX_LIVE, ROUTINE_NAME_MAX, ROUTINE_SETS_MAX, ROUTINE_SETS_MIN, isBlank } from '@plate-and-bar/core';
 import { exclusive } from './exclusive';
 import { newId, type StoreDb } from './records';
 import type { WorkoutDb } from './workouts';
@@ -11,9 +11,6 @@ import type { WorkoutDb } from './workouts';
 export type Routine = Omit<Schemas['Routine'], 'exercises'> & { exercises: RoutineExercise[] };
 /** Name and set count are ours; any other key is a newer client's field and is kept when the routine is rewritten. */
 export type RoutineExercise = Schemas['RoutineExercise'];
-
-// Not in core (the contract's maxLength for an exercise name).
-const EXERCISE_NAME_MAX = 200;
 
 export type RoutineErrorCode = 'name' | 'exercises' | 'sets' | 'too_many' | 'missing';
 /** A refused save. Carries a code only, never the routine's content. */
