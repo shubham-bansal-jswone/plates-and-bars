@@ -44,9 +44,47 @@ describe('SheetModal', () => {
     focusSheetTitle('Add exercise');
     expect(document.activeElement?.id).toBe('title');
     expect(document.getElementById('title')?.getAttribute('tabindex')).toBe('-1');
-    document.getElementById('first')?.focus(); // focus leaves the title: it is not a stop any more
-    expect(document.getElementById('title')?.hasAttribute('tabindex')).toBe(false);
+    jest.useFakeTimers();
+    try {
+      document.getElementById('first')?.focus(); // focus leaves the title: it is not a stop any more, once the blur is handled
+      expect(document.getElementById('title')?.getAttribute('tabindex')).toBe('-1');
+      jest.runOnlyPendingTimers();
+      expect(document.getElementById('title')?.hasAttribute('tabindex')).toBe(false);
+      // Focus back on the title before the timer fires: it keeps its tabindex.
+      document.getElementById('title')?.setAttribute('tabindex', '-1');
+      document.getElementById('title')?.focus();
+      document.getElementById('first')?.focus();
+      document.getElementById('title')?.focus();
+      jest.runOnlyPendingTimers();
+      expect(document.getElementById('title')?.getAttribute('tabindex')).toBe('-1');
+    } finally {
+      jest.useRealTimers();
+    }
     expect(() => focusSheetTitle('No such sheet')).not.toThrow();
+  });
+
+  it('each open sheet keeps its own focus guard when a sheet above it closes', async () => {
+    const add = jest.spyOn(document, 'addEventListener');
+    const remove = jest.spyOn(document, 'removeEventListener');
+    const sheet = (title: string) => (
+      <SheetModal title={title} onClose={() => {}}>
+        <Text>body</Text>
+      </SheetModal>
+    );
+    const lower = await render(sheet('Lower'));
+    const upper = await render(sheet('Upper'));
+    const guards = add.mock.calls.filter(([type]) => type === 'focus').map(([, fn]) => fn);
+    expect(guards).toHaveLength(2);
+    expect(guards[0]).not.toBe(guards[1]); // the same function twice would be one registration in a browser
+    await upper.unmount();
+    const removed = remove.mock.calls.filter(([type]) => type === 'focus').map(([, fn]) => fn);
+    expect(removed).toEqual([guards[1]]); // only the top sheet's guard went; the lower one's is still registered
+    document.body.innerHTML = '<div id="scroller">text</div>';
+    const el = document.getElementById('scroller') as HTMLElement;
+    const blur = jest.spyOn(el, 'blur');
+    (guards[0] as (e: Event) => void)({ target: el } as unknown as Event);
+    expect(blur).toHaveBeenCalledTimes(1);
+    await lower.unmount();
   });
 
   it('refuseScrollerFocus drops focus from a scrolling container but not from a control or the title (#1275)', () => {

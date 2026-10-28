@@ -81,3 +81,19 @@ test('Tab and Shift+Tab cycle through the how-to sheet controls only, and Escape
   await expect(dialog).toHaveCount(0);
   await expect(opener).toBeFocused();
 });
+
+/**
+ * The first Shift+Tab right after a sheet opens (focus on the title) wraps to the last control, Close, not forward to the
+ * first (#1275 review): the title must still count as a stop while the focus trap handles the key.
+ */
+test('Shift+Tab straight after opening a sheet lands on its last control', async ({ page }) => {
+  await completeSetup(page);
+  await tab(page, 'Workout');
+  await page.locator('[aria-label^="Start "]:not([aria-label^="Start a rest"])').first().click();
+  await page.getByRole('button', { name: 'Add exercise', exact: true }).click();
+  const dialog = page.locator('[role="dialog"][aria-label="Add exercise"]');
+  await expect(dialog).toBeVisible();
+  await expect(dialog.locator('[role="heading"]').first()).toBeFocused();
+  await page.keyboard.press('Shift+Tab');
+  await expect(dialog.getByRole('button', { name: 'Close', exact: true })).toBeFocused();
+});
