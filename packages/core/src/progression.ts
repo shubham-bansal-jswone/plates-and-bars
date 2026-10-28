@@ -154,6 +154,11 @@ export interface ProgressionContext {
   where?: Where;
   /** For the 60+ jump limit (prototype `older()`). */
   profile?: PlanProfile | null;
+  /**
+   * The user's weight unit (#1185, device-local); default kg. Weights stay kg; with lb the steps are the lb steps
+   * (`infoForUnit`) and the `text` and `reason` strings show lb. kg output is unchanged.
+   */
+  unit?: WeightUnit;
 }
 
 /** A session suggestion. `w` is absent for a first time and `''` for unweighted bodyweight. */
@@ -233,8 +238,8 @@ export function snapForUnit(kg: number, info: ExInfo, unit: WeightUnit = 'kg'): 
   return lbToKg(snap(fromKg(kg, 'lb'), step));
 }
 
-function kgLabelShort(w: number, info: ExInfo): string {
-  return noLoad(info.type) ? (w ? `+${r1(w)} kg, ` : '') : `${r1(w)} kg${info.type === 'dumbbell' ? ' each' : info.type === 'assisted' ? ' assist' : ''}, `;
+function kgLabelShort(w: number, info: ExInfo, unit: WeightUnit = 'kg'): string {
+  return noLoad(info.type) ? (w ? `+${formatWeight(w, unit)} ${unit}, ` : '') : `${formatWeight(w, unit)} ${unit}${info.type === 'dumbbell' ? ' each' : info.type === 'assisted' ? ' assist' : ''}, `;
 }
 
 /** The last session before today: the record, else its `prev`, else none. Mirrors prototype `lastFor(name)`. */
@@ -251,7 +256,7 @@ function topOf(sets: readonly LiftSet[], info: ExInfo): number {
   return sets.reduce((m, s) => (info.type === 'assisted' ? Math.min(m, s.w) : Math.max(m, s.w)), (sets[0] as LiftSet).w);
 }
 
-const infoFor = (name: string, c: ProgressionContext): ExInfo => exInfo(name, c.catalog, (c.overrides || {})[name], c.where);
+const infoFor = (name: string, c: ProgressionContext): ExInfo => infoForUnit(exInfo(name, c.catalog, (c.overrides || {})[name], c.where), c.unit);
 
 /**
  * Double progression with safety rules, from the last session. Top of the range on every set with
@@ -266,6 +271,7 @@ const infoFor = (name: string, c: ProgressionContext): ExInfo => exInfo(name, c.
  */
 export function suggestBase(ex: { name: string }, c: ProgressionContext): Suggestion {
   const info = infoFor(ex.name, c);
+  const unit = c.unit ?? 'kg';
   const last = lastFor(ex.name, c.lifts, c.date);
   const rw = repWord(info.type);
   const range = `${info.lo}–${info.hi} ${rw}`;
@@ -286,7 +292,7 @@ export function suggestBase(ex: { name: string }, c: ProgressionContext): Sugges
   // (day 14 counts as 13.96 and still holds, once a year); never in Asia/Kolkata.
   const early = first ? daysBetween(first, c.date) < 14 : false;
   const lastRate = rates[rates.length - 1];
-  const summary = `Last time: ${work.length} × ${kgLabelShort(top, info)}${work.map((s) => s.r).join(', ')} ${rw}${lastRate ? `, rated ${RATES[lastRate].toLowerCase()}` : ''}.`;
+  const summary = `Last time: ${work.length} × ${kgLabelShort(top, info, unit)}${work.map((s) => s.r).join(', ')} ${rw}${lastRate ? `, rated ${RATES[lastRate].toLowerCase()}` : ''}.`;
 
   if (noLoad(info.type)) {
     if (allTop) return { mode: 'bw', reps: info.hi, w: top || '', text: `${info.hi}+ ${rw}`, reason: `${summary} You’re at the top of the range. Keep going, or add a little weight or a harder version.` };
@@ -298,18 +304,18 @@ export function suggestBase(ex: { name: string }, c: ProgressionContext): Sugges
   const prevAvgLow = !!prev && !!prev.sets.length && prev.sets.reduce((n, s) => n + s.r, 0) / prev.sets.length < info.lo;
   if (avg < info.lo && (prevAvgLow || anyFail)) {
     const nw = easier(top, info, 0.075);
-    return { mode: 'down', w: nw, reps: info.lo, text: `${kgLabel(nw, info)} × ${range}`, reason: `${summary} Below ${info.lo} ${rw} ${anyFail ? 'with a failed set' : 'two sessions running'}, so drop a little and build back up.` };
+    return { mode: 'down', w: nw, reps: info.lo, text: `${kgLabel(nw, info, unit)} × ${range}`, reason: `${summary} Below ${info.lo} ${rw} ${anyFail ? 'with a failed set' : 'two sessions running'}, so drop a little and build back up.` };
   }
   if (allTop && !anyFail && !anyHard) {
-    if (last.form === 'no') return { mode: 'hold', w: top, reps: info.hi, text: `${kgLabel(top, info)} × ${range}`, reason: `${summary} You hit the top of the range, but form slipped, so stay here until it feels solid.` };
-    if (early && !allEasy) return { mode: 'hold', w: top, reps: info.hi, text: `${kgLabel(top, info)} × ${range}`, reason: `${summary} First 2 weeks on this exercise: keep the weight and own the movement before adding more.` };
+    if (last.form === 'no') return { mode: 'hold', w: top, reps: info.hi, text: `${kgLabel(top, info, unit)} × ${range}`, reason: `${summary} You hit the top of the range, but form slipped, so stay here until it feels solid.` };
+    if (early && !allEasy) return { mode: 'hold', w: top, reps: info.hi, text: `${kgLabel(top, info, unit)} × ${range}`, reason: `${summary} First 2 weeks on this exercise: keep the weight and own the movement before adding more.` };
     const nw = harder(top, info);
     const jump = top > 0 ? Math.abs(nw - top) / top : 0;
-    const big = jump > (older(c.profile) ? 0.05 : 0.1) ? ` That’s a ${Math.round(jump * 100)}% jump. If you can’t reach ${info.lo} ${rw}, go back to ${r1(top)} kg and add reps instead.` : '';
-    return { mode: 'up', w: nw, reps: info.lo, text: `${kgLabel(nw, info)} × ${range}`, reason: `${summary} Top of the range on every set, so ${info.type === 'assisted' ? 'use less assistance' : `add ${r1(info.step)} kg`} and aim for ${info.lo}+ ${rw}.${big}` };
+    const big = jump > (older(c.profile) ? 0.05 : 0.1) ? ` That’s a ${Math.round(jump * 100)}% jump. If you can’t reach ${info.lo} ${rw}, go back to ${formatWeight(top, unit)} ${unit} and add reps instead.` : '';
+    return { mode: 'up', w: nw, reps: info.lo, text: `${kgLabel(nw, info, unit)} × ${range}`, reason: `${summary} Top of the range on every set, so ${info.type === 'assisted' ? 'use less assistance' : `add ${formatWeight(info.step, unit)} ${unit}`} and aim for ${info.lo}+ ${rw}.${big}` };
   }
   const target = Math.min(info.hi, Math.max(info.lo, Math.round(avg) + 1));
-  return { mode: 'hold', w: top, reps: target, text: `${kgLabel(top, info)} × ${target} ${rw}`, reason: `${summary} ${avg < info.lo ? `Stay at this weight and work up to ${info.lo}+ ${rw}.` : `Same weight, aim for ${target} ${rw} a set. Add weight once you reach ${info.hi} on every set.`}` };
+  return { mode: 'hold', w: top, reps: target, text: `${kgLabel(top, info, unit)} × ${target} ${rw}`, reason: `${summary} ${avg < info.lo ? `Stay at this weight and work up to ${info.lo}+ ${rw}.` : `Same weight, aim for ${target} ${rw} a set. Add weight once you reach ${info.hi} on every set.`}` };
 }
 
 /** Today's session modifiers (prototype `S.day.workout.mods`); only these fields are read. */
@@ -350,6 +356,7 @@ export function applyMods(sug: Suggestion, ex: { name: string; bridge?: boolean 
   const m = c.mods || {};
   if (sug.w === undefined || sug.w === '') return sug;
   const info = infoFor(ex.name, c);
+  const unit = c.unit ?? 'kg';
   if (noLoad(info.type)) return sug;
   const last = lastFor(ex.name, c.lifts, c.date);
   if (!last) return sug;
@@ -375,7 +382,7 @@ export function applyMods(sug: Suggestion, ex: { name: string; bridge?: boolean 
     note = m.deload ? ' Recovery week: about 10% lighter.' : ` Easing back in: about ${Math.round(pct * 100)}% lighter.`;
   }
   if (w === sug.w && !note) return sug;
-  return { ...sug, w, mode: 'hold', text: `${kgLabel(w, info)} × ${info.lo}–${info.hi} ${repWord(info.type)}`, reason: sug.reason + note };
+  return { ...sug, w, mode: 'hold', text: `${kgLabel(w, info, unit)} × ${info.lo}–${info.hi} ${repWord(info.type)}`, reason: sug.reason + note };
 }
 
 /** A set row in today's session or ramp, as typed (strings) plus its tick and rating. */

@@ -2,6 +2,8 @@ import content from '../../../content/exercises.json';
 import {
   DEFAULT_STEP,
   KG_PER_LB,
+  suggestBase,
+  applyMods,
   LB_STEP,
   easier,
   exInfo,
@@ -127,5 +129,50 @@ describe('lb steps', () => {
     expect(formatWeight(snapForUnit(lbToKg(52.4), info('dumbbell'), 'lb'), 'lb')).toBe('52.5');
     expect(snapForUnit(61.234, info('bodyweight'), 'lb')).toBeCloseTo(61.234, 10);
     expect(formatWeight(snapForUnit(lbToKg(137.5), info('barbell'), 'lb'), 'lb')).toBe('140'); // half rounds up
+  });
+});
+
+describe('suggestions in lb (ProgressionContext.unit)', () => {
+  const sets = (w: number, rate?: 'easy') => [1, 2, 3].map(() => ({ w, r: 12, ...(rate ? { rate } : {}) }));
+  const ctx = (w: number, unit?: 'kg' | 'lb', extra = {}) =>
+    ({
+      date: '2026-03-01',
+      lifts: { 'Barbell Row': { date: '2026-02-20', sets: sets(w, 'easy'), first: '2026-01-01' } },
+      catalog,
+      unit,
+      ...extra,
+    }) as unknown as Parameters<typeof suggestBase>[1];
+  const ex = { name: 'Barbell Row' };
+
+  it('kg output is identical with and without unit', () => {
+    const a = suggestBase(ex, ctx(60));
+    expect(suggestBase(ex, ctx(60, 'kg'))).toEqual(a);
+    expect(a.text).toContain(' kg');
+    expect(a.reason).toContain('add 2.5 kg');
+  });
+  it('a stored 61.23 kg shows 135 lb and a barbell lb user steps 5 lb', () => {
+    const top = lbToKg(135);
+    expect(formatWeight(top, 'lb')).toBe('135');
+    const s = suggestBase(ex, ctx(top, 'lb'));
+    expect(s.mode).toBe('up');
+    expect(s.text).toBe('140 lb × 8–12 reps');
+    expect(s.reason).toContain('Last time: 3 × 135 lb, 12, 12, 12 reps');
+    expect(s.reason).toContain('add 5 lb');
+    expect(s.reason).not.toContain(' kg');
+    expect(formatWeight(s.w as number, 'lb')).toBe('140');
+  });
+  it('hold and mods text show lb', () => {
+    const top = lbToKg(135);
+    const c = ctx(top, 'lb', { mods: { deload: true } });
+    const s = applyMods(suggestBase(ex, c), ex, c as never);
+    expect(s.text).toMatch(/ lb × 8–12 reps$/);
+    expect(s.reason).not.toContain(' kg');
+  });
+  it('lb drop text and bridge', () => {
+    const c = ctx(lbToKg(100), 'lb');
+    (c.lifts['Barbell Row'] as { sets: unknown }).sets = [{ w: lbToKg(100), r: 5, rate: 'fail' }];
+    const s = suggestBase(ex, c);
+    expect(s.mode).toBe('down');
+    expect(s.text).toMatch(/^\d+(\.\d)? lb × /);
   });
 });
