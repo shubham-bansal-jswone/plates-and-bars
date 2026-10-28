@@ -2,8 +2,6 @@ import { StyleSheet, View } from 'react-native';
 import Svg, { G, Polygon, Text as SvgText } from 'react-native-svg';
 import { Text } from '../components/Text';
 import { useFontFamily } from '../theme/fonts';
-import { blend } from '../theme/blend';
-import type { Palette } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { REGIONS } from './bodyMapData';
 import { listJoin, muscleName } from './copy';
@@ -22,16 +20,11 @@ function shades(map: Record<string, string[]>, primary: readonly string[], secon
   return out;
 }
 
-/** The also-working fill: the brand colour over the soft surface, strong enough to reach 3:1 against an untargeted region (the prototype's 35% does not, and falls to 1.7:1 in light). */
-export function alsoFill(c: Palette): string {
-  return blend(c.brand, c.surfaceSoft, c.alsoAlpha);
-}
-
-/** The front and back muscle map (`bodyMapSvg`): main muscles in the brand colour, also-working in `alsoFill`, the rest in the soft surface colour. */
+/** The front and back muscle map (`bodyMapSvg`): main muscles in the brand colour, also-working in `muscleAlso`, the rest in `surfaceSoft`; every region is stroked with `muscleOff` so the silhouette shows. */
 export function BodyMap({ primary, secondary }: { primary: readonly string[]; secondary: readonly string[] }) {
   const c = useTheme();
   const fontFamily = useFontFamily()('400');
-  const also = alsoFill(c);
+  const also = c.muscleAlso;
   const fill = (v: number) => (v === 2 ? c.brand : v === 1 ? also : c.surfaceSoft);
   const label = `Muscles worked: ${primary.length ? listJoin(primary.map(muscleName)) : 'none'}${secondary.length ? `. Also working: ${listJoin(secondary.map(muscleName))}` : ''}`;
   const views = [
@@ -45,7 +38,7 @@ export function BodyMap({ primary, secondary }: { primary: readonly string[]; se
           const state = shades(map, primary, secondary);
           return (
             <G key={view} transform={`translate(${dx} 0)`}>
-              {REGIONS[view].map(([region, polygons]) => polygons.map((points, i) => <Polygon key={`${region}${i}`} points={points} fill={fill(state.get(region) ?? 0)} />))}
+              {REGIONS[view].map(([region, polygons]) => polygons.map((points, i) => <Polygon key={`${region}${i}`} points={points} fill={fill(state.get(region) ?? 0)} stroke={c.muscleOff} strokeWidth={0.6} />))}
               <SvgText x={50} y={216} textAnchor="middle" fontSize={12} fill={c.muted} fontFamily={fontFamily}>
                 {name}
               </SvgText>
