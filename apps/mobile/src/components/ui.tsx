@@ -298,7 +298,7 @@ export function Chip({ label, text, pressed, danger, onPress }: { label: string;
 const NUMERIC_KEYBOARDS = ['numeric', 'decimal', 'decimal-pad', 'number-pad'];
 
 /** Text fields fill their column; numeric fields (by `inputMode` or `keyboardType`) stay at most 160px wide. Layout in `style` still wins. */
-export function Field({ label, invalid, style, ...rest }: TextInputProps & { ref?: Ref<TextInput>; label: string; /** The value is wrong: announces `aria-invalid` and draws a danger border (after the caller's style, so it wins). */ invalid?: boolean }) {
+export function Field({ label, invalid, style, ...rest }: TextInputProps & { ref?: Ref<ComponentRef<typeof TextInput>>; label: string; /** The value is wrong: announces `aria-invalid` and draws a danger border (after the caller's style, so it wins). */ invalid?: boolean }) {
   const c = useTheme();
   return <Input accessibilityLabel={label} aria-invalid={invalid || undefined} {...rest} style={[styles.input, NUMERIC_KEYBOARDS.includes(rest.inputMode ?? rest.keyboardType ?? '') ? styles.numeric : null, style, invalid ? { borderColor: c.danger } : null]} />;
 }
