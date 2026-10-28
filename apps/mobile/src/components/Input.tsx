@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { StyleSheet, TextInput, type TextInputProps } from 'react-native';
+import { Platform, StyleSheet, TextInput, type TextInputProps } from 'react-native';
 import type { ComponentRef, Ref } from 'react';
 import { useFontFamily } from '../theme/fonts';
 import { radius } from '../theme/tokens';
@@ -28,13 +28,17 @@ export function Input({ style, onFocus, onBlur, ref, ...rest }: TextInputProps &
         { color: c.ink, backgroundColor: c.field, borderColor: focused ? c.focus : c.outline, fontFamily: family('600') },
         // A 2px ring replaces the 1px border; take the extra pixel from the padding so nothing moves.
         focused ? styles.focused : null,
+        // Web: Chrome's own `outline: auto` would draw over the 2px ring; the ring (or the 1px border) is the only indicator.
+        Platform.OS === 'web' ? noBrowserOutline : null,
         style,
       ]}
     />
   );
 }
 
+const noBrowserOutline = { outlineStyle: 'none', outlineWidth: 0 } as object;
+
 const styles = StyleSheet.create({
   input: { borderWidth: 1, borderRadius: radius.sm, paddingHorizontal: 14, minHeight: 52, fontSize: 17 },
-  focused: { borderWidth: 2, paddingHorizontal: 13, outlineWidth: 0 },
+  focused: { borderWidth: 2, paddingHorizontal: 13 },
 });
