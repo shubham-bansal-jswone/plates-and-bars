@@ -8,10 +8,13 @@ import type { DeleteResult, ServerExportResult } from '../account/server';
 import { Button, Card, ErrorText, H1, Hint, Note, Page } from '../components/ui';
 import { LegalLinks } from '../legal/LegalLinks';
 import type { WorkoutDb } from '../db/workouts';
+import type { PullDb } from '../db/outbox';
+import { ImportWorkouts } from '../import/ImportWorkouts';
+import { IMPORT_COPY } from '../import/copy';
 import { hasConsent } from '../sync/engine';
 import { useSync } from '../sync/SyncProvider';
 
-type Step = 'home' | 'confirm' | 'done';
+type Step = 'home' | 'confirm' | 'done' | 'import';
 
 const saved = (name: string, r: SaveResult) => (r === 'saved' ? t.exportSaved(name) : r === 'shared' ? t.exportShared : t.exportNoShare);
 const serverMessage = (r: Exclude<ServerExportResult, { kind: 'ok' }>): string =>
@@ -20,7 +23,7 @@ const deleteMessage = (r: Exclude<DeleteResult, { kind: 'deleted' }>): string =>
   r.kind === 'offline' ? t.offline : r.kind === 'rate_limited' ? t.rate(r.retryAfterSec) : r.kind === 'unconfirmed' ? t.unconfirmed : r.kind === 'needs_sign_in' ? t.needsSignIn : r.kind === 'local_failed' ? t.localFailed : r.kind === 'error' ? t.readFailed : r.kind === 'owner_changed' ? (r.server ? t.ownerChangedAfterDelete : t.ownerChanged) : t.unavailable;
 
 /** Export and delete everything (#27; prototype `exportData`, `deleteEverything`). Export works offline from this device. */
-export function DataScreen({ db, now = () => new Date() }: { db: WorkoutDb; now?: () => Date }) {
+export function DataScreen({ db, now = () => new Date() }: { db: WorkoutDb & PullDb; now?: () => Date }) {
   const s = useSync();
   const router = useRouter();
   const [step, setStep] = useState<Step>('home');
@@ -95,6 +98,8 @@ export function DataScreen({ db, now = () => new Date() }: { db: WorkoutDb; now?
   const linkedOut = s.linked && !s.signedIn && !s.wipePending;
   const toSignIn = () => router.push('/sign-in' as never);
 
+  if (step === 'import') return <ImportWorkouts db={db} onClose={() => setStep('home')} />;
+
   if (step === 'done') {
     return (
       <Page>
@@ -163,6 +168,7 @@ export function DataScreen({ db, now = () => new Date() }: { db: WorkoutDb; now?
             <Button kind="ghost" label={t.signInToExport} onPress={toSignIn} />
           </>
         ) : null}
+        <Button kind="ghost" label={IMPORT_COPY.open} onPress={() => setStep('import')} />
         <Button
           kind="ghost"
           label={t.delete}
