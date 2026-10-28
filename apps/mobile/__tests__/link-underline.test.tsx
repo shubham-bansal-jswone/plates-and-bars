@@ -13,7 +13,7 @@ const files = (dir: string): string[] => readdirSync(dir).flatMap((f) => (statSy
 describe('link text', () => {
   it('every Text drawn in the link colour is underlined', () => {
     const bad = files(join(__dirname, '../src')).flatMap((f) =>
-      readFileSync(f, 'utf8').split('\n').flatMap((l, i) => (/color: c\.link\b/.test(l) && !/linkText|textDecorationLine: 'underline'/.test(l) ? [`${f}:${i + 1}`] : [])),
+      readFileSync(f, 'utf8').split('\n').flatMap((l, i) => (/color:\s*\w+\.link\b/.test(l) && !/\blinkText\b|textDecorationLine:\s*'underline'/.test(l) ? [`${f}:${i + 1}`] : [])),
     );
     expect(bad).toEqual([]);
   });
