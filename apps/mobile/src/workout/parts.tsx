@@ -143,14 +143,17 @@ export function HowToSheet({ name, onClose }: { name: string | null; onClose: ()
     <SheetModal title={name} onClose={onClose}>
       <ScrollView style={{ backgroundColor: c.bg }} contentContainerStyle={styles.sheet}>
         <View style={styles.sheetBody}>
-          <Press accessibilityRole="button" accessibilityLabel={`Close ${name} guide`} onPress={onClose} style={styles.closeX}>
-            <Svg width={24} height={24} viewBox="0 0 24 24" aria-hidden>
-              <Path d="M5 5l14 14M19 5L5 19" stroke={c.ink} strokeWidth={2.5} strokeLinecap="round" />
-            </Svg>
-          </Press>
-          <Heading level={2} style={[type.heading, { color: c.ink }]}>
-            {name}
-          </Heading>
+          {/* The title comes first in the DOM, where focus starts, so the close X is the next tab stop. */}
+          <View style={styles.titleRow}>
+            <Heading level={2} style={[type.heading, { color: c.ink, flex: 1 }]}>
+              {name}
+            </Heading>
+            <Press accessibilityRole="button" accessibilityLabel={`Close ${name} guide`} onPress={onClose} style={styles.closeX}>
+              <Svg width={24} height={24} viewBox="0 0 24 24" aria-hidden>
+                <Path d="M5 5l14 14M19 5L5 19" stroke={c.ink} strokeWidth={2.5} strokeLinecap="round" />
+              </Svg>
+            </Press>
+          </View>
           <ExerciseFigure name={name} />
           {card ? (
             <>
@@ -204,5 +207,6 @@ const styles = StyleSheet.create({
   restBtns: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
   sheet: { padding: 16, alignItems: 'center', flexGrow: 1 },
   sheetBody: { width: '100%', maxWidth: 560, gap: 8 },
-  closeX: { minWidth: 44, minHeight: 44, alignSelf: 'flex-end', alignItems: 'center', justifyContent: 'center' },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  closeX: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
 });
