@@ -19,7 +19,7 @@ function Section({ title, items, kind }: { title: string; items: readonly string
   const c = useTheme();
   return (
     <View style={{ gap: 4 }}>
-      <Heading level={2} style={[type.label, { color: c.ink }]}>{title}</Heading>
+      <Heading level={2} style={[type.heading, { color: c.ink }]}>{title}</Heading>
       {items.map((s, i) => (
         <Text key={s} style={[type.textBody, { color: c.body }]}>{kind === 'plain' ? s : `${kind === 'numbered' ? `${i + 1}.` : '\u2022'} ${s}`}</Text>
       ))}
@@ -137,7 +137,7 @@ export function ExerciseDetail({ exercise: e, onBack, session }: { exercise: Lib
       {card ? (
         <>
           <View style={{ gap: 4 }}>
-            <Heading level={2} style={[type.label, { color: c.ink }]}>Where you should feel it</Heading>
+            <Heading level={2} style={[type.heading, { color: c.ink }]}>Where you should feel it</Heading>
             <Text style={[type.textBody, { color: c.body }]}>{card.where_to_feel}</Text>
           </View>
           <Section title="Setup" items={card.setup} kind="numbered" />
