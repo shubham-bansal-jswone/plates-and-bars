@@ -1,5 +1,8 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react-native';
 import { WorkoutDay } from '../src/progress/history/History';
+import { useHistory } from '../src/progress/history/useHistory';
+import { saveSet, saveWorkout } from '../src/db/workouts';
+import { memoryDb } from './helpers';
 import { buildSessions } from '../src/progress/history/logic';
 import type { WorkoutSet } from '../src/workout/types';
 
@@ -7,7 +10,7 @@ let mockUnit: 'kg' | 'lb' = 'kg';
 const mockShare = jest.fn(async (..._a: unknown[]) => 'shared' as const);
 jest.mock('../src/settings/weightUnit', () => ({ useWeightUnit: () => ({ unit: mockUnit, ready: true, setUnit: () => undefined }) }));
 jest.mock('../src/workout/shareImage', () => ({ shareWorkoutImage: (...a: unknown[]) => mockShare(...a) }));
-jest.mock('expo-router', () => ({ useRouter: () => ({ push: jest.fn() }) }));
+jest.mock('expo-router', () => ({ useRouter: () => ({ push: jest.fn() }), useFocusEffect: (cb: () => void) => jest.requireActual('react').useEffect(cb, []) }));
 jest.mock('expo-crypto', () => ({ randomUUID: () => globalThis.crypto.randomUUID() }));
 
 const meta = { version: 0, updated_at: '', deleted_at: null };
@@ -32,9 +35,29 @@ describe('History day: share a summary picture', () => {
   it('hides it for a day with no ticked work set', async () => {
     const s = sessions([wset('a', 'Row', 0, 60, 8, false)]);
     expect(s).toEqual([]); // nothing is logged, so there is no day to open
-    const empty = { date: DATE, name: 'Push', setsDone: 0, volume: 0, exercises: [], elapsed: null, cardio: null };
+    const empty = { date: DATE, name: 'Push', setsDone: 0, finished: false, volume: 0, exercises: [], elapsed: null, cardio: null };
     await render(<WorkoutDay session={empty} sessions={[empty]} lifts={{}} onBack={() => {}} />);
     expect(screen.queryByLabelText(LABEL)).toBeNull();
+  });
+
+  it('hides it for a part-done day: an unticked work set means no Share', async () => {
+    const s = sessions([wset('a', 'Row', 0, 60, 8), wset('b', 'Row', 1, 60, 8, false)]);
+    expect(s[0]).toMatchObject({ setsDone: 1, finished: false });
+    await day(s);
+    expect(screen.queryByLabelText(LABEL)).toBeNull();
+  });
+
+  it('carries the stored cardio minutes through the real load path to the card', async () => {
+    const db = memoryDb();
+    await saveWorkout(db, { ...meta, id: null, date: DATE, template: 'Push', base: 'Push', where: 'gym', cardio_min: 25, mods: {}, exercises: [], ci_choice: null });
+    await saveSet(db, DATE, wset('a', 'Barbell Bench Press', 0, 100, 5));
+    const { result } = await renderHook(() => useHistory(db, 0));
+    await waitFor(() => expect(result.current?.sessions).toHaveLength(1));
+    await day(result.current!.sessions);
+    fireEvent.press(screen.getByLabelText(LABEL));
+    await waitFor(() => expect(mockShare).toHaveBeenCalledTimes(1));
+    const card = mockShare.mock.calls[0]![0] as { stats: { label: string; value: string }[] };
+    expect(card.stats).toContainEqual({ label: 'Cardio (min)', value: '25' });
   });
 
   it('builds the card from the stored day: sets, cardio, PR from the lift record, kg', async () => {
@@ -70,7 +93,8 @@ describe('History day: share a summary picture', () => {
     fireEvent.press(screen.getByLabelText(LABEL));
     fireEvent.press(screen.getByLabelText(LABEL));
     expect(mockShare).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(screen.getByLabelText(LABEL).props.accessibilityState).toMatchObject({ busy: true }));
     done('shared');
-    await waitFor(() => expect(screen.getByLabelText(LABEL).props['aria-busy']).toBeFalsy());
+    await waitFor(() => expect(screen.getByLabelText(LABEL).props.accessibilityState?.busy).toBeFalsy());
   });
 });

@@ -80,7 +80,7 @@ export function WorkoutDay({ session, sessions, lifts, onBack }: { session: Hist
     name: e.name, part: 1, bridge: false, form: null, found: null, skipRamp: true, feel: null, ramp: [],
     sets: e.sets.map((s) => ({ ...blankRow(), w: s.w ? String(s.w) : '', r: s.r ? String(s.r) : '', done: true })),
   }));
-  const card = session.setsDone > 0 ? buildShareCard({ date: session.date, exs, cardio: session.cardio, lifts, unit }) : null;
+  const card = session.finished ? buildShareCard({ date: session.date, exs, cardio: session.cardio, lifts, unit }) : null;
   return (
     <View style={styles.section}>
       <Button kind="link" label="Back to progress" onPress={onBack} />

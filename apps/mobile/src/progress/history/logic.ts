@@ -19,6 +19,8 @@ export interface HistorySession {
   /** Template name, or core's "Session" for a hand-picked day (from `loadSessionLog`). */
   name: string;
   setsDone: number;
+  /** Every work set of the day is ticked (the same bar as the completion panel); only then can the day be shared. */
+  finished: boolean;
   volume: number;
   exercises: HistoryExercise[];
   /** Elapsed training time as text (core's `sessionElapsed`), null when any done set lacks a tick or there is no span. */
@@ -46,7 +48,7 @@ export function buildSessions(log: SessionLog, setsByDate: Readonly<Record<strin
     });
     // Time counts every ticked set of the day, ramp sets too: one without a tick makes the duration unknown, never a guess.
     const ticked = (setsByDate[date] ?? []).filter((s) => s.done && !s.deleted_at);
-    return [{ date, name: log[date]?.t ?? HAND_PICKED, setsDone: done.length, volume: exercises.reduce((n, e) => n + e.volume, 0), exercises, elapsed: sessionTimeLine(ticked), cardio: cardioByDate[date] || null }];
+    return [{ date, name: log[date]?.t ?? HAND_PICKED, setsDone: done.length, finished: (setsByDate[date] ?? []).every((s) => s.kind !== 'work' || !!s.deleted_at || s.done), volume: exercises.reduce((n, e) => n + e.volume, 0), exercises, elapsed: sessionTimeLine(ticked), cardio: cardioByDate[date] || null }];
   });
 }
 
