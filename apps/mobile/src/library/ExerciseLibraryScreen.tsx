@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { BackHandler, FlatList, StyleSheet, View } from 'react-native';
 import { Text } from '../components/Text';
 import { useBottomInset } from '../components/bottomInset';
-import { a11yState, Button, Chip, Field, H1, Hint, Label, layout, Press } from '../components/ui';
+import { a11yState, Button, COLUMN_MAX, Chip, Field, H1, Hint, Label, layout, Press } from '../components/ui';
 import { radius, space, type } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { ExerciseFigure, hasFigure } from '../workout/ExerciseFigure';
@@ -91,7 +91,7 @@ export function ExerciseLibraryScreen({ onBack, list = getLibrary(), session }: 
     <FlatList
       role="main"
       style={{ backgroundColor: c.bg }}
-      contentContainerStyle={{ padding: space.lg, paddingBottom: space.lg + bottom, width: '100%', maxWidth: 560, alignSelf: 'center', gap: space.sm }}
+      contentContainerStyle={{ padding: space.lg, paddingBottom: space.lg + bottom, width: '100%', maxWidth: COLUMN_MAX + 2 * space.lg, alignSelf: 'center', gap: space.sm }}
       data={shown}
       keyExtractor={(e) => e.name}
       initialNumToRender={15}
