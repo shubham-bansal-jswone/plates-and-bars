@@ -10,7 +10,7 @@ import { DAY_CHOICES, SESSION_MINUTES, SETUP_STEPS as STEPS, type WeightUnit } f
 import { LegalLinks } from '../legal/LegalLinks';
 import { DeletionNotice } from '../account/DeletionNotice';
 import type { Profile } from '../setup/types';
-import { answersInKg, buildProfileInUnit, draftFromProfile, emptyDraft, keepStoredHeight, stepErrors, type Draft, type SetupField } from '../setup/logic';
+import { buildProfile, draftFromProfile, emptyDraft, keepStoredHeight, stepErrors, unchangedKg, type Draft, type SetupField } from '../setup/logic';
 import { useProfile } from '../state/ProfileProvider';
 import { WeightUnitSection } from '../settings/WeightUnitSection';
 import { useWeightUnit } from '../settings/weightUnit';
@@ -315,7 +315,7 @@ function SetupFlow({ recalc, weight }: { recalc: boolean; weight: number | null 
     setErrs({});
     setD((prev) => ({ ...prev, screen: prev.screen.map((x, j) => (j === i ? a : x)) }));
   };
-  const profile = useMemo(() => (step === STEPS ? buildProfileInUnit(answersInKg(stored ? keepStoredHeight(d, stored) : d, unit, stored), new Date(), stored, unit) : null), [step, d, stored, unit]);
+  const profile = useMemo(() => (step === STEPS ? buildProfile(stored ? keepStoredHeight(d, stored) : d, new Date(), stored, unit, unchangedKg(d, unit, weight ?? stored?.weight_kg)) : null), [step, d, stored, unit, weight]);
 
   const save = async (p: Profile, toast: string | null) => {
     setSetupLeaving(true);
@@ -333,7 +333,7 @@ function SetupFlow({ recalc, weight }: { recalc: boolean; weight: number | null 
   if (!consent) return <Consent onContinue={giveConsent} />;
 
   const next = () => {
-    const found = stepErrors(step, answersInKg(stored ? keepStoredHeight(d, stored) : d, unit, stored), unit); // an unedited redo checks the stored cm, not the rounded ft/in (#1224)
+    const found = stepErrors(step, stored ? keepStoredHeight(d, stored) : d, unit); // an unedited redo checks the stored cm, not the rounded ft/in (#1224)
     setErr('');
     setErrs(Object.fromEntries(found));
     if (!found.length) setStep(step + 1);
@@ -391,7 +391,11 @@ function SetupFlow({ recalc, weight }: { recalc: boolean; weight: number | null 
         </>
       ) : (
         <>
-          <StepBody step={step} d={d} set={set} answer={answer} errs={errs} focus={focus} unit={unit} onUnit={(from, to) => setD((prev) => ({ ...prev, weight: convertWeightText(prev.weight, from, to) }))} />
+          <StepBody step={step} d={d} set={set} answer={answer} errs={errs} focus={focus} unit={unit} onUnit={(from, to) => {
+            setErr('');
+            setErrs((prev) => Object.fromEntries(Object.entries(prev).filter(([k]) => k !== 'weight'))); // its message names the old unit
+            setD((prev) => ({ ...prev, weight: convertWeightText(prev.weight, from, to) }));
+          }} />
           {err ? <ErrorText>{err}</ErrorText> : null}
           <Button label={step === STEPS - 1 ? 'See my targets' : 'Continue'} onPress={next} />
         </>

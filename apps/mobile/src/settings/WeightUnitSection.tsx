@@ -15,8 +15,8 @@ export function WeightUnitSection({ onSwitch }: { onSwitch?: (from: WeightUnit, 
     <View style={{ gap: 8, marginTop: 16 }}>
       <Label>Weight unit</Label>
       <View style={{ flexDirection: 'row', gap: 8 }}>
-        <Chip label="Show weights in kilograms" text="kg" pressed={unit === 'kg'} onPress={() => pick('kg')} />
-        <Chip label="Show weights in pounds" text="lb" pressed={unit === 'lb'} onPress={() => pick('lb')} />
+        <Chip label="kg, show weights in kilograms" text="kg" pressed={unit === 'kg'} onPress={() => pick('kg')} />
+        <Chip label="lb, show weights in pounds" text="lb" pressed={unit === 'lb'} onPress={() => pick('lb')} />
       </View>
       <Hint>Changes how weights show and what you type. Your saved weights are not changed.</Hint>
     </View>

@@ -11,7 +11,7 @@ import { TargetsScreen } from '../src/screens/TargetsScreen';
 import { WorkoutScreen } from '../src/screens/WorkoutScreen';
 import { WeightUnitProvider } from '../src/settings/weightUnit';
 import { buildProfile, emptyDraft } from '../src/setup/logic';
-import { memoryDb, withProfile } from './helpers';
+import { hardCodedKg, memoryDb, withProfile } from './helpers';
 
 jest.mock('expo-router', () => ({
   useRouter: () => ({ replace: jest.fn(), push: jest.fn() }),
@@ -72,10 +72,39 @@ describe('Setup in pounds (#1185)', () => {
     const db = await base('kg', 81.6);
     await wrap(db, <SetupScreen />);
     await screen.findByLabelText('Weight in kg');
-    await fireEvent.press(screen.getByLabelText('Show weights in pounds'));
+    await fireEvent.press(screen.getByLabelText('lb, show weights in pounds'));
     expect(screen.getByLabelText('Weight in lb').props.value).toBe('179.9');
-    await fireEvent.press(screen.getByLabelText('Show weights in kilograms'));
+    await fireEvent.press(screen.getByLabelText('kg, show weights in kilograms'));
     expect(screen.getByLabelText('Weight in kg').props.value).toBe('81.6');
+  });
+
+  it('a redo prefilled from the latest weigh-in keeps that kg exactly: 80 kg stays 80', async () => {
+    const db = await base('lb', 82);
+    await saveWeight(db, { id: null, version: 0, updated_at: '2026-10-01T00:00:00Z', deleted_at: null, date: '2026-10-01', weight_kg: 80 });
+    await wrap(db, <SetupScreen recalc />);
+    await fireEvent.press(await screen.findByLabelText('Use these targets'));
+    await waitFor(() => expect(stored(db).weight_kg).toBe(80));
+  });
+
+  it('whole pounds that used to save other targets than the results showed: 102 lb, male, lose', async () => {
+    const db = await base('lb');
+    await wrap(db, <SetupScreen />);
+    await fireEvent.changeText(await screen.findByLabelText('Weight in lb'), '102');
+    for (let i = 0; i < 4; i++) await fireEvent.press(screen.getByLabelText(i === 3 ? 'See my targets' : 'Continue'));
+    const shown = (await screen.findByTestId('target-0')).props.accessibilityLabel as string;
+    await fireEvent.press(await screen.findByLabelText('Use these targets'));
+    await waitFor(() => expect(stored(db).weight_kg).toBe(lbToKg(102)));
+    expect(shown).toBe(`${stored(db).targets.kcal.toLocaleString('en-IN')} kcal`); // what the results screen showed is what was saved
+  });
+
+  it('switching the unit clears an error that names the old unit', async () => {
+    const db = await base('lb');
+    await wrap(db, <SetupScreen />);
+    await fireEvent.changeText(await screen.findByLabelText('Weight in lb'), '20');
+    await fireEvent.press(screen.getByLabelText('Continue'));
+    expect(await screen.findByText('Enter your weight in lb, like 160.')).toBeTruthy();
+    await fireEvent.press(screen.getByLabelText('kg, show weights in kilograms'));
+    expect(screen.queryByText('Enter your weight in lb, like 160.')).toBeNull();
   });
 
   it('a kg user is unchanged: the typed kg is stored as before', async () => {
@@ -148,11 +177,6 @@ describe('exercise jump chips in pounds (#1185)', () => {
 describe('no hard-coded kg in Setup and Targets', () => {
   const src = join(__dirname, '../src');
   const files = ['screens/SetupScreen.tsx', 'screens/TargetsScreen.tsx', 'setup/logic.ts', 'setup/summary.ts', 'setup/results.ts', 'components/ResultsView.tsx', 'workout/ExerciseSettingsSheet.tsx'];
-  // A "g per kg of bodyweight" protein or fat ratio is a nutrition rule per kg, not a weight shown to the user in kg, so it stays.
-  const bad = (text: string): string[] =>
-    text.replace(/\/\*[\s\S]*?\*\//g, '').split('\n').filter((l) => !l.trim().startsWith('//'))
-      .map((l) => l.replace(/\s\/\/.*$/, '').replace(/\$\{[^}]*\}/g, '').replace(/(unit(?:: WeightUnit)?\s*(?:=|!==|===)\s*)'kg'/g, '$1UNIT').replace(/\bg per kg\b/g, 'g per UNIT').replace(/weightError\('kg'\)/g, ''))
-      .filter((l) => (l.match(/(['"`])(?:(?!\1).)*\1/g) ?? []).some((q) => /\bkg\b/i.test(q)) || /(\}\s*kg\b)|(>\s*kg\b)/i.test(l));
-  it('catches the shapes it is meant to', () => expect(bad("a = `${w} kg`;\n<Text>{w} kg</Text>\nb = 'Weight (kg)';\nc = unit === 'kg';")).toHaveLength(3));
-  it.each(files)('%s has no kg in a string or in JSX text', (f) => expect(bad(readFileSync(join(src, f), 'utf8'))).toEqual([]));
+  it('catches the shapes it is meant to', () => expect(hardCodedKg("a = `${w} kg`;\n<Text>{w} kg</Text>\nb = 'Weight (kg)';\nc = unit === 'kg';")).toHaveLength(3));
+  it.each(files)('%s has no kg in a string or in JSX text', (f) => expect(hardCodedKg(readFileSync(join(src, f), 'utf8'))).toEqual([]));
 });

@@ -606,7 +606,7 @@ export {
  * - `exerciseOverrideEntry` mirrors the `es-save` step of prototype `workoutAction`, with the contract's range rule
  *   (a low below 1 is refused; the prototype saves it).
  */
-export { EXERCISE_SHEET_TYPES, EXERCISE_STEP_CHOICES, exerciseOverrideEntry } from './exerciseSettings';
+export { EXERCISE_SHEET_TYPES, EXERCISE_STEP_CHOICES, LB_STEP_CHOICES, exerciseOverrideEntry } from './exerciseSettings';
 export type { ExerciseSettingsDraft, ExerciseOverrideResult } from './exerciseSettings';
 
 /**

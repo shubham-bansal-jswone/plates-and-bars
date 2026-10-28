@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { SheetModal } from '../components/Sheet';
 import { ScrollView, StyleSheet, View } from 'react-native';
-import { DEFAULT_STEP, EXERCISE_SHEET_TYPES, EXERCISE_STEP_CHOICES, lbStepFor, lbToKg, exerciseOverrideEntry, exerciseOverridesWouldExceed, noLoad, repWord, type ExInfo, type ExType } from '@plate-and-bar/core';
+import { DEFAULT_STEP, EXERCISE_SHEET_TYPES, EXERCISE_STEP_CHOICES, LB_STEP_CHOICES, lbStepFor, lbToKg, exerciseOverrideEntry, exerciseOverridesWouldExceed, noLoad, repWord, type ExInfo, type ExType } from '@plate-and-bar/core';
 import { Text } from '../components/Text';
 import { Input } from '../components/Input';
 import { a11yState, Button, Caption, ErrorText, Heading, Hint, Label, Press, Chip } from '../components/ui';
@@ -10,7 +10,7 @@ import { useWeightUnit } from '../settings/weightUnit';
 import { useOptionalSettings } from '../state/SettingsProvider';
 import { useTheme } from '../theme/useTheme';
 import { TYPE_LABEL } from './copy';
-import { LB_JUMP_CHOICES, OVERRIDES_FULL, RANGE_INVALID, STEP_INVALID, withOverride, withoutOverride } from './exerciseSettings';
+import { OVERRIDES_FULL, RANGE_INVALID, STEP_INVALID, withOverride, withoutOverride } from './exerciseSettings';
 
 const SAVED = 'Saved for this exercise';
 const RESET = 'Back to defaults';
@@ -131,7 +131,7 @@ function Sheet({ name, info, notify, onClose }: { name: string; info: ExInfo; no
                   ? EXERCISE_STEP_CHOICES.map((x) => (
                       <Chip key={x} label={`Weight jump ${x} ${unit}`} text={`${x} ${unit}`} pressed={step === x} onPress={() => setStep(x)} />
                     ))
-                  : LB_JUMP_CHOICES.map((x) => (
+                  : LB_STEP_CHOICES.map((x) => (
                       // An lb gym's own jumps (not converted kg ones); the step is stored as the exact kg, so a saved step never changes when the unit is switched.
                       <Chip key={x} label={`Weight jump ${x} ${unit}`} text={`${x} ${unit}`} pressed={lbStepFor(type, step, DEFAULT_STEP[type]) === x} onPress={() => setStep(lbToKg(x))} />
                     ))}

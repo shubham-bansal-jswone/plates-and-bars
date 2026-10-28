@@ -11,7 +11,7 @@ import {
   type WeightUnit,
 } from '@plate-and-bar/core';
 import type { Profile } from './types';
-import { weightFieldText, weightFromField } from '../workout/unitText';
+import { weightFieldText } from '../workout/unitText';
 
 // Form state and the mapping to storage. Validation, cleaning, targets and the choice lists all come
 // from packages/core (`validateSetupStep`, `normaliseSetup`, `DAY_CHOICES`, ...); nothing is decided here.
@@ -103,7 +103,7 @@ const FIX: Record<SetupField, Partial<Draft>> = {
   sex: { sex: 'male' },
   age: { age: '30' },
   height: { unit: 'cm', cm: '170' },
-  weight: { weight: '70' },
+  weight: { weight: '100' },
   activity: { activity: 'sitting' },
   days: { days: 0 },
   where: { where: 'gym' },
@@ -120,7 +120,7 @@ const FIX: Record<SetupField, Partial<Draft>> = {
 export function stepErrors(step: number, d: Draft, unit: WeightUnit = 'kg'): [SetupField, string][] {
   const out: [SetupField, string][] = [];
   let cur = d;
-  for (let e = validateSetupStep(step, cur); e; e = validateSetupStep(step, cur)) {
+  for (let e = validateSetupStep(step, cur, unit); e; e = validateSetupStep(step, cur, unit)) {
     if (out.some(([f]) => f === FIELD_OF[e])) break; // a stand-in core still rejects: stop, never loop
     out.push([FIELD_OF[e], e === 'weight_out_of_range' ? weightError(unit) : ERROR_COPY[e]]);
     cur = { ...cur, ...FIX[FIELD_OF[e]] };
@@ -170,30 +170,20 @@ export function keepStoredHeight(d: Draft, stored: Profile): Draft {
 }
 
 /** The Profile record for complete answers: core's `normaliseSetup` plus local sync metadata. A redo keeps `created` and `cleared`. */
-export function buildProfile(d: Draft, now: Date, previous?: Profile | null): Profile {
+export function buildProfile(d: Draft, now: Date, previous?: Profile | null, unit: WeightUnit = 'kg', exactKg?: number): Profile {
   return {
     id: null,
     version: 0,
     updated_at: now.toISOString().replace(/\.\d{3}Z$/, 'Z'),
     deleted_at: null,
-    ...normaliseSetup(d, localDate(now), previous),
+    ...normaliseSetup(d, localDate(now), previous, unit, exactKg),
   };
 }
 
 /**
- * The answers as core reads them: kg. The weight box holds text in the display unit, so it is converted here, at the edge. A redo whose
- * weight box still shows what `draftFromProfile` filled in keeps the stored kg, so a weight shown in lb and left alone is never re-saved
- * from rounded lb text. kg users' drafts pass through untouched. An unreadable lb text becomes empty, which core refuses.
+ * The kg to keep as it is when the weight box still shows what the stored kg `source` (the profile's, or the latest weigh-in) reads as in lb:
+ * a weight shown in lb and left alone is never re-saved from rounded lb text. Undefined for kg (core rounds the typed number as ever) and when edited.
  */
-export function answersInKg(d: Draft, unit: WeightUnit, stored?: Profile | null): Draft {
-  if (unit === 'kg') return d;
-  if (stored && d.weight === draftFromProfile(stored, unit).weight) return { ...d, weight: String(stored.weight_kg) };
-  return { ...d, weight: weightFromField(d.weight, unit) ?? '' };
-}
-
-/** `buildProfile` for answers in kg from `answersInKg`; an lb user's typed weight is kept exact (core rounds to 0.1 kg, which would show 180 lb back as 179.9). */
-export function buildProfileInUnit(kgAnswers: Draft, now: Date, previous: Profile | null | undefined, unit: WeightUnit): Profile {
-  const p = buildProfile(kgAnswers, now, previous);
-  const kg = Number(kgAnswers.weight);
-  return unit === 'lb' && Number.isFinite(kg) && kgAnswers.weight.trim() !== '' && Math.abs(kg - p.weight_kg) < 0.1 ? { ...p, weight_kg: kg } : p;
+export function unchangedKg(d: Draft, unit: WeightUnit, source: number | null | undefined): number | undefined {
+  return unit === 'lb' && source != null && d.weight === weightFieldText(String(source), unit) ? source : undefined;
 }
