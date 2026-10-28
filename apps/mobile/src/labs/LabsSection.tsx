@@ -4,7 +4,7 @@ import { isFlagged, labHistory, labResult, tipFor, validateLabReport, type LabRe
 import { Text } from '../components/Text';
 import { SheetModal } from '../components/Sheet';
 import { Button, Card, ErrorText, Field, Heading, Hint, Note, Chip } from '../components/ui';
-import { saveTextFile } from '../account/saveFile';
+import { clearOldExports, saveTextFile } from '../account/saveFile';
 import { shortDate } from '../format';
 import { type as typeScale } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
@@ -72,7 +72,7 @@ export function LabsSection({ labs: l, today }: { labs: Labs; today: string }) {
         <>
           <Hint>{LABS_COUNT(reports.length)}</Hint>
           {summary ? <Button kind="ghost" label={LABS_SUMMARY_BUTTON} onPress={() => void shareSummary()} /> : null}
-          {summaryNote ? <Hint>{summaryNote}</Hint> : null}
+          {summaryNote ? <View accessibilityLiveRegion="polite"><Hint>{summaryNote}</Hint></View> : null}
           <Button
             label={armed ? LABS_DELETE_AGAIN : LABS_DELETE}
             kind="link"
@@ -80,6 +80,8 @@ export function LabsSection({ labs: l, today }: { labs: Labs; today: string }) {
               if (!armed) return setArmed(true);
               setArmed(false);
               setPicked(null);
+              setSummaryNote(null);
+              clearOldExports(); // no age limit: the shared summary file must not outlive the reports
               void l.deleteAll();
             }}
           />

@@ -1,6 +1,6 @@
 import { labResult, type LabReport, type LabTest } from '@plate-and-bar/core';
 import { labs } from './content';
-import { FLAG_WORD, LABS_SUMMARY_EMPTY_VALUE, LABS_SUMMARY_TITLE } from './copy';
+import { FLAG_WORD, LABS_SUMMARY_DATE, LABS_SUMMARY_DATE_MISSING, LABS_SUMMARY_EMPTY_VALUE, LABS_SUMMARY_NO_NAME, LABS_SUMMARY_NO_RANGE, LABS_SUMMARY_RANGE, LABS_SUMMARY_TITLE, LABS_SUMMARY_UNIT_UNRECOGNISED } from './copy';
 
 /** File name of the shared summary. No date or name in it: it carries nothing but the word "summary". */
 export const LABS_SUMMARY_FILE = 'plate-and-bar-lab-summary.txt';
@@ -12,8 +12,12 @@ function testLine(raw: unknown): string {
   const o = (raw && typeof raw === 'object' ? raw : {}) as Partial<Record<keyof LabTest, unknown>>;
   const t: LabTest = { name: text(o.name), value: text(o.value), unit: text(o.unit), low: text(o.low), high: text(o.high) };
   const value = [t.value, t.unit].filter(Boolean).join(' ') || LABS_SUMMARY_EMPTY_VALUE;
-  const range = t.low || t.high ? `lab range ${t.low || '–'} to ${t.high || '–'}` : 'no range entered';
-  return `- ${t.name || 'Unnamed test'}: ${value} (${range}) - ${FLAG_WORD[labResult(t).flag]}`;
+  const r = labResult(t);
+  const parts = [t.low || t.high ? LABS_SUMMARY_RANGE(t.low, t.high) : LABS_SUMMARY_NO_RANGE];
+  if (r.unitStatus === 'unrecognised') parts.push(LABS_SUMMARY_UNIT_UNRECOGNISED);
+  // A flag of "none" (no range, or no numeric value) says nothing the range part does not, so it adds no word.
+  const flag = r.flag === 'none' ? '' : ` - ${FLAG_WORD[r.flag]}`;
+  return `- ${t.name || LABS_SUMMARY_NO_NAME}: ${value} (${parts.join('; ')})${flag}`;
 }
 
 /**
@@ -25,7 +29,7 @@ export function buildLabSummary(reports: readonly LabReport[]): string | null {
   const blocks = reports.flatMap((r) => {
     const tests: unknown[] = Array.isArray(r?.tests) ? r.tests : [];
     if (!tests.length) return [];
-    return [[`Report date: ${text(r.date) || 'not entered'}`, ...tests.map(testLine)].join('\n')];
+    return [[`${LABS_SUMMARY_DATE}: ${text(r.date) || LABS_SUMMARY_DATE_MISSING}`, ...tests.map(testLine)].join('\n')];
   });
   if (!blocks.length) return null;
   return [LABS_SUMMARY_TITLE, ...blocks, labs.not_medical_advice].join('\n\n') + '\n';

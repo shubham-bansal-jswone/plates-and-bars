@@ -14,13 +14,15 @@ jest.mock('expo-router', () => ({
   useFocusEffect: (cb: () => void) => jest.requireActual('react').useEffect(cb, []),
 }));
 const mockSave = jest.fn();
-jest.mock('../src/account/saveFile', () => ({ saveTextFile: (...a: unknown[]) => mockSave(...a), clearOldExports: jest.fn() }));
+const mockClear = jest.fn();
+jest.mock('../src/account/saveFile', () => ({ saveTextFile: (...a: unknown[]) => mockSave(...a), clearOldExports: (...a: unknown[]) => mockClear(...a) }));
 
 const NOW = () => new Date(2026, 9, 8, 10, 0, 0);
 const realFlag = process.env.EXPO_PUBLIC_LAB_REPORTS;
 beforeEach(() => {
   process.env.EXPO_PUBLIC_LAB_REPORTS = '1';
   mockSave.mockReset().mockResolvedValue('shared');
+  mockClear.mockReset();
   jest.useFakeTimers({ doNotFake: ['nextTick', 'setImmediate', 'queueMicrotask'] });
 });
 afterEach(() => {
@@ -47,9 +49,24 @@ async function setup(rows: typeof reports) {
 }
 
 describe('Summary for my doctor button', () => {
-  it('is absent with no reports and present once one is saved', async () => {
+  it('is absent with no reports', async () => {
     await setup([]);
     expect(screen.queryByRole('button', { name: 'Summary for my doctor' })).toBeNull();
+  });
+  it('is present once a report is saved', async () => {
+    await setup(reports);
+    expect(await screen.findByRole('button', { name: 'Summary for my doctor' })).toBeTruthy();
+  });
+  it('Delete all reports removes the shared file with no age limit and clears the note', async () => {
+    await setup(reports);
+    await fireEvent.press(await screen.findByRole('button', { name: 'Summary for my doctor' }));
+    expect(await screen.findByText(/ready to share/)).toBeTruthy();
+    await fireEvent.press(screen.getByRole('button', { name: 'Delete all reports' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Tap again to delete all reports' }));
+    expect(mockClear).toHaveBeenCalledTimes(1);
+    expect(mockClear).toHaveBeenCalledWith();
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Summary for my doctor' })).toBeNull());
+    expect(screen.queryByText(/ready to share/)).toBeNull();
   });
   it('shares the plain text through the export save path', async () => {
     await setup(reports);
@@ -80,11 +97,17 @@ describe('buildLabSummary', () => {
       [
         'Summary for my doctor',
         'Report date: 2026-09-01\n- LDL cholesterol: 120 mg/dL (lab range 0 to 100) - High\n- Vitamin D: 30 ng/mL (lab range 20 to 50) - Within the lab’s range',
-        'Report date: 2026-10-01\n- Mystery: 5 u (no range entered) - No range printed',
+        'Report date: 2026-10-01\n- Mystery: 5 u (no range entered)',
         labs.not_medical_advice,
       ].join('\n\n') + '\n',
     );
     expect(text).not.toMatch(/82|175|kg|calorie|\bid\b/i);
+  });
+  it('says when a unit is not recognised and adds no flag word when there is nothing to flag', () => {
+    const text = buildLabSummary([{ id: 'x', date: '2026-10-01', tests: [t('LDL cholesterol', '120', 'zzz', '0', '100'), t('Vitamin D', 'abc', 'ng/mL', '20', '50')] }]) as string;
+    expect(text).toContain('- LDL cholesterol: 120 zzz (lab range 0 to 100; unit not recognised)');
+    expect(text).toContain('- Vitamin D: abc ng/mL (lab range 20 to 50)\n');
+    expect(text).not.toContain('No range printed');
   });
   it('marks a result far outside the range as needing a doctor, never diagnoses', () => {
     const text = buildLabSummary([{ id: 'x', date: '2026-10-01', tests: [t('LDL cholesterol', '400', 'mg/dL', '0', '100')] }]) as string;
