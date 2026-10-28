@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState, type ComponentRef, type ReactNode, type Ref } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, Text as RNText, Switch as RNSwitch, useWindowDimensions, View, type PressableProps, type SwitchProps, type TextInput, type TextInputProps, type TextProps, type ViewProps } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
-import { dark, glowShadow, pressedShadow, radius, space, tabular, type } from '../theme/tokens';
+import { dark, glowShadow, linkText, pressedShadow, radius, space, tabular, type } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { useBottomInset } from './bottomInset';
 import { Input } from './Input';
@@ -230,7 +230,7 @@ export function Button({
         kind === 'primary' && !disabled && !pressed && { shadowColor: c.glow, ...glowShadow },
       ]}
     >
-      <Text style={[kind === 'link' ? type.bodyStrong : type.button, kind === 'link' && { flexShrink: 1 }, { color: palette.fg }]}>{label}</Text>
+      <Text style={[kind === 'link' ? type.bodyStrong : type.button, kind === 'link' && [linkText, { flexShrink: 1 }], { color: palette.fg }]}>{label}</Text>
     </Press>
   );
 }
