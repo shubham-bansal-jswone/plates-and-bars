@@ -799,9 +799,12 @@ paths:
           renames, deletes, idempotent retries) and a pull-only request are never refused
           for this, even when the account already holds more than 100.
         - The refusal is 400 `invalid_request` with one `details` entry for every new or
-          revived routine past the limit, in array order, each with `field` =
-          `changes.routines[<i>]` and issue `too_many_routines`. Nothing is applied, as for
-          any 400. The app sets those records aside in one round.
+          revived routine past the limit, each with `field` = `changes.routines[<i>]` and
+          issue `too_many_routines`. Every other change in the push (deletes included) is
+          counted first, wherever it sits in the array; then the new and revived routines
+          are added one by one in array order, and each one that takes the count over 100
+          is listed. So with 100 live, `[new, new, delete]` lists only index 1. Nothing is
+          applied, as for any 400. The app sets those records aside in one round.
         - The count and the apply run in the one per-account serialised transaction, like
           the account record cap, never in the stateless validator, so two devices pushing
           at once cannot overrun it.
