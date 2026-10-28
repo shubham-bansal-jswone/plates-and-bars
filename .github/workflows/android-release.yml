@@ -226,11 +226,11 @@ jobs:
         working-directory: apps/mobile/android
         env:
           # read by Metro when Gradle bundles the JS; only this step, never npm ci
-          # a PR run has no environment, so a repository-level variable must never reach its debug-signed artifacts
+          # a PR run or design-overhaul push has no environment, so a repository-level variable must never reach its debug-signed artifacts
           EXPO_PUBLIC_SENTRY_DSN: ${{ github.event_name != 'pull_request' && !(github.event_name == 'push' && github.ref == 'refs/heads/design-overhaul') && vars.EXPO_PUBLIC_SENTRY_DSN || '' }}
           EXPO_PUBLIC_SENTRY_ENVIRONMENT: ${{ startsWith(github.ref, 'refs/tags/v') && 'production' || 'staging' }}
           EXPO_PUBLIC_SITE_URL: ${{ vars.EXPO_PUBLIC_SITE_URL }}
-          # feature flags: the app enables each only on exactly "1"; unset or any other value = off. Blank on PR runs.
+          # feature flags: the app enables each only on exactly "1"; unset or any other value = off. Blank on PR runs and design-overhaul pushes.
           EXPO_PUBLIC_BARCODE_SCAN: ${{ github.event_name != 'pull_request' && !(github.event_name == 'push' && github.ref == 'refs/heads/design-overhaul') && vars.EXPO_PUBLIC_BARCODE_SCAN || '' }}
           EXPO_PUBLIC_POSE_TRACKING: ${{ github.event_name != 'pull_request' && !(github.event_name == 'push' && github.ref == 'refs/heads/design-overhaul') && vars.EXPO_PUBLIC_POSE_TRACKING || '' }}
           EXPO_PUBLIC_LABEL_SCAN: ${{ github.event_name != 'pull_request' && !(github.event_name == 'push' && github.ref == 'refs/heads/design-overhaul') && vars.EXPO_PUBLIC_LABEL_SCAN || '' }}
