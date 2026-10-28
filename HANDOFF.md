@@ -919,7 +919,7 @@ Default branch is `design-overhaul`; `main` is behind it and gets fast-forwarded
 **Issues filed 2026-10-28:** features #1176 plate calculator, #1177 restore from export, #1178 e1RM trends and elapsed time, #1179 import Strong/Hevy/MyFitnessPal, #1180 share image, #1181 Android widget, #1182 supersets and circuits, #1184 saved routines, #1185 weight unit; infra #1186 weekly gitleaks scan failing on stale branches, #1187 caches saved only on main; QA #1190-#1200.
 **Housekeeping:** `apps/mobile/node_modules` can be stale against the lockfile, which makes `licences-script.test.ts` fail locally (run `npm ci` in `apps/mobile`; CI is fine). Agent worktrees symlink that folder. `../wt-qa-scratch` holds three untracked e2e spec files from two weeks ago (food-plan, photos, workout-edit): check before deleting. Dependabot reports open alerts (fast-uri in `packages/core`, medium/low). #926 (real Claude provider) must add a per-user cap on refunded failures before it ships.
 
-## State at 2026-10-28 evening (read this first)
+## State at 2026-10-28 evening (superseded: see the next section)
 Coordinator session resumed from the section above. Base branch is still `design-overhaul`. Owner rules added today: **at most 5 agents in parallel**; each agent worktree runs its own `npm ci` (never symlink or `npm ci` the main checkout's `apps/mobile/node_modules` while agents run: concurrent installs wiped it and broke other agents' jest runs). The main checkout is now on `design-overhaul` (was the stale local `ui-redesign` branch, whose lockfile pinned old `node-forge` and made `licences-script.test.ts` fail locally). Its `apps/mobile/node_modules` may be incomplete (missing `ci-info`, `error-stack-parser`): run `npm ci` there once no agent is running.
 
 **Merged today (this session):** #1207 (Progress polish, Fixes #1195), #1208 (Setup validation, Fixes #1196), #1223 and #1234 (Workout/Targets/Library polish; #1198 closed), #1227 (audit doc), #1230 (light theme: body-map stroke test, Library detail axe scan, "Add to today’s session, <name>" label fix; Refs #1197), #1231 (QA reload / second-tab / health-check specs).
@@ -957,3 +957,28 @@ All agents and merge watchers stopped. On resume, in this order:
 4. Dependabot batch review was stopped part-way: verdicts already posted on some PRs (see each PR's comments and status label); relaunch for the rest.
 5. This PR (#1237) needs its review relaunched.
 Worktrees added since the section above: `../wt-tsfix` (#1238, own node_modules), `../wt-handoff` (this PR).
+
+## State at 2026-10-28 night (read this first)
+Owner rules now: **at most 7 agents in parallel**; "don't stop until everything is done": keep a queue (author -> Opus reviewer -> nits -> merge watcher on green) and drain it. Each agent worktree runs its own `npm ci`; never `npm ci` in the main checkout while agents run. Reviewers Opus, authors Sonnet. The main checkout is on `design-overhaul`.
+
+**Merged into design-overhaul today (after the evening section):** #1235 (second tab: retry then "open in another tab"; closes #1232), #1236 (aria-describedby for Setup errors; #1229), #1238 (base typecheck fix), #1237 (HANDOFF), #1243 (Dependabot: Sentry RN moves with the SDK, barcode-detector+zxing grouped), #1245 (MDC copied to async export threads; #1226), #1246 (core `warmupRamp`; #1241), #1247 (Progress axe scans a logged day; #1204), #1249 (barcode e2e reads the zxing version; #1244), #1251 (Redo keeps stored height at the limits; #1224), #1258 (label-scan OCR smoke under CSP/COEP; #1078), Dependabot #1210-#1218, #1220, #1221. Closed: #1219 (Expo pins Sentry), #1222.
+
+**Open PRs and next step**
+- #1250 (#1239 field-specific errors, web Switch aria on the input) and #1256 (motion fit-to-frame, part of #1084): approved, merge watcher running.
+- #1254 (#1079 JitPack plugin): nits applied (de91bf55), merge watcher running.
+- #1252 (spec entries for #1224 and #1136): approved; merge **after #1255**.
+- #1255 (#1136 prototype: week on real today, past-day burn label "Estimated burn on Wednesday, 7 Oct"): author fixing review (date format + past-day test).
+- #1248 (#1187 ccache on design-overhaul pushes, unsigned/no environment; #1186 gitleaks allowlist): round-3 review running.
+- #1257 (#1185 part 1, core kg/lb): re-review running. Parts 2 and 3 (app: session screens; progress/history) follow. Set-row strings are in the display unit; never re-save an unedited field.
+- #1260 (#1242 app warm-up ramp line): review running. Known: the `warmup` Why card says "first big lift".
+- #1262 (#1253 web inputs: browser outline over the app focus border): review running.
+
+**Decisions made today (owner delegated):** warm-ups stay unlogged; 3-step ramp at >= 60 kg; later compounds get a warm-up only if no earlier COMPOUND worked their primary muscles (#1240). kg/lb: device-local, stored in kg, lb steps 5 lb barbell/machine/cable and 2.5 lb dumbbells, lb suggestions snap to the grid (#1185). #1182 supersets: build after #1184/#1185. #1179 import: Strong and Hevy workouts only, after #1185. #1181 widget: last, react-native-android-widget. #1177 restore: merge by id with version/tombstones. #1088: plain-text doctor summary; hand-picked sessions keep no lab hold. #1120 closed (no figure for Prone Y-T-W / Archer). #1148 closed (code follows the prototype). #1138 decided. Prototype burn label takes the app's date format.
+
+**Closed as done after triage:** #1168 #1100 #1082 #1080 #1075 #1068 #219 #155 #79 #1197 #1198 #1195 #1196 #1232 #944 (barcode verified end to end).
+**Filed today:** #1225 (CORS X-Request-Id, waits for a reader), #1233, #1239, #1240-#1242, #1244, #1253, #1259 (motion props/highlights/front views, blocked on clips).
+
+**Queue after the open PRs:** #1185 parts 2-3 -> #1176 plate calculator -> #1178 e1RM trends; SetupScreen functional update for health-check answers (from #1200); #1144 QA polish re-audit; #1128 last QA pass; #1180 share image; #1088 doctor summary; #1177 restore; #1184 saved routines (contract first); then #1182, #1179, #1181. Close #1070/#1067 when their last items land; move #653 coach points to a content issue.
+**Parked (owner/external):** #948 iOS, #975 Play, #926/#946 AI (last), #29 branch protection, #36 staging (+#667, #200), #1069 squat clip, #947 device gate, #212 coach source, #653 coach review.
+
+**Testing on the phone (APK):** owner builds come from `android-release.yml` on `main` (workflow_dispatch) with the `android-release` environment's feature-flag variables. `main` is about 70 commits behind `design-overhaul`, and the environment only allows `main` and `v*` tags, so there is **no owner build of the current code**. The last owner APK is run 39488523206 (2026-10-20, flags on, before the redesign; artifact expires 2026-11-03). PR runs build a debug-signed arm64 APK with flags off (installable). Owner decision (2026-10-28): add `design-overhaul` to the `android-release` environment's deployment branches (owner does it in Settings), then dispatch `android-release.yml` on `design-overhaul` for a build with the flags on. #1248 keeps the environment for manual runs and skips it only for design-overhaul pushes.
