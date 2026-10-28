@@ -102,7 +102,7 @@ describe('TargetsScreen', () => {
     await saveProfile(db, goldenProfile());
     await render(withProfile(db, <TargetsScreen db={db} />));
     // The targets are the editable "Daily targets" fields now (prototype tK, tP, tC, tF).
-    expect((await screen.findByLabelText('Calories (kcal)')).props.value).toBe('1990');
+    expect((await screen.findByLabelText('Calories (kcal)')).props.value).toBe('1,990');
     expect(g.output.kcal).toBe(1990);
     expect(screen.getByLabelText('Protein (g)').props.value).toBe(String(g.output.protein));
     expect(screen.getByLabelText('Carbs (g)').props.value).toBe(String(g.output.carbs));
@@ -151,7 +151,7 @@ describe('TargetsScreen', () => {
     const db = memoryDb();
     await saveProfile(db, goldenProfile());
     await render(withProfile(db, <TargetsScreen db={db} />));
-    expect((await screen.findByLabelText('Calories (kcal)')).props.value).toBe('1990');
+    expect((await screen.findByLabelText('Calories (kcal)')).props.value).toBe('1,990');
     // The results block is rendered with `hideTargets`, as prototype `renderTargets` has only the editable
     // fields: the four read-only tiles would repeat the same numbers right above them (#483 review).
     expect(screen.queryByTestId('target-0')).toBeNull();

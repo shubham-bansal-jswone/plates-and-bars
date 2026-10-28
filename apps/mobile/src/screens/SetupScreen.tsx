@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { WhyLink } from '../why/WhyLink';
 import { View } from 'react-native';
 import { Text } from '../components/Text';
@@ -10,7 +10,7 @@ import { DAY_CHOICES, SESSION_MINUTES, SETUP_STEPS as STEPS } from '@plate-and-b
 import { LegalLinks } from '../legal/LegalLinks';
 import { DeletionNotice } from '../account/DeletionNotice';
 import type { Profile } from '../setup/types';
-import { buildProfile, draftFromProfile, emptyDraft, errorField, keepStoredHeight, validateStep, type Draft, type SetupField } from '../setup/logic';
+import { buildProfile, draftFromProfile, emptyDraft, keepStoredHeight, stepErrors, type Draft, type SetupField } from '../setup/logic';
 import { useProfile } from '../state/ProfileProvider';
 import { setSetupLeaving } from '../state/setupExit';
 import { postToast } from '../state/pendingToast';
@@ -65,13 +65,17 @@ function Consent({ onContinue }: { onContinue: () => Promise<void> }) {
   );
 }
 
-/** `err` shown under the field it names (`errField`), and nowhere else. */
-function StepBody({ step, d, set, err, errField }: { step: number; d: Draft; set: Pick; err: string; errField: SetupField | null }) {
+type Errs = Partial<Record<SetupField, string>>;
+type Focusable = { focus?: () => void } | null;
+type Focus = (f: SetupField) => (el: never) => void; // `never`: a TextInput and a View ref both fit
+
+/** Each message in `errs` shown under the field it names, and nowhere else. `focus` registers the element Continue focuses for the first invalid field. */
+function StepBody({ step, d, set, errs, focus }: { step: number; d: Draft; set: Pick; errs: Errs; focus: Focus }) {
   const c = useTheme();
-  const bad = (f: SetupField) => !!err && errField === f;
+  const bad = (f: SetupField) => !!errs[f];
   // The inline error is also the invalid field's hint, so focusing the field again reads why it is wrong.
-  const hint = (f: SetupField) => (bad(f) ? err : undefined);
-  const showErr = (at: SetupField) => (bad(at) ? <ErrorText>{err}</ErrorText> : null);
+  const hint = (f: SetupField) => errs[f];
+  const showErr = (at: SetupField) => (errs[at] ? <ErrorText>{errs[at]}</ErrorText> : null);
   if (step === 0)
     return (
       <>
@@ -81,7 +85,7 @@ function StepBody({ step, d, set, err, errField }: { step: number; d: Draft; set
           <Label>Sex</Label>
           <Group label="Sex">
             <View style={layout.row}>
-              <Choice chip label="Male" selected={d.sex === 'male'} onPress={() => set('sex', 'male')} />
+              <Choice focusRef={focus('sex')} chip label="Male" selected={d.sex === 'male'} onPress={() => set('sex', 'male')} />
               <Choice chip label="Female" selected={d.sex === 'female'} onPress={() => set('sex', 'female')} />
             </View>
           </Group>
@@ -103,7 +107,7 @@ function StepBody({ step, d, set, err, errField }: { step: number; d: Draft; set
         <View style={layout.field}>
           <Caption>Age</Caption>
           <View style={layout.row}>
-            <Field label="Age" invalid={bad('age')} accessibilityHint={hint('age')} inputMode="numeric" placeholder="Years" value={d.age} onChangeText={(v) => set('age', v)} />
+            <Field ref={focus('age')} label="Age" invalid={bad('age')} accessibilityHint={hint('age')} inputMode="numeric" placeholder="Years" value={d.age} onChangeText={(v) => set('age', v)} />
           </View>
           {showErr('age')}
         </View>
@@ -112,13 +116,13 @@ function StepBody({ step, d, set, err, errField }: { step: number; d: Draft; set
           <View style={layout.row}>
             {d.unit === 'ft' ? (
               <>
-                <Field label="Height feet" invalid={bad('height')} accessibilityHint={hint('height')} inputMode="numeric" placeholder="ft" value={d.ft} onChangeText={(v) => set('ft', v)} />
+                <Field ref={focus('height')} label="Height feet" invalid={bad('height')} accessibilityHint={hint('height')} inputMode="numeric" placeholder="ft" value={d.ft} onChangeText={(v) => set('ft', v)} />
                 <Field label="Height inches" invalid={bad('height')} accessibilityHint={hint('height')} inputMode="numeric" placeholder="in" value={d.inch} onChangeText={(v) => set('inch', v)} />
                 <Button kind="link" label="Use cm" onPress={() => set('unit', 'cm')} />
               </>
             ) : (
               <>
-                <Field label="Height in cm" invalid={bad('height')} accessibilityHint={hint('height')} inputMode="numeric" placeholder="cm" value={d.cm} onChangeText={(v) => set('cm', v)} />
+                <Field ref={focus('height')} label="Height in cm" invalid={bad('height')} accessibilityHint={hint('height')} inputMode="numeric" placeholder="cm" value={d.cm} onChangeText={(v) => set('cm', v)} />
                 <Button kind="link" label="Use feet and inches" onPress={() => set('unit', 'ft')} />
               </>
             )}
@@ -128,7 +132,7 @@ function StepBody({ step, d, set, err, errField }: { step: number; d: Draft; set
         <View style={layout.field}>
           <Caption>Weight (kg)</Caption>
           <View style={layout.row}>
-            <Field label="Weight in kg" invalid={bad('weight')} accessibilityHint={hint('weight')} inputMode="decimal" placeholder="kg" value={d.weight} onChangeText={(v) => set('weight', v)} />
+            <Field ref={focus('weight')} label="Weight in kg" invalid={bad('weight')} accessibilityHint={hint('weight')} inputMode="decimal" placeholder="kg" value={d.weight} onChangeText={(v) => set('weight', v)} />
           </View>
           {showErr('weight')}
         </View>
@@ -140,8 +144,8 @@ function StepBody({ step, d, set, err, errField }: { step: number; d: Draft; set
         <H1>How active is your day, outside the gym?</H1>
         <Hint>Think of a typical weekday. Training comes in the next step.</Hint>
         <Group label="Activity">
-          {entries(ACTIVITY).map(([k, [l, s]]) => (
-            <Choice key={k} label={l} sub={s} selected={d.activity === k} onPress={() => set('activity', k)} />
+          {entries(ACTIVITY).map(([k, [l, s]], i) => (
+            <Choice key={k} focusRef={i === 0 ? focus('activity') : undefined} label={l} sub={s} selected={d.activity === k} onPress={() => set('activity', k)} />
           ))}
         </Group>
         {showErr('activity')}
@@ -156,7 +160,7 @@ function StepBody({ step, d, set, err, errField }: { step: number; d: Draft; set
           <Group label="Sessions per week">
             <View style={layout.row}>
               {DAY_CHOICES.map((n) => (
-                <Choice key={n} chip label={n === 0 ? 'None yet' : String(n)} selected={d.days === n} onPress={() => set('days', n)} />
+                <Choice key={n} focusRef={n === DAY_CHOICES[0] ? focus('days') : undefined} chip label={n === 0 ? 'None yet' : String(n)} selected={d.days === n} onPress={() => set('days', n)} />
               ))}
             </View>
           </Group>
@@ -167,8 +171,8 @@ function StepBody({ step, d, set, err, errField }: { step: number; d: Draft; set
             <View style={layout.field}>
               <Label>Where do you train?</Label>
               <Group label="Where do you train?">
-                {entries(WHERE).map(([k, [l, s]]) => (
-                  <Choice key={k} label={l} sub={s} selected={d.where === k} onPress={() => set('where', k)} />
+                {entries(WHERE).map(([k, [l, s]], i) => (
+                  <Choice key={k} focusRef={i === 0 ? focus('where') : undefined} label={l} sub={s} selected={d.where === k} onPress={() => set('where', k)} />
                 ))}
               </Group>
               {showErr('where')}
@@ -176,8 +180,8 @@ function StepBody({ step, d, set, err, errField }: { step: number; d: Draft; set
             <View style={layout.field}>
               <Label>Training experience</Label>
               <Group label="Training experience">
-                {entries(EXPERIENCE).map(([k, [l, s]]) => (
-                  <Choice key={k} label={l} sub={s} selected={d.exp === k} onPress={() => set('exp', k)} />
+                {entries(EXPERIENCE).map(([k, [l, s]], i) => (
+                  <Choice key={k} focusRef={i === 0 ? focus('exp') : undefined} label={l} sub={s} selected={d.exp === k} onPress={() => set('exp', k)} />
                 ))}
               </Group>
               {showErr('exp')}
@@ -186,8 +190,8 @@ function StepBody({ step, d, set, err, errField }: { step: number; d: Draft; set
               <Label>Typical session length</Label>
               <Group label="Typical session length">
                 <View style={layout.row}>
-                  {SESSION_MINUTES.map((m) => (
-                    <Choice key={m} chip label={`${m} min`} selected={d.minutes === m} onPress={() => set('minutes', m)} />
+                  {SESSION_MINUTES.map((m, i) => (
+                    <Choice key={m} focusRef={i === 0 ? focus('minutes') : undefined} chip label={`${m} min`} selected={d.minutes === m} onPress={() => set('minutes', m)} />
                   ))}
                 </View>
               </Group>
@@ -201,8 +205,8 @@ function StepBody({ step, d, set, err, errField }: { step: number; d: Draft; set
     <>
       <H1>What’s your main goal?</H1>
       <Group label="Main goal">
-        {entries(GOALS).map(([k, [l, s]]) => (
-          <Choice key={k} label={l} sub={s} selected={d.goal === k} onPress={() => set('goal', k)} />
+        {entries(GOALS).map(([k, [l, s]], i) => (
+          <Choice key={k} focusRef={i === 0 ? focus('goal') : undefined} label={l} sub={s} selected={d.goal === k} onPress={() => set('goal', k)} />
         ))}
       </Group>
       {showErr('goal')}
@@ -217,6 +221,7 @@ function StepBody({ step, d, set, err, errField }: { step: number; d: Draft; set
                 {(['no', 'yes'] as const).map((a) => (
                   <Choice
                     key={a}
+                    focusRef={i === 0 && a === 'no' ? focus('screen') : undefined}
                     chip
                     label={a === 'no' ? 'No' : 'Yes'}
                     selected={d.screen[i] === a}
@@ -275,11 +280,17 @@ function SetupFlow({ recalc, weight }: { recalc: boolean; weight: number | null 
   const [d, setD] = useState<Draft>(() => (stored ? { ...draftFromProfile(stored), ...(weight ? { weight: String(weight) } : {}) } : emptyDraft()));
   const [step, setStep] = useState(stored && recalc ? STEPS : 0);
   const [err, setErr] = useState('');
+  const [errs, setErrs] = useState<Errs>({});
+  const els = useRef<Partial<Record<SetupField, Focusable>>>({});
+  const focus: Focus = (f) => (el) => {
+    els.current[f] = el as Focusable;
+  };
   const set: Pick = (k, v) => {
     setErr('');
+    setErrs({});
     setD((prev) => ({ ...prev, [k]: v }));
   };
-  const profile = useMemo(() => (step === STEPS ? buildProfile(recalc && stored ? keepStoredHeight(d, stored) : d, new Date(), stored) : null), [step, d, stored, recalc]);
+  const profile = useMemo(() => (step === STEPS ? buildProfile(stored ? keepStoredHeight(d, stored) : d, new Date(), stored) : null), [step, d, stored]);
 
   const save = async (p: Profile, toast: string) => {
     setSetupLeaving(true);
@@ -296,11 +307,12 @@ function SetupFlow({ recalc, weight }: { recalc: boolean; weight: number | null 
 
   if (!consent) return <Consent onContinue={giveConsent} />;
 
-  const errField = err ? errorField(step, d) : null;
   const next = () => {
-    const e = validateStep(step, d);
-    setErr(e);
-    if (!e) setStep(step + 1);
+    const found = stepErrors(step, d);
+    setErr('');
+    setErrs(Object.fromEntries(found));
+    if (!found.length) setStep(step + 1);
+    else els.current[found[0]![0]]?.focus?.();
   };
   return (
     <Page resetKey={step} wide={!!profile}>
@@ -311,6 +323,7 @@ function SetupFlow({ recalc, weight }: { recalc: boolean; weight: number | null 
             label="‹ Back"
             onPress={() => {
               setErr('');
+              setErrs({});
               setStep(step - 1);
             }}
           />
@@ -353,8 +366,8 @@ function SetupFlow({ recalc, weight }: { recalc: boolean; weight: number | null 
         </>
       ) : (
         <>
-          <StepBody step={step} d={d} set={set} err={err} errField={errField} />
-          {err && !errField ? <ErrorText>{err}</ErrorText> : null}
+          <StepBody step={step} d={d} set={set} errs={errs} focus={focus} />
+          {err ? <ErrorText>{err}</ErrorText> : null}
           <Button label={step === STEPS - 1 ? 'See my targets' : 'Continue'} onPress={next} />
         </>
       )}

@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useLayoutEffect, useRef, useState, type ComponentRef, type ReactNode, type Ref } from 'react';
-import { Platform, Pressable, ScrollView, StyleSheet, Text as RNText, Switch as RNSwitch, useWindowDimensions, View, type PressableProps, type SwitchProps, type TextInputProps, type TextProps, type ViewProps } from 'react-native';
+import { Platform, Pressable, ScrollView, StyleSheet, Text as RNText, Switch as RNSwitch, useWindowDimensions, View, type PressableProps, type SwitchProps, type TextInput, type TextInputProps, type TextProps, type ViewProps } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { dark, glowShadow, pressedShadow, radius, space, tabular, type } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
@@ -238,7 +238,9 @@ export function Choice({
   onPress,
   chip,
   action,
+  focusRef,
 }: {
+  focusRef?: Ref<ComponentRef<typeof View>>;
   label: string;
   sub?: string;
   selected: boolean;
@@ -250,6 +252,7 @@ export function Choice({
   const c = useTheme();
   return (
     <Press
+      ref={focusRef}
       accessibilityRole={action ? 'button' : 'radio'}
       accessibilityLabel={sub ? `${label}. ${sub}` : label}
       // A radio must announce its state on web too (WCAG 4.1.2).
@@ -289,7 +292,7 @@ export function Chip({ label, text, pressed, danger, onPress }: { label: string;
   );
 }
 
-export function Field({ label, invalid, style, ...rest }: TextInputProps & { label: string; /** The value is wrong: announces `aria-invalid` and draws a danger border (after the caller's style, so it wins). */ invalid?: boolean }) {
+export function Field({ label, invalid, style, ...rest }: TextInputProps & { ref?: Ref<TextInput>; label: string; /** The value is wrong: announces `aria-invalid` and draws a danger border (after the caller's style, so it wins). */ invalid?: boolean }) {
   const c = useTheme();
   return <Input accessibilityLabel={label} aria-invalid={invalid || undefined} {...rest} style={[styles.input, style, invalid ? { borderColor: c.danger } : null]} />;
 }

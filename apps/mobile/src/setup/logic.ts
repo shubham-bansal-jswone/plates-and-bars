@@ -92,10 +92,32 @@ const FIELD_OF: Record<SetupError, SetupField> = {
   screen_incomplete: 'screen',
 };
 
-/** The field core's one error for this step names, or null when the step is complete (core still reports one error at a time). */
-export function errorField(step: number, d: Draft): SetupField | null {
-  const e = validateSetupStep(step, d);
-  return e ? FIELD_OF[e] : null;
+const FIX: Record<SetupField, Partial<Draft>> = {
+  sex: { sex: 'male' },
+  age: { age: '30' },
+  height: { unit: 'cm', cm: '170' },
+  weight: { weight: '70' },
+  activity: { activity: 'sitting' },
+  days: { days: 0 },
+  where: { where: 'gym' },
+  exp: { exp: 'new' },
+  minutes: { minutes: 30 },
+  goal: { goal: 'maintain' },
+  screen: { screen: Array.from({ length: SCREEN_QUESTIONS }, () => 'no' as const) },
+};
+
+/**
+ * Every invalid field of a step with its message, in form order (empty when complete). Core reports one error at a time,
+ * so each found field is filled with a valid stand-in on a copy and core is asked again.
+ */
+export function stepErrors(step: number, d: Draft): [SetupField, string][] {
+  const out: [SetupField, string][] = [];
+  let cur = d;
+  for (let e = validateSetupStep(step, cur); e; e = validateSetupStep(step, cur)) {
+    out.push([FIELD_OF[e], ERROR_COPY[e]]);
+    cur = { ...cur, ...FIX[FIELD_OF[e]] };
+  }
+  return out;
 }
 
 /** Today as a local `YYYY-MM-DD` (the format core's `normaliseSetup` takes). */
@@ -104,7 +126,7 @@ export function localDate(now: Date): string {
   return `${now.getFullYear()}-${p(now.getMonth() + 1)}-${p(now.getDate())}`;
 }
 
-/** The form filled with a stored profile's answers (prototype `startSetup` on a redo); height shows in ft/in, as first time. */
+/** The form filled with a stored profile's answers (prototype `startSetup` on a redo); height shows in ft/in, as first time (`keepStoredHeight` keeps the stored cm if it is not edited). */
 export function draftFromProfile(p: Profile): Draft {
   const { ft, inch } = cmToFtIn(p.height_cm);
   return {
