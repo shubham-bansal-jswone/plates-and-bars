@@ -66,6 +66,8 @@ describe('history day view', () => {
     await render(<WorkoutDay session={open} sessions={s} lifts={{} as Record<string, LiftRecord>} onBack={() => {}} />);
     expect(screen.getByTestId('e1rm-trend')).toBeTruthy();
     expect(screen.getByTestId('session-elapsed').props.children).toBe('Time: 1 h 10 min');
+    expect(screen.getAllByText(/weight x \(1 \+ reps \/ 30\)/)).toHaveLength(1); // the note once per day
+    expect(screen.getByText('Last 20 sessions')).toBeTruthy();
   });
 
   it('hides the time when a done set has no tick', async () => {
@@ -116,8 +118,24 @@ describe('library detail', () => {
     expect(await screen.findByTestId('e1rm-trend')).toBeTruthy();
   });
 
+  it('ignores an orphan set with no date and a set on a day with no live workout', async () => {
+    const db = memoryDb();
+    const wk = (d: string, deleted: string | null) => saveWorkout(db, { ...meta, deleted_at: deleted, id: null, date: d, template: 'x', base: 'x', where: 'gym', cardio_min: null, mods: {}, exercises: [], ci_choice: null });
+    await wk('2026-10-01', null);
+    await wk('2026-10-02', '2026-10-03T00:00:00Z');
+    await saveSet(db, '', wset('o', lib.name, 0, 120, 5)); // pulled before its workout
+    await saveSet(db, '2026-10-02', wset('d', lib.name, 0, 100, 5)); // deleted workout
+    await saveSet(db, '2026-10-05', wset('n', lib.name, 0, 100, 5)); // no workout row
+    await saveSet(db, '2026-10-01', wset('a', lib.name, 0, 80, 5));
+    await open(db);
+    await screen.findByText('Back to library');
+    expect(screen.queryByTestId('e1rm-trend')).toBeNull(); // only one real session
+    expect(screen.queryByLabelText(/NaN/)).toBeNull();
+  });
+
   it('shows nothing with one session', async () => {
     const db = memoryDb();
+    await saveWorkout(db, { ...meta, id: null, date: '2026-10-01', template: 'x', base: 'x', where: 'gym', cardio_min: null, mods: {}, exercises: [], ci_choice: null });
     await saveSet(db, '2026-10-01', wset('x', lib.name, 0, 80, 5));
     await open(db);
     await screen.findByText('Back to library');

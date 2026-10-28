@@ -22,12 +22,13 @@ export async function loadSets(db: WorkoutDb, date: string): Promise<WorkoutSet[
   return rows.map((r) => JSON.parse(r.data) as WorkoutSet);
 }
 
-/** One exercise's done, live work sets across all days (the e1RM trend). Filtered on the device, nothing leaves it. */
+/** One exercise's done, live work sets on days that have a live workout (as the history counts them), for the e1RM trend. Read on the device, nothing leaves it. */
 export async function loadExerciseSets(db: WorkoutDb, exercise: string): Promise<(WorkoutSet & { date: string })[]> {
   const rows = await db.getAllAsync<{ workout_date: string; data: string }>(
-    "SELECT workout_date, data FROM workout_sets WHERE kind = 'work' AND done = 1 AND deleted = 0",
+    "SELECT workout_date, data FROM workout_sets WHERE kind = 'work' AND done = 1 AND deleted = 0 AND json_extract(data, '$.exercise') = ? AND workout_date IN (SELECT key FROM workouts WHERE json_extract(data, '$.deleted_at') IS NULL)",
+    exercise,
   );
-  return rows.map((r) => ({ ...(JSON.parse(r.data) as WorkoutSet), date: r.workout_date })).filter((s) => s.exercise === exercise);
+  return rows.map((r) => ({ ...(JSON.parse(r.data) as WorkoutSet), date: r.workout_date }));
 }
 
 export async function saveSet(db: StoreDb, date: string, s: WorkoutSet): Promise<void> {

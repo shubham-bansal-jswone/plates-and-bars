@@ -125,7 +125,7 @@ function History({ name, kind, db }: { name: string; kind: LibraryExercise['type
   return (
     <Card>
       <Heading level={2} style={[type.heading, { color: c.ink }]}>Your estimated max</Heading>
-      <E1rmTrend points={points} type={kind} />
+      <E1rmTrend points={points} type={kind} span="All your stored sessions" />
     </Card>
   );
 }

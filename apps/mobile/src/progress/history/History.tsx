@@ -8,8 +8,8 @@ import { space, tabular, type as typeScale } from '../../theme/tokens';
 import { useTheme } from '../../theme/useTheme';
 import { focusNode, useFocusOnMount } from '../../labelscan/focus';
 import { getLibrary } from '../../library/exercises';
-import { E1rmTrend } from '../E1rmTrend';
-import { exerciseE1rm, exerciseTrend, setText, type HistorySession } from './logic';
+import { E1RM_NOTE, E1rmTrend } from '../E1rmTrend';
+import { HISTORY_LIMIT, exerciseE1rm, exerciseTrend, setText, type HistorySession } from './logic';
 
 export const HISTORY_EMPTY = 'No workouts logged yet. Your sessions will appear here.';
 const FIRST = 5;
@@ -102,10 +102,11 @@ export function WorkoutDay({ session, sessions, lifts, onBack }: { session: Hist
                 <Text style={[typeScale.small, { color: c.muted }]}>{`Volume, last ${t.points.length} sessions${t.heaviest ? `. Heaviest set ${fmt(t.heaviest)} kg.` : '.'}`}</Text>
               </View>
             ) : null}
-            <E1rmTrend points={e1} type={typeOf(e.name) ?? 'other'} />
+            <E1rmTrend points={e1} type={typeOf(e.name) ?? 'other'} span={`Last ${HISTORY_LIMIT} sessions`} note={false} />
           </Card>
         );
       })}
+      {session.exercises.some((e) => exerciseE1rm(sessions, e.name, typeOf(e.name)).length >= 2) ? <Hint>{E1RM_NOTE}</Hint> : null}
     </View>
   );
 }
