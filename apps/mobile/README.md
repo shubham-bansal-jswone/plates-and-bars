@@ -45,6 +45,14 @@ npx expo export --platform web   # production web bundle; proves Metro resolves 
 - Placeholder screens for Food, Workout and Progress come with later issues.
 - Verified with the commands above, not on an Android emulator or device.
 
+## Your data: export and restore (#27, #1177)
+
+Data screen, "Export my data" writes a JSON file (`format_version: 1`, `source: device`) with every synced table in contract shape, tombstones included, plus the device-only cycle log and lab reports, and a food-log CSV. Progress photos are not in it.
+
+"Restore from a file" reads such a file back and works offline with no account. It merges, it never replaces: per record id the higher `version` wins, the same version falls to the later `updated_at`, a tombstone newer than the local row deletes it, and a local row with an unsynced edit is kept. A file exported from a different account only adds records this device does not have. Consents are never restored (they are given on this device). The cycle log is added only when this device has none, lab reports are added when missing, and a lab hold in the file can turn the hold on but never off. The summary (counts per table, with the dates the file covers) is shown first and nothing is written until the user confirms. Everything is applied in one transaction, so a refused or failing file changes nothing; restored rows are queued like any edit and sync up when signed in.
+
+The file is untrusted. It is refused when it is over 25 MB, 200,000 rows or 256 KB per row, is not JSON, has another `format_version` or `source`, an unknown table, a prototype-pollution key, a record whose key, date, `id`, version (0 to 2^31-1) or timestamp is malformed, or a workout set whose workout is not in the file. The picker accepts any file type (Android often labels JSON as `application/octet-stream`); the content is what is checked. The temporary copy the picker makes is deleted after reading, and file content is never logged. Code: `src/account/restoreLocal.ts`, `src/account/pickFile.ts`, `src/screens/DataScreen.tsx`.
+
 ## Barcode scanner module (#944, Android)
 
 `modules/plate-barcode-scanner` is a local Expo module (Kotlin, autolinked from `modules/`): a CameraX preview whose frames go to zxing-cpp, which reads EAN-8, EAN-13, UPC-A and UPC-E only (no QR). Both are Apache-2.0; no ML Kit and no Play services (`expo-camera` is rejected because it pulls ML Kit). Camera frames stay in memory and are dropped: nothing is stored or sent. The module declares the CAMERA permission and marks the camera, autofocus and flash features optional; the permission and its rationale are asked from JavaScript (`src/barcode/permission.ts`).

@@ -4,7 +4,7 @@ import { useRouter } from 'expo-router';
 import { SvgXml } from 'react-native-svg';
 import { Text } from '../components/Text';
 import { Press } from '../components/ui';
-import { type } from '../theme/tokens';
+import { linkText, type } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { exerciseMotionEnabled } from '../motion/flag';
 import { getMotion } from '../motion/data';
@@ -75,7 +75,7 @@ function FigurePair({ name }: { name: string }) {
         onPress={() => router.push('/about' as never)}
         style={styles.credit}
       >
-        <Text style={[type.small, { color: c.link }]}>{credit}</Text>
+        <Text style={[type.small, linkText, { color: c.link }]}>{credit}</Text>
       </Press>
     </View>
   );

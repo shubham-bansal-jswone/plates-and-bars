@@ -144,11 +144,12 @@ com.squareup.zstd:zstd-kmp-okio:0.4.0
 com.squareup.zstd:zstd-kmp:0.4.0
 com.vanniktech:android-image-cropper:4.7.0
 commons-codec:commons-codec:1.10 META-INF/NOTICE.txt@bcb83645cb4d1a46
-commons-io:commons-io:1.4 META-INF/NOTICE.txt@953ed0a73373ef5e
+commons-io:commons-io:2.6 META-INF/NOTICE.txt@f738390135295a24
 expo.modules.asset:expo.modules.asset:58.0.16
 expo.modules.router:expo.modules.router:58.0.22
 host.exp.exponent:expo.modules.clipboard:58.0.3
 host.exp.exponent:expo.modules.crypto:58.0.7
+host.exp.exponent:expo.modules.documentpicker:58.0.4
 host.exp.exponent:expo.modules.filesystem:58.0.9
 host.exp.exponent:expo.modules.font:58.0.8
 host.exp.exponent:expo.modules.haptics:58.0.7

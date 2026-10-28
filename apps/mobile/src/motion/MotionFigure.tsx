@@ -5,7 +5,7 @@ import Svg, { Circle, G, Line } from 'react-native-svg';
 import { Text } from '../components/Text';
 import { useReducedMotion } from '../components/reducedMotion';
 import { Press } from '../components/ui';
-import { type } from '../theme/tokens';
+import { linkText, type } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { getCatalog } from '../workout/catalog';
 import { figureColours } from '../workout/figures';
@@ -105,11 +105,11 @@ export function MotionFigure({ name, entry }: { name: string; entry: MotionEntry
           onPress={() => setPaused((p) => !p)}
           style={styles.control}
         >
-          <Text style={[type.small, { color: c.link }]}>{paused ? 'Play' : 'Pause'}</Text>
+          <Text style={[type.small, linkText, { color: c.link }]}>{paused ? 'Play' : 'Pause'}</Text>
         </Press>
       ) : null}
       <Press accessibilityRole="link" accessibilityLabel={`${credit}. Opens About and sources`} onPress={() => router.push('/about' as never)} style={styles.control}>
-        <Text style={[type.small, { color: c.link }]}>{credit}</Text>
+        <Text style={[type.small, linkText, { color: c.link }]}>{credit}</Text>
       </Press>
     </View>
   );
