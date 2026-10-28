@@ -304,6 +304,12 @@ describe('deletion notice', () => {
     expect(screen.queryByText(/deleted|cleared/)).toBeNull();
   });
 
+  it('says the exported file is always in kilograms (#1185)', async () => {
+    await show({});
+    expect(screen.getByText(DATA_COPY.exportUnitNote)).toBeTruthy();
+    expect(DATA_COPY.exportUnitNote).toMatch(/always in kilograms/);
+  });
+
   it('the reinstall sentence shows on Android only', async () => {
     const original = Platform.OS;
     const android = 'Android does not back up this app, so if you reinstall or move to a new phone, download a copy first.';

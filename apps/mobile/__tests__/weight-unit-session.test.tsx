@@ -54,12 +54,12 @@ describe('weight unit setting (#1185)', () => {
     await saveWeightUnit(db, 'lb');
     expect(await loadWeightUnit(db)).toBe('lb');
     const first = await render(<WeightUnitProvider db={db}><WeightUnitSection /></WeightUnitProvider>);
-    await waitFor(() => expect(screen.getByLabelText('Show weights in pounds').props.accessibilityState).toMatchObject({ selected: true }));
-    await fireEvent.press(screen.getByLabelText('Show weights in kilograms'));
+    await waitFor(() => expect(screen.getByLabelText('lb, show weights in pounds').props.accessibilityState).toMatchObject({ selected: true }));
+    await fireEvent.press(screen.getByLabelText('kg, show weights in kilograms'));
     await waitFor(async () => expect(await loadWeightUnit(db)).toBe('kg'));
     await act(async () => first.unmount());
     await render(<WeightUnitProvider db={db}><WeightUnitSection /></WeightUnitProvider>);
-    await waitFor(() => expect(screen.getByLabelText('Show weights in kilograms').props.accessibilityState).toMatchObject({ selected: true }));
+    await waitFor(() => expect(screen.getByLabelText('kg, show weights in kilograms').props.accessibilityState).toMatchObject({ selected: true }));
   });
 
   it('a screen outside the provider shows kg', async () => {
