@@ -21,6 +21,6 @@ test('after one online visit the app reloads and starts with the network off', a
   await context.setOffline(true);
   await page.reload({ waitUntil: 'load' });
   expect(await page.evaluate(() => crossOriginIsolated)).toBe(true);
-  await expect(label(page, 'Calories (kcal)')).toHaveValue('1990', { timeout: 40_000 });
+  await expect(label(page, 'Calories (kcal)')).toHaveValue('1,990', { timeout: 40_000 });
   await context.setOffline(false);
 });
