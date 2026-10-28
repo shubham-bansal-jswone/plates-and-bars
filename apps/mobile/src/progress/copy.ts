@@ -52,7 +52,9 @@ export const getMeasures: () => readonly MeasureDef[] = perLoad(() =>
 export const WEIGHT_HINT = 'Weigh in each morning before eating. Day-to-day swings of a kilo are normal; the weekly direction is what counts.';
 export const WEIGHT_BAD = 'Enter your weight in kg, like 81.6';
 export const MEASURE_NONE = 'Enter at least one measurement in cm.';
-export const HOW_TO_MEASURE = 'Measure in the morning before eating, relaxed and not sucking in. Waist: around the navel. Neck: just below the Adam’s apple. Hips: the widest point. Keep the tape level and snug, not tight. Every 1–2 weeks is plenty.';
+export const HOW_TO_MEASURE = 'Measure in the morning before eating, relaxed and not sucking in. Waist: around the navel. Neck: just below the Adam’s apple. Keep the tape level and snug, not tight. Every 1–2 weeks is plenty.';
+/** Added to HOW_TO_MEASURE only where the Hips field shows. */
+export const HOW_TO_MEASURE_HIPS = 'Hips: the widest point.';
 export const BF_HINT = (hips: boolean): string =>
   `From the US Navy formula using your waist, neck${hips ? ', hips' : ''} and height. It’s usually within a few percent; the trend matters more than the number.`;
 export const BF_MISSING = (hips: boolean): string => `Add waist and neck${hips ? ' and hips' : ''} for a body-fat estimate.`;
@@ -81,6 +83,7 @@ export const SETTINGS_UNREADABLE = 'Couldn’t read your saved settings, so chan
 
 // "Seven days to <date>", the last block of prototype `renderProgress`.
 export const WEEK_TITLE = (date: string): string => `Seven days to ${date}`;
+export const WEEK_CURRENT = 'The last 7 days up to today, whichever day you are viewing.';
 export const WEEK_LOADING = 'Loading…';
 export const WEEK_TRAINED = 'trained';
 export const WEEK_NOT_LOGGED = 'not logged';
