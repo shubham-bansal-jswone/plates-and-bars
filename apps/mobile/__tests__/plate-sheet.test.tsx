@@ -44,8 +44,10 @@ describe('plate calculator sheet (#1176)', () => {
   it('shows 25 and 15 per side for 100 kg, with the stack labelled for a screen reader', async () => {
     await card('Barbell Bench Press', '100');
     await fireEvent.press(screen.getByLabelText('Plates for Barbell Bench Press set 1'));
-    expect(screen.getByLabelText('Per side: 25, 15 kg')).toBeTruthy();
     expect(screen.getByText('Per side: 25, 15 kg')).toBeTruthy();
+    expect(screen.queryAllByLabelText('Per side: 25, 15 kg')).toHaveLength(0); // the stack is hidden: one announcement, the line
+    expect(screen.queryByTestId('plate-stack')).toBeNull(); // hidden from queries too, as from a screen reader
+    expect(screen.getByTestId('plate-stack', { includeHiddenElements: true })).toBeTruthy();
     expect(screen.getByText(/Loaded: 100 kg\. Exactly the target\./)).toBeTruthy();
     expect(screen.queryByText(/can’t be loaded/)).toBeNull();
   });
@@ -53,7 +55,7 @@ describe('plate calculator sheet (#1176)', () => {
   it('shows two 45 lb plates per side for 225 lb', async () => {
     await card('Barbell Bench Press', String(225 * 0.45359237), jest.fn(), 'lb');
     await fireEvent.press(screen.getByLabelText('Plates for Barbell Bench Press set 1'));
-    expect(screen.getByLabelText('Per side: 45, 45 lb')).toBeTruthy();
+    expect(screen.getByText('Per side: 45, 45 lb')).toBeTruthy();
     expect(screen.getByText(/Loaded: 225 lb\./)).toBeTruthy();
   });
 
@@ -61,7 +63,7 @@ describe('plate calculator sheet (#1176)', () => {
     await render(<PlateSheet name="Barbell Squat" targetKg={null} onClose={() => undefined} />);
     expect(screen.getByText('Type a weight to see the plates.')).toBeTruthy();
     await fireEvent.changeText(screen.getByLabelText('Target weight in kg'), '60');
-    expect(screen.getByLabelText('Per side: 20 kg')).toBeTruthy();
+    expect(screen.getByText('Per side: 20 kg')).toBeTruthy();
   });
 
   it('offers the nearest loadable weights when the target is not loadable, and applying one stores exact kg', async () => {
@@ -80,6 +82,53 @@ describe('plate calculator sheet (#1176)', () => {
     await fireEvent.press(screen.getByLabelText('Plates for Barbell Bench Press set 1'));
     await fireEvent.press(screen.getByLabelText('Use 230 lb, above the target, on this set'));
     expect(edit).toHaveBeenCalledWith('work', 0, 'w', String(230 * 0.45359237));
+  });
+
+  it('on a set row, a target under the bar offers the bar alone and applies it as exact kg', async () => {
+    const { edit } = await card('Barbell Bench Press', '10');
+    await fireEvent.press(screen.getByLabelText('Plates for Barbell Bench Press set 1'));
+    expect(screen.getByText('Bar only, 20 kg')).toBeTruthy();
+    await fireEvent.press(screen.getByLabelText('Use 20 kg, the bar only, on this set'));
+    expect(edit).toHaveBeenCalledWith('work', 0, 'w', '20');
+  });
+
+  it('shows the link only on the current set', async () => {
+    const edit = jest.fn();
+    const act0 = new Proxy({}, { get: (_t, k) => (k === 'edit' ? edit : jest.fn()) }) as Actions;
+    const ex = state('Barbell Bench Press', '100');
+    ex.sets = [{ ...blankRow(), w: '100', done: true }, { ...blankRow(), w: '100' }, { ...blankRow(), w: '100' }];
+    await render(<ExerciseCard ex={ex} info={exInfo(ex.name, getCatalog())} sug={SUG} focus={[]} warm={null} act={act0} prior={1} infoOf={(n) => exInfo(n, getCatalog())} />);
+    expect(screen.queryByLabelText('Plates for Barbell Bench Press set 1')).toBeNull();
+    expect(screen.getByLabelText('Plates for Barbell Bench Press set 2')).toBeTruthy();
+    expect(screen.queryByLabelText('Plates for Barbell Bench Press set 3')).toBeNull();
+  });
+
+  it('a bar weight that is not one number, or is out of range, shows an error and is not saved', async () => {
+    const db = memoryDb();
+    await render(
+      <WeightUnitProvider db={db}>
+        <PlateSettingsProvider db={db}>
+          <PlateSheet name="Barbell Squat" targetKg={60} onClose={() => undefined} />
+        </PlateSettingsProvider>
+      </WeightUnitProvider>,
+    );
+    await fireEvent.press(screen.getByLabelText('Bar and plates settings'));
+    for (const bad of ['abc', '20.5.', '', '1001']) {
+      await fireEvent.changeText(screen.getByLabelText('Bar weight in kg'), bad);
+      expect(screen.getByText('Type one number from 0 to 1000, like 20.')).toBeTruthy();
+    }
+    await act(async () => void (await new Promise((r) => setTimeout(r, 0))));
+    expect(db.rows.has('settings:device.plates')).toBe(false);
+    await fireEvent.changeText(screen.getByLabelText('Bar weight in kg'), '15');
+    expect(screen.queryByText(/Type one number from 0/)).toBeNull();
+    await waitFor(async () => expect((await loadPlateSettings(db)).kg.bar).toBe(15));
+  });
+
+  it('an invalid target shows its error and no empty hint', async () => {
+    await render(<PlateSheet name="Barbell Squat" targetKg={null} onClose={() => undefined} />);
+    await fireEvent.changeText(screen.getByLabelText('Target weight in kg'), 'abc');
+    expect(screen.getByText('Type one number, like 100.')).toBeTruthy();
+    expect(screen.queryByText('Type a weight to see the plates.')).toBeNull();
   });
 
   it('a target lighter than the bar says so', async () => {
@@ -117,11 +166,11 @@ describe('plate calculator sheet (#1176)', () => {
     await fireEvent.changeText(screen.getByLabelText('Bar weight in kg'), '15');
     await fireEvent.press(screen.getByLabelText('Plate 25 kg'));
     await fireEvent.press(screen.getByLabelText('Plate 20 kg'));
-    expect(screen.getByLabelText('Per side: 15, 5, 2.5 kg')).toBeTruthy(); // (60 - 15) / 2 = 22.5 without 25 and 20
+    expect(screen.getByText('Per side: 15, 5, 2.5 kg')).toBeTruthy(); // (60 - 15) / 2 = 22.5 without 25 and 20
     await waitFor(async () => expect((await loadPlateSettings(db)).kg).toEqual({ bar: 15, plates: [15, 10, 5, 2.5, 1.25] }));
     await act(async () => first.unmount());
     await render(sheet());
-    await waitFor(() => expect(screen.getByLabelText('Per side: 15, 5, 2.5 kg')).toBeTruthy());
+    await waitFor(() => expect(screen.getByText('Per side: 15, 5, 2.5 kg')).toBeTruthy());
   });
 
   it('a damaged stored value falls back to the defaults', () => {

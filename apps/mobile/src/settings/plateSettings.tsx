@@ -15,7 +15,9 @@ export const defaultPlateSettings = (): PlateSettings => ({
   lb: { bar: DEFAULT_BAR.lb, plates: DEFAULT_PLATES.lb },
 });
 
-const sane = (n: unknown): n is number => typeof n === 'number' && Number.isFinite(n) && n >= 0 && n <= 1000;
+/** Bar weights the store accepts back (and the sheet accepts typed): a plain number from 0 to 1000. */
+export const BAR_MAX = 1000;
+const sane = (n: unknown): n is number => typeof n === 'number' && Number.isFinite(n) && n >= 0 && n <= BAR_MAX;
 
 /** A stored value read back: anything damaged falls back to that unit's defaults, so a bad row never breaks the sheet. */
 export function parsePlateSettings(raw: string | null): PlateSettings {

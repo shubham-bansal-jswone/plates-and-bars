@@ -322,7 +322,7 @@ export function ExerciseCard({ ex, info, sug, focus, warm, act, cards, learning,
           return (
             <View key={s.id} style={{ gap: 6 }}>
               <SetRow n={String(j + 1)} label={label} focusWeight={skipped && j === 0} onFocused={() => setSkipped(false)} row={s} wHead={wHead} repsHead={rw} unit={unit} locked={!ready} ph={{ w: t.w !== '' && t.w !== undefined ? formatWeight(Number(t.w), unit) : nl ? 'BW' : '–', r: t.r ? String(t.r) : '–' }} onEdit={(f, v) => act.edit('work', j, f, v)} onTick={() => act.tick(j)} current={!s.done && ex.sets.findIndex((x) => !x.done) === j} />
-              {info.type === 'barbell' && !s.done ? <PlatesLink name={ex.name} label={`Plates for ${label}`} targetKg={plateTarget(s.w, t.w)} onApply={(loaded) => act.edit('work', j, 'w', String(loaded))} /> : null}
+              {info.type === 'barbell' && !s.done && ex.sets.findIndex((x) => !x.done) === j ? <PlatesLink name={ex.name} label={`Plates for ${label}`} targetKg={plateTarget(s.w, t.w)} onApply={(loaded) => act.edit('work', j, 'w', String(loaded))} /> : null}
               <RateRow row={s} label={label} onRate={(v) => act.rate(j, v)} />
             </View>
           );

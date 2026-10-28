@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
-import { DEFAULT_PLATES, describePlates, formatWeight, loadableNeighbours, parseWeightInput, type PlateLoad } from '@plate-and-bar/core';
+import { DEFAULT_BAR, DEFAULT_PLATES, describePlates, formatWeight, loadableNeighbours, parseWeightInput, type PlateLoad } from '@plate-and-bar/core';
 import { SheetModal } from '../components/Sheet';
 import { Text } from '../components/Text';
 import { Input } from '../components/Input';
 import { a11yState, Button, Caption, Chip, Disclosure, ErrorText, Heading, Hint, Label, Press } from '../components/ui';
-import { usePlateSettings } from '../settings/plateSettings';
+import { BAR_MAX, usePlateSettings } from '../settings/plateSettings';
 import { useWeightUnit } from '../settings/weightUnit';
 import { tabular, type } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
@@ -14,14 +14,14 @@ import { useTheme } from '../theme/useTheme';
 const BLOCK = ['#E5533D', '#4C8DDB', '#F2C94C', '#5BBF7A', '#F2F2F2', '#C28FE0', '#9AA5B1', '#F2A65A'];
 const MAX_BLOCKS = 24;
 
-/** Per-side plates as coloured blocks, tallest nearest the bar. One accessible element: the screen reader hears core's plain-text line, not each block. */
+/** Per-side plates as coloured blocks, tallest nearest the bar. Hidden from screen readers: the plain-text `describePlates` line under it says the same, once. */
 function PlateStack({ load }: { load: PlateLoad }) {
   const c = useTheme();
   const biggest = Math.max(...load.perSide.map((p) => p.plate), 1);
   const ranked = [...DEFAULT_PLATES[load.unit]].sort((a, b) => b - a);
   const blocks = load.perSide.flatMap((p) => Array.from({ length: p.count }, () => p.plate)).slice(0, MAX_BLOCKS);
   return (
-    <View testID="plate-stack" accessible accessibilityRole="image" accessibilityLabel={describePlates(load)} style={styles.stack}>
+    <View testID="plate-stack" aria-hidden accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.stack}>
       <View aria-hidden style={[styles.bar, { backgroundColor: c.muted }]} />
       {blocks.map((p, i) => {
         const rank = Math.max(0, ranked.indexOf(p));
@@ -37,6 +37,12 @@ function PlateStack({ load }: { load: PlateLoad }) {
       })}
     </View>
   );
+}
+
+/** The bar weight typed as one plain number (0 to `BAR_MAX`, in the display unit), else null. */
+function barValue(t: string): number | null {
+  const n = t.trim() === '' || parseWeightInput(t) === null ? NaN : Number(t.replace(',', '.'));
+  return Number.isFinite(n) && n <= BAR_MAX ? n : null;
 }
 
 /**
@@ -59,6 +65,7 @@ export function PlateSheet({ name, targetKg, onApply, onClose }: { name: string;
   const exact = !!nb && nb.below.remainder === 0;
   const bad = text.trim() !== '' && target === null;
   const all = DEFAULT_PLATES[unit];
+  const barBad = barValue(barText) === null;
   const noPlates = mine.plates.length === 0;
 
   const togglePlate = (p: number) => {
@@ -67,14 +74,13 @@ export function PlateSheet({ name, targetKg, onApply, onClose }: { name: string;
   };
   const saveBar = (t: string) => {
     setBarText(t);
-    const kg = parseWeightInput(t.trim() === '' ? 'x' : t, unit); // only checks it is one plain number; the bar stays in the unit
-    if (kg !== null) set(unit, { bar: Number(t.replace(',', '.')), plates: mine.plates });
+    const bar = barValue(t);
+    if (bar !== null) set(unit, { bar, plates: mine.plates }); // only what the store reads back is written
   };
   const apply = (l: PlateLoad) => {
     onApply?.(l.loadedKg);
     onClose();
   };
-  const side = (l: PlateLoad) => (l.perSide.length ? describePlates(l) : `Bar only, ${l.loadedTotal} ${unit}`);
 
   return (
     <SheetModal title={`Plates for ${name}`} onClose={onClose}>
@@ -96,7 +102,7 @@ export function PlateSheet({ name, targetKg, onApply, onClose }: { name: string;
           {load && !noPlates ? (
             <View style={{ gap: 10 }}>
               <PlateStack load={load} />
-              <Text style={[type.bodyStrong, { color: c.ink }]}>{side(load)}</Text>
+              <Text style={[type.bodyStrong, { color: c.ink }]}>{describePlates(load)}</Text>
               <Text style={[type.textBody, tabular, { color: c.body }]}>
                 {`Loaded: ${load.loadedTotal} ${unit}. `}
                 {exact ? 'Exactly the target.' : load.belowBar ? `Lighter than the bar (${mine.bar} ${unit}).` : `${Math.abs(load.remainder)} ${unit} short of the target.`}
@@ -112,16 +118,18 @@ export function PlateSheet({ name, targetKg, onApply, onClose }: { name: string;
                   ))}
                 </View>
               ) : null}
+              {load.belowBar && onApply ? <Button label={`Use ${load.loadedTotal} ${unit}`} a11yLabel={`Use ${load.loadedTotal} ${unit}, the bar only, on this set`} kind="ghost" onPress={() => apply(load)} /> : null}
               {exact && onApply ? <Button label={`Use ${load.loadedTotal} ${unit}`} a11yLabel={`Use ${load.loadedTotal} ${unit} on this set`} onPress={() => apply(load)} /> : null}
             </View>
           ) : (
-            <Hint>{noPlates ? 'Turn on at least one plate below.' : bad ? '' : 'Type a weight to see the plates.'}</Hint>
+            bad ? null : <Hint>{noPlates ? 'Turn on at least one plate below.' : 'Type a weight to see the plates.'}</Hint>
           )}
 
           <Disclosure label="Bar and plates" a11yLabel="Bar and plates settings">
             <View style={{ gap: 6 }}>
               <Caption>{`Bar weight (${unit})`}</Caption>
-              <Input accessibilityLabel={`Bar weight in ${unit}`} inputMode="decimal" value={barText} onChangeText={saveBar} />
+              <Input accessibilityLabel={`Bar weight in ${unit}`} inputMode="decimal" value={barText} onChangeText={saveBar} invalid={barBad} />
+              {barBad ? <ErrorText>{`Type one number from 0 to ${BAR_MAX}, like ${DEFAULT_BAR[unit]}.`}</ErrorText> : null}
               <Caption>Plates your gym has (each side)</Caption>
               <View style={styles.chips}>
                 {all.map((p) => (
@@ -144,7 +152,7 @@ export function PlatesLink({ name, label, targetKg, onApply }: { name: string; l
   return (
     <>
       <Press accessibilityRole="button" accessibilityLabel={label} {...a11yState({ expanded: open })} onPress={() => setOpen(true)} style={styles.link}>
-        <Text style={[type.bodyStrong, { color: c.link }]}>Plates</Text>
+        <Text style={[type.textBody, { color: c.link, textDecorationLine: 'underline' }]}>Plates</Text>
       </Press>
       {open ? <PlateSheet name={name} targetKg={targetKg} onApply={onApply} onClose={() => setOpen(false)} /> : null}
     </>
