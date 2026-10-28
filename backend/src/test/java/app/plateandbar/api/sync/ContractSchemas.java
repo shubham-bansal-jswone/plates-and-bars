@@ -150,6 +150,7 @@ public final class ContractSchemas {
             case exclusions -> "Exclusion";
             case swaps -> "Swap";
             case settings -> "Settings";
+            case routines -> "Routine";
         };
     }
 }

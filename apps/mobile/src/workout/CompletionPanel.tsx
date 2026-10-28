@@ -1,26 +1,19 @@
-import { type ComponentRef, type Ref } from 'react';
-import { StyleSheet, Text as RNText, View } from 'react-native';
-import { formatWeight, fromKg, sessionVolume, type LiftRecord } from '@plate-and-bar/core';
+import { useRef, useState, type ComponentRef, type Ref } from 'react';
+import { Platform, StyleSheet, Text as RNText, View } from 'react-native';
+import { type LiftRecord } from '@plate-and-bar/core';
 import { Text } from '../components/Text';
-import { Card, Heading, MetricRow } from '../components/ui';
-import { fmt } from '../format';
+import { Button, Card, Heading, MetricRow, Note } from '../components/ui';
 import { sessionTimeLine } from '../progress/e1rm';
 import type { WorkoutDb } from '../db/workouts';
 import { radius, tabular, type } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { BurnLine } from './BurnLine';
 import { RATE_LABEL } from './copy';
-import type { ExState, Row } from './model';
+import type { ExState } from './model';
+import { buildShareCard } from './shareModel';
+import { ShareCard } from './ShareCard';
+import { shareWorkoutImage } from './shareImage';
 import { useWeightUnit } from '../settings/weightUnit';
-
-const n = (s: string): number => Number(s) || 0;
-
-/** The heaviest ticked set (then the most reps); display only. */
-function bestSet(sets: readonly Row[]): Row | null {
-  let best: Row | null = null;
-  for (const s of sets) if (s.done && (!best || n(s.w) > n(best.w) || (n(s.w) === n(best.w) && n(s.r) > n(best.r)))) best = s;
-  return best;
-}
 
 /**
  * "Session done": shown while every set is ticked, read from today's exercises only. Nothing is stored and nothing is locked:
@@ -29,29 +22,40 @@ function bestSet(sets: readonly Row[]): Row | null {
 export function CompletionPanel({ db, date, profileKg, exs, cardio, lifts, reloadKey, headingRef }: { headingRef?: Ref<ComponentRef<typeof RNText>>; db: WorkoutDb; date: string; profileKg: number; exs: readonly ExState[]; cardio: number | null; lifts: Readonly<Record<string, LiftRecord>>; reloadKey: number }) {
   const c = useTheme();
   const { unit } = useWeightUnit();
+  const cardRef = useRef<ComponentRef<typeof View>>(null);
+  const sharing = useRef(false);
+  const [busy, setBusy] = useState(false);
+  const [shareNote, setShareNote] = useState<string | null>(null);
   const sets = exs.flatMap((e) => e.sets);
   const done = sets.filter((s) => s.done).length;
   if (sets.length === 0 || done !== sets.length) return null;
-  const vol = sessionVolume(exs);
-  const reps = sets.reduce((t, s) => t + n(s.r), 0);
-  const cells = [
-    { label: 'Sets', value: `${done}/${sets.length}` },
-    vol > 0 ? { label: `Volume (${unit})`, value: fmt(fromKg(vol, unit)) } : { label: 'Reps', value: fmt(reps) },
-    { label: 'Exercises', value: String(exs.length) },
-    ...(cardio ? [{ label: 'Cardio (min)', value: fmt(cardio) }] : []),
-  ];
+  const card = buildShareCard({ date, exs, cardio, lifts, unit });
   const elapsed = sessionTimeLine(exs.flatMap((e) => [...e.ramp, ...e.sets]));
+  const share = () => {
+    if (sharing.current) return; // a second tap while one runs would race on the same cache file
+    sharing.current = true;
+    setBusy(true);
+    setShareNote(null);
+    shareWorkoutImage(card, cardRef)
+      .then(
+        (res) => setShareNote(res === 'unavailable' ? 'Sharing is not available on this device.' : res === 'saved' ? 'Picture saved to your downloads.' : null),
+        () => setShareNote('Could not share the picture. Try again.'),
+      )
+      .finally(() => {
+        sharing.current = false;
+        setBusy(false);
+      });
+  };
   const twoSessions = exs.some((e) => e.part === 2);
   return (
     <Card testID="completion-panel">
       <Heading ref={headingRef} level={2} style={[type.title, { color: c.ink, textAlign: 'center' }]}>Session done</Heading>
       {twoSessions ? <Text style={[type.caption, { color: c.muted }]}>Today, both sessions together.</Text> : null}
       {/* MetricRow holds 3 cells; a 4th (cardio) goes on a second row so none truncates at 360 px. */}
-      <MetricRow cells={cells.slice(0, 3)} />
-      {cells.length > 3 ? <MetricRow cells={cells.slice(3)} /> : null}
+      <MetricRow cells={card.stats.slice(0, 3)} />
+      {card.stats.length > 3 ? <MetricRow cells={card.stats.slice(3)} /> : null}
       {elapsed ? <Text testID="completion-elapsed" accessibilityLabel={`Time: ${elapsed}`} style={[type.caption, { color: c.body }]}>{`Time: ${elapsed}`}</Text> : null}
       {exs.map((e, i) => {
-        const b = bestSet(e.sets);
         const rates = [...new Set(e.sets.flatMap((s) => (s.rate ? [RATE_LABEL[s.rate]] : [])))];
         const pr = lifts[e.name]?.pbToast === date;
         return (
@@ -61,11 +65,14 @@ export function CompletionPanel({ db, date, profileKg, exs, cardio, lifts, reloa
               {rates.length ? <Text style={[type.caption, { color: c.muted }]}>Felt: {rates.join(', ')}</Text> : null}
             </View>
             {pr ? <Text style={[type.small, styles.pr, { backgroundColor: c.brand, color: c.onBrand }]}>Personal record</Text> : null}
-            {b ? <Text style={[type.heading, tabular, { color: c.ink }]}>{n(b.w) ? `${formatWeight(n(b.w), unit)} x ${n(b.r)}` : `${n(b.r)} reps`}</Text> : null}
+            {card.bests[i] ? <Text style={[type.heading, tabular, { color: c.ink }]}>{card.bests[i]}</Text> : null}
           </View>
         );
       })}
       <BurnLine db={db} date={date} profileKg={profileKg} exs={exs} cardio={cardio} reloadKey={reloadKey} />
+      <Button kind="ghost" label="Share" a11yLabel="Share workout summary picture" onPress={share} disabled={busy} busy={busy} />
+      {shareNote ? <Note>{shareNote}</Note> : null}
+      {Platform.OS === 'web' ? null : <ShareCard model={card} cardRef={cardRef} />}
     </Card>
   );
 }

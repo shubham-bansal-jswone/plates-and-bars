@@ -140,13 +140,15 @@ public class SyncService {
             storedByTable.put(e.getKey(), found);
             fresh += e.getValue().size() - found.size();
         }
+        Instant now = clock.instant().truncatedTo(ChronoUnit.MILLIS);
+        checkRoutineCap(userId, req.maxLiveRoutines(), byTable.get(SyncTable.routines),
+                storedByTable.get(SyncTable.routines), now);
         if (maxRecords > 0 && fresh > 0 && state.records() + fresh > maxRecords) {
             log.warn("Sync refused, account full: user {} limit {} stored {} new {}",
                     userId, maxRecords, state.records(), fresh);
             throw new AccountFullException(maxRecords, state.records(), fresh);
         }
 
-        Instant now = clock.instant().truncatedTo(ChronoUnit.MILLIS);
         long seq = before;
         boolean logged = false;
         ArrayNode applied = json.createArrayNode();
@@ -180,9 +182,10 @@ public class SyncService {
                 }
 
                 Stored incoming = new Stored(in.id(), in.version(), updatedAt, deletedAt, 0, in.data());
-                if (isRetry(incoming, in.deletedAt(), stored, now)) {
+                Outcome outcome = conflictOutcome(in, stored, now);
+                if (outcome == Outcome.RETRY) {
                     conflicts.add(conflict(table, in, stored, "server_won"));
-                } else if (updatedAt.isAfter(stored.updatedAt())) {
+                } else if (outcome == Outcome.CLIENT_WINS) {
                     seq++;
                     Stored next = new Stored(in.id(), stored.version() + 1, updatedAt, deletedAt, seq, in.data());
                     repo.update(table, userId, next);
@@ -235,6 +238,73 @@ public class SyncService {
         out.set("conflicts", conflicts);
         out.set("changes", changes);
         return out;
+    }
+
+    private enum Outcome { RETRY, CLIENT_WINS, SERVER_WINS }
+
+    /** The rule for a pushed record whose version is not the stored one; one place, so the routine cap predicts it exactly. */
+    private static Outcome conflictOutcome(Incoming in, Stored stored, Instant now) {
+        Instant updatedAt = clamp(in.updatedAt(), now);
+        Instant deletedAt = in.deletedAt() == null ? null : clamp(in.deletedAt(), now);
+        Stored incoming = new Stored(in.id(), in.version(), updatedAt, deletedAt, 0, in.data());
+        if (isRetry(incoming, in.deletedAt(), stored, now)) {
+            return Outcome.RETRY;
+        }
+        return updatedAt.isAfter(stored.updatedAt()) ? Outcome.CLIENT_WINS : Outcome.SERVER_WINS;
+    }
+
+    /**
+     * The routine cap (ADR 011, contract 0.1.27): refuses the push only when it holds a new or revived live routine and
+     * the live count after the apply (last-writer-wins resolved, predicted with the same rules the apply uses) is over
+     * the limit. The count starts at the live total plus the effect of every record that is not an arrival (deletes
+     * and the like), then steps through the arrivals in array order, adding one each; the refusal lists each arrival
+     * that leaves the count over the limit, as the contract's reference counter does. Runs inside the per-account transaction, before the account record cap. Logs counts only.
+     */
+    private void checkRoutineCap(String userId, int limit, List<Incoming> pushed, Map<String, Stored> stored, Instant now) {
+        if (pushed == null) {
+            return;
+        }
+        boolean[] arrives = new boolean[pushed.size()];
+        int[] delta = new int[pushed.size()];
+        boolean any = false;
+        for (int i = 0; i < pushed.size(); i++) {
+            Incoming in = pushed.get(i);
+            Stored s = stored.get(in.id());
+            boolean wasLive = s != null && s.deletedAt() == null;
+            boolean applies = s == null || s.version() == in.version()
+                    || conflictOutcome(in, s, now) == Outcome.CLIENT_WINS;
+            boolean live = applies ? in.deletedAt() == null : wasLive;
+            delta[i] = (live ? 1 : 0) - (wasLive ? 1 : 0);
+            arrives[i] = live && !wasLive;
+            any |= arrives[i];
+        }
+        if (!any) {
+            return;
+        }
+        long total = repo.countLive(SyncTable.routines, userId);
+        for (int i = 0; i < delta.length; i++) {
+            total += delta[i];
+        }
+        if (total <= limit) {
+            return;
+        }
+        // Same counter as the contract's reference (verify.mjs cap): everything that is not an arrival is applied
+        // first, then the arrivals are stepped through in array order.
+        long running = total;
+        for (int i = 0; i < delta.length; i++) {
+            if (arrives[i]) {
+                running--;
+            }
+        }
+        List<ErrorResponse.Detail> over = new ArrayList<>();
+        for (int i = 0; i < pushed.size(); i++) {
+            if (arrives[i] && ++running > limit) {
+                over.add(new ErrorResponse.Detail("changes.routines[" + i + "]", "too_many_routines"));
+            }
+        }
+        log.warn("Sync refused, too many routines: user {} limit {} live after apply {} refused {}",
+                userId, limit, total, over.size());
+        throw new ApiException(HttpStatus.BAD_REQUEST, "invalid_request", "The request is not valid.", over);
     }
 
     /** Same content apart from version and updated_at: a device re-sending a push that already succeeded. */
