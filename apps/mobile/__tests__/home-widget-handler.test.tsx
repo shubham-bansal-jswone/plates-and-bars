@@ -1,5 +1,6 @@
 import { render } from '@testing-library/react-native';
 import { AppState } from 'react-native';
+import * as loader from '../src/content/loader';
 import { widgetTaskHandler } from '../src/widget/handler';
 import { HomeWidgetSync } from '../src/widget/HomeWidgetSync';
 import { enqueueDay } from '../src/workout/dayQueue';
@@ -41,6 +42,22 @@ describe('widgetTaskHandler', () => {
     await widgetTaskHandler(p as never);
     expect(p.renderWidget).toHaveBeenCalledTimes(1);
     expect(mockClose).toHaveBeenCalledTimes(1);
+  });
+  it('loads content only when this runtime has none yet (an open app keeps its catalogue)', async () => {
+    const load = jest.spyOn(loader, 'loadContent').mockResolvedValue(undefined as never);
+    const gen = jest.spyOn(loader, 'contentGeneration');
+    try {
+      mockDb.current = memoryDb();
+      gen.mockReturnValue(0);
+      await widgetTaskHandler(props('WIDGET_UPDATE') as never);
+      expect(load).toHaveBeenCalledTimes(1);
+      gen.mockReturnValue(3);
+      await widgetTaskHandler(props('WIDGET_UPDATE') as never);
+      expect(load).toHaveBeenCalledTimes(1);
+    } finally {
+      load.mockRestore();
+      gen.mockRestore();
+    }
   });
 });
 

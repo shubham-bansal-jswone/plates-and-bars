@@ -1,7 +1,6 @@
 import type { WorkoutDb } from '../db/workouts';
 import { loadWidgetData } from './data';
 import { homeWidgetEnabled, WIDGET_NAME } from './flag';
-import { requestWidgetUpdate } from 'react-native-android-widget';
 import { renderWorkoutWidget } from './WorkoutWidget';
 
 /**
@@ -12,6 +11,9 @@ import { renderWorkoutWidget } from './WorkoutWidget';
 export async function refreshHomeWidget(db: WorkoutDb, now: Date = new Date()): Promise<void> {
   if (!homeWidgetEnabled()) return;
   try {
+    // Loaded only with the flag on: a flag-off build never looks up the library's native module at start.
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { requestWidgetUpdate } = require('react-native-android-widget') as typeof import('react-native-android-widget');
     const data = await loadWidgetData(db, now);
     if (data) await requestWidgetUpdate({ widgetName: WIDGET_NAME, renderWidget: () => renderWorkoutWidget(data) });
   } catch {
