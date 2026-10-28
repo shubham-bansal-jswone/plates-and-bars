@@ -42,8 +42,8 @@ export function WeekCard({ date, days, kcalTarget }: Props) {
                 <View style={[styles.fill, { width: `${d.fillPct}%`, backgroundColor: d.over ? c.caution : c.bar }]} />
                 <View style={[styles.tgt, { left: `${d.targetPct}%`, backgroundColor: c.ink }]} />
                 <View style={styles.txt}>
-                  <Text style={{ color: c.ink, fontSize: 13 }}>{d.logged ? `${fmt(d.kcal)} kcal` : WEEK_NOT_LOGGED}</Text>
-                  <Text style={{ color: c.ink, fontSize: 13 }}>{d.logged ? `${fmt(d.protein_g)} g P` : ''}</Text>
+                  <Text style={[styles.chip, { color: c.ink, backgroundColor: c.bg }]}>{d.logged ? `${fmt(d.kcal)} kcal` : WEEK_NOT_LOGGED}</Text>
+                  {d.logged ? <Text style={[styles.chip, { color: c.ink, backgroundColor: c.bg }]}>{`${fmt(d.protein_g)} g P`}</Text> : null}
                 </View>
               </View>
             </View>
@@ -81,6 +81,9 @@ const styles = StyleSheet.create({
   // Prototype `.bar .tgt{opacity:.5}`: the target line is a quieter mark than the fill, so it keeps the prototype's
   // half opacity. A test asserts it.
   tgt: { position: 'absolute', top: 0, bottom: 0, width: 2, opacity: 0.5 },
+  // #1190: the label straddles the fill and the track, so no single text colour reads on both (ink on lime is 1.12:1).
+  // Each label sits on a solid `bg` chip instead, so its contrast is ink on bg whatever the fill is.
+  chip: { fontSize: 13, paddingHorizontal: 4, borderRadius: 4, overflow: 'hidden' },
   txt: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 8 },
   avg: { flexDirection: 'row', gap: 8, marginTop: 4 },
   avgItem: { flex: 1, alignItems: 'center' },
