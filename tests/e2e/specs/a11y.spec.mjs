@@ -6,7 +6,7 @@ import { answerSetup, axeSource, completeSetup, expect, label, openApp, reloadTo
 // KNOWN by screen, as `{ rule, issue, match }` (see support/axe.mjs): it matches the rule AND the element, so a new
 // violation still fails, and once the bug is fixed the entry matches nothing, goes stale and fails the test.
 // The scan runs page-has-heading-one with passForModal off, because react-native-web's full-screen layers would otherwise make it pass on every screen.
-const KNOWN = Object.fromEntries(['consent', 'setup', 'setup-screening', 'setup-results', 'food', 'workout', 'workout-session', 'progress', 'targets', 'data', 'library', 'library-exercise', 'about', 'recipes', 'sheet-food-add', 'sheet-workout-settings', 'sheet-workout-cant', 'sheet-workout-howto', 'sheet-workout-add', 'sheet-workout-custom', 'sheet-progress-checkin', 'sheet-targets-avoid', 'sheet-targets-cant'].map((n) => [n, []]));
+const KNOWN = Object.fromEntries(['consent', 'setup', 'setup-errors', 'setup-screening', 'setup-results', 'food', 'workout', 'workout-session', 'progress', 'targets', 'data', 'library', 'library-exercise', 'about', 'recipes', 'sheet-food-add', 'sheet-workout-settings', 'sheet-workout-cant', 'sheet-workout-howto', 'sheet-workout-add', 'sheet-workout-custom', 'sheet-progress-checkin', 'sheet-targets-avoid', 'sheet-targets-cant'].map((n) => [n, []]));
 const RULES = ['region', 'landmark-one-main', 'landmark-no-duplicate-main', 'page-has-heading-one'];
 
 // Exactly one level-one heading in the accessibility tree: the other tabs stay mounted but are aria-hidden, so they do not count.
@@ -43,6 +43,17 @@ const screens = {
     await label(page, 'I understand and agree to my data being stored as described').click();
     await label(page, 'Continue').click();
     await expect(label(page, 'Male')).toBeVisible();
+  },
+  // Continue pressed on the empty body step: every error shows, each linked to its field by aria-describedby (#1229).
+  'setup-errors': async (page) => {
+    await openApp(page);
+    await label(page, 'I understand and agree to my data being stored as described').click();
+    await label(page, 'Continue').click();
+    await expect(label(page, 'Male')).toBeVisible();
+    await label(page, 'Continue').click();
+    await expect(page.getByText('Enter your age.', { exact: true })).toBeVisible();
+    const ids = await page.evaluate(() => ['Age', 'Weight in kg'].map((l) => document.querySelector(`[aria-label="${l}"]`)?.getAttribute('aria-describedby')));
+    for (const id of ids) await expect(page.locator(`[id="${id}"]`)).toBeVisible();
   },
   // The goal step, which carries the "Quick health check" Why link (screening).
   'setup-screening': async (page) => {
