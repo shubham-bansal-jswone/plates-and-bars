@@ -183,7 +183,7 @@ describe('warmupRamp', () => {
     expect(ramp(10, lat, exInfo('Lateral Raise', catalog))).toBeNull();
     expect(ramp(100, { name: squat, sets: [{ done: true }] })).toBeNull();
   });
-  it('differential: for every catalogue compound below 60 kg, equals warmupSets', () => {
+  it('differential: for every catalogue compound below 60 kg, equals warmupSets with steps that reach the work weight dropped', () => {
     let compared = 0;
     for (const name of Object.keys(tags).filter((n) => restFor(n, tags) === REST_COMPOUND_SEC)) {
       const e = { name, sets: [] };
