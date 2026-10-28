@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ComponentRef } from 'react';
 import { StyleSheet, View } from 'react-native';
 import type { LiftRecord } from '@plate-and-bar/core';
 import { Text } from '../../components/Text';
-import { Button, Card, Heading, Hint, Press } from '../../components/ui';
+import { Button, Card, Heading, Hint, MetricRow, Press } from '../../components/ui';
 import { fmt, shortDate, weekdayLong } from '../../format';
 import { space, tabular, type as typeScale } from '../../theme/tokens';
 import { useTheme } from '../../theme/useTheme';
@@ -13,6 +13,7 @@ export const HISTORY_EMPTY = 'No workouts logged yet. Your sessions will appear 
 const FIRST = 5;
 
 const volumeText = (kg: number): string => `${fmt(kg)} kg`;
+const count = (n: number, one: string): string => `${n} ${one}${n === 1 ? '' : 's'}`;
 const summary = (s: HistorySession): string => `${shortDate(s.date)}, ${s.name}, ${s.setsDone} ${s.setsDone === 1 ? 'set' : 'sets'}${s.volume > 0 ? `, ${volumeText(s.volume)}` : ''}`;
 
 /** "Recent workouts": one row per logged day, newest first. Tap opens that day. `focusDate`: the day just closed; focus returns to its row. */
@@ -65,10 +66,12 @@ export function WorkoutDay({ session, sessions, lifts, onBack }: { session: Hist
         <Heading level={2} style={[typeScale.title, { color: c.ink }]}>{session.name}</Heading>
       </View>
       <Hint>{`${weekdayLong(session.date)}, ${shortDate(session.date)}`}</Hint>
-      <Card style={styles.totals}>
-        <Total big={String(session.setsDone)} label="sets" lime />
-        {session.volume > 0 ? <Total big={fmt(session.volume)} label="kg lifted" /> : null}
-        <Total big={String(session.exercises.length)} label="exercises" />
+      <Card>
+        <MetricRow cells={[
+          { value: String(session.setsDone), label: 'sets', lime: true, spoken: count(session.setsDone, 'set') },
+          ...(session.volume > 0 ? [{ value: fmt(session.volume), label: 'kg lifted', spoken: `${fmt(session.volume)} kg lifted` }] : []),
+          { value: String(session.exercises.length), label: 'exercises', spoken: count(session.exercises.length, 'exercise') },
+        ]} />
       </Card>
       {session.exercises.map((e) => {
         const t = exerciseTrend(sessions, e.name, lifts[e.name]);
@@ -99,21 +102,10 @@ export function WorkoutDay({ session, sessions, lifts, onBack }: { session: Hist
   );
 }
 
-function Total({ big, label, lime = false }: { big: string; label: string; lime?: boolean }) {
-  const c = useTheme();
-  return (
-    <View style={styles.grow} accessible accessibilityLabel={`${big} ${label}`}>
-      <Text style={[typeScale.metricSm, tabular, { color: lime ? c.brand : c.ink }]}>{big}</Text>
-      <Text style={[typeScale.small, { color: c.muted }]}>{label}</Text>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   section: { gap: space.sm, marginTop: space.lg },
   row: { flexDirection: 'row', alignItems: 'center', gap: space.sm, minHeight: 56 },
   grow: { flex: 1 },
-  totals: { flexDirection: 'row' },
   gap: { gap: space.xs },
   bars: { flexDirection: 'row', gap: 4, height: 56, alignItems: 'flex-end' },
   bar: { flex: 1, maxWidth: 28, height: '100%', borderRadius: 6, overflow: 'hidden', justifyContent: 'flex-end' },

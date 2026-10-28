@@ -15,6 +15,7 @@ Specs (one concern each, every test starts with an empty browser profile):
 - `workout-360.spec.mjs`: the Workout screen with a started session and a ticked set has no sideways scroll at 360x640 (#900).
 - `sheet-focus.spec.mjs`: a sheet opens with focus on its title and gives focus back to the opener on Escape (#661).
 - `tab-order.spec.mjs`: Tab from the tab bar reaches only visible controls of the active screen, never an aria-hidden inactive tab screen (#1191).
+- `reload-1200.spec.mjs`: ten reloads at 768 px, sequential health-check taps, and a second tab (known failure, #1232: blank page; found in #1200).
 - `a11y.spec.mjs`: axe-core on the main screens and with each sheet open (food add, exercise settings, can't do, how to, add exercise, custom exercise, photo check-in, exercise to avoid; #661), light and dark. Known failures are listed by rule and element with their issue number (`support/axe.mjs`, tested in `axe-known.spec.mjs`); a new violation fails, a fixed one goes stale and fails.
 
 - `pose-specs/pose.spec.mjs` (own config, `playwright.pose.config.mjs`): live pose tracking (#947) on a build with `EXPO_PUBLIC_POSE_TRACKING=1`, a fake camera and the real CSP. Run with `npm run test:pose` (see "Pose tracking test").

@@ -29,7 +29,7 @@ const press = (label: string) => fireEvent.press(screen.getByLabelText(label));
 async function consent() {
   await screen.findByText('Before you start');
   await press('Continue');
-  expect(screen.getByText('Tick the box to continue.')).toBeTruthy();
+  expect(screen.getByText('Switch this on to continue.')).toBeTruthy();
   expect(screen.getByText(/Withdrawing your consent means deleting your account/)).toBeTruthy();
   // The glyph sits in its own column so wrapped lines hang under the text, not under the dot.
   expect(screen.getByText('Withdrawing your consent means deleting your account.')).toBeTruthy();
@@ -289,6 +289,34 @@ describe('redo and recalculate setup', () => {
     expect(screen.getByLabelText('Weight in kg').props.value).toBe('82');
     await press('Continue');
     expect(screen.queryByText('Choose male or female for the calorie formula.')).toBeNull();
+  });
+
+  it('an unedited redo keeps the stored height in cm and the stored profile and targets (#1196)', async () => {
+    const db = memoryDb();
+    const before = stored();
+    await saveProfile(db, before);
+    await saveConsent(db, { id: 'c1', version: 0, updated_at: '2026-09-01T00:00:00Z', deleted_at: null, kind: 'data_storage', given_at: '2026-09-01T00:00:00Z', text_version: 'x' });
+    await render(withProfile(db, <SetupScreen />));
+    await screen.findByText('Let’s work out your targets');
+    expect(screen.getByLabelText('Height feet').props.value).toBe('5');
+    for (let i = 0; i < 4; i++) await press(i === 3 ? 'See my targets' : 'Continue');
+    await press('Use these targets');
+    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/'));
+    const after = await loadProfile(db);
+    expect(after).toMatchObject({ height_cm: 165, targets: before.targets });
+  });
+
+  it('a redo with an edited height uses the edit', async () => {
+    const db = memoryDb();
+    await saveProfile(db, stored());
+    await saveConsent(db, { id: 'c1', version: 0, updated_at: '2026-09-01T00:00:00Z', deleted_at: null, kind: 'data_storage', given_at: '2026-09-01T00:00:00Z', text_version: 'x' });
+    await render(withProfile(db, <SetupScreen />));
+    await screen.findByText('Let’s work out your targets');
+    await fireEvent.changeText(screen.getByLabelText('Height feet'), '6');
+    for (let i = 0; i < 4; i++) await press(i === 3 ? 'See my targets' : 'Continue');
+    await press('Use these targets');
+    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/'));
+    expect((await loadProfile(db))?.height_cm).toBeGreaterThan(180);
   });
 
   it('a redo offers Cancel, which goes back, instead of Skip for now', async () => {

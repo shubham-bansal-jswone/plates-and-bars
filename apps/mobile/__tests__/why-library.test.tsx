@@ -67,7 +67,8 @@ describe('Why it works library on Targets', () => {
     expect(await screen.findByText('Why it works')).toBeTruthy();
     expect(screen.getAllByLabelText(/^Open /)).toHaveLength(shown.length);
     expect(screen.queryByLabelText(/^Open .*(Ramp|form first)/i)).toBeNull();
-    for (const x of shown) expect(screen.getByText(`${x.title} ${x.evidence}`)).toBeTruthy(); // the evidence label is on every row
+    for (const x of shown) expect(screen.getByLabelText(`Open ${x.title}`)).toBeTruthy();
+    expect(screen.getAllByText(/^(Strong|Moderate|Emerging) evidence$/)).toHaveLength(shown.length); // a separate evidence label on every row
     const fibre = cards.cards.find((c) => c.id === 'fibre')!;
     expect(screen.queryByText(/ read$/)).toBeNull();
     fireEvent.press(screen.getByLabelText(`Open ${fibre.title}`));

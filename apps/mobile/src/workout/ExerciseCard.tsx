@@ -21,7 +21,8 @@ const r1 = (n: number | string): number => Math.round(Number(n) * 10) / 10;
 
 export interface Actions {
   edit(kind: 'work' | 'ramp', j: number, field: 'w' | 'r', v: string): void;
-  tick(j: number): void;
+  /** Returns the field that is still empty when the set cannot be ticked, else nothing. */
+  tick(j: number): 'w' | 'r' | void;
   rate(j: number, v: Rate | null): void;
   form(v: 'yes' | 'no' | null): void;
   /** The answer to "Where did you feel that set most?": 'target', 'pain' or a `misplaced_feel` index. */
@@ -31,7 +32,7 @@ export interface Actions {
   rampStart(): void;
   rampSkip(): void;
   rampAdd(): void;
-  rampTick(j: number): void;
+  rampTick(j: number): 'w' | 'r' | void;
   rampRate(j: number, v: Rate | null): void;
   howTo(): void;
   /** Open the "Can't do" sheet for this exercise. */
@@ -135,13 +136,14 @@ function LearnBlock({ ex, first, done }: { ex: ExState; first: boolean; done: nu
     <View style={[styles.learn, { borderColor: c.brand }]}>
       <Text style={{ color: c.link, fontSize: 12, fontWeight: '700', letterSpacing: 0.7, textTransform: 'uppercase' }}>Learn mode</Text>
       {done === 0 ? <ExerciseFigure name={ex.name} /> : null}
-      <Button label="Setup" a11yLabel={`Setup steps for ${ex.name}`} kind="link" expanded={open} onPress={() => setShown(!open)} />
-      {open ? (
-        <View style={{ gap: 3 }}>
-          {card.setup.map((x, k) => (
-            <Text key={k} style={{ color: c.ink, fontSize: 15, lineHeight: 21 }}>{k + 1}. {x}</Text>
-          ))}
-        </View>
+      {card.setup.length ? (
+        <Disclosure label="Setup" a11yLabel={`Setup steps for ${ex.name}`} open={open} onOpenChange={setShown}>
+          <View style={{ gap: 3 }}>
+            {card.setup.map((x, k) => (
+              <Text key={k} style={{ color: c.ink, fontSize: 15, lineHeight: 21 }}>{k + 1}. {x}</Text>
+            ))}
+          </View>
+        </Disclosure>
       ) : null}
       <Text style={{ color: c.ink, fontSize: 15, lineHeight: 21 }}><Text style={{ fontWeight: '700' }}>Focus this set:</Text> {cue}</Text>
     </View>
@@ -343,9 +345,11 @@ export function ExerciseCard({ ex, info, sug, focus, warm, act, cards, learning,
             {tag.secondary.length ? <Text style={{ color: c.muted }}>, plus {listJoin(tag.secondary.map((m) => muscleName(m)))}</Text> : null}
           </Text>
         ) : null}
-        <View style={styles.wrap}>
+        <View style={{ gap: 4, alignItems: 'flex-start' }}>
           <Button label={`How to do ${ex.name}`} kind="link" onPress={act.howTo} />
           <Button label={`Can’t do ${ex.name}`} kind="link" onPress={act.cant} />
+        </View>
+        <View style={styles.wrap}>
           <FormCheckButton name={ex.name} />
           <TrackSet name={ex.name} sets={ex.sets} onApply={(j, n) => act.edit('work', j, 'r', String(n))} />
         </View>

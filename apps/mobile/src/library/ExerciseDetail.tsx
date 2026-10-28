@@ -19,7 +19,7 @@ function Section({ title, items, kind }: { title: string; items: readonly string
   const c = useTheme();
   return (
     <View style={{ gap: 4 }}>
-      <Heading level={2} style={[type.label, { color: c.ink }]}>{title}</Heading>
+      <Heading level={2} style={[type.heading, { color: c.ink }]}>{title}</Heading>
       {items.map((s, i) => (
         <Text key={s} style={[type.textBody, { color: c.body }]}>{kind === 'plain' ? s : `${kind === 'numbered' ? `${i + 1}.` : '\u2022'} ${s}`}</Text>
       ))}
@@ -100,7 +100,7 @@ function AddToSession({ name, session }: { name: string; session: SessionTarget 
           <Text style={[type.buttonSm, { color: c.body }]}>In today’s session</Text>
         </View>
       ) : (
-        <Button label="Add to today’s session" a11yLabel={`Add ${name} to today’s session`} kind="ghost" busy={busy} onPress={() => void add()} />
+        <Button label="Add to today’s session" a11yLabel={`Add to today’s session, ${name}`} kind="ghost" busy={busy} onPress={() => void add()} />
       )}
       {error ? <Text accessibilityRole="alert" style={[type.textBody, { color: c.body }]}>Couldn’t save that. Try again.</Text> : null}
     </View>
@@ -137,7 +137,7 @@ export function ExerciseDetail({ exercise: e, onBack, session }: { exercise: Lib
       {card ? (
         <>
           <View style={{ gap: 4 }}>
-            <Heading level={2} style={[type.label, { color: c.ink }]}>Where you should feel it</Heading>
+            <Heading level={2} style={[type.heading, { color: c.ink }]}>Where you should feel it</Heading>
             <Text style={[type.textBody, { color: c.body }]}>{card.where_to_feel}</Text>
           </View>
           <Section title="Setup" items={card.setup} kind="numbered" />

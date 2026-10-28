@@ -34,6 +34,24 @@ describe('editable daily targets', () => {
     expect((await loadProfile(db))?.targets.kcal).toBe(1990);
   });
 
+  it('shows calories grouped like everywhere else, and reads typed "2,240" and "2240" alike (#1196)', async () => {
+    const db = await open();
+    expect(screen.getByLabelText('Calories (kcal)').props.value).toBe('1,990');
+    expect(screen.getByLabelText('Protein (g)').props.value).toBe('150');
+    await fireEvent.changeText(screen.getByLabelText('Calories (kcal)'), '2,240');
+    await waitFor(async () => expect((await loadProfile(db))?.targets.kcal).toBe(2240));
+    await fireEvent.changeText(screen.getByLabelText('Calories (kcal)'), '2300');
+    await waitFor(async () => expect((await loadProfile(db))?.targets.kcal).toBe(2300));
+    await fireEvent(screen.getByLabelText('Calories (kcal)'), 'blur');
+    expect(screen.getByLabelText('Calories (kcal)').props.value).toBe('2,300');
+  });
+
+  it('reads a comma as a decimal point in the macro fields, so "12,50" protein is 13, not 1250 (#1196)', async () => {
+    const db = await open();
+    await fireEvent.changeText(screen.getByLabelText('Protein (g)'), '12,50');
+    await waitFor(async () => expect((await loadProfile(db))?.targets.protein_g).toBe(13));
+  });
+
   it('keeps two quick edits', async () => {
     const db = await open();
     await fireEvent.changeText(screen.getByLabelText('Calories (kcal)'), '2100');
