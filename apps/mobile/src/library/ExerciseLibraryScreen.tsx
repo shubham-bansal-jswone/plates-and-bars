@@ -3,11 +3,15 @@ import { BackHandler, FlatList, StyleSheet, View } from 'react-native';
 import { Text } from '../components/Text';
 import { useBottomInset } from '../components/bottomInset';
 import { a11yState, Button, COLUMN_MAX, Chip, Field, H1, Hint, Label, layout, Press } from '../components/ui';
+import { useOptionalSettings } from '../state/SettingsProvider';
 import { radius, space, type } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { ExerciseFigure, hasFigure } from '../workout/ExerciseFigure';
 import { ExerciseDetail, type SessionTarget } from './ExerciseDetail';
 import { equipmentLabel, filterLibrary, getEquipment, getLibrary, getMuscles, getTypes, isFiltered, muscleLabel, NO_FILTER, typeLabel, type LibraryExercise, type LibraryFilter } from './exercises';
+
+/** The search field never gets narrower than this, so Filters (44px+ target) wraps below it on a phone and sits beside it on a wider screen. */
+const SEARCH_MIN = 300;
 
 /** An outlined rounded tile with a bold label: one filter value. Radio semantics, lime only when selected. */
 function Tile({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
@@ -65,9 +69,12 @@ function Row({ e, onOpen }: { e: LibraryExercise; onOpen: () => void }) {
 }
 
 /** Browse the exercise content: search by name, filter by equipment, main muscle and type, open one for its drawing and notes. Works offline. */
-export function ExerciseLibraryScreen({ onBack, list = getLibrary(), session }: { onBack: () => void; list?: readonly LibraryExercise[]; session?: SessionTarget }) {
+export function ExerciseLibraryScreen({ onBack, list: given, session }: { onBack: () => void; list?: readonly LibraryExercise[]; session?: SessionTarget }) {
   const c = useTheme();
   const bottom = useBottomInset();
+  // Reading the settings re-renders this screen when custom exercises change; getLibrary then rebuilds its list for the new catalog.
+  useOptionalSettings();
+  const list = given ?? getLibrary();
   const [f, setF] = useState<LibraryFilter>(NO_FILTER);
   const [open, setOpen] = useState<string | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -102,13 +109,18 @@ export function ExerciseLibraryScreen({ onBack, list = getLibrary(), session }: 
         <View style={{ gap: space.sm }}>
           <Button label="Back" kind="link" onPress={onBack} />
           <H1>Exercise library</H1>
-          <Field label="Search exercises" placeholder="Search exercises" value={f.query} onChangeText={(query) => setF({ ...f, query })} autoCorrect={false} style={styles.search} />
-          <View style={layout.row}>
+          {/* Search and Filters share a row when there is room (search takes what is left); on a phone Filters wraps below. */}
+          <View style={styles.searchRow}>
+            <Field label="Search exercises" placeholder="Search exercises" value={f.query} onChangeText={(query) => setF({ ...f, query })} autoCorrect={false} style={styles.search} />
             <Button label={filtersOpen ? 'Hide filters' : 'Filters'} kind="ghost" expanded={filtersOpen} onPress={() => setFiltersOpen(!filtersOpen)} />
-            {active.map(([key, text]) => (
-              <Chip key={key} pressed label={`Remove ${text} filter`} text={`${text}  ×`} onPress={() => setF({ ...f, [key]: null })} />
-            ))}
           </View>
+          {active.length ? (
+            <View style={layout.row}>
+              {active.map(([key, text]) => (
+                <Chip key={key} pressed label={`Remove ${text} filter`} text={`${text}  ×`} onPress={() => setF({ ...f, [key]: null })} />
+              ))}
+            </View>
+          ) : null}
           {filtersOpen ? (
             <View style={{ gap: space.md }}>
               <Tiles title="Equipment" values={getEquipment()} label={equipmentLabel} value={f.equipment} onChange={(equipment) => setF({ ...f, equipment })} />
@@ -126,7 +138,8 @@ export function ExerciseLibraryScreen({ onBack, list = getLibrary(), session }: 
 }
 
 const styles = StyleSheet.create({
-  search: { borderRadius: radius.full, paddingHorizontal: 20 },
+  searchRow: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm, alignItems: 'flex-end' },
+  search: { borderRadius: radius.full, paddingHorizontal: 20, flexGrow: 1, flexShrink: 1, flexBasis: SEARCH_MIN, minWidth: SEARCH_MIN },
   tile: { borderWidth: 1, borderRadius: radius.lg, minHeight: 44, paddingHorizontal: space.lg, justifyContent: 'center', alignItems: 'center' },
   row: { flexDirection: 'row', alignItems: 'center', gap: space.md, padding: space.md, borderRadius: radius.lg, minHeight: 80 },
   thumb: { width: 56, height: 56, borderRadius: 12, padding: 4, alignItems: 'center', justifyContent: 'center' },
