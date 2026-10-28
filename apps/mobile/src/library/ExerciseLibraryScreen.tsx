@@ -126,7 +126,7 @@ export function ExerciseLibraryScreen({ onBack, list = getLibrary(), session }: 
 }
 
 const styles = StyleSheet.create({
-  search: { maxWidth: undefined, borderRadius: radius.full, paddingHorizontal: 20 },
+  search: { borderRadius: radius.full, paddingHorizontal: 20 },
   tile: { borderWidth: 1, borderRadius: radius.lg, minHeight: 44, paddingHorizontal: space.lg, justifyContent: 'center', alignItems: 'center' },
   row: { flexDirection: 'row', alignItems: 'center', gap: space.md, padding: space.md, borderRadius: radius.lg, minHeight: 80 },
   thumb: { width: 56, height: 56, borderRadius: 12, padding: 4, alignItems: 'center', justifyContent: 'center' },
