@@ -254,11 +254,12 @@ export type { LiftStatSet, LiftStatSession, LiftStatPrev, LiftStatBody, LiftStat
  * Workout screen: rest timer, warm-up line, next template and the check-in.
  * - `restFor`, `restLabel` mirror the prototype functions of the same name (`TAGS` passed in);
  *   `REST_COMPOUND_SEC`, `REST_OTHER_SEC` are its 150 and 75 seconds.
+ * - `warmupRamp` extends `warmupSets` with the #1240 graduated ramp and later-compound rule (no prototype counterpart).
  * - `warmupSets` mirrors the numbers and conditions of prototype `warmupHtml(ex, i, sug)`.
  * - `nextInList` mirrors prototype `nextInList(t)` (profile passed in).
  * - `checkinFlags` mirrors the `flagged`, `why`, swap and "Good to go" steps of the check-in in prototype `renderStart()`.
  */
-export { restFor, restLabel, nextInList, warmupSets, checkinFlags, REST_COMPOUND_SEC, REST_OTHER_SEC, REST_EXTEND_SEC } from './workout';
+export { restFor, restLabel, nextInList, warmupSets, warmupRamp, WARMUP_RAMP_HEAVY_KG, WARMUP_RAMP_LIGHT, WARMUP_RAMP_HEAVY, checkinFlags, REST_COMPOUND_SEC, REST_OTHER_SEC, REST_EXTEND_SEC } from './workout';
 export type { WarmupSet, Checkin, CheckinReason, CheckinResult } from './workout';
 
 /**
