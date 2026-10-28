@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useFocusEffect } from 'expo-router';
 import type { LiftRecord } from '@plate-and-bar/core';
-import { loadLifts, loadSessionLog, loadSets, type WorkoutDb } from '../../db/workouts';
+import { loadLifts, loadSessionLog, loadSets, loadWorkout, type WorkoutDb } from '../../db/workouts';
 import { freshRead } from '../../state/freshRead';
 import { dayQueue, dayWrites } from '../../workout/dayQueue';
 import { buildSessions, recentDates, type HistorySession } from './logic';
@@ -19,7 +19,8 @@ export function useHistory(db: WorkoutDb, reloadKey: number) {
       async () => {
         const log = await loadSessionLog(db);
         const sets = Object.fromEntries(await Promise.all(recentDates(log).map(async (d) => [d, await loadSets(db, d)] as const)));
-        return { sessions: buildSessions(log, sets), lifts: await loadLifts(db) };
+        const cardio = Object.fromEntries(await Promise.all(recentDates(log).map(async (d) => [d, (await loadWorkout(db, d))?.cardio_min ?? null] as const)));
+        return { sessions: buildSessions(log, sets, cardio), lifts: await loadLifts(db) };
       },
       () => live,
       setState,
