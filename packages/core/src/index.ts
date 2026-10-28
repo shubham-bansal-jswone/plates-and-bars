@@ -183,6 +183,9 @@ export {
   harder,
   easier,
   kgLabel,
+  infoForUnit,
+  snapForUnit,
+  snapToLbStep,
   noLoad,
   repWord,
   DEFAULT_STEP,
@@ -738,3 +741,33 @@ export type { Marker, MarkerKey, TipSide, TipKind, LabFlag, UnitStatus, LabResul
  */
 export { parseNutritionLabel, labelToScannedInput, labelFood } from './labelScan';
 export type { LabelOcrInput, LabelOcrLine, LabelOcrWord, LabelKey, LabelLevel, LabelNote, LabelField, LabelWarning, LabelAlternate, LabelValues, LabelDraft } from './labelScan';
+
+/**
+ * Weight unit (#1185; new, no prototype counterpart): a device-local kg or lb setting; storage stays kg.
+ * `kgToLb`, `lbToKg`, `fromKg`, `toKg` convert exactly (0.45359237); `formatWeight` and `kgLabel(w, info, unit)`
+ * display one decimal; `parseWeightInput` reads a typed value to kg; `LB_STEP`, `lbStepFor`, `infoForUnit` and
+ * `snapForUnit` round load suggestions to lb steps.
+ */
+export {
+  DEFAULT_WEIGHT_UNIT,
+  KG_PER_LB,
+  LB_STEP,
+  kgToLb,
+  lbToKg,
+  fromKg,
+  toKg,
+  unitLabel,
+  formatWeight,
+  parseWeightInput,
+  lbStepFor,
+} from './weightUnit';
+export type { WeightUnit } from './weightUnit';
+
+/**
+ * Estimated one-rep max and session time (#1178): new rules, not prototype ports. `epley` is the estimate inside prototype `sessionScore`
+ * (now shared with stalls.ts). `e1rm` is Epley in kg to 0.1, one rep = the weight, null above `E1RM_MAX_REPS` (12). `setE1rm` counts only done
+ * `work` sets not rated `fail` on loaded (not bodyweight, time or assisted) exercises. `e1rmHistory` is the best estimate per session (optional `session` key, else date), oldest first.
+ * `sessionElapsed` is first to last contract-style set tick minus gaps over `SESSION_GAP_MS` (`split` flags it), null when the span is zero, `complete` false when a done set lacks `t`.
+ */
+export { E1RM_MAX_REPS, SESSION_GAP_MS, epley, e1rm, setE1rm, e1rmHistory, sessionElapsed } from './e1rm';
+export type { E1rmSet, E1rmPoint, SessionElapsed } from './e1rm';

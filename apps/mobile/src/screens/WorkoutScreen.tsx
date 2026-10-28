@@ -278,9 +278,11 @@ function StartView({ now, w, labHold, profile, focus, rules, notify, tune }: { n
     </>
   );
 
+  // Start passes the seed only while a seeded exercise is still picked (#1020); those sessions keep the lab hold.
+  const seededStart = seed && picked.some((n) => seed.exercises.some((e) => e.name === n)) ? seed : null;
   const action = picked.length ? (
     <>
-      <StartButton label={`Start ${picked.length === 1 ? 'this exercise' : 'these exercises'}`} onPress={() => void w.startPicked(picked, override, choice, seed && picked.some((n) => seed.exercises.some((e) => e.name === n)) ? seed : null, ci.time ?? null)} />
+      <StartButton label={`Start ${picked.length === 1 ? 'this exercise' : 'these exercises'}`} onPress={() => void w.startPicked(picked, override, choice, seededStart, ci.time ?? null)} />
       <Button label="Pick more exercises" kind="ghost" onPress={() => setPicking(true)} />
       <Button label="Back to workouts" kind="link" onPress={back} />
     </>
@@ -448,7 +450,7 @@ function StartView({ now, w, labHold, profile, focus, rules, notify, tune }: { n
     <>
       <Text testID="start-announce" accessibilityLiveRegion="polite" style={styles.srOnly}>{Platform.OS === 'ios' ? '' : said}</Text>
       <ClearanceCard profile={profile} onCleared={() => void markCleared().then(() => notify('Thanks. Your normal plan is back.'), () => notify('Couldn’t save that. Try again.'))} />
-      {labHold ? <Note>{labs.workout_note}</Note> : null}
+      {labHold && !(picked.length && !seededStart) ? <Note>{labs.workout_note}</Note> : null}
     </>
   );
   const cardio = <CardioBlock value={day.workout?.cardio_min ?? null} onSave={w.setCardio} />;
