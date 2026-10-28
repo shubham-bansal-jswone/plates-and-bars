@@ -18,8 +18,27 @@ export function focusSheetTitle(title: string): boolean {
   const heading = dialog?.querySelector<HTMLElement>('[role=heading]');
   if (!dialog || !heading || !dialog.contains(document.activeElement)) return false;
   heading.setAttribute('tabindex', '-1'); // focusable by script, not in the tab order
+  // Only while it has focus: left on, the focus trap's walk would land on the title again at every wrap (#1275).
+  heading.addEventListener('blur', () => heading.removeAttribute('tabindex'), { once: true });
   heading.focus();
   return true;
+}
+
+// What a browser focuses on its own and what react-native-web marks tabbable (it sets `tabindex`), so a stop on anything else is not a control.
+const FOCUSABLE = 'a[href],button,input,select,textarea,summary,[contenteditable]';
+
+/**
+ * Chromium lets script focus a scrolling container (the sheet's page ScrollView is `overflow: auto`). react-native-web's focus
+ * trap walks the dialog with `element.focus()` and keeps the first element that accepts it, so on a wrap it stopped on that
+ * unlabelled full-screen div instead of the first or last control, and Shift+Tab then stayed on it (#1275). A focus event on an
+ * element that is neither natively focusable nor given a `tabindex` is such a container: drop focus at once, so the trap's own
+ * check fails and it carries on to the next element (the title takes focus through `tabindex="-1"`, which is allowed).
+ */
+export function refuseScrollerFocus(event: { target: EventTarget | null }): void {
+  const el = event.target;
+  if (typeof HTMLElement === 'undefined' || !(el instanceof HTMLElement)) return;
+  if (el.hasAttribute('tabindex') || el.matches(FOCUSABLE)) return;
+  el.blur();
 }
 
 const TICK_MS = 16;
@@ -42,6 +61,12 @@ export function SheetModal({ title, onClose, children }: { title: string; onClos
   useEffect(() => {
     titleRef.current = title;
   });
+  // Web only, while the sheet is open (capture: focus does not bubble). Registered after react-native-web's trap, which lives below.
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof document === 'undefined') return;
+    document.addEventListener('focus', refuseScrollerFocus, true);
+    return () => document.removeEventListener('focus', refuseScrollerFocus, true);
+  }, []);
   // Unmount only (not on a title change): give focus back to the opener and cancel a pending title focus.
   useEffect(
     () => () => {

@@ -2,7 +2,7 @@
 import { JSDOM } from 'jsdom';
 import { Platform, Text } from 'react-native';
 import { render, screen } from '@testing-library/react-native';
-import { focusSheetTitle, SheetModal } from '../src/components/Sheet';
+import { focusSheetTitle, refuseScrollerFocus, SheetModal } from '../src/components/Sheet';
 import { AddExerciseSheet } from '../src/workout/AddExerciseSheet';
 
 /** Sheets are named dialogs with initial focus on the title on the web, and give focus back on close (#661). */
@@ -44,7 +44,20 @@ describe('SheetModal', () => {
     focusSheetTitle('Add exercise');
     expect(document.activeElement?.id).toBe('title');
     expect(document.getElementById('title')?.getAttribute('tabindex')).toBe('-1');
+    document.getElementById('first')?.focus(); // focus leaves the title: it is not a stop any more
+    expect(document.getElementById('title')?.hasAttribute('tabindex')).toBe(false);
     expect(() => focusSheetTitle('No such sheet')).not.toThrow();
+  });
+
+  it('refuseScrollerFocus drops focus from a scrolling container but not from a control or the title (#1275)', () => {
+    document.body.innerHTML = '<div id="scroller">text</div><button id="b">Close</button><h2 id="t" tabindex="-1">Title</h2><div id="p" tabindex="0" role="link">link</div>';
+    for (const [id, kept] of [['scroller', false], ['b', true], ['t', true], ['p', true]] as const) {
+      const el = document.getElementById(id) as HTMLElement;
+      const blur = jest.spyOn(el, 'blur');
+      refuseScrollerFocus({ target: el });
+      expect(blur).toHaveBeenCalledTimes(kept ? 0 : 1);
+    }
+    expect(() => refuseScrollerFocus({ target: null })).not.toThrow();
   });
 
   // Not covered here: react-native-web's real timing (its dialog role and focus trap switch on after `onShow`, which follows the slide animation).
