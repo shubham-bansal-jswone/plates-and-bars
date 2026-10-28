@@ -1,6 +1,6 @@
 import { daysBetween } from './dates';
 import { num } from './num';
-import { formatWeight, fromKg, lbStepFor, lbToKg, type WeightUnit } from './weightUnit';
+import { formatWeight, kgToLb, lbStepFor, lbToKg, toKg, type WeightUnit } from './weightUnit';
 import { older, type PlanProfile, type Where } from './plan';
 import type { components } from '../../api/client/schema';
 import type { ExerciseCatalog, ExerciseTag } from './session';
@@ -170,9 +170,6 @@ export interface Suggestion {
   reason: string;
 }
 
-/** Mirrors prototype `r1`. Coerces like the prototype (`'2,5'` gives `NaN`). */
-const r1 = (n: number | string): number => Math.round(Number(n) * 10) / 10;
-
 /**
  * Type, rep range and step: the user's setting wins, else the catalogue's meta (unknown names: other,
  * 8–12; see `metaFor`). With dumbbells at home the range rises to at least 10–20 unless the user set
@@ -229,13 +226,21 @@ export function infoForUnit(info: ExInfo, unit: WeightUnit = 'kg'): ExInfo {
 }
 
 /**
- * A kg weight rounded to the unit's step: kg is `snap(kg, info.step)` unchanged; lb rounds in lb to the lb
- * step and returns kg (100 kg barbell: 220 lb, 99.79 kg). No rounding for step 0. New, no prototype counterpart.
+ * A kg weight rounded to the unit's step, from the ORIGINAL kg `info` (the lb step is derived from it with
+ * `lbStepFor`): kg is `snap(kg, info.step)` unchanged; lb rounds in lb and returns kg (100 kg barbell: 220 lb).
+ * No rounding for step 0. For info already passed through `infoForUnit` use `snapToLbStep`. New, no prototype counterpart.
  */
 export function snapForUnit(kg: number, info: ExInfo, unit: WeightUnit = 'kg'): number {
-  if (unit === 'kg') return snap(kg, info.step);
-  const step = lbStepFor(info.type, info.step, DEFAULT_STEP[info.type]);
-  return lbToKg(snap(fromKg(kg, 'lb'), step));
+  return unit === 'kg' ? snap(kg, info.step) : snapToLbStep(kg, infoForUnit(info, 'lb'));
+}
+
+/**
+ * A kg weight rounded in lb to the step of `lbInfo` (an `infoForUnit(info, 'lb')` result, its `step` the lb
+ * step in kg); returns kg on the lb grid. No rounding for step 0. New, no prototype counterpart.
+ */
+export function snapToLbStep(kg: number, lbInfo: ExInfo): number {
+  const lbStep = Math.round(kgToLb(lbInfo.step) * 1e6) / 1e6;
+  return lbToKg(snap(kgToLb(kg), lbStep));
 }
 
 function kgLabelShort(w: number, info: ExInfo, unit: WeightUnit = 'kg'): string {
@@ -272,6 +277,8 @@ const infoFor = (name: string, c: ProgressionContext): ExInfo => infoForUnit(exI
 export function suggestBase(ex: { name: string }, c: ProgressionContext): Suggestion {
   const info = infoFor(ex.name, c);
   const unit = c.unit ?? 'kg';
+  /** In lb every suggested weight lands on the lb grid (history logged in kg is off it); kg is untouched. */
+  const grid = (x: number): number => (unit === 'lb' ? snapToLbStep(x, info) : x);
   const last = lastFor(ex.name, c.lifts, c.date);
   const rw = repWord(info.type);
   const range = `${info.lo}–${info.hi} ${rw}`;
@@ -303,19 +310,20 @@ export function suggestBase(ex: { name: string }, c: ProgressionContext): Sugges
   const prev = !L ? null : last === L ? L.prev : last === L.prev ? L.prev.prev || null : null;
   const prevAvgLow = !!prev && !!prev.sets.length && prev.sets.reduce((n, s) => n + s.r, 0) / prev.sets.length < info.lo;
   if (avg < info.lo && (prevAvgLow || anyFail)) {
-    const nw = easier(top, info, 0.075);
+    const nw = grid(easier(top, info, 0.075));
     return { mode: 'down', w: nw, reps: info.lo, text: `${kgLabel(nw, info, unit)} × ${range}`, reason: `${summary} Below ${info.lo} ${rw} ${anyFail ? 'with a failed set' : 'two sessions running'}, so drop a little and build back up.` };
   }
   if (allTop && !anyFail && !anyHard) {
-    if (last.form === 'no') return { mode: 'hold', w: top, reps: info.hi, text: `${kgLabel(top, info, unit)} × ${range}`, reason: `${summary} You hit the top of the range, but form slipped, so stay here until it feels solid.` };
-    if (early && !allEasy) return { mode: 'hold', w: top, reps: info.hi, text: `${kgLabel(top, info, unit)} × ${range}`, reason: `${summary} First 2 weeks on this exercise: keep the weight and own the movement before adding more.` };
-    const nw = harder(top, info);
+    if (last.form === 'no') return { mode: 'hold', w: grid(top), reps: info.hi, text: `${kgLabel(grid(top), info, unit)} × ${range}`, reason: `${summary} You hit the top of the range, but form slipped, so stay here until it feels solid.` };
+    if (early && !allEasy) return { mode: 'hold', w: grid(top), reps: info.hi, text: `${kgLabel(grid(top), info, unit)} × ${range}`, reason: `${summary} First 2 weeks on this exercise: keep the weight and own the movement before adding more.` };
+    const nw = grid(harder(top, info));
+    const gtop = grid(top);
     const jump = top > 0 ? Math.abs(nw - top) / top : 0;
-    const big = jump > (older(c.profile) ? 0.05 : 0.1) ? ` That’s a ${Math.round(jump * 100)}% jump. If you can’t reach ${info.lo} ${rw}, go back to ${formatWeight(top, unit)} ${unit} and add reps instead.` : '';
+    const big = jump > (older(c.profile) ? 0.05 : 0.1) ? ` That’s a ${Math.round(jump * 100)}% jump. If you can’t reach ${info.lo} ${rw}, go back to ${formatWeight(gtop, unit)} ${unit} and add reps instead.` : '';
     return { mode: 'up', w: nw, reps: info.lo, text: `${kgLabel(nw, info, unit)} × ${range}`, reason: `${summary} Top of the range on every set, so ${info.type === 'assisted' ? 'use less assistance' : `add ${formatWeight(info.step, unit)} ${unit}`} and aim for ${info.lo}+ ${rw}.${big}` };
   }
   const target = Math.min(info.hi, Math.max(info.lo, Math.round(avg) + 1));
-  return { mode: 'hold', w: top, reps: target, text: `${kgLabel(top, info, unit)} × ${target} ${rw}`, reason: `${summary} ${avg < info.lo ? `Stay at this weight and work up to ${info.lo}+ ${rw}.` : `Same weight, aim for ${target} ${rw} a set. Add weight once you reach ${info.hi} on every set.`}` };
+  return { mode: 'hold', w: grid(top), reps: target, text: `${kgLabel(grid(top), info, unit)} × ${target} ${rw}`, reason: `${summary} ${avg < info.lo ? `Stay at this weight and work up to ${info.lo}+ ${rw}.` : `Same weight, aim for ${target} ${rw} a set. Add weight once you reach ${info.hi} on every set.`}` };
 }
 
 /** Today's session modifiers (prototype `S.day.workout.mods`); only these fields are read. */
@@ -407,15 +415,15 @@ export interface SetTarget {
  *
  * Mirrors prototype `setTarget(ex, j, sug)` (`ex.sets`, `ex.found` and `exInfo` passed in).
  */
-export function setTarget(sets: readonly SetEntry[], j: number, sug: Suggestion, info: ExInfo, found?: number | null): SetTarget {
+export function setTarget(sets: readonly SetEntry[], j: number, sug: Suggestion, info: ExInfo, found?: number | null, unit: WeightUnit = 'kg'): SetTarget {
   const p = sets[j - 1];
   if (p && p.done && p.w !== '' && !noLoad(info.type)) {
-    const w = num(p.w);
+    const w = toKg(num(p.w), unit);
     if (p.rate === 'easy') return { w: harder(w, info), r: sug.reps };
     if (p.rate === 'fail') return { w: easier(w, info, 0.1), r: Math.max(info.lo, num(p.r)) };
     return { w, r: p.rate === 'hard' ? num(p.r) : sug.reps || num(p.r) };
   }
-  if (p && p.done && noLoad(info.type)) return { w: p.w === '' ? '' : num(p.w), r: num(p.r) || sug.reps }; // #102
+  if (p && p.done && noLoad(info.type)) return { w: p.w === '' ? '' : toKg(num(p.w), unit), r: num(p.r) || sug.reps }; // #102
   if (found !== undefined && found !== null) return { w: found, r: info.lo };
   if (sug.w !== undefined && sug.w !== '') return { w: sug.w, r: sug.reps };
   return { w: '', r: sug.reps || '' };
@@ -427,9 +435,9 @@ export function setTarget(sets: readonly SetEntry[], j: number, sug: Suggestion,
  *
  * Mirrors the fill-and-check step of prototype `workoutAction('tick')`.
  */
-export function tickFill(set: Pick<SetEntry, 'w' | 'r'>, target: SetTarget, info: ExInfo): { w: string; r: string; ok: boolean } {
+export function tickFill(set: Pick<SetEntry, 'w' | 'r'>, target: SetTarget, info: ExInfo, unit: WeightUnit = 'kg'): { w: string; r: string; ok: boolean } {
   let { w, r } = set;
-  if (w === '' && target.w !== '') w = String(r1(target.w));
+  if (w === '' && target.w !== '') w = formatWeight(Number(target.w), unit);
   if (r === '' && target.r) r = String(target.r);
   return { w, r, ok: !(r === '' || (w === '' && !noLoad(info.type))) };
 }
@@ -441,14 +449,14 @@ export function tickFill(set: Pick<SetEntry, 'w' | 'r'>, target: SetTarget, info
  *
  * Mirrors the ramp branch of prototype `workoutAction('rate' | 'rerate')`.
  */
-export function rampRate(ramp: readonly SetEntry[], j: number, rate: Rate | null, info: ExInfo): { found: number | null; addSet: boolean } {
+export function rampRate(ramp: readonly SetEntry[], j: number, rate: Rate | null, info: ExInfo, unit: WeightUnit = 'kg'): { found: number | null; addSet: boolean } {
   if (!rate) return { found: null, addSet: false };
-  const wv = num((ramp[j] as SetEntry).w);
+  const wv = toKg(num((ramp[j] as SetEntry).w), unit);
   const prior = ramp.slice(0, j).reverse().find((x) => x.done);
   let found: number | null = null;
   if (rate === 'right') found = wv;
   else if (rate === 'hard') found = Math.max(0, easier(wv, info, 0));
-  else if (rate === 'fail') found = prior ? num(prior.w) : Math.max(0, easier(wv, info, 0.1));
+  else if (rate === 'fail') found = prior ? toKg(num(prior.w), unit) : Math.max(0, easier(wv, info, 0.1));
   return { found, addSet: rate === 'easy' && ramp.length <= j + 1 };
 }
 
@@ -459,11 +467,11 @@ export function rampRate(ramp: readonly SetEntry[], j: number, rate: Rate | null
  *
  * Mirrors the fill-and-check step of prototype `workoutAction('ramp-tick')`.
  */
-export function rampTickFill(ramp: readonly SetEntry[], j: number, info: ExInfo): { w: string; r: string; ok: boolean } {
+export function rampTickFill(ramp: readonly SetEntry[], j: number, info: ExInfo, unit: WeightUnit = 'kg'): { w: string; r: string; ok: boolean } {
   const s = ramp[j] as SetEntry;
   const prevR = ramp[j - 1];
   let { w, r } = s;
-  if (w === '' && prevR && prevR.done && prevR.rate === 'easy') w = String(r1(harder(num(prevR.w), info)));
+  if (w === '' && prevR && prevR.done && prevR.rate === 'easy') w = formatWeight(harder(toKg(num(prevR.w), unit), info), unit);
   if (r === '') r = String(j === 0 ? info.lo + 2 : info.lo);
   return { w, r, ok: w !== '' };
 }

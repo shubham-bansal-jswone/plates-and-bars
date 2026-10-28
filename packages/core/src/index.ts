@@ -185,6 +185,7 @@ export {
   kgLabel,
   infoForUnit,
   snapForUnit,
+  snapToLbStep,
   noLoad,
   repWord,
   DEFAULT_STEP,

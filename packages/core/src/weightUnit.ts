@@ -1,4 +1,3 @@
-import { parseNum } from './num';
 import type { ExType } from './progression';
 
 /**
@@ -40,14 +39,25 @@ export function formatWeight(kg: number, unit: WeightUnit = 'kg'): string {
   return String(r1(fromKg(kg, unit)));
 }
 
+/** One number with an optional single decimal part: no sign, exponent, thousands separator or other text. */
+const WEIGHT_TEXT = /^\s*\d+(?:[.,]\d+)?\s*$/;
+/** A comma then exactly three digits ("1,000") is a thousands separator in many locales: ambiguous, so refused. */
+const THOUSANDS_COMMA = /^\s*\d+,\d{3}\s*$/;
+
 /**
- * Reads a typed weight in `unit` and returns kg, or null when it is not a finite number (empty, junk) or is
- * negative. A comma is a decimal separator (as `num`). Zero is valid (a typed 0). The kg is exact, not
- * rounded: 225 lb is 102.05828325 kg and shows back as 225. In kg the typed number passes through unchanged.
+ * Reads a typed weight in `unit` and returns kg, or null unless the text is one plain non-negative number
+ * with at most one decimal separator (`.` or `,`): empty, junk, trailing text (`12abc`), exponents (`1e3`),
+ * a sign, thousands separators (`1,000`, `1.234,5`) and NaN or infinite numbers are all null. A number
+ * (not text) must be finite and not negative. Zero is valid. The kg is exact, not rounded: 225 lb is
+ * 102.05828325 kg and shows back as 225. In kg the typed number passes through unchanged. Stricter than
+ * `num` on purpose; new, no prototype counterpart.
  */
 export function parseWeightInput(text: unknown, unit: WeightUnit = 'kg'): number | null {
-  const n = parseNum(text);
-  return n === null || n < 0 ? null : toKg(n, unit);
+  let n: number;
+  if (typeof text === 'number') n = text;
+  else if (typeof text === 'string' && WEIGHT_TEXT.test(text) && !THOUSANDS_COMMA.test(text)) n = parseFloat(text.replace(',', '.'));
+  else return null;
+  return Number.isFinite(n) && n >= 0 ? toKg(n, unit) : null;
 }
 
 /** Smallest jump per equipment type in pounds for lb users: plates and stacks come in lb. */

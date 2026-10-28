@@ -18,6 +18,12 @@ import {
   parseWeightInput,
   snap,
   snapForUnit,
+  snapToLbStep,
+  setTarget,
+  tickFill,
+  rampTickFill,
+  rampRate,
+  weightEntry,
   toKg,
   unitLabel,
   DEFAULT_WEIGHT_UNIT,
@@ -77,7 +83,16 @@ describe('parseWeightInput', () => {
     expect(formatWeight(parseWeightInput('135', 'lb') as number, 'lb')).toBe('135');
   });
   it('rejects junk, empty and negatives', () => {
-    for (const t of ['', 'abc', null, undefined, '-5', NaN, Infinity]) expect(parseWeightInput(t, 'lb')).toBeNull();
+    for (const t of ['', '  ', 'abc', null, undefined, '-5', NaN, Infinity, -1, {}]) expect(parseWeightInput(t, 'lb')).toBeNull();
+  });
+  it('is strict: one plain number only', () => {
+    for (const t of ['1,000', '1.234,5', '1,234,567', '12abc', 'abc12', '1e3', '1e300', '1e-2', '+5', '.5', '5.', '1 000', '1..5', '1.5.5', '0x10', '5 lb', '--5', '１２'])
+      expect(parseWeightInput(t, 'lb')).toBeNull();
+    for (const t of ['1,00', '1,5', '1.000', ' 135 ', '0', '0,5', '007'])
+      expect(parseWeightInput(t, 'kg')).not.toBeNull();
+    expect(parseWeightInput('1.000')).toBe(1);
+    expect(parseWeightInput(82.5)).toBe(82.5);
+    expect(parseWeightInput(135, 'lb')).toBeCloseTo(61.2349, 3);
   });
 });
 
@@ -128,6 +143,10 @@ describe('lb steps', () => {
     expect(formatWeight(snapForUnit(100, info('barbell'), 'lb'), 'lb')).not.toBe('220.5');
     expect(formatWeight(snapForUnit(lbToKg(52.4), info('dumbbell'), 'lb'), 'lb')).toBe('52.5');
     expect(snapForUnit(61.234, info('bodyweight'), 'lb')).toBeCloseTo(61.234, 10);
+    // the converted info gives the same grid
+    for (const t of ['barbell', 'dumbbell', 'machine', 'cable', 'assisted', 'other'] as ExType[])
+      for (const kg of [20, 60, 62.5, 100]) expect(snapToLbStep(kg, infoForUnit(info(t), 'lb'))).toBeCloseTo(snapForUnit(kg, info(t), 'lb'), 9);
+    expect(snapToLbStep(61.234, infoForUnit(info('bodyweight'), 'lb'))).toBeCloseTo(61.234, 10);
     expect(formatWeight(snapForUnit(lbToKg(137.5), info('barbell'), 'lb'), 'lb')).toBe('140'); // half rounds up
   });
 });
@@ -168,11 +187,97 @@ describe('suggestions in lb (ProgressionContext.unit)', () => {
     expect(s.text).toMatch(/ lb × 8–12 reps$/);
     expect(s.reason).not.toContain(' kg');
   });
-  it('lb drop text and bridge', () => {
-    const c = ctx(lbToKg(100), 'lb');
-    (c.lifts['Barbell Row'] as { sets: unknown }).sets = [{ w: lbToKg(100), r: 5, rate: 'fail' }];
+  it('kg-logged history lands on the lb grid', () => {
+    const cases: [number, string, string][] = [[60, '135 lb', '60'], [62.5, '145 lb', ''], [100, '225 lb', ''], [20, '', '']];
+    for (const [kg] of cases) {
+      const s = suggestBase(ex, ctx(kg, 'lb'));
+      const lb = fromKg(s.w as number, 'lb');
+      expect(Math.abs(lb / 5 - Math.round(lb / 5))).toBeLessThan(1e-9);
+      expect(s.text.startsWith(`${formatWeight(s.w as number, 'lb')} lb`)).toBe(true);
+    }
+    expect(suggestBase(ex, ctx(60, 'lb')).text).toBe('135 lb × 8–12 reps');
+    expect(suggestBase(ex, ctx(62.5, 'lb')).text).toBe('145 lb × 8–12 reps');
+    expect(suggestBase(ex, ctx(100, 'lb')).text).toBe('225 lb × 8–12 reps');
+    const r20 = suggestBase(ex, ctx(20, 'lb'));
+    expect(r20.text).toBe('50 lb × 8–12 reps');
+    expect(r20.reason).toContain('go back to 45 lb');
+    expect(r20.reason).not.toContain('49.1');
+  });
+  it('lb drop lands on the grid', () => {
+    const c = ctx(60, 'lb');
+    (c.lifts['Barbell Row'] as { sets: unknown }).sets = [{ w: 60, r: 5, rate: 'fail' }];
     const s = suggestBase(ex, c);
     expect(s.mode).toBe('down');
-    expect(s.text).toMatch(/^\d+(\.\d)? lb × /);
+    const lb = fromKg(s.w as number, 'lb');
+    expect(Math.abs(lb / 5 - Math.round(lb / 5))).toBeLessThan(1e-9);
+    expect(s.text).toMatch(/^\d+ lb × /);
+  });
+  it('lb hold on an off-grid weight snaps to the grid', () => {
+    const c = ctx(60, 'lb');
+    (c.lifts['Barbell Row'] as { sets: unknown }).sets = [{ w: 60, r: 10 }, { w: 60, r: 10 }];
+    const s = suggestBase(ex, c);
+    expect(s.mode).toBe('hold');
+    expect(s.text).toBe('130 lb × 11 reps');
+    const kgHold = suggestBase(ex, (() => { const k = ctx(60); (k.lifts['Barbell Row'] as { sets: unknown }).sets = [{ w: 60, r: 10 }, { w: 60, r: 10 }]; return k; })());
+    expect(kgHold.text).toBe('60 kg × 11 reps');
+  });
+  it('bridge in lb', () => {
+    const top = lbToKg(135);
+    const c = ctx(top, 'lb', { mods: {} });
+    const s = applyMods(suggestBase(ex, c), { name: 'Barbell Row', bridge: true }, c as never);
+    expect(s.reason).toContain('Bridge set');
+    expect(s.text).toBe('115 lb × 8–12 reps');
+  });
+});
+
+describe('set rows in lb (display-unit strings)', () => {
+  const barbell = infoForUnit(info('barbell'), 'lb');
+  const grid: number[] = [];
+  for (let x = 5; x <= 500; x += 2.5) grid.push(x);
+  it('tickFill placeholder round-trips the whole 5..500 lb grid; kg unchanged', () => {
+    for (const x of grid) expect(tickFill({ w: '', r: '8' }, { w: lbToKg(x), r: 8 }, barbell, 'lb').w).toBe(String(x));
+    expect(tickFill({ w: '', r: '8' }, { w: 22.449, r: 8 }, info('barbell')).w).toBe('22.4');
+    expect(tickFill({ w: '', r: '' }, { w: '', r: '' }, info('barbell'), 'lb').ok).toBe(false);
+  });
+  it('rampTickFill after an Easy set adds a step and shows lb', () => {
+    for (const x of grid.filter((g) => g < 495)) {
+      const ramp = [{ w: String(x), r: '8', done: true, rate: 'easy' as const }, { w: '', r: '', done: false }];
+      expect(rampTickFill(ramp, 1, barbell, 'lb').w).toBe(String(x + 5));
+    }
+    expect(rampTickFill([{ w: '60', r: '8', done: true, rate: 'easy' }, { w: '', r: '', done: false }], 1, info('barbell')).w).toBe('62.5');
+  });
+  it('setTarget and rampRate read typed lb strings', () => {
+    const sug = { mode: 'hold' as const, reps: 8, w: 0, text: '', reason: '' };
+    const t = setTarget([{ w: '135', r: '8', done: true, rate: 'easy' }], 1, sug, barbell, undefined, 'lb');
+    expect(formatWeight(t.w as number, 'lb')).toBe('140');
+    const f = setTarget([{ w: '135', r: '8', done: true, rate: 'fail' }], 1, sug, barbell, undefined, 'lb');
+    expect(formatWeight(f.w as number, 'lb')).toBe('120');
+    const bw = setTarget([{ w: '10', r: '8', done: true }], 1, sug, infoForUnit(info('bodyweight'), 'lb'), undefined, 'lb');
+    expect(formatWeight(bw.w as number, 'lb')).toBe('10');
+    expect(setTarget([{ w: '', r: '', done: false }], 1, sug, barbell, undefined, 'lb').w).toBe(0);
+    const r = rampRate([{ w: '135', r: '8', done: true }], 0, 'hard', barbell, 'lb');
+    expect(formatWeight(r.found as number, 'lb')).toBe('130');
+    const rf = rampRate([{ w: '135', r: '8', done: true }, { w: '140', r: '8', done: true }], 1, 'fail', barbell, 'lb');
+    expect(formatWeight(rf.found as number, 'lb')).toBe('135');
+    expect(rampRate([{ w: '135', r: '8', done: false }], 0, 'right', barbell, 'lb').found).toBeCloseTo(lbToKg(135), 9);
+  });
+});
+
+describe('weightEntry in lb', () => {
+  it('whole pounds 100..300 round-trip; kg unchanged', () => {
+    for (let x = 100; x <= 300; x++) {
+      const e = weightEntry(String(x), 'lb');
+      expect(e.kind).toBe('save');
+      expect(formatWeight((e as { kg: number }).kg, 'lb')).toBe(String(x));
+    }
+    expect(weightEntry('82.46')).toEqual({ kind: 'save', kg: 82.5 });
+    expect(weightEntry('82.46', 'kg')).toEqual({ kind: 'save', kg: 82.5 });
+  });
+  it('bounds are in kg', () => {
+    expect(weightEntry('44', 'lb').kind).toBe('bad'); // 19.96 kg
+    expect(weightEntry('44.2', 'lb').kind).toBe('save');
+    expect(weightEntry('882', 'lb').kind).toBe('bad'); // 400.1 kg
+    expect(weightEntry('', 'lb').kind).toBe('clear');
+    expect(weightEntry('abc', 'lb').kind).toBe('bad');
   });
 });
