@@ -1,8 +1,8 @@
 {
   "cards": {
-    "sha256": "1a43f052bb14f3708a7748795eef056e9c56166ff8ff96a860a41dff14a0ba81",
+    "sha256": "1b6fdfe89a250ed72b4ebe29a37d1113129350364b6acb8df8055f62cc887883",
     "schema_version": 1,
-    "updated_at": "2026-10-28T15:21:16Z"
+    "updated_at": "2026-10-28T15:27:45Z"
   },
   "eatout": {
     "sha256": "db9e4c135859d790bab85ae3977e92c4e1679809702cdbdc2d1dea291ec9bf60",
