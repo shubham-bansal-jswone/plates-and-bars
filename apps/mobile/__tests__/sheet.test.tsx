@@ -41,7 +41,7 @@ describe('SheetModal', () => {
       <div role="dialog" aria-label="Other"><h2 role="heading">Other</h2></div>
       <div role="dialog" aria-label="Add exercise"><button id="first">Close</button><h2 role="heading" id="title">Add exercise</h2></div>`;
     document.getElementById('first')?.focus(); // what the web focus trap does first
-    focusSheetTitle('Add exercise');
+    focusSheetTitle('Add exercise', '#000');
     expect(document.activeElement?.id).toBe('title');
     expect(document.getElementById('title')?.getAttribute('tabindex')).toBe('-1');
     jest.useFakeTimers();
@@ -59,7 +59,7 @@ describe('SheetModal', () => {
     } finally {
       jest.useRealTimers();
     }
-    expect(() => focusSheetTitle('No such sheet')).not.toThrow();
+    expect(() => focusSheetTitle('No such sheet', '#000')).not.toThrow();
   });
 
   it('each open sheet keeps its own focus guard when a sheet above it closes', async () => {
@@ -130,23 +130,19 @@ describe('SheetModal', () => {
     }
   });
 
-  it('the title it focuses has no default browser outline (#1302)', () => {
+  it('the title it focuses shows the app focus ring on a keyboard open, and none on a mouse open (#1302)', () => {
     document.body.innerHTML = '<div role="dialog" aria-label="T"><button id="first">x</button><h2 role="heading" id="title">T</h2></div>';
+    const title = document.getElementById('title') as HTMLElement;
+    const visible = jest.spyOn(title, 'matches').mockReturnValue(true);
     (document.getElementById('first') as HTMLElement).focus();
-    expect(focusSheetTitle('T')).toBe(true);
-    expect((document.getElementById('title') as HTMLElement).style.getPropertyValue('outline')).toBe('none');
-  });
-
-  it('on close, focus goes to the opener re-created with the same label while the sheet was open (#1302)', async () => {
-    document.body.innerHTML = '<button aria-label="How to do X" id="old">Open</button>';
-    (document.getElementById('old') as HTMLElement).focus();
-    const view = await render(
-      <SheetModal title="X" onClose={() => {}}>
-        <Text>body</Text>
-      </SheetModal>,
-    );
-    document.body.innerHTML = '<button aria-label="How to do X" id="new">Open</button>'; // the page behind re-rendered
-    await view.unmount();
-    expect(document.activeElement?.id).toBe('new');
+    expect(focusSheetTitle('T', '#abcdef')).toBe(true);
+    expect(title.style.getPropertyValue('outline')).toBe('2px solid #abcdef');
+    expect(title.style.getPropertyValue('outline-offset')).toBe('2px');
+    title.blur();
+    expect(title.style.getPropertyValue('outline')).toBe('');
+    visible.mockReturnValue(false);
+    (document.getElementById('first') as HTMLElement).focus();
+    expect(focusSheetTitle('T', '#abcdef')).toBe(true);
+    expect(title.style.getPropertyValue('outline')).toBe('');
   });
 });

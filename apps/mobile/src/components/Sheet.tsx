@@ -1,6 +1,7 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 import { Modal, Platform } from 'react-native';
 import { PaddedWindow } from './bottomInset';
+import { useTheme } from '../theme/useTheme';
 import { useSheetAnimation } from './reducedMotion';
 
 /** The element that has focus now (what opened a sheet), where there is a DOM. */
@@ -11,26 +12,32 @@ const activeElement = (): HTMLElement | null => (typeof document !== 'undefined'
  * dialog (role, focus trap) active some time after `onShow`, and the trap then focuses the first button: the title takes focus
  * only once the dialog exists and the trap has put focus inside it. Returns whether it did; false means "not yet" (or no DOM).
  */
-export function focusSheetTitle(title: string): boolean {
+export function focusSheetTitle(title: string, ring: string): boolean {
   if (typeof document === 'undefined') return false;
   const dialog = Array.from(document.querySelectorAll('[role="dialog"]')).find((d) => d.getAttribute('aria-label') === title);
   // Unquoted on purpose: the heading-levels guard flags the quoted form as an assignment of the role.
   const heading = dialog?.querySelector<HTMLElement>('[role=heading]');
   if (!dialog || !heading || !dialog.contains(document.activeElement)) return false;
-  heading.style.setProperty('outline', 'none'); // not a control: the browser's default blue outline on script focus is off-palette (#1302)
   heading.setAttribute('tabindex', '-1'); // focusable by script, not in the tab order
   // Only while it has focus: left on, the focus trap's walk would land on the title again at every wrap (#1275). Removed after
   // the blur has been handled, not during it: the trap's Shift+Tab handler runs right after the blur and, with the title still
   // focusable, wraps from it to the last control (a sync removal sent the first Shift+Tab forward to the first control).
   // Kept until the removal happens: if focus is back on the title when the timer fires, the next blur tries again.
-  const onBlur = () =>
+  const onBlur = () => {
+    heading.style.removeProperty('outline');
     setTimeout(() => {
       if (document.activeElement === heading) return;
       heading.removeAttribute('tabindex');
       heading.removeEventListener('blur', onBlur);
     }, 0);
+  };
   heading.addEventListener('blur', onBlur);
   heading.focus();
+  // The app's ring (2px, 2px offset) instead of the browser's blue one, and as `:focus-visible` does: not on a mouse open (#1302).
+  if (heading.matches(':focus-visible')) {
+    heading.style.setProperty('outline', `2px solid ${ring}`);
+    heading.style.setProperty('outline-offset', '2px');
+  }
   return true;
 }
 
@@ -62,6 +69,7 @@ const GIVE_UP_TICKS = 125;
  */
 export function SheetModal({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
   const animation = useSheetAnimation();
+  const c = useTheme();
   const opener = useRef<HTMLElement | null | undefined>(undefined);
   if (opener.current === undefined) opener.current = Platform.OS === 'web' ? activeElement() : null; // before the modal takes focus
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -84,11 +92,7 @@ export function SheetModal({ title, onClose, children }: { title: string; onClos
   useEffect(
     () => () => {
       clearTimeout(timer.current);
-      // The opener may have been re-created while the sheet was open (the page behind re-renders): then focus its twin by name
-      // instead of dropping to the body (#1302).
-      const el = opener.current;
-      const label = el?.getAttribute('aria-label'); // a detached element keeps its attributes
-      (el?.isConnected || !label ? el : Array.from(document.querySelectorAll<HTMLElement>('[aria-label]')).find((e) => e.getAttribute('aria-label') === label))?.focus();
+      opener.current?.focus();
     },
     [],
   );
@@ -97,7 +101,7 @@ export function SheetModal({ title, onClose, children }: { title: string; onClos
     if (Platform.OS !== 'web') return;
     clearTimeout(timer.current);
     const attempt = (left: number) => {
-      if (!focusSheetTitle(titleRef.current) && left > 0) timer.current = setTimeout(() => attempt(left - 1), TICK_MS);
+      if (!focusSheetTitle(titleRef.current, c.focus) && left > 0) timer.current = setTimeout(() => attempt(left - 1), TICK_MS);
     };
     attempt(GIVE_UP_TICKS);
   };
