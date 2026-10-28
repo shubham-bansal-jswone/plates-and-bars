@@ -1,6 +1,6 @@
 import { useEffect, useId, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
-import { isFlagged, labHistory, labResult, tipFor, validateLabReport, type LabReport, type LabTest } from '@plate-and-bar/core';
+import { isFlagged, labHistory, labResult, tipFor, validateLabReport, type LabReport, type LabReportError, type LabTest } from '@plate-and-bar/core';
 import { Text } from '../components/Text';
 import { SheetModal } from '../components/Sheet';
 import { Button, Card, ErrorText, Field, Heading, Hint, Note, Chip } from '../components/ui';
@@ -18,9 +18,9 @@ const BLANK: LabTest = { name: '', value: '', unit: '', low: '', high: '' };
 const FIELDS = ['name', 'value', 'unit', 'low', 'high'] as const;
 const NUMERIC = new Set<string>(['value', 'low', 'high']);
 
+/** The one field of a test each row error is about; the report-level codes never come from a single row. Every code is listed, so a new core code fails the type check. */
+const FIELD_OF: Record<LabReportError, keyof LabTest | null> = { bad_date: null, no_tests: null, too_many_tests: null, name_missing: 'name', name_too_long: 'name', value_not_number: 'value', low_not_number: 'low', high_not_number: 'high', unit_too_long: 'unit', unit_missing: 'unit' };
 /** One row's problem: the first one core finds for that test alone (the date is checked on its own). */
-/** The one field of a test each row error is about. */
-const FIELD_OF: Record<string, keyof LabTest> = { name_missing: 'name', name_too_long: 'name', value_not_number: 'value', low_not_number: 'low', high_not_number: 'high', unit_too_long: 'unit', unit_missing: 'unit' };
 const rowError = (t: LabTest) => validateLabReport({ id: '', date: '2000-01-01', tests: [t] });
 
 /**
