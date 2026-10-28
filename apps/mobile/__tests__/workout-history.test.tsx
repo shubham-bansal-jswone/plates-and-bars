@@ -94,6 +94,9 @@ describe('Progress: recent workouts', () => {
     expect(screen.getByText('Set 1: 60 kg x 8')).toBeTruthy();
     expect(screen.getByText('Set 2: 60 kg x 6')).toBeTruthy();
     expect(screen.getByText('Personal best')).toBeTruthy();
+    expect(screen.getByLabelText('2 sets')).toBeTruthy();
+    expect(screen.getByLabelText('840 kg lifted')).toBeTruthy();
+    expect(screen.getByLabelText('1 exercise')).toBeTruthy();
     await fireEvent.press(screen.getByLabelText('Back to progress'));
     expect(await screen.findByRole('header', { name: 'Recent workouts' })).toBeTruthy();
 
