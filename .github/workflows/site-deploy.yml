@@ -16,6 +16,7 @@ name: Site deploy
 # See infra/README.md.
 on:
   push:
+    # Deliberately main only: deploying every design-overhaul merge is not wanted until main is fast-forwarded.
     branches: [main]
     paths:
       - 'apps/site/**'
