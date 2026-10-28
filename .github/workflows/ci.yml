@@ -332,6 +332,16 @@ jobs:
         run: |
           echo "::notice::Linux Chromium has no built-in BarcodeDetector: the zxing-wasm fallback is exercised and the native-detector test skips."
           npm run test:barcode
+      # Label scanning (#1067) is off in the builds above. Its own build has the flag on; the spec reads a committed synthetic label with the self-hosted tesseract.js.
+      - name: Build the web app with label scanning on
+        working-directory: apps/mobile
+        env:
+          EXPO_NO_TELEMETRY: 1
+          EXPO_PUBLIC_LABEL_SCAN: 1
+        run: npx expo export --platform web --output-dir ../../tests/e2e/.label-dist
+      - name: Label scan tests
+        working-directory: tests/e2e
+        run: npm run test:label
       - uses: actions/upload-artifact@v7
         if: failure()
         with:
@@ -339,6 +349,7 @@ jobs:
           path: |
             tests/e2e/test-results/
             tests/e2e/.barcode-dist/
+            tests/e2e/.label-dist/
           retention-days: 7
 
   e2e-sync:
