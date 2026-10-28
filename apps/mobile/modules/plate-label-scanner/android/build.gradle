@@ -21,7 +21,7 @@ android {
 // Tesseract4Android is built by us and vendored, not resolved from JitPack (JitPack could not rebuild the 4.9.0 tag after upstream moved it,
 // and nothing pinned the artifact). The AAR is in libs-maven/ (see the README there) and is the only thing this repository may serve:
 // it is the only repository that may serve the group app.plateandbar.vendor (exclusiveContent), so
-// the unfiltered jitpack.io entry in the Expo template cannot answer for it. The group is ours: upstream's cz.adaptech is one JitPack serves.
+// no other repository can answer for it. plugins/with-no-jitpack.js also removes the Expo template's jitpack.io entry (#1079). The group is ours: upstream's cz.adaptech is one JitPack serves.
 //   source:  https://github.com/adaptech-cz/Tesseract4Android at d7de990ef78f70d553e327b98b3992d11863f134
 //            ("Fix CMake build", 2025-06-11, the last commit before the 4.9.0 release was published; the tag now points at 15c5347)
 //   build:   infra/scripts/build-tesseract4android.sh (upstream's AGP 8.10.1 and Gradle 8.11.1, NDK 27.1.12297006, CMake 3.22.1, standard release)
