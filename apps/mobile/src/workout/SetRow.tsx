@@ -27,6 +27,7 @@ export function SetRow({ n, label, row, wHead, repsHead, ph, onEdit, onTick, cur
   // In lb the field shows the typed text while it is edited ("135." must stay), and the row gets the kg of it; only an edited field is written back.
   const [typed, setDraft] = useState<{ unit: WeightUnit; text: string } | null>(null);
   const draft = typed && typed.unit === unit ? typed.text : null; // a draft typed in the other unit is dropped
+  const unreadable = draft !== null && draft.trim() !== '' && weightFromField(draft, unit) === null;
   const [refused, setRefused] = useState(false);
   const edit = (f: 'w' | 'r', v: string) => {
     setBad(null);
@@ -40,7 +41,7 @@ export function SetRow({ n, label, row, wHead, repsHead, ph, onEdit, onTick, cur
   const tick = () => {
     if (locked) return;
     // A weight typed in lb that is not a number must not be replaced by the suggestion: the tick is refused until it is fixed.
-    if (draft !== null && draft.trim() !== '' && weightFromField(draft, unit) === null) {
+    if (unreadable) {
       setBad('w');
       setRefused(true);
       wRef.current?.focus();
@@ -51,12 +52,13 @@ export function SetRow({ n, label, row, wHead, repsHead, ph, onEdit, onTick, cur
     setBad(empty ?? null);
     if (empty) (empty === 'w' ? wRef : rRef).current?.focus();
   };
-  const invalid = (f: 'w' | 'r') => (bad === f ? { invalid: true, 'aria-invalid': true as const, style: [...num, { borderWidth: 2, paddingHorizontal: 13 }] } : { style: num });
+  // A weight in lb that is not a number stays on screen, marked, after the field loses focus: a tick is refused while it is there.
+  const invalid = (f: 'w' | 'r') => (bad === f || (f === 'w' && unreadable) ? { invalid: true, 'aria-invalid': true as const, style: [...num, { borderWidth: 2, paddingHorizontal: 13 }] } : { style: num });
   return (
     <>
     <View style={styles.set}>
       <Text style={[type.metricSm, tabular, { color: c.muted, width: 28 }]}>{n}</Text>
-      <Input accessibilityLabel={`${label} ${wHead}`} inputMode="decimal" ref={wRef} editable={!locked} value={draft ?? weightFieldText(row.w, unit)} placeholder={ph.w} onChangeText={(v) => edit('w', v)} onBlur={() => setDraft(null)} {...invalid('w')} />
+      <Input accessibilityLabel={`${label} ${wHead}`} inputMode="decimal" ref={wRef} editable={!locked} value={locked ? '' : (draft ?? weightFieldText(row.w, unit))} placeholder={ph.w} onChangeText={(v) => edit('w', v)} onBlur={() => (unreadable ? undefined : setDraft(null))} {...invalid('w')} />
       <Input accessibilityLabel={`${label} ${repsHead}`} inputMode="numeric" editable={!locked} ref={rRef} value={row.r} placeholder={ph.r} onChangeText={(v) => edit('r', v)} {...invalid('r')} />
       <Press
         accessibilityRole="checkbox"

@@ -213,6 +213,33 @@ describe('set row edges', () => {
     expect(onTick).toHaveBeenCalledTimes(1);
   });
 
+  it('a weight that is not a number stays marked after blur and still refuses the tick; fixing it clears it', async () => {
+    const onTick = jest.fn();
+    await setRow('lb', onTick);
+    const input = screen.getByLabelText('Squat set 1 lb');
+    await fireEvent.changeText(input, '135lb');
+    await fireEvent(input, 'blur');
+    expect(screen.getByLabelText('Squat set 1 lb').props.value).toBe('135lb');
+    expect(screen.getByLabelText('Squat set 1 lb').props['aria-invalid']).toBe(true);
+    await fireEvent.press(screen.getByLabelText('Mark Squat set 1 done'));
+    expect(onTick).not.toHaveBeenCalled();
+    await fireEvent.changeText(screen.getByLabelText('Squat set 1 lb'), '');
+    await fireEvent(screen.getByLabelText('Squat set 1 lb'), 'blur');
+    await fireEvent.press(screen.getByLabelText('Mark Squat set 1 done'));
+    expect(onTick).toHaveBeenCalledTimes(1);
+  });
+
+  it('screen: junk in lb, blur, reps, tick stores nothing and does not tick', async () => {
+    const db = await mountScreen('lb');
+    const w = await screen.findByLabelText('Barbell Bench Press set 1 lb');
+    await fireEvent.changeText(w, '135lb');
+    await fireEvent(w, 'blur');
+    await fireEvent.changeText(screen.getByLabelText('Barbell Bench Press set 1 reps'), '8');
+    await fireEvent.press(screen.getByLabelText('Mark Barbell Bench Press set 1 done'));
+    await waitFor(async () => expect((await loadSets(db, DATE)).find((x) => x.exercise === 'Barbell Bench Press' && x.set_index === 0)?.reps).toBe(8));
+    expect((await loadSets(db, DATE)).find((x) => x.exercise === 'Barbell Bench Press' && x.set_index === 0)).toMatchObject({ done: false, weight_kg: null });
+  });
+
   it('an empty weight still ticks (the suggestion fills it)', async () => {
     const onTick = jest.fn();
     await setRow('lb', onTick);
@@ -233,6 +260,7 @@ describe('set row edges', () => {
     await setRow('kg', onTick, true);
     expect(screen.getByLabelText('Squat set 1 kg').props.editable).toBe(false);
     expect(screen.getByLabelText('Squat set 1 reps').props.editable).toBe(false);
+    expect(screen.getByLabelText('Squat set 1 kg').props.value).toBe(''); // no kg text flashes for an lb user
     await fireEvent.press(screen.getByLabelText('Mark Squat set 1 done'));
     expect(onTick).not.toHaveBeenCalled();
   });
@@ -259,11 +287,12 @@ describe('no hard-coded kg in the session screens', () => {
       .replace(/\/\*[\s\S]*?\*\//g, '')
       .split('\n')
       .filter((l) => !l.trim().startsWith('//'))
-      .map((l) => l.replace(/\s\/\/.*$/, '').replace(/(unit\s*(?:=|!==|===|\?\?)\s*)'kg'/gi, '$1UNIT')) // the unit value 'kg' is not text
+      .map((l) => l.replace(/\s\/\/.*$/, '').replace(/const unit = \w+\.unit \?\? 'kg';/g, '').replace(/(unit\s*(?:=|!==|===)\s*)'kg'/gi, '$1UNIT')) // the unit value 'kg' is not text
       .filter((l) => /(['"`][^'"`\n]*\bkg\b)|(\}\s*kg\b)|(>\s*kg\b)|(^\s*kg\b)/i.test(l));
   it('catches the shapes it is meant to', () => {
     expect(badLines("const a = 'Kg';\nx = `${w} KG`;\n<Text>{w}\n  kg lifted</Text>\n<Text>{w} kg</Text>")).toHaveLength(4);
-    expect(badLines("const weight_kg = 1; const unit = 'kg'; if (unit === 'kg') {}")).toEqual([]);
+    expect(badLines("const weight_kg = 1; const unit = tune.unit ?? 'kg'; if (unit === 'kg') {}")).toEqual([]);
+    expect(badLines("const t = `${w} ${unit ?? 'kg'}`;")).toHaveLength(1);
   });
   it('covers every session file', () => expect(files.length).toBeGreaterThan(30));
   it.each(files)('%s has no kg in a string or in JSX text', (f) => {
