@@ -689,6 +689,35 @@ if (imageFault("image/png", Buffer.from("QUJD", "base64").toString("base64").sli
 for (const f of ["meal_photo", "import_recipe", "form_check"]) if (schemasAi.AiStatus.properties.features.properties[f]?.type !== "boolean") failures.push(`AiStatus.features.${f} must be a boolean`);
 if (schemasAi.AiStatus.properties.features.required.some((f) => ["meal_photo", "import_recipe", "form_check"].includes(f))) failures.push("AiStatus.features: the image flags must stay optional (older servers never send them)");
 
+// routines.json (#1184): the Routine record's bounds, the cap and the vectors a backend and an app must agree on.
+const routinesVec = JSON.parse(readFileSync(new URL("./routines.json", import.meta.url), "utf8"));
+{
+  const sch = parsed.components.schemas;
+  const rt = sch.Routine.allOf[1].properties, rex = sch.RoutineExercise;
+  const blankRe = new RegExp(blank.pattern, "u");
+  const want = { name: [1, 60], exercises: [1, 50], ex_name: [1, 200], sets: [1, 20] };
+  if (rt.name.minLength !== 1 || rt.name.maxLength !== want.name[1] || rt.name.pattern !== blank.pattern) failures.push("Routine.name: bounds or blank pattern differ from routines.json");
+  if (rt.exercises.minItems !== 1 || rt.exercises.maxItems !== want.exercises[1]) failures.push("Routine.exercises: bounds differ from routines.json");
+  if (rt.exercises.maxItems !== sch.Workout.allOf[1].properties.exercises.maxItems) failures.push("Routine.exercises.maxItems must equal Workout.exercises.maxItems (any session can be saved)");
+  if (rex.properties.name.maxLength !== want.ex_name[1] || rex.properties.sets.minimum !== 1 || rex.properties.sets.maximum !== want.sets[1]) failures.push("RoutineExercise: bounds differ from routines.json");
+  if (rex.additionalProperties !== false) failures.push("RoutineExercise must be closed");
+  if (routinesVec.limits.max_live_routines !== 100 || !spec.includes("at most 100 routines that are not deleted")) failures.push("routines cap (100) differs between routines.json and the /sync description");
+  if (!sch.SyncTable.enum.includes("routines") || !sch.ExportTables.required.includes("routines") || !("routines" in sch.SyncChanges.properties)) failures.push("routines is missing from SyncTable, SyncChanges or ExportTables");
+  const check = (r) => {
+    if (typeof r.name !== "string" || r.name.length < 1 || [...r.name].length > want.name[1] || !blankRe.test(r.name)) return "name";
+    if (!Array.isArray(r.exercises) || r.exercises.length < 1 || r.exercises.length > want.exercises[1]) return "exercises";
+    for (const e of r.exercises) {
+      if (typeof e.name !== "string" || e.name.length < 1 || [...e.name].length > want.ex_name[1]) return "exercises.name";
+      if (!Number.isInteger(e.sets) || e.sets < 1 || e.sets > want.sets[1]) return "exercises.sets";
+      if (Object.keys(e).some((k) => !["name", "sets", "part"].includes(k))) return "exercises.unknown_key";
+      if ("part" in e && ![1, 2].includes(e.part)) return "exercises.part";
+    }
+    return null;
+  };
+  for (const c of routinesVec.valid) if (check(c.record)) failures.push(`routines.json valid "${c.note}": refused at ${check(c.record)}`);
+  for (const c of routinesVec.invalid) if (check(c.record) !== c.field) failures.push(`routines.json invalid "${c.note}": expected ${c.field}, got ${check(c.record)}`);
+}
+
 if (failures.length) {
   console.error(failures.join("\n"));
   process.exit(1);
@@ -703,5 +732,6 @@ console.log(`openapi.yaml: ${closedCheck.closers.size} closed record objects, ea
 console.log(`openapi.yaml: ${syncExamples.length} /sync 200 examples, replaced_record only on client_won as the stored copy (${replacedSeen} shown); 3 broken conflicts caught`);
 console.log(`ai-images.json: ${imgv.cases.length} cases, limits equal the schemas, ${imageExamples} example images pass the rules`);
 console.log(`strict-json.json: ${strict.must_refuse.length} must-refuse and ${strict.must_accept.length} must-accept bodies, nesting limit ${strict.max_nesting_depth}`);
+console.log(`routines.json: ${routinesVec.valid.length} valid and ${routinesVec.invalid.length} invalid routines, bounds and the 100-routine cap equal the schemas`);
 console.log(`barcode-gs1.json: ${barcode.valid.length} valid and ${barcode.invalid.length} invalid codes, ${barcode.upc_e_expansion.length} UPC-E expansions, /foods/barcode examples and error codes verified`);
 console.log(`openapi.yaml: OffProduct and OffNutriments closed, ${OFF_NUTRIMENT_KEYS.length} nutriment keys pinned, strings and arrays bounded, ${offMutants.length} mutations caught`);

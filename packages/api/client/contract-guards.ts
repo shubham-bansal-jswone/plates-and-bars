@@ -14,3 +14,8 @@ export type ExportTablesCoversSyncTable = Assert<Equal<keyof Schemas["ExportTabl
 type IsUnknown<T> = unknown extends T ? true : false;
 export type ImportRecipeRequestIsTyped = Assert<Equal<IsUnknown<Schemas["ImportRecipeRequest"]>, false>>;
 export type ImportRecipeRequestRejectsUnknownKeys = Assert<Equal<"nonsense" extends keyof Schemas["ImportRecipeRequest"] ? true : false, false>>;
+
+// Routines (#1184): a routine exercise is a closed object with a required name and set count, and the optional
+// `part` is the only other key, so a later field (a superset group) shows up here as a deliberate change.
+export type RoutineExerciseKeys = Assert<Equal<keyof Schemas["RoutineExercise"], "name" | "sets" | "part">>;
+export type RoutineExerciseRequiredKeys = Assert<Equal<Required<Pick<Schemas["RoutineExercise"], "name" | "sets">>, { name: string; sets: number }>>;

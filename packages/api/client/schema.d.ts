@@ -256,6 +256,21 @@ export interface paths {
          *     **New records.** A record unknown to the server is stored as version 1 and listed
          *     in `applied`, whatever `version` the device sent.
          *
+         *     **Routines** (`routines`, contract 0.1.27) are one record per saved routine with a
+         *     random UUIDv4 id, so two devices editing different routines never touch the same
+         *     record and never conflict; the same routine edited on two devices settles by
+         *     `updated_at` like any table. A routine is a named list of exercises with a target
+         *     set count each; reps and weights are not stored (they come from progression when
+         *     it is started). Each account keeps at most 100 routines that are not deleted
+         *     (tombstones do not count against this, but they do count against the account
+         *     record cap). A push that would leave more than 100 live routines is refused whole
+         *     with 400 `invalid_request`, one `details` entry with `field` = `changes.routines[<i>]`
+         *     (the first new or revived record that crosses the limit) and issue `too_many_routines`;
+         *     nothing is applied. A pull-only request and edits that keep the count within 100 are
+         *     never refused for it. The check runs with request validation, before the account
+         *     record cap. The app enforces the same limit before it saves, so this is a guard
+         *     for a second device or an old client, not the normal path.
+         *
          *     **Derived data is not synced.** Stores the prototype keeps that can be rebuilt from
          *     synced records have no table. The app rebuilds them locally after every pull; see
          *     `Workout` for the prototype's `sessions` store.
@@ -315,7 +330,7 @@ export interface paths {
          *
          *     A version-0 tombstone that was never included in any request is dropped only in a
          *     table with random UUIDv4 ids (`consents`, `food_logs`, `water_logs`, `workout_sets`,
-         *     `user_foods`, `recipes`, `kitchen_tests`, `exclusions`): its id cannot be on the
+         *     `user_foods`, `recipes`, `kitchen_tests`, `exclusions`, `routines`): its id cannot be on the
          *     server or another device, and it holds no data, so the app drops it instead of
          *     pushing it. A never-sent tombstone in a natural-key table (`profiles`, `settings`,
          *     `day_notes`, `workouts`, `weights`, `measurements`, `lift_stats`, `swaps`) is held
@@ -1273,7 +1288,7 @@ export interface components {
             changes: components["schemas"]["SyncChanges"];
         };
         /** @enum {string} */
-        SyncTable: "profiles" | "consents" | "food_logs" | "water_logs" | "day_notes" | "workouts" | "workout_sets" | "lift_stats" | "weights" | "measurements" | "user_foods" | "recipes" | "kitchen_tests" | "exclusions" | "swaps" | "settings";
+        SyncTable: "profiles" | "consents" | "food_logs" | "water_logs" | "day_notes" | "workouts" | "workout_sets" | "lift_stats" | "weights" | "measurements" | "user_foods" | "recipes" | "kitchen_tests" | "exclusions" | "swaps" | "settings" | "routines";
         AppliedRecord: {
             table: components["schemas"]["SyncTable"];
             /** Format: uuid */
@@ -1328,12 +1343,13 @@ export interface components {
             exclusions?: components["schemas"]["Exclusion"][];
             swaps?: components["schemas"]["Swap"][];
             settings?: components["schemas"]["Settings"][];
+            routines?: components["schemas"]["Routine"][];
         };
         /**
          * @description Any synced record. Several record schemas can match the same object, so pick the
          *     schema by the conflict's `table` rather than by validating against each.
          */
-        SyncRecord: components["schemas"]["Profile"] | components["schemas"]["Consent"] | components["schemas"]["FoodLog"] | components["schemas"]["WaterLog"] | components["schemas"]["DayNote"] | components["schemas"]["Workout"] | components["schemas"]["WorkoutSet"] | components["schemas"]["LiftStat"] | components["schemas"]["Weight"] | components["schemas"]["Measurement"] | components["schemas"]["UserFood"] | components["schemas"]["Recipe"] | components["schemas"]["KitchenTest"] | components["schemas"]["Exclusion"] | components["schemas"]["Swap"] | components["schemas"]["Settings"];
+        SyncRecord: components["schemas"]["Profile"] | components["schemas"]["Consent"] | components["schemas"]["FoodLog"] | components["schemas"]["WaterLog"] | components["schemas"]["DayNote"] | components["schemas"]["Workout"] | components["schemas"]["WorkoutSet"] | components["schemas"]["LiftStat"] | components["schemas"]["Weight"] | components["schemas"]["Measurement"] | components["schemas"]["UserFood"] | components["schemas"]["Recipe"] | components["schemas"]["KitchenTest"] | components["schemas"]["Exclusion"] | components["schemas"]["Swap"] | components["schemas"]["Settings"] | components["schemas"]["Routine"];
         /** @description Fields every synced record carries. */
         SyncMeta: {
             /**
@@ -1394,6 +1410,7 @@ export interface components {
             exclusions: components["schemas"]["Exclusion"][];
             swaps: components["schemas"]["Swap"][];
             settings: components["schemas"]["Settings"][];
+            routines: components["schemas"]["Routine"][];
         };
         ConflictLogEntry: {
             table: components["schemas"]["SyncTable"];
@@ -2140,6 +2157,53 @@ export interface components {
         };
         /** @enum {string} */
         Muscle: "chest" | "front-delt" | "side-delt" | "rear-delt" | "triceps" | "lats" | "upper-back" | "biceps" | "forearms" | "quads" | "hams" | "glutes" | "calves" | "abs" | "lower-back";
+        /**
+         * @description A saved, named workout the user can start again (issue #1184). One record per
+         *     routine; random UUIDv4 id; deleted by tombstone. Not part of the prototype: the
+         *     prototype has only the generated plan and the hand-picked week plan. Reps and
+         *     weights are not stored, they come from progression when the routine is started.
+         *     An exercise that later leaves the catalogue keeps its name; the app flags it when
+         *     the routine is started. Closed shape: a later field (for example a superset group
+         *     on `RoutineExercise`) is added as an optional property in a new contract version.
+         */
+        Routine: components["schemas"]["SyncMeta"] & {
+            /**
+             * @description The user's label, not blank (see the blank-text pattern in the wire
+             *     conventions). At most 60 characters: long enough for "Upper body, dumbbells
+             *     only", short enough for a list row. Names need not be unique.
+             */
+            name: string;
+            /**
+             * @description Exercises in start order, each with its target set count. At least one, so
+             *     an empty routine cannot be saved. At most 50, the same as
+             *     `Workout.exercises`, so any session the app can store can be saved as a
+             *     routine. Exercise names should be unique within a routine; the app drops a
+             *     repeat on save and keeps the first.
+             */
+            exercises: components["schemas"]["RoutineExercise"][];
+            /**
+             * Format: date-time
+             * @description When the routine was first saved, ISO 8601 UTC. Never changes; `updated_at` moves on every edit.
+             */
+            created_at: string;
+        };
+        /** @description One exercise of a routine. */
+        RoutineExercise: {
+            /** @description Exercise name, as `Workout.exercises[].name` and `WorkoutSet.exercise` carry it (catalogue name or custom name, unnormalised). */
+            name: string;
+            /**
+             * @description Target number of work sets when the routine is started. At most 20: a guard
+             *     against a corrupt or hostile value, not a training rule; core decides the sets
+             *     actually shown.
+             */
+            sets: number;
+            /**
+             * @description Optional. 2 for an exercise saved from a second session that day, as
+             *     `WorkoutExercise.part`. Absent means 1.
+             * @enum {integer}
+             */
+            part?: 1 | 2;
+        };
         /**
          * @description Training and app preferences. One per user; id = UUIDv5(`settings:me`).
          *     Prototype: the remaining keys of `settings` (profile, targets, consent, myFoods,

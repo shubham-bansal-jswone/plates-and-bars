@@ -1,0 +1,639 @@
+{
+  "description": "Routine records (#1184, contract 0.1.27). A record is valid when its name is 1 to 60 characters and not blank (blank-text.json pattern), it has 1 to 50 exercises, each with a name of 1 to 200 characters, an integer sets from 1 to 20, an optional part of 1 or 2 and no other key. Only the fields below are checked here; id, version, updated_at, deleted_at and created_at follow SyncMeta. Backend and app tests should load this file.",
+  "limits": {
+    "name_max": 60,
+    "exercises_min": 1,
+    "exercises_max": 50,
+    "exercise_name_max": 200,
+    "sets_min": 1,
+    "sets_max": 20,
+    "max_live_routines": 100,
+    "cap_issue": "too_many_routines",
+    "cap_field": "changes.routines[<i>]"
+  },
+  "valid": [
+    {
+      "note": "minimal",
+      "record": {
+        "name": "A",
+        "exercises": [
+          {
+            "name": "Squat",
+            "sets": 1
+          }
+        ]
+      }
+    },
+    {
+      "note": "name at the limit",
+      "record": {
+        "name": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "exercises": [
+          {
+            "name": "Squat",
+            "sets": 20
+          }
+        ]
+      }
+    },
+    {
+      "note": "part 2 and many exercises",
+      "record": {
+        "name": "Upper A",
+        "exercises": [
+          {
+            "name": "Ex 0",
+            "sets": 3,
+            "part": 1
+          },
+          {
+            "name": "Ex 1",
+            "sets": 3,
+            "part": 2
+          },
+          {
+            "name": "Ex 2",
+            "sets": 3,
+            "part": 1
+          },
+          {
+            "name": "Ex 3",
+            "sets": 3,
+            "part": 2
+          },
+          {
+            "name": "Ex 4",
+            "sets": 3,
+            "part": 1
+          },
+          {
+            "name": "Ex 5",
+            "sets": 3,
+            "part": 2
+          },
+          {
+            "name": "Ex 6",
+            "sets": 3,
+            "part": 1
+          },
+          {
+            "name": "Ex 7",
+            "sets": 3,
+            "part": 2
+          },
+          {
+            "name": "Ex 8",
+            "sets": 3,
+            "part": 1
+          },
+          {
+            "name": "Ex 9",
+            "sets": 3,
+            "part": 2
+          },
+          {
+            "name": "Ex 10",
+            "sets": 3,
+            "part": 1
+          },
+          {
+            "name": "Ex 11",
+            "sets": 3,
+            "part": 2
+          },
+          {
+            "name": "Ex 12",
+            "sets": 3,
+            "part": 1
+          },
+          {
+            "name": "Ex 13",
+            "sets": 3,
+            "part": 2
+          },
+          {
+            "name": "Ex 14",
+            "sets": 3,
+            "part": 1
+          },
+          {
+            "name": "Ex 15",
+            "sets": 3,
+            "part": 2
+          },
+          {
+            "name": "Ex 16",
+            "sets": 3,
+            "part": 1
+          },
+          {
+            "name": "Ex 17",
+            "sets": 3,
+            "part": 2
+          },
+          {
+            "name": "Ex 18",
+            "sets": 3,
+            "part": 1
+          },
+          {
+            "name": "Ex 19",
+            "sets": 3,
+            "part": 2
+          },
+          {
+            "name": "Ex 20",
+            "sets": 3,
+            "part": 1
+          },
+          {
+            "name": "Ex 21",
+            "sets": 3,
+            "part": 2
+          },
+          {
+            "name": "Ex 22",
+            "sets": 3,
+            "part": 1
+          },
+          {
+            "name": "Ex 23",
+            "sets": 3,
+            "part": 2
+          },
+          {
+            "name": "Ex 24",
+            "sets": 3,
+            "part": 1
+          },
+          {
+            "name": "Ex 25",
+            "sets": 3,
+            "part": 2
+          },
+          {
+            "name": "Ex 26",
+            "sets": 3,
+            "part": 1
+          },
+          {
+            "name": "Ex 27",
+            "sets": 3,
+            "part": 2
+          },
+          {
+            "name": "Ex 28",
+            "sets": 3,
+            "part": 1
+          },
+          {
+            "name": "Ex 29",
+            "sets": 3,
+            "part": 2
+          },
+          {
+            "name": "Ex 30",
+            "sets": 3,
+            "part": 1
+          },
+          {
+            "name": "Ex 31",
+            "sets": 3,
+            "part": 2
+          },
+          {
+            "name": "Ex 32",
+            "sets": 3,
+            "part": 1
+          },
+          {
+            "name": "Ex 33",
+            "sets": 3,
+            "part": 2
+          },
+          {
+            "name": "Ex 34",
+            "sets": 3,
+            "part": 1
+          },
+          {
+            "name": "Ex 35",
+            "sets": 3,
+            "part": 2
+          },
+          {
+            "name": "Ex 36",
+            "sets": 3,
+            "part": 1
+          },
+          {
+            "name": "Ex 37",
+            "sets": 3,
+            "part": 2
+          },
+          {
+            "name": "Ex 38",
+            "sets": 3,
+            "part": 1
+          },
+          {
+            "name": "Ex 39",
+            "sets": 3,
+            "part": 2
+          },
+          {
+            "name": "Ex 40",
+            "sets": 3,
+            "part": 1
+          },
+          {
+            "name": "Ex 41",
+            "sets": 3,
+            "part": 2
+          },
+          {
+            "name": "Ex 42",
+            "sets": 3,
+            "part": 1
+          },
+          {
+            "name": "Ex 43",
+            "sets": 3,
+            "part": 2
+          },
+          {
+            "name": "Ex 44",
+            "sets": 3,
+            "part": 1
+          },
+          {
+            "name": "Ex 45",
+            "sets": 3,
+            "part": 2
+          },
+          {
+            "name": "Ex 46",
+            "sets": 3,
+            "part": 1
+          },
+          {
+            "name": "Ex 47",
+            "sets": 3,
+            "part": 2
+          },
+          {
+            "name": "Ex 48",
+            "sets": 3,
+            "part": 1
+          },
+          {
+            "name": "Ex 49",
+            "sets": 3,
+            "part": 2
+          }
+        ]
+      }
+    },
+    {
+      "note": "non-ASCII name",
+      "record": {
+        "name": "छाती दिन",
+        "exercises": [
+          {
+            "name": "Push-up",
+            "sets": 3
+          }
+        ]
+      }
+    }
+  ],
+  "invalid": [
+    {
+      "note": "blank name",
+      "field": "name",
+      "record": {
+        "name": " ​",
+        "exercises": [
+          {
+            "name": "Squat",
+            "sets": 3
+          }
+        ]
+      }
+    },
+    {
+      "note": "name over 60",
+      "field": "name",
+      "record": {
+        "name": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "exercises": [
+          {
+            "name": "Squat",
+            "sets": 3
+          }
+        ]
+      }
+    },
+    {
+      "note": "no exercises",
+      "field": "exercises",
+      "record": {
+        "name": "Empty",
+        "exercises": []
+      }
+    },
+    {
+      "note": "51 exercises",
+      "field": "exercises",
+      "record": {
+        "name": "Big",
+        "exercises": [
+          {
+            "name": "Ex 0",
+            "sets": 3
+          },
+          {
+            "name": "Ex 1",
+            "sets": 3
+          },
+          {
+            "name": "Ex 2",
+            "sets": 3
+          },
+          {
+            "name": "Ex 3",
+            "sets": 3
+          },
+          {
+            "name": "Ex 4",
+            "sets": 3
+          },
+          {
+            "name": "Ex 5",
+            "sets": 3
+          },
+          {
+            "name": "Ex 6",
+            "sets": 3
+          },
+          {
+            "name": "Ex 7",
+            "sets": 3
+          },
+          {
+            "name": "Ex 8",
+            "sets": 3
+          },
+          {
+            "name": "Ex 9",
+            "sets": 3
+          },
+          {
+            "name": "Ex 10",
+            "sets": 3
+          },
+          {
+            "name": "Ex 11",
+            "sets": 3
+          },
+          {
+            "name": "Ex 12",
+            "sets": 3
+          },
+          {
+            "name": "Ex 13",
+            "sets": 3
+          },
+          {
+            "name": "Ex 14",
+            "sets": 3
+          },
+          {
+            "name": "Ex 15",
+            "sets": 3
+          },
+          {
+            "name": "Ex 16",
+            "sets": 3
+          },
+          {
+            "name": "Ex 17",
+            "sets": 3
+          },
+          {
+            "name": "Ex 18",
+            "sets": 3
+          },
+          {
+            "name": "Ex 19",
+            "sets": 3
+          },
+          {
+            "name": "Ex 20",
+            "sets": 3
+          },
+          {
+            "name": "Ex 21",
+            "sets": 3
+          },
+          {
+            "name": "Ex 22",
+            "sets": 3
+          },
+          {
+            "name": "Ex 23",
+            "sets": 3
+          },
+          {
+            "name": "Ex 24",
+            "sets": 3
+          },
+          {
+            "name": "Ex 25",
+            "sets": 3
+          },
+          {
+            "name": "Ex 26",
+            "sets": 3
+          },
+          {
+            "name": "Ex 27",
+            "sets": 3
+          },
+          {
+            "name": "Ex 28",
+            "sets": 3
+          },
+          {
+            "name": "Ex 29",
+            "sets": 3
+          },
+          {
+            "name": "Ex 30",
+            "sets": 3
+          },
+          {
+            "name": "Ex 31",
+            "sets": 3
+          },
+          {
+            "name": "Ex 32",
+            "sets": 3
+          },
+          {
+            "name": "Ex 33",
+            "sets": 3
+          },
+          {
+            "name": "Ex 34",
+            "sets": 3
+          },
+          {
+            "name": "Ex 35",
+            "sets": 3
+          },
+          {
+            "name": "Ex 36",
+            "sets": 3
+          },
+          {
+            "name": "Ex 37",
+            "sets": 3
+          },
+          {
+            "name": "Ex 38",
+            "sets": 3
+          },
+          {
+            "name": "Ex 39",
+            "sets": 3
+          },
+          {
+            "name": "Ex 40",
+            "sets": 3
+          },
+          {
+            "name": "Ex 41",
+            "sets": 3
+          },
+          {
+            "name": "Ex 42",
+            "sets": 3
+          },
+          {
+            "name": "Ex 43",
+            "sets": 3
+          },
+          {
+            "name": "Ex 44",
+            "sets": 3
+          },
+          {
+            "name": "Ex 45",
+            "sets": 3
+          },
+          {
+            "name": "Ex 46",
+            "sets": 3
+          },
+          {
+            "name": "Ex 47",
+            "sets": 3
+          },
+          {
+            "name": "Ex 48",
+            "sets": 3
+          },
+          {
+            "name": "Ex 49",
+            "sets": 3
+          },
+          {
+            "name": "Ex 50",
+            "sets": 3
+          }
+        ]
+      }
+    },
+    {
+      "note": "zero sets",
+      "field": "exercises.sets",
+      "record": {
+        "name": "R",
+        "exercises": [
+          {
+            "name": "Squat",
+            "sets": 0
+          }
+        ]
+      }
+    },
+    {
+      "note": "21 sets",
+      "field": "exercises.sets",
+      "record": {
+        "name": "R",
+        "exercises": [
+          {
+            "name": "Squat",
+            "sets": 21
+          }
+        ]
+      }
+    },
+    {
+      "note": "fractional sets",
+      "field": "exercises.sets",
+      "record": {
+        "name": "R",
+        "exercises": [
+          {
+            "name": "Squat",
+            "sets": 2.5
+          }
+        ]
+      }
+    },
+    {
+      "note": "empty exercise name",
+      "field": "exercises.name",
+      "record": {
+        "name": "R",
+        "exercises": [
+          {
+            "name": "",
+            "sets": 3
+          }
+        ]
+      }
+    },
+    {
+      "note": "unknown key (closed shape)",
+      "field": "exercises.unknown_key",
+      "record": {
+        "name": "R",
+        "exercises": [
+          {
+            "name": "Squat",
+            "sets": 3,
+            "reps": 8
+          }
+        ]
+      }
+    },
+    {
+      "note": "part 3",
+      "field": "exercises.part",
+      "record": {
+        "name": "R",
+        "exercises": [
+          {
+            "name": "Squat",
+            "sets": 3,
+            "part": 3
+          }
+        ]
+      }
+    }
+  ]
+}

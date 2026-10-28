@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Plate & Bar API
-  version: 0.1.26
+  version: 0.1.27
   summary: Contract between the Plate & Bar app and its backend (v0 draft, milestone M0).
   description: |
     The server stores, syncs and guards; every rule (targets, plan engine, progression,
@@ -779,6 +779,21 @@ paths:
         **New records.** A record unknown to the server is stored as version 1 and listed
         in `applied`, whatever `version` the device sent.
 
+        **Routines** (`routines`, contract 0.1.27) are one record per saved routine with a
+        random UUIDv4 id, so two devices editing different routines never touch the same
+        record and never conflict; the same routine edited on two devices settles by
+        `updated_at` like any table. A routine is a named list of exercises with a target
+        set count each; reps and weights are not stored (they come from progression when
+        it is started). Each account keeps at most 100 routines that are not deleted
+        (tombstones do not count against this, but they do count against the account
+        record cap). A push that would leave more than 100 live routines is refused whole
+        with 400 `invalid_request`, one `details` entry with `field` = `changes.routines[<i>]`
+        (the first new or revived record that crosses the limit) and issue `too_many_routines`;
+        nothing is applied. A pull-only request and edits that keep the count within 100 are
+        never refused for it. The check runs with request validation, before the account
+        record cap. The app enforces the same limit before it saves, so this is a guard
+        for a second device or an old client, not the normal path.
+
         **Derived data is not synced.** Stores the prototype keeps that can be rebuilt from
         synced records have no table. The app rebuilds them locally after every pull; see
         `Workout` for the prototype's `sessions` store.
@@ -838,7 +853,7 @@ paths:
 
         A version-0 tombstone that was never included in any request is dropped only in a
         table with random UUIDv4 ids (`consents`, `food_logs`, `water_logs`, `workout_sets`,
-        `user_foods`, `recipes`, `kitchen_tests`, `exclusions`): its id cannot be on the
+        `user_foods`, `recipes`, `kitchen_tests`, `exclusions`, `routines`): its id cannot be on the
         server or another device, and it holds no data, so the app drops it instead of
         pushing it. A never-sent tombstone in a natural-key table (`profiles`, `settings`,
         `day_notes`, `workouts`, `weights`, `measurements`, `lift_stats`, `swaps`) is held
@@ -868,6 +883,17 @@ paths:
                 value:
                   cursor: c_000000000000a3f1
                   changes:
+                    routines:
+                      - id: 3c8d1f52-6a4e-4b9d-9e27-0f1a5c7b8d40
+                        version: 0
+                        updated_at: '2026-10-08T07:05:00Z'
+                        deleted_at: null
+                        name: Upper A
+                        exercises:
+                          - { name: Barbell Bench Press, sets: 4 }
+                          - { name: Seated Cable Row, sets: 3 }
+                          - { name: Lateral Raise, sets: 3, part: 2 }
+                        created_at: '2026-10-08T07:05:00Z'
                     food_logs:
                       - id: 6f1c2a9e-3b7d-4c51-9a0e-2d4b8f7e1c33
                         version: 0
@@ -1437,6 +1463,7 @@ paths:
                       kitchen_tests: []
                       exclusions: []
                       swaps: []
+                      routines: []
                       settings:
                         - id: 8e73d325-779b-5a79-845c-b29eb0d86202
                           version: 1
@@ -3278,6 +3305,7 @@ components:
         - exclusions
         - swaps
         - settings
+        - routines
 
     AppliedRecord:
       type: object
@@ -3385,6 +3413,9 @@ components:
         settings:
           type: array
           items: { $ref: '#/components/schemas/Settings' }
+        routines:
+          type: array
+          items: { $ref: '#/components/schemas/Routine' }
 
     SyncRecord:
       description: |
@@ -3407,6 +3438,7 @@ components:
         - $ref: '#/components/schemas/Exclusion'
         - $ref: '#/components/schemas/Swap'
         - $ref: '#/components/schemas/Settings'
+        - $ref: '#/components/schemas/Routine'
 
     SyncMeta:
       type: object
@@ -3470,7 +3502,7 @@ components:
         rows, tombstones included. Same record schemas as `SyncChanges`, but every table
         is present, as an empty array when the user has no rows.
       additionalProperties: false
-      required: [profiles, consents, food_logs, water_logs, day_notes, workouts, workout_sets, lift_stats, weights, measurements, user_foods, recipes, kitchen_tests, exclusions, swaps, settings]
+      required: [profiles, consents, food_logs, water_logs, day_notes, workouts, workout_sets, lift_stats, weights, measurements, user_foods, recipes, kitchen_tests, exclusions, swaps, settings, routines]
       properties:
         profiles:
           type: array
@@ -3520,6 +3552,9 @@ components:
         settings:
           type: array
           items: { $ref: '#/components/schemas/Settings' }
+        routines:
+          type: array
+          items: { $ref: '#/components/schemas/Routine' }
 
     ConflictLogEntry:
       type: object
@@ -4896,6 +4931,72 @@ components:
     Muscle:
       type: string
       enum: [chest, front-delt, side-delt, rear-delt, triceps, lats, upper-back, biceps, forearms, quads, hams, glutes, calves, abs, lower-back]
+
+    Routine:
+      description: |
+        A saved, named workout the user can start again (issue #1184). One record per
+        routine; random UUIDv4 id; deleted by tombstone. Not part of the prototype: the
+        prototype has only the generated plan and the hand-picked week plan. Reps and
+        weights are not stored, they come from progression when the routine is started.
+        An exercise that later leaves the catalogue keeps its name; the app flags it when
+        the routine is started. Closed shape: a later field (for example a superset group
+        on `RoutineExercise`) is added as an optional property in a new contract version.
+      allOf:
+        - $ref: '#/components/schemas/SyncMeta'
+        - type: object
+          required: [name, exercises, created_at]
+          properties:
+            name:
+              type: string
+              minLength: 1
+              maxLength: 60
+              pattern: '[^\t-\r \u0085\u00A0\u1680\u2000-\u200D\u2028\u2029\u202F\u205F\u2060\u3000\uFEFF]'
+              description: |
+                The user's label, not blank (see the blank-text pattern in the wire
+                conventions). At most 60 characters: long enough for "Upper body, dumbbells
+                only", short enough for a list row. Names need not be unique.
+            exercises:
+              type: array
+              minItems: 1
+              maxItems: 50
+              description: |
+                Exercises in start order, each with its target set count. At least one, so
+                an empty routine cannot be saved. At most 50, the same as
+                `Workout.exercises`, so any session the app can store can be saved as a
+                routine. Exercise names should be unique within a routine; the app drops a
+                repeat on save and keeps the first.
+              items:
+                $ref: '#/components/schemas/RoutineExercise'
+            created_at:
+              type: string
+              format: date-time
+              description: When the routine was first saved, ISO 8601 UTC. Never changes; `updated_at` moves on every edit.
+
+    RoutineExercise:
+      type: object
+      description: One exercise of a routine.
+      additionalProperties: false
+      required: [name, sets]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+          description: Exercise name, as `Workout.exercises[].name` and `WorkoutSet.exercise` carry it (catalogue name or custom name, unnormalised).
+        sets:
+          type: integer
+          minimum: 1
+          maximum: 20
+          description: |
+            Target number of work sets when the routine is started. At most 20: a guard
+            against a corrupt or hostile value, not a training rule; core decides the sets
+            actually shown.
+        part:
+          type: integer
+          enum: [1, 2]
+          description: |
+            Optional. 2 for an exercise saved from a second session that day, as
+            `WorkoutExercise.part`. Absent means 1.
 
     Settings:
       description: |
