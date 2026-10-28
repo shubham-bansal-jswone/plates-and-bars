@@ -100,7 +100,7 @@ function AddToSession({ name, session }: { name: string; session: SessionTarget 
           <Text style={[type.buttonSm, { color: c.body }]}>In today’s session</Text>
         </View>
       ) : (
-        <Button label="Add to today’s session" a11yLabel={`Add ${name} to today’s session`} kind="ghost" busy={busy} onPress={() => void add()} />
+        <Button label="Add to today’s session" a11yLabel={`Add to today’s session, ${name}`} kind="ghost" busy={busy} onPress={() => void add()} />
       )}
       {error ? <Text accessibilityRole="alert" style={[type.textBody, { color: c.body }]}>Couldn’t save that. Try again.</Text> : null}
     </View>

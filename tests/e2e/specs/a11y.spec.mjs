@@ -111,13 +111,14 @@ const screens = {
     await label(page, 'Exercise library').click();
     await expect(label(page, 'Search exercises')).toBeVisible();
   },
-  // An exercise's detail, which draws the front and back muscle map (the unworked-muscle outline, #1197).
+  // An exercise's detail, which draws the front and back muscle map (#1197). axe does not test graphic contrast; the jest stroke test in body-map.test.tsx guards the outline.
   'library-exercise': async (page) => {
     await tab(page, 'Targets');
     await label(page, 'Exercise library').click();
     await page.getByRole('button').filter({ hasText: ' · ' }).first().click();
     await expect(label(page, 'Back to library')).toBeVisible();
-    await expect(page.getByText(/Main muscles: /)).toBeVisible();
+    await expect(page.getByRole('button', { name: /^Add to today’s session/ })).toBeVisible();
+    await expect(page.getByRole('img', { name: /^Muscles worked: / })).toBeVisible();
   },
   about: async (page) => {
     await tab(page, 'Targets');
