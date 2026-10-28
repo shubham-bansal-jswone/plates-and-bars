@@ -1,7 +1,7 @@
 import { HAND_PICKED, type ImportPlan } from '@plate-and-bar/core';
 import { inTransaction, type PullDb } from '../db/outbox';
 import { newId } from '../db/records';
-import { loadWorkout, saveSet, saveWorkout, type WorkoutDb } from '../db/workouts';
+import { loadSets, loadWorkout, saveSet, saveWorkout, type WorkoutDb } from '../db/workouts';
 import { stamp } from '../workout/model';
 import type { Workout, WorkoutSet } from '../workout/types';
 
@@ -46,6 +46,8 @@ export async function writeImport(db: Db, plan: ImportPlan, now: Date = new Date
           done.occupied.push(d.date);
           continue;
         }
+        // Over a deleted workout: its sets go with it (as when a session is started over a deleted one), so none shows inside the imported day.
+        if (stored?.deleted_at) for (const s of await loadSets(txn as WorkoutDb, d.date)) if (!s.deleted_at) await saveSet(txn, d.date, { ...s, updated_at: at, deleted_at: at });
         const names = [...new Set(d.sets.map((s) => s.exercise))];
         const workout: Workout = {
           id: null,

@@ -7,6 +7,12 @@ export const shortDate = (ymd: string): string => {
   return new Date(y, m - 1, d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
 };
 
+/** "8 Oct 2024": `shortDate` with the year, for ranges that can span years. */
+export const dateWithYear = (ymd: string): string => {
+  const [y, m, d] = ymd.split('-').map(Number) as [number, number, number];
+  return new Date(y, m - 1, d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+};
+
 /** "Monday" (the prototype's `toLocaleDateString('en-IN', { weekday: 'long' })`). */
 export const weekdayLong = (ymd: string): string => {
   const [y, m, d] = ymd.split('-').map(Number) as [number, number, number];

@@ -14,6 +14,8 @@ export const IMPORT_MAX_CHARS = 5 * 1024 * 1024;
 export const IMPORT_MAX_ROWS = 50_000;
 /** The most distinct days one import writes. */
 export const IMPORT_MAX_DAYS = 3_000;
+/** The most distinct exercises in one day: the contract's `Workout.exercises` maxItems. */
+export const IMPORT_MAX_EXERCISES = 50;
 
 export type ImportError = 'empty' | 'too_large' | 'too_many_rows' | 'not_recognised';
 
@@ -39,6 +41,10 @@ export interface ImportSkipped {
   cardio: number;
   /** Rows that are not a set the app can store (bad date, number or name, over a limit). */
   invalid: number;
+  /** Sets of a 51st or later exercise of one day (the contract keeps 50 per workout): the first 50 exercises are kept. */
+  tooManyExercises: number;
+  /** Rows dated after `today`. */
+  future: number;
   /** Exact repeats of a row already read from the same workout. */
   duplicate: number;
 }
@@ -59,8 +65,9 @@ export type ImportResult = { ok: true; parsed: ImportParsed } | { ok: false; err
 /**
  * Splits CSV text into rows of cells. Handles a leading BOM, quoted cells (with `""` for a quote and newlines inside),
  * and CRLF, LF or CR line ends. Blank lines are dropped. An unclosed quote ends at the end of the text.
+ * Reading stops as soon as `maxRows` rows are read (a hostile file never becomes millions of rows in memory).
  */
-export function parseCsv(text: string, delimiter: string): string[][] {
+export function parseCsv(text: string, delimiter: string, maxRows: number = Infinity): string[][] {
   const rows: string[][] = [];
   let row: string[] = [];
   let cell = '';
@@ -72,7 +79,7 @@ export function parseCsv(text: string, delimiter: string): string[][] {
     if (row.length > 1 || row[0] !== '') rows.push(row);
     row = [];
   };
-  for (; i < text.length; i++) {
+  for (; i < text.length && rows.length < maxRows; i++) {
     const ch = text[i]!;
     if (quoted) {
       if (ch !== '"') cell += ch;
@@ -89,7 +96,7 @@ export function parseCsv(text: string, delimiter: string): string[][] {
       endRow();
     } else cell += ch;
   }
-  if (cell !== '' || row.length > 0) endRow();
+  if (rows.length < maxRows && (cell !== '' || row.length > 0)) endRow();
   return rows;
 }
 
@@ -111,7 +118,7 @@ const realDate = (y: number, m: number, d: number): string | null => {
 
 /**
  * The calendar date of a cell, as written (local wall time, no time zone shift): `2024-03-27 18:30:00`, `2024-03-27T18:30`,
- * or Hevy's `27 Mar 2024, 18:30`. Null for anything else or a date that does not exist.
+ * or Hevy's `27 Mar 2024, 18:30` and `Mar 27, 2024, 18:30`. Null for anything else or a date that does not exist.
  */
 export function importDate(cell: string): string | null {
   const s = cell.trim();
@@ -121,6 +128,11 @@ export function importDate(cell: string): string | null {
   if (hevy) {
     const m = MONTHS.indexOf(hevy[2]!.toLowerCase());
     return m < 0 ? null : realDate(+hevy[3]!, m + 1, +hevy[1]!);
+  }
+  const us = /^([A-Za-z]{3})[A-Za-z]* (\d{1,2}),? (\d{4})(?:,|\s|$)/.exec(s);
+  if (us) {
+    const m = MONTHS.indexOf(us[1]!.toLowerCase());
+    return m < 0 ? null : realDate(+us[3]!, m + 1, +us[2]!);
   }
   return null;
 }
@@ -152,13 +164,14 @@ const columns = (header: string[]): Map<string, number> => {
 
 /**
  * Reads the CSV text of a Strong or Hevy export into work sets by day, with the counts of what was left out.
+ * Rows dated after `today` (`YYYY-MM-DD`, passed in; none are turned away when omitted) are counted as `future`.
  * `strongUnit` is the unit of a Strong file (its export does not say); a Hevy file says it in its weight column (`weight_kg` or
  * `weight_lbs`) and `strongUnit` is ignored. A file that is not the chosen app's export, is empty, or is over a cap is an error with nothing read.
  */
-export function parseWorkoutCsv(text: string, source: ImportSource, strongUnit: WeightUnit = 'kg'): ImportResult {
+export function parseWorkoutCsv(text: string, source: ImportSource, strongUnit: WeightUnit = 'kg', today?: string): ImportResult {
   if (text.length > IMPORT_MAX_CHARS) return { ok: false, error: 'too_large' };
   if (text.trim() === '') return { ok: false, error: 'empty' };
-  const table = parseCsv(text, delimiterOf(text));
+  const table = parseCsv(text, delimiterOf(text), IMPORT_MAX_ROWS + 2);
   if (table.length - 1 > IMPORT_MAX_ROWS) return { ok: false, error: 'too_many_rows' };
   const header = table[0];
   if (!header) return { ok: false, error: 'empty' };
@@ -173,9 +186,13 @@ export function parseWorkoutCsv(text: string, source: ImportSource, strongUnit: 
   if (c.date === undefined || c.title === undefined || c.ex === undefined || c.order === undefined || c.weight === undefined || c.reps === undefined) return { ok: false, error: 'not_recognised' };
   if (source === 'hevy') unit = col.has('weight_kg') ? 'kg' : 'lb';
 
-  const skipped: ImportSkipped = { warmup: 0, cardio: 0, invalid: 0, duplicate: 0 };
+  const skipped: ImportSkipped = { warmup: 0, cardio: 0, invalid: 0, tooManyExercises: 0, future: 0, duplicate: 0 };
   const days = new Map<string, ImportDay>();
   const seen = new Set<string>();
+  // Per workout: the exercise of the previous row and how many blocks of each exercise have started (set numbers restart in each block).
+  const last = new Map<string, string>();
+  const blocks = new Map<string, number>();
+  const names = new Map<string, Set<string>>();
   const get = (r: string[], i: number | undefined) => (i === undefined ? '' : (r[i] ?? '').trim());
 
   for (const r of table.slice(1)) {
@@ -198,6 +215,10 @@ export function parseWorkoutCsv(text: string, source: ImportSource, strongUnit: 
       skipped.invalid++;
       continue;
     }
+    if (today !== undefined && row.date > today) {
+      skipped.future++;
+      continue;
+    }
     if (row.reps === '' || row.reps === 0) {
       if (row.hasDistanceOrTime) skipped.cardio++;
       else skipped.invalid++;
@@ -212,8 +233,10 @@ export function parseWorkoutCsv(text: string, source: ImportSource, strongUnit: 
       skipped.invalid++;
       continue;
     }
-    // Dedupe: the same set of the same exercise in the same workout, same index, weight and reps, counts once (a file pasted twice).
-    const key = `${row.group}|${row.exercise}|${order}|${row.weight}|${row.reps}`;
+    // Dedupe: a set number repeated with the same weight and reps inside one block of an exercise counts once. A second block of the same exercise in a workout is kept.
+    if (last.get(row.group) !== row.exercise) blocks.set(`${row.group}|${row.exercise}`, (blocks.get(`${row.group}|${row.exercise}`) ?? 0) + 1);
+    last.set(row.group, row.exercise);
+    const key = `${row.group}|${row.exercise}|${blocks.get(`${row.group}|${row.exercise}`)}|${order}|${row.weight}|${row.reps}`;
     if (seen.has(key)) {
       skipped.duplicate++;
       continue;
@@ -221,14 +244,22 @@ export function parseWorkoutCsv(text: string, source: ImportSource, strongUnit: 
     seen.add(key);
     const day = days.get(row.date) ?? { date: row.date, title: '', sets: [] };
     if (!days.has(row.date)) days.set(row.date, day);
+    const have = names.get(row.date) ?? new Set<string>();
+    names.set(row.date, have);
+    if (!have.has(row.exercise) && have.size >= IMPORT_MAX_EXERCISES) {
+      skipped.tooManyExercises++;
+      continue;
+    }
+    have.add(row.exercise);
     const title = row.title === '' ? 'Imported workout' : row.title;
     if (!day.title.split(' + ').includes(title)) day.title = day.title === '' ? title : `${day.title} + ${title}`;
     day.sets.push({ exercise: row.exercise, weightKg, reps: row.reps });
   }
 
   const list = [...days.values()].sort((a, b) => a.date.localeCompare(b.date));
-  if (list.length === 0 && skipped.warmup + skipped.cardio + skipped.invalid + skipped.duplicate === 0) return { ok: false, error: 'empty' };
-  if (list.length === 0 && skipped.warmup + skipped.cardio === 0) return { ok: false, error: 'not_recognised' };
+  const left = skipped.warmup + skipped.cardio + skipped.invalid + skipped.duplicate + skipped.future + skipped.tooManyExercises;
+  if (list.length === 0 && left === 0) return { ok: false, error: 'empty' };
+  if (list.length === 0 && skipped.warmup + skipped.cardio + skipped.future === 0) return { ok: false, error: 'not_recognised' };
   if (list.length > IMPORT_MAX_DAYS) return { ok: false, error: 'too_many_rows' };
   for (const d of list) d.title = d.title.slice(0, NAME_MAX);
   return {

@@ -787,5 +787,5 @@ export type { E1rmSet, E1rmPoint, SessionElapsed } from './e1rm';
  * - `planImport` applies the user's mapping (skip or a name), leaves out days the app already has, and numbers the sets.
  * - `IMPORT_MAX_CHARS`, `IMPORT_MAX_ROWS`, `IMPORT_MAX_DAYS` are the caps; `importDate` reads a file date.
  */
-export { parseWorkoutCsv, parseCsv, importDate, exerciseKey, matchExercise, matchAll, planImport, IMPORT_MAX_CHARS, IMPORT_MAX_ROWS, IMPORT_MAX_DAYS } from './workoutImport';
+export { parseWorkoutCsv, parseCsv, importDate, exerciseKey, matchExercise, matchAll, planImport, IMPORT_MAX_CHARS, IMPORT_MAX_ROWS, IMPORT_MAX_DAYS, IMPORT_MAX_EXERCISES } from './workoutImport';
 export type { ImportSource, ImportError, ImportSet, ImportDay, ImportSkipped, ImportParsed, ImportResult, ImportMatches, ImportWorkoutDay, ImportPlan } from './workoutImport';

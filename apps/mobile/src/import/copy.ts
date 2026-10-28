@@ -1,4 +1,6 @@
 /** Copy for the workout import (#1179). No message holds a file's contents, weights or exercise names beyond what the screen lists itself. */
+import { IMPORT_MAX_CHARS } from '@plate-and-bar/core';
+
 export const IMPORT_COPY = {
   open: 'Import workouts (Strong, Hevy)',
   title: 'Import workouts',
@@ -16,7 +18,7 @@ export const IMPORT_COPY = {
   back: 'Back',
   badFile: {
     empty: 'That file is empty. Nothing was imported.',
-    too_large: 'That file is too big (over 5 MB). Nothing was imported.',
+    too_large: `That file is too big (over ${IMPORT_MAX_CHARS / (1024 * 1024)} MB). Nothing was imported.`,
     too_many_rows: 'That file has too many rows. Nothing was imported.',
     not_recognised: 'That does not look like a workout export from this app. Check the app you chose. Nothing was imported.',
     unreadable: 'Could not read that file. Nothing was imported.',
@@ -27,16 +29,26 @@ export const IMPORT_COPY = {
   unitUsed: (u: 'kg' | 'lb') => `Weights read as ${u === 'kg' ? 'kilograms' : 'pounds'} and saved in kg.`,
   matched: (n: number) => `${n} ${n === 1 ? 'exercise matches' : 'exercises match'} your library.`,
   unmatchedTitle: (n: number) => `${n} ${n === 1 ? 'exercise is' : 'exercises are'} not in your library`,
-  unmatchedHint: 'Skipped exercises are left out of the import. Add as your own keeps their sets under that name.',
+  unmatchedHint: 'Skipped exercises are left out. Add as my own keeps their sets under that name. Match uses a library exercise, so the history joins the lift you already have.',
   skip: 'Skip',
   addOwn: 'Add as my own',
+  match: 'Match to a library exercise',
+  matchLabel: (name: string) => `Match ${name} to a library exercise`,
+  matchedTo: (name: string) => `Matched to ${name}. Change`,
+  matchedToLabel: (from: string, to: string) => `${from} is matched to ${to}. Change the match`,
+  pickerTitle: 'Match to a library exercise',
+  pickerSearch: 'Search the library',
+  pickerNone: 'No exercise matches.',
+  pickerPick: (n: string) => `Use ${n}`,
+  pickerClose: 'Close',
   skipLabel: (name: string) => `Skip ${name}`,
   addLabel: (name: string) => `Add ${name} as my own exercise`,
-  skipped: (w: number, c: number, i: number, d: number) => {
-    const bits = [w ? `${w} warm-up ${w === 1 ? 'set' : 'sets'}` : '', c ? `${c} distance or time ${c === 1 ? 'row' : 'rows'}` : '', i ? `${i} unreadable ${i === 1 ? 'row' : 'rows'}` : '', d ? `${d} repeated ${d === 1 ? 'row' : 'rows'}` : ''].filter(Boolean);
+  skipped: (w: number, c: number, i: number, d: number, many = 0, future = 0) => {
+    const bits = [w ? `${w} warm-up ${w === 1 ? 'set' : 'sets'}` : '', c ? `${c} distance or time ${c === 1 ? 'row' : 'rows'}` : '', i ? `${i} unreadable ${i === 1 ? 'row' : 'rows'}` : '', d ? `${d} repeated ${d === 1 ? 'row' : 'rows'}` : '', many ? `${many} ${many === 1 ? 'set' : 'sets'} past the 50-exercise limit of a day` : '', future ? `${future} ${future === 1 ? 'row' : 'rows'} dated in the future` : ''].filter(Boolean);
     return bits.length ? `Left out: ${bits.join(', ')}.` : '';
   },
-  occupied: (n: number) => `${n} ${n === 1 ? 'day already has' : 'days already have'} a workout in the app and will be skipped, not changed.`,
+  occupied: (n: number) => `${n} ${n === 1 ? 'day already has' : 'days already have'} a workout or cardio entry in the app and will be skipped, not changed.`,
+  occupiedDates: (list: string) => `Skipped days: ${list}.`,
   nothing: 'Nothing to import with these choices.',
   importBtn: 'Import',
   importing: 'Importing…',

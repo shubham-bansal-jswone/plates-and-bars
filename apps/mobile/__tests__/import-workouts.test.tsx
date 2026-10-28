@@ -7,6 +7,7 @@ import { IMPORT_COPY as t } from '../src/import/copy';
 import { memoryDb } from './helpers';
 import { loadSessionLog } from '../src/db/workouts';
 import { planned } from '@plate-and-bar/core';
+import { saveSet, saveWorkout } from '../src/db/workouts';
 
 jest.mock('expo-router', () => ({ useRouter: () => ({ back: jest.fn(), push: jest.fn(), replace: jest.fn(), canGoBack: () => true }) }));
 jest.mock('../src/account/saveFile', () => ({ clearOldExports: () => undefined, saveTextFile: async () => 'saved' }));
@@ -67,12 +68,12 @@ describe('import workouts (#1179)', () => {
     await fireEvent.press(screen.getByLabelText(t.lb));
     await chooseFile(STRONG);
     expect(await screen.findByText(t.workouts(2, 4))).toBeTruthy();
-    expect(screen.getByText(t.range('2024-03-27', '2024-03-28'))).toBeTruthy();
+    expect(screen.getByText(t.range('27 Mar 2024', '28 Mar 2024'))).toBeTruthy();
     expect(screen.getByText(t.unitUsed('lb'))).toBeTruthy();
     expect(screen.getByText(t.matched(1))).toBeTruthy();
     expect(screen.getByText(t.unmatchedTitle(1))).toBeTruthy();
     expect(screen.getByText('Zottman Curl')).toBeTruthy();
-    expect(screen.getByText(t.skipped(1, 1, 0, 0))).toBeTruthy();
+    expect(screen.getByText(t.skipped(1, 1, 0, 0, 0, 0))).toBeTruthy();
     expect(workoutRows(db)).toHaveLength(0); // nothing is written by the preview
 
     await fireEvent.press(screen.getByLabelText(t.addLabel('Zottman Curl')));
@@ -121,19 +122,38 @@ describe('import workouts (#1179)', () => {
     expect([...db.sets.values()].every((s) => s.date === '2024-03-28')).toBe(true);
   });
 
+  it('a workout that arrives between the preview and Import is not overwritten (the day is re-checked inside the transaction)', async () => {
+    const db = memoryDb();
+    await setup(db);
+    await open();
+    await chooseFile(STRONG);
+    await screen.findByText(t.previewTitle);
+    expect(screen.queryByText(t.occupied(1))).toBeNull();
+    const arrived = JSON.stringify({ id: null, version: 3, updated_at: '2024-03-27T20:00:00Z', deleted_at: null, date: '2024-03-27', template: 'Mine', base: 'Mine', where: null, cardio_min: null, mods: {}, exercises: [], ci_choice: null });
+    db.rows.set('workouts:2024-03-27', arrived);
+    await fireEvent.press(screen.getByLabelText(t.importBtn));
+    expect(await screen.findByText(t.skippedDays(1))).toBeTruthy();
+    expect(db.rows.get('workouts:2024-03-27')).toBe(arrived);
+    expect([...db.sets.values()].every((s) => s.date === '2024-03-28')).toBe(true);
+  });
+
   it('an imported day cannot change which session is suggested next (even titled like a real template)', async () => {
     const db = memoryDb();
     await setup(db);
     await open();
+    const real = JSON.stringify({ id: null, version: 1, updated_at: '2024-03-25T10:00:00Z', deleted_at: null, date: '2024-03-25', template: 'Push A', base: 'Push A', where: null, cardio_min: null, mods: {}, exercises: [], ci_choice: null });
+    db.rows.set('workouts:2024-03-25', real);
+    await saveSet(db, '2024-03-25', { id: 's0', version: 1, updated_at: '2024-03-25T10:00:00Z', deleted_at: null, workout_id: null, exercise: 'Lat Pulldown', kind: 'work', set_index: 0, weight_kg: 40, reps: 8, done: true, rate: null, t: null });
     const csv = [HEAD, '2024-03-26 18:00:00,Mystery,Bench Press (Barbell),1,60,5,0,0,,,', '2024-03-27 18:00:00,Pull A,Bench Press (Barbell),1,60,5,0,0,,,'].join('\n');
     await chooseFile(csv);
     await screen.findByText(t.previewTitle);
     await fireEvent.press(screen.getByLabelText(t.importBtn));
     await screen.findByText(t.imported(2, 2));
     const sessions = await loadSessionLog(db);
-    expect(Object.values(sessions).map((e) => e.t)).toEqual(['Session', 'Session']);
-    const profile = { days: 3 } as never;
-    expect(planned('2024-04-01', { profile, sessions, mode: 'sequence' })).toBe(planned('2024-04-01', { profile, sessions: {}, mode: 'sequence' }));
+    expect(Object.values(sessions).map((e) => e.t)).toEqual(['Push A', 'Session', 'Session']);
+    const profile = { days: 6 } as never;
+    expect(planned('2024-04-01', { profile, sessions, mode: 'sequence' })).toBe(planned('2024-04-01', { profile, sessions: { '2024-03-25': sessions['2024-03-25']! }, mode: 'sequence' }));
+    expect(planned('2024-04-01', { profile, sessions, mode: 'sequence' })).toBe('Pull A');
   });
 
   it('imports a Hevy file in kg without asking for a unit', async () => {
@@ -190,5 +210,53 @@ describe('import workouts (#1179)', () => {
     db.failWrites = true;
     await fireEvent.press(screen.getByLabelText(t.importBtn));
     expect(await screen.findByText(t.failed)).toBeTruthy();
+  });
+  it('over a deleted workout, the live sets it left are tombstoned so none shows inside the imported day', async () => {
+    const db = memoryDb();
+    await saveWorkout(db, { id: null, version: 4, updated_at: '2024-03-20T10:00:00Z', deleted_at: '2024-03-20T10:00:00Z', date: '2024-03-27', template: 'Mine', base: null, where: null, cardio_min: null, mods: {}, exercises: [], ci_choice: null });
+    await saveSet(db, '2024-03-27', { id: 'old', version: 2, updated_at: '2024-03-20T10:00:00Z', deleted_at: null, workout_id: null, exercise: 'Deadlift', kind: 'work', set_index: 0, weight_kg: 100, reps: 3, done: true, rate: null, t: null });
+    await setup(db);
+    await open();
+    await chooseFile(STRONG);
+    await screen.findByText(t.previewTitle);
+    expect(screen.queryByText(t.occupied(1))).toBeNull(); // a deleted workout does not block the day
+    await fireEvent.press(screen.getByLabelText(t.importBtn));
+    await screen.findByText(t.imported(2, 4 - 1)); // the unmatched exercise is skipped
+    const old = JSON.parse(db.sets.get('old')!.data);
+    expect(old.deleted_at).not.toBeNull();
+    expect(db.sets.get('old')!.deleted).toBe(1);
+    expect(JSON.parse(db.rows.get('workouts:2024-03-27')!)).toMatchObject({ deleted_at: null, version: 4, template: 'Session' });
+  });
+
+  it('matches an unmatched exercise to a library exercise so its sets join the existing lift', async () => {
+    const db = await setup();
+    await open();
+    await chooseFile([HEAD, '2024-03-27 18:30:00,A,Squat (Barbell),1,100,5,0,0,,,'].join('\n'));
+    await screen.findByText(t.unmatchedTitle(1));
+    await fireEvent.press(screen.getByLabelText(t.matchLabel('Squat (Barbell)')));
+    await fireEvent.changeText(screen.getByLabelText(t.pickerSearch), 'back squat');
+    await fireEvent.press(screen.getByLabelText(t.pickerPick('Barbell Back Squat')));
+    expect(screen.getByLabelText(t.matchedToLabel('Squat (Barbell)', 'Barbell Back Squat'))).toBeTruthy();
+    await fireEvent.press(screen.getByLabelText(t.importBtn));
+    await screen.findByText(t.imported(1, 1));
+    expect(JSON.parse([...db.sets.values()][0]!.data).exercise).toBe('Barbell Back Squat');
+    expect(db.rows.has('user_settings:me')).toBe(false); // no duplicate custom exercise
+  });
+
+  it('shows the question as visible text, and lists the days it will skip', async () => {
+    const db = memoryDb();
+    db.rows.set('workouts:2024-03-27', JSON.stringify({ id: null, version: 1, updated_at: '2024-03-27T10:00:00Z', deleted_at: null, date: '2024-03-27', template: null, base: null, where: null, cardio_min: 20, mods: {}, exercises: [], ci_choice: null }));
+    await setup(db);
+    await open();
+    expect(screen.getByText(t.appLabel)).toBeTruthy();
+    await chooseFile(STRONG);
+    expect(await screen.findByText(t.occupiedDates('27 Mar 2024'))).toBeTruthy(); // a cardio-only day blocks its date too
+  });
+
+  it('turns away rows dated in the future and says so in the preview', async () => {
+    await setup();
+    await open();
+    await chooseFile([HEAD, '2024-03-27 18:30:00,A,Bench Press (Barbell),1,60,5,0,0,,,', '2999-01-01 10:00:00,A,Bench Press (Barbell),1,60,5,0,0,,,'].join('\n'));
+    expect(await screen.findByText(t.skipped(0, 0, 0, 0, 0, 1))).toBeTruthy();
   });
 });

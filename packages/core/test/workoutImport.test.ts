@@ -1,4 +1,4 @@
-import { IMPORT_MAX_CHARS, IMPORT_MAX_ROWS, importDate, matchAll, matchExercise, parseCsv, parseWorkoutCsv, planImport, KG_PER_LB } from '../src';
+import { IMPORT_MAX_EXERCISES, IMPORT_MAX_CHARS, IMPORT_MAX_ROWS, importDate, matchAll, matchExercise, parseCsv, parseWorkoutCsv, planImport, KG_PER_LB } from '../src';
 import type { ImportParsed } from '../src';
 
 const STRONG_HEAD = 'Date,Workout Name,Exercise Name,Set Order,Weight,Reps,Distance,Seconds,Notes,Workout Notes,RPE';
@@ -43,7 +43,7 @@ describe('Strong files', () => {
   it('groups sets by day, skips warm-ups and cardio, and counts them', () => {
     const p = ok(parseWorkoutCsv(csv, 'strong', 'kg'));
     expect(p.days).toEqual([{ date: '2024-03-27', title: 'Push Day', sets: [{ exercise: 'Bench Press (Barbell)', weightKg: 60, reps: 8 }, { exercise: 'Bench Press (Barbell)', weightKg: 62.5, reps: 6 }] }]);
-    expect(p.skipped).toEqual({ warmup: 1, cardio: 1, invalid: 0, duplicate: 0 });
+    expect(p.skipped).toEqual({ warmup: 1, cardio: 1, invalid: 0, tooManyExercises: 0, future: 0, duplicate: 0 });
     expect([p.sets, p.firstDate, p.lastDate, p.unit]).toEqual([2, '2024-03-27', '2024-03-27', 'kg']);
   });
 
@@ -174,5 +174,48 @@ describe('planImport', () => {
     const plan = planImport([{ date: '2024-03-27', title: 'A', sets: [{ exercise: 'constructor', weightKg: 1, reps: 1 }] }], {}, new Set());
     expect(plan.days).toEqual([]);
     expect(plan.skippedExercise).toBe(1);
+  });
+});
+
+describe('review fixes (#1179)', () => {
+  it('keeps a second block of the same exercise in one workout (set numbers restart), still drops a set repeated inside one block', () => {
+    const p = ok(parseWorkoutCsv(strong(
+      '2024-03-27 18:30:00,A,Bench,1,60,5,0,0,,,',
+      '2024-03-27 18:30:00,A,Row,1,40,10,0,0,,,',
+      '2024-03-27 18:30:00,A,Bench,1,60,5,0,0,,,',
+      '2024-03-27 18:30:00,A,Bench,1,60,5,0,0,,,',
+    ), 'strong'));
+    expect(p.sets).toBe(3);
+    expect(p.skipped.duplicate).toBe(1);
+  });
+
+  it('keeps the first 50 exercises of a day and counts the rest as skipped', () => {
+    const rows = Array.from({ length: IMPORT_MAX_EXERCISES + 3 }, (_, i) => `2024-03-27 18:30:00,A,Ex ${i},1,40,10,0,0,,,`);
+    rows.push('2024-03-27 18:30:00,A,Ex 0,2,40,10,0,0,,,'); // an exercise already kept still gets its sets
+    const p = ok(parseWorkoutCsv(strong(...rows), 'strong'));
+    expect(new Set(p.days[0]!.sets.map((s) => s.exercise)).size).toBe(IMPORT_MAX_EXERCISES);
+    expect(p.skipped.tooManyExercises).toBe(3);
+    expect(p.sets).toBe(IMPORT_MAX_EXERCISES + 1);
+  });
+
+  it('stops reading at the row cap: parseCsv returns no more than maxRows rows', () => {
+    const text = 'a\n'.repeat(100_000);
+    expect(parseCsv(text, ',', 5)).toHaveLength(5);
+    expect(parseCsv('a,b\nc,d\ne,f', ',', 2)).toEqual([['a', 'b'], ['c', 'd']]);
+    expect(parseCsv('a,b\nc,d', ',', 2)).toHaveLength(2);
+  });
+
+  it('a file just over the row cap is too_many_rows, one at the cap is read', () => {
+    const row = '2024-03-27 18:30:00,A,Row,1,40,10,0,0,,,';
+    expect(parseWorkoutCsv(strong(...Array.from({ length: IMPORT_MAX_ROWS }, () => row)), 'strong').ok).toBe(true);
+    expect(parseWorkoutCsv(strong(...Array.from({ length: IMPORT_MAX_ROWS + 1 }, () => row)), 'strong')).toEqual({ ok: false, error: 'too_many_rows' });
+  });
+
+  it('turns away rows dated after today and reads month-first Hevy dates', () => {
+    const p = ok(parseWorkoutCsv(strong('2024-03-27 18:30:00,A,Row,1,40,10,0,0,,,', '2099-01-01 10:00:00,B,Row,1,40,10,0,0,,,'), 'strong', 'kg', '2024-04-01'));
+    expect([p.days.length, p.skipped.future]).toEqual([1, 1]);
+    expect(importDate('Mar 27, 2024, 18:05')).toBe('2024-03-27');
+    expect(importDate('March 5 2024')).toBe('2024-03-05');
+    expect(importDate('Foo 5, 2024')).toBeNull();
   });
 });
