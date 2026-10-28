@@ -5,7 +5,7 @@ Dependency-free content tooling (Node 20+). Run from this folder: `npm ci && npm
 - `exercises-import/` regenerates `content/exercises.json` from `docs/spec/golden/exercises.json` plus `exerciseMeta` in `docs/spec/golden/progression.json` (`npm run import:exercises`). `meta` maps each exercise to `{type, rep_low, rep_high}` (names as in the contract's `exercise_overrides`; the golden table's `lo`/`hi`). Default step, the fallback for unknown exercises and the home-dumbbell raise are rules and stay in core. The validator requires meta for every exercise.
 - `validate/` checks `content/exercises.json` (`npm run validate:exercises`) and `content/foods.json` (`npm run validate:foods`).
 - `validate/exercise-images-cli.mjs` checks `content/exercise-images.json` (`npm run validate:exercise-images`; `node validate/cli.mjs` runs it too): own drawings only (`source` must be `own_drawing`; a third-party source needs an ADR first), licence allowlist CC-BY-4.0 or CC0-1.0, required fields, one or two frames of at most 8192 bytes each with a matching viewBox, an SVG allowlist parser in `validate/svg-allowlist.mjs` (exported, dependency-free, for the app to reuse; `validate/fixtures/svg-corpus.json` holds `{ name, svg, w, h, ok }` frames with the expected verdict, run by the tools test and by the app's port to prove parity: elements svg g line circle ellipse rect path title only, a fixed attribute list per element, double-quoted values, no `url(`, no `:` in names, no comments or entities beyond the basic five; colours only `none`, `currentColor` or `var(--fig-body|arm|hl|eq|bg)`), every key an exercise in `exercises.json`, no duplicate files, source ids or drawings. The JSON Schema is `validate/schemas/exercise-images.schema.json`. Each frame holds its SVG text inline (`svg`) so the bundle is one self-contained file; `file` is its unique logical name.
-- `exercise-figures/` renders the SVG frames of every exercise the parametric rig has a pose for and writes them into `content/exercise-images.json` (`npm run import:figures`; `npm run check:figures` compares without writing). Most exercises get a start and an end frame; the timed isometric holds (`ISOMETRIC` in `generate.mjs`, each checked against the catalogue's `time` type) get one static frame. `rig.mjs` is the prototype's `AN` rig: its first 31 poses are ported unchanged (a test compares their output with the prototype's own code) and later poses are our own additions; `generate.mjs` fixes the output style. Frames are 320 by 240, 1 to 2 KB each, drawn with `currentColor` for the body and `var(--fig-arm|hl|eq|bg)` for the rest, so the app supplies every colour from its theme. New poses go into `D` in `rig.mjs`, then rerun the importer. Deterministic: no clock, randomness or network.
+- `exercise-figures/` renders the SVG frames of every exercise the parametric rig has a pose for and writes them into `content/exercise-images.json` (`npm run import:figures`; `npm run check:figures` compares without writing). Most exercises get a start and an end frame; the timed isometric holds (`ISOMETRIC` in `generate.mjs`, each checked against the catalogue's `time` type) get one static frame. `rig.mjs` is the prototype's `AN` rig: its first 31 poses are ported unchanged and later poses are our own additions; a test compares every pose with the frozen output in `test/fixtures/an-poses.json` (see "Figure fixture" below); `generate.mjs` fixes the output style. Frames are 320 by 240, 1 to 2 KB each, drawn with `currentColor` for the body and `var(--fig-arm|hl|eq|bg)` for the rest, so the app supplies every colour from its theme. New poses go into `D` in `rig.mjs`, then rerun the importer. Deterministic: no clock, randomness or network.
 - `exercise-motion/` turns MediaPipe 3D world landmarks into `content/exercise-motion.json` (own joint keyframes on our 19-joint skeleton; `npm run import:motion`, `npm run validate:exercise-motion`, `npm run fixture:motion`). The model run is an optional Python step; CI uses a committed synthetic landmark fixture and a golden output. `validate/exercise-motion.mjs` (also run by `node validate/cli.mjs`) enforces the schema in `validate/schemas/exercise-motion.schema.json`. See `exercise-motion/README.md` for the licence check, filming guide and pipeline parameters.
 - `foods-import/` regenerates `content/foods.json` from `docs/spec/golden/foods.json` (`npm run import:foods`).
 - `validate/labs-cli.mjs` checks `content/labs.json`, the lab-report wording (`npm run validate:labs`, #1070): the 14 marker tips, the notices and a required not-medical-advice line. It is hand-written, not imported; a test checks every tip word for word against the prototype.
@@ -28,6 +28,26 @@ How a `spec-change` PR regenerates fixtures:
 2. From `tools/`, run `node golden-gen/cli.mjs`. Never edit `docs/spec/golden/*.json` by hand.
 3. Commit the prototype, the case list and the regenerated fixtures together, label the PR `spec-change`, and add the dated entry at the top of section 0 of the spec.
 4. If a fixture's recorded inputs changed, `npm test` also checks that `cases.mjs` matches them.
+
+## Figure fixture
+
+`test/fixtures/an-poses.json` holds the rig output for all 69 poses at k = 0, 0.25, 0.5 and 1 with the colour map `{body:'B', arm:'A', hl:'H', eq:'E', bg:'G'}`. The first 31 poses were captured from the prototype's own `AN` and checked equal to the ported rig; the other 38 are a snapshot of our rig. It was written once from `docs/prototype/plate-and-bar.html` (sha256 `04e3585a6d96e6451d6c2596c45be483d4863aa5ee1864079febe3ac2f10d1f6`, git tag `prototype-final`); the generator is not kept. To change a pose on purpose, edit `rig.mjs`, then regenerate only the changed entries from the rig itself. One-time command, run in `tools/` with the HTML from the tag (`git show prototype-final:docs/prototype/plate-and-bar.html > /tmp/proto.html`, then use that path):
+
+```
+node --input-type=module -e "
+import fs from 'node:fs'; import vm from 'node:vm';
+import { AN } from './exercise-figures/rig.mjs';
+const html = fs.readFileSync('/tmp/proto.html','utf8');
+const s = html.indexOf('const AN = (() => {'), e = html.indexOf('\n})();', s) + 6;
+const proto = vm.runInNewContext(html.slice(s,e)+'; AN', {});
+const C = { body:'B', arm:'A', hl:'H', eq:'E', bg:'G' }, ks = [0,0.25,0.5,1], poses = {};
+for (const n of AN.names) {
+  const frames = ks.map(k => AN.frame(n,k,C));
+  if (proto.names.includes(n)) ks.forEach((k,j) => { if (proto.frame(n,k,C) !== frames[j]) throw new Error(n); });
+  poses[n] = frames;
+}
+fs.writeFileSync('test/fixtures/an-poses.json', JSON.stringify({ ks, colours: C, poses }, null, 1));"
+```
 
 ## Exercise card keys
 
