@@ -1,6 +1,6 @@
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
-import { BALANCE_EXERCISE, ROUTINE_EXERCISES_MAX, routineFromSession, seededSession, startRoutine, type Exclusion, type StartRoutineInput } from '../src/index';
+import { adjustSets, BALANCE_EXERCISE, isBlank, ROUTINE_EXERCISES_MAX, routineFromSession, seededSession, startRoutine, type Exclusion, type StartRoutineInput } from '../src/index';
 
 type Rec = { name: string; exercises: Record<string, unknown>[] };
 const vectors = JSON.parse(readFileSync(resolve(__dirname, '../../api/test-vectors/routines.json'), 'utf8')) as {
@@ -8,7 +8,6 @@ const vectors = JSON.parse(readFileSync(resolve(__dirname, '../../api/test-vecto
   invalid: { note: string; field: string; record: Rec }[];
 };
 
-const BLANK = /^[\s​-‍⁠﻿]*$/u;
 const cp = (s: string) => [...s].length;
 /** The save-side limits of the vectors, as far as routineFromSession is responsible for them (exercises and sets). */
 function exercisesValid(ex: Record<string, unknown>[]): boolean {
@@ -16,10 +15,10 @@ function exercisesValid(ex: Record<string, unknown>[]): boolean {
     ex.length >= 1 &&
     ex.length <= 50 &&
     Object.keys(ex).length <= 50 &&
-    ex.every((e) => typeof e.name === 'string' && !BLANK.test(e.name) && cp(e.name) <= 200 && Number.isInteger(e.sets) && (e.sets as number) >= 1 && (e.sets as number) <= 20)
+    ex.every((e) => typeof e.name === 'string' && !isBlank(e.name) && cp(e.name) <= 200 && Number.isInteger(e.sets) && (e.sets as number) >= 1 && (e.sets as number) <= 20)
   );
 }
-const nameValid = (n: string) => !BLANK.test(n) && cp(n) >= 1 && cp(n) <= 60;
+const nameValid = (n: string) => !isBlank(n) && cp(n) >= 1 && cp(n) <= 60;
 
 describe('routineFromSession (#1184)', () => {
   it('drops repeat names, keeping the first', () => {
@@ -39,13 +38,15 @@ describe('routineFromSession (#1184)', () => {
     expect(routineFromSession([])).toEqual([]);
     expect(routineFromSession([{ name: ' ​', sets: 3 }])).toEqual([]);
   });
-  it('keeps unknown keys', () => {
-    expect(routineFromSession([{ name: 'A', sets: 3, group: 'ss1', x: null }])).toEqual([{ name: 'A', sets: 3, group: 'ss1', x: null }]);
+  it('outputs exactly { name, sets }: no part, arrays or nulls', () => {
+    const e = { name: 'A', sets: 3, part: 1, ramp: [], form: null };
+    expect(routineFromSession([e])).toEqual([{ name: 'A', sets: 3 }]);
+    expect(Object.keys(routineFromSession([e])[0] as object)).toEqual(['name', 'sets']);
   });
   it.each(vectors.valid)('vector valid: $note', ({ record }) => {
     expect(nameValid(record.name)).toBe(true);
     expect(exercisesValid(record.exercises)).toBe(true);
-    expect(routineFromSession(record.exercises as { name: string; sets: number }[])).toEqual(record.exercises);
+    expect(routineFromSession(record.exercises as { name: string; sets: number }[])).toEqual(record.exercises.map((e) => ({ name: e.name, sets: e.sets })));
   });
   it.each(vectors.invalid.filter((v) => v.field === 'name'))('vector invalid name: $note', ({ record }) => {
     expect(nameValid(record.name)).toBe(false);
@@ -81,12 +82,8 @@ describe('startRoutine (#1184, decision D2)', () => {
     expect(s.exercises).toEqual([{ name: 'Row', sets: 4, bridge: false }, { name: 'Curl', sets: 3, bridge: false }, { name: 'Gone', sets: 5, bridge: false }]);
   });
   it('flags names missing from the catalogue, in order, but keeps them', () => {
-    expect(startRoutine(base).missing).toEqual(['Gone']);
-    expect(startRoutine({ ...base, catalogue: new Set(['Row']) }).missing).toEqual(['Curl', 'Gone']);
-  });
-  it('flags an excluded exercise as missing', () => {
-    const exclusions: Exclusion[] = [{ scope: 'exercise', key: 'Curl', reason: 'pain', to: {}, done: false }];
-    expect(startRoutine({ ...base, exclusions }).missing).toEqual(['Curl', 'Gone']);
+    expect(startRoutine(base).missing).toEqual([{ name: 'Gone', reason: 'unknown' }]);
+    expect(startRoutine({ ...base, catalogue: new Set(['Row']) }).missing).toEqual([{ name: 'Curl', reason: 'unknown' }, { name: 'Gone', reason: 'unknown' }]);
   });
   it('a lighter check-in takes a set off, on top of the stored count', () => {
     const s = startRoutine({ ...base, ciChoice: 'light' });
@@ -103,14 +100,26 @@ describe('startRoutine (#1184, decision D2)', () => {
     expect(s.mods.reentry).toBe(0.3);
     expect(s.exercises.map((e) => e.sets)).toEqual([3, 2, 4]);
   });
-  it('stored counts are floored at 3 and capped at 5 by sessionSets (pinned)', () => {
-    expect(startRoutine({ ...base, routine: [{ name: 'A', sets: 1 }, { name: 'B', sets: 12 }] }).exercises.map((e) => e.sets)).toEqual([3, 5]);
+  it('keeps stored counts as saved: no floor, cap, ramp, calf bump or balance override', () => {
+    const p = { age: 65, exp: 'new', start: '2026-05-10' } as never;
+    const r = [{ name: 'A', sets: 1 }, { name: 'B', sets: 12 }, { name: 'Calf Raise', sets: 2 }, { name: 'C', sets: 20 }];
+    expect(startRoutine({ ...base, routine: r, profile: p, tags: { 'Calf Raise': { pattern: 'calf' } } as never }).exercises.map((e) => e.sets)).toEqual([1, 12, 2, 20]);
   });
-  it('a stored balance exercise keeps 2 sets; none is added for 60+ when not stored', () => {
-    const p = { age: 65 } as never;
-    const s = startRoutine({ ...base, profile: p, routine: [{ name: 'Row', sets: 4 }, { name: BALANCE_EXERCISE, sets: 9 }] });
-    expect(s.exercises).toEqual([{ name: 'Row', sets: 4, bridge: false }, { name: BALANCE_EXERCISE, sets: 2, bridge: false }]);
-    expect(startRoutine({ ...base, profile: p }).exercises.map((e) => e.name)).toEqual(['Row', 'Curl', 'Gone']);
+  it('duplicate stored names each keep their own count', () => {
+    expect(startRoutine({ ...base, routine: [{ name: 'Row', sets: 4 }, { name: 'Row', sets: 3 }] }).exercises.map((e) => e.sets)).toEqual([4, 3]);
+  });
+  it('lab hold is not applied to a routine session', () => {
+    const s = startRoutine({ ...base, labHold: true } as StartRoutineInput);
+    expect(s.mods.light).toBe(false);
+    expect(s.exercises.map((e) => e.sets)).toEqual([4, 3, 5]);
+  });
+  it('missing carries a reason', () => {
+    const exclusions: Exclusion[] = [{ scope: 'exercise', key: 'Curl', reason: 'pain', to: {}, done: false }];
+    expect(startRoutine({ ...base, exclusions }).missing).toEqual([{ name: 'Curl', reason: 'excluded' }, { name: 'Gone', reason: 'unknown' }]);
+  });
+  it('a stored balance exercise is just a stored count', () => {
+    const s = startRoutine({ ...base, routine: [{ name: 'Row', sets: 4 }, { name: BALANCE_EXERCISE, sets: 9 }] });
+    expect(s.exercises.map((e) => e.sets)).toEqual([4, 9]);
   });
   it('behaves as seededSession for the same adjustments and counts', () => {
     const adj = { ciChoice: 'light' as const };
@@ -118,5 +127,16 @@ describe('startRoutine (#1184, decision D2)', () => {
     const r = startRoutine({ ...base, ...adj, routine: [{ name: 'Row', sets: 4 }, { name: 'Curl', sets: 3 }] });
     expect(r.exercises).toEqual(seeded.exercises);
     expect(r.mods).toEqual(seeded.mods);
+  });
+});
+
+describe('isBlank and adjustSets', () => {
+  it.each(['', ' ', '\t\n', '\u0085', '\u00A0', '\u200B', '\u200D', '\u2060', '\uFEFF', '\u3000', ' \u200B '])('blank %j', (t) => expect(isBlank(t)).toBe(true));
+  it.each(['a', ' a ', '\u200Bx', '0'])('not blank %j', (t) => expect(isBlank(t)).toBe(false));
+  it('adjustSets: deload ~60% min 2 never above n, light drops one above 2, deload wins', () => {
+    expect([1, 2, 5, 10].map((n) => adjustSets(n, { deload: true }))).toEqual([1, 2, 3, 6]);
+    expect([2, 3].map((n) => adjustSets(n, { light: true }))).toEqual([2, 2]);
+    expect(adjustSets(5, { deload: true, light: true })).toBe(3);
+    expect(adjustSets(5, {})).toBe(5);
   });
 });

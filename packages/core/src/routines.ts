@@ -1,45 +1,44 @@
 import type { HealthProfile } from './health';
-import type { PlanProfile } from './plan';
 import { sessionMods, type SessionMods, type SessionModsInput } from './day';
 import { isExcluded, type Exclusion } from './exclusions';
-import { BALANCE_EXERCISE, sessionSets, type SessionSetsOptions } from './session';
+import { adjustSets, type ExerciseCatalog } from './session';
+import { isBlank } from './blank';
 
 /** Contract `Routine` bounds (ADR 011): exercises per routine, and sets per exercise. */
 export const ROUTINE_EXERCISES_MAX = 50;
 export const ROUTINE_SETS_MIN = 1;
 export const ROUTINE_SETS_MAX = 20;
 
-/** The contract's shared "not blank" pattern (openapi wire conventions). */
-const NOT_BLANK = /[^\t-\r \u0085\u00A0\u1680\u2000-\u200D\u2028\u2029\u202F\u205F\u2060\u3000\uFEFF]/;
-
-/** A stored routine exercise (contract `RoutineExercise`): unknown keys are kept as they are. */
-export type RoutineExercise = { name: string; sets: number; [key: string]: unknown };
+/** A stored routine exercise (contract `RoutineExercise`): exactly a name and a set count. */
+export type RoutineExercise = { name: string; sets: number };
 
 /**
- * The exercises to store for a routine saved from a session: repeat names dropped (first kept), blank names dropped,
- * at most 50, sets rounded and clamped to 1 to 20. Extra keys on an exercise are kept. Empty in, empty out: the
+ * The exercises to store for a routine saved from a session: repeat names dropped (first kept), blank names dropped (`isBlank`),
+ * at most 50, sets rounded and clamped to 1 to 20. Only `{ name, sets }` is kept: other keys are not stored. Empty in, empty out: the
  * caller must not save an empty routine (contract: 1 to 50 exercises). The name limit (60 code points) is the caller's.
  *
  * New (#1184, ADR 011), not a prototype port: no prototype behaviour, no golden fixture. Tests load
  * packages/api/test-vectors/routines.json.
  */
-export function routineFromSession<E extends { name: string; sets: number }>(exercises: readonly E[]): (E & RoutineExercise)[] {
+export function routineFromSession<E extends { name: string; sets: number }>(exercises: readonly E[]): RoutineExercise[] {
   const seen = new Set<string>();
-  const out: (E & RoutineExercise)[] = [];
+  const out: RoutineExercise[] = [];
   for (const e of exercises) {
     if (out.length >= ROUTINE_EXERCISES_MAX) break;
-    if (!NOT_BLANK.test(e.name) || seen.has(e.name)) continue;
+    if (isBlank(e.name) || seen.has(e.name)) continue;
     seen.add(e.name);
     const sets = Number.isFinite(e.sets) ? Math.round(e.sets) : ROUTINE_SETS_MIN;
-    out.push({ ...e, sets: Math.min(ROUTINE_SETS_MAX, Math.max(ROUTINE_SETS_MIN, sets)) });
+    out.push({ name: e.name, sets: Math.min(ROUTINE_SETS_MAX, Math.max(ROUTINE_SETS_MIN, sets)) });
   }
   return out;
 }
 
 /** What `startRoutine` reads: the stored routine's exercises and today's state. */
-export interface StartRoutineInput extends Omit<SessionModsInput, 'profile'>, Omit<SessionSetsOptions, 'light' | 'deload' | 'profile' | 'lastSets'> {
-  /** Setup profile; needs both the plan and health fields (`undefined` or null for none). */
-  profile?: (PlanProfile & HealthProfile) | null;
+export interface StartRoutineInput extends Omit<SessionModsInput, 'profile' | 'labHold'> {
+  /** Names to tags, for `isExcluded`. */
+  tags: ExerciseCatalog['tags'];
+  /** Setup profile; only `needsClearance` is read (`undefined` or null for none). */
+  profile?: HealthProfile | null;
   /** The routine's stored `{ name, sets }` list, in order. */
   routine: readonly { name: string; sets: number }[];
   /** Names in the exercise catalogue (built-in and custom). A routine name not in it is `missing`. */
@@ -53,29 +52,27 @@ export interface StartedRoutine {
   mods: SessionMods;
   /** Always absent: a routine session has no plan template, so it counts as hand-picked (`HAND_PICKED`). */
   base?: undefined;
-  /** Routine names the catalogue lacks or an exclusion covers, in routine order, for the app to flag. */
-  missing: string[];
+  /** Routine names the catalogue lacks or an exclusion covers, in routine order, with the reason, for the app to flag. */
+  missing: { name: string; reason: 'unknown' | 'excluded' }[];
 }
 
 /**
- * A session from a saved routine. The stored set counts are the starting point and the check-in, re-entry and deload
- * adjustments of `buildSession(t)` apply on top, via `sessionMods` and `sessionSets` (decision D2 on #1184, as
- * `seededSession`). `sessionSets` keeps its 3 to 5 range on the starting count. The balance exercise (60+) is only there if
- * stored, with 2 sets. No focus, no bridge. Swapped or removed exercises keep their stored name.
+ * A session from a saved routine. Each stored set count is the starting number, kept as saved (no 3 floor, no 5 cap,
+ * no beginner ramp, no calf bump, no balance override); only the deload and light-day steps (`adjustSets`, shared with
+ * `sessionSets`) apply on top. The check-in, re-entry and `needsClearance` come from `sessionMods`; no lab hold (#1088:
+ * hand-picked sessions get none). No focus, no bridge. Swapped or removed exercises keep their stored name.
  *
- * New (#1184), not a prototype port: no prototype behaviour, no golden fixture.
+ * New (#1184, decision D2), not a prototype port: no prototype behaviour, no golden fixture.
  */
 export function startRoutine(i: StartRoutineInput): StartedRoutine {
-  const { setsLight, mods } = sessionMods(i);
-  const stored = new Map(i.routine.map((e) => [e.name, e.sets]));
-  const built = sessionSets(
-    i.routine.filter((e) => e.name !== BALANCE_EXERCISE).map((e) => ({ name: e.name })),
-    { profile: i.profile ?? null, date: i.date, tags: i.tags, lastSets: (n) => stored.get(n), light: setsLight, deload: mods.deload },
-  );
-  const byName = new Map(built.map((e) => [e.name, e.sets]));
-  const exercises = i.routine.map((r) => ({ name: r.name, sets: r.name === BALANCE_EXERCISE ? 2 : (byName.get(r.name) as number), bridge: false }));
+  const { labHold: _ignored, ...rest } = i as StartRoutineInput & { labHold?: boolean };
+  const { setsLight, mods } = sessionMods(rest);
+  const exercises = i.routine.map((r) => ({ name: r.name, sets: adjustSets(r.sets, { deload: mods.deload, light: setsLight }), bridge: false }));
   const names = i.catalogue instanceof Set ? i.catalogue : new Set(i.catalogue);
-  const missing = i.routine.map((r) => r.name).filter((n) => !names.has(n) || isExcluded(n, i.exclusions ?? [], i.tags));
+  const missing: StartedRoutine['missing'] = [];
+  for (const { name } of i.routine) {
+    if (!names.has(name)) missing.push({ name, reason: 'unknown' });
+    else if (isExcluded(name, i.exclusions ?? [], i.tags)) missing.push({ name, reason: 'excluded' });
+  }
   return { exercises, mods, missing };
 }
-
