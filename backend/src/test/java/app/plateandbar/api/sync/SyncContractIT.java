@@ -195,7 +195,7 @@ class SyncContractIT extends SyncITBase {
      * neither a {@link SyncTable} nor listed here fails the build; the validator refuses pushes for these per record
      * (SyncRequestValidatorUnsupportedTableTest). Remove the entry in the PR that adds the table.
      */
-    private static final Map<String, String> NOT_YET_IMPLEMENTED = Map.of("routines", "#1184");
+    private static final Map<String, String> NOT_YET_IMPLEMENTED = Map.of();
 
     @Test
     void syncTableEnumMatchesTheContract() {
@@ -328,6 +328,7 @@ class SyncContractIT extends SyncITBase {
             case exclusions -> rec.put("done", true);
             case swaps -> rec.put("to", "Edited");
             case settings -> rec.put("rest_off", true);
+            case routines -> rec.put("name", "Edited");
         }
     }
 }

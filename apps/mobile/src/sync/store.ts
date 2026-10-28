@@ -14,6 +14,8 @@ export const KEY_REMINDERS = 'device.reminders';
 export const KEY_REST = 'device.rest';
 /** The weight unit shown and typed, `kg` or `lb` (#1185). Device-only, never synced, and kept by a store wipe: a display preference holds no personal data. */
 export const KEY_WEIGHT_UNIT = 'device.weight_unit';
+/** The plate calculator's bar weight and available plates per unit (#1176). Device-only, never synced, kept by a store wipe like the unit: gym equipment holds no personal data. */
+export const KEY_PLATES = 'device.plates';
 export const KEY_CURSOR = 'sync.cursor';
 const liftKey = (exercise: string) => `sync.lift.${exercise}`;
 

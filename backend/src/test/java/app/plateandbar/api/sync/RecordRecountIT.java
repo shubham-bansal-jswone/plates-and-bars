@@ -73,16 +73,16 @@ class RecordRecountIT extends SyncITBase {
     }
 
     @Test
-    void everyOneOfTheSixteenTablesIsCounted() {
+    void everySyncTableIsCounted() {
         String user = newUser();
         Req r = Req.of(null);
         SyncFixtures.oneOfEach(user, T).forEach(r::add);
         ok(user, r.build());
-        assertThat(rows(user)).isEqualTo(16);
+        assertThat(rows(user)).isEqualTo(SyncTable.values().length);
         jdbc.update("UPDATE sync_state SET records = 0 WHERE user_id = ?", user);
 
         assertThat(recount.recount(user)).isTrue();
-        assertThat(counter(user)).isEqualTo(16);
+        assertThat(counter(user)).isEqualTo(SyncTable.values().length);
     }
 
     @Test
