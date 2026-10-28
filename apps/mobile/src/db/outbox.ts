@@ -2,7 +2,7 @@ import type { WorkoutDb } from './workouts';
 import type { StoreDb } from './records';
 import { writeLock } from './writeLock';
 
-/** The 16 contract sync tables (`SyncTable`) and the local table each one is stored in. */
+/** The 17 contract sync tables (`SyncTable`) and the local table each one is stored in. */
 export const SYNC_TABLES = {
   profiles: 'profiles',
   consents: 'consents',
@@ -20,6 +20,7 @@ export const SYNC_TABLES = {
   exclusions: 'exclusions',
   swaps: 'swaps',
   settings: 'user_settings',
+  routines: 'routines',
 } as const;
 
 export type SyncTableName = keyof typeof SYNC_TABLES;
