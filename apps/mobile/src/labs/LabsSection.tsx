@@ -19,6 +19,8 @@ const FIELDS = ['name', 'value', 'unit', 'low', 'high'] as const;
 const NUMERIC = new Set<string>(['value', 'low', 'high']);
 
 /** One row's problem: the first one core finds for that test alone (the date is checked on its own). */
+/** The one field of a test each row error is about. */
+const FIELD_OF: Record<string, keyof LabTest> = { name_missing: 'name', name_too_long: 'name', value_not_number: 'value', low_not_number: 'low', high_not_number: 'high', unit_too_long: 'unit', unit_missing: 'unit' };
 const rowError = (t: LabTest) => validateLabReport({ id: '', date: '2000-01-01', tests: [t] });
 
 /**
@@ -185,9 +187,9 @@ function AddForm({ today, onClose, onSave }: { today: string; onClose: () => voi
                   onChangeText={(v) => edit(i, k, v)}
                   autoCapitalize="none"
                   autoCorrect={false}
-                  invalid={!!err}
-                  accessibilityHint={err ? LAB_ERRORS[err] : undefined}
-                  describedBy={err ? `${uid}-test-${i}-error` : undefined}
+                  invalid={!!err && FIELD_OF[err] === k}
+                  accessibilityHint={err && FIELD_OF[err] === k ? LAB_ERRORS[err] : undefined}
+                  describedBy={err && FIELD_OF[err] === k ? `${uid}-test-${i}-error` : undefined}
                   {...(NUMERIC.has(k) ? { inputMode: 'decimal' as const } : {})}
                 />
               ))}

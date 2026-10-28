@@ -106,19 +106,30 @@ describe('Lab reports section (flag on)', () => {
     expect(idOf(dateErr)).toMatch(/\S/);
     expect(date.props['aria-describedby']).toBe(idOf(dateErr));
     const rowErr = 'Enter the test name as printed on your report.';
-    for (const f of ['Test name', 'Value', 'Unit', 'Lab low limit', 'Lab high limit']) {
+    const ALL = ['Test name', 'Value', 'Unit', 'Lab low limit', 'Lab high limit'];
+    // The error names the test name only: that field is invalid and linked, the other four are not.
+    for (const f of ALL) {
       const el = screen.getByLabelText(`${f}, test 1`);
-      expect(el.props['aria-invalid']).toBe(true);
-      expect(el.props.accessibilityHint).toBe(rowErr);
-      expect(el.props['aria-describedby']).toBe(idOf(rowErr));
+      const named = f === 'Test name';
+      expect(el.props['aria-invalid']).toBe(named ? true : undefined);
+      expect(el.props.accessibilityHint).toBe(named ? rowErr : undefined);
+      expect(el.props['aria-describedby']).toBe(named ? idOf(rowErr) : undefined);
     }
     expect(idOf(rowErr)).not.toBe(idOf(dateErr));
     await fireEvent.changeText(screen.getByLabelText('Report date'), '2026-10-08');
     expect(screen.getByLabelText('Report date').props['aria-describedby']).toBeUndefined();
     expect(screen.getByLabelText('Report date').props['aria-invalid']).toBeUndefined();
-    await fillRow(1, { name: 'Glucose', value: '5', unit: 'mmol/L' });
-    expect(screen.getByLabelText('Value, test 1').props['aria-describedby']).toBeUndefined();
-    expect(screen.getByLabelText('Value, test 1').props.accessibilityHint).toBeUndefined();
+    // A bad value moves the mark to the value field alone.
+    await fillRow(1, { name: 'Glucose', value: 'abc' });
+    const bad = 'Enter the value as a number, like 5.4.';
+    for (const f of ALL) {
+      const el = screen.getByLabelText(`${f}, test 1`);
+      const named = f === 'Value';
+      expect(el.props['aria-invalid']).toBe(named ? true : undefined);
+      expect(el.props['aria-describedby']).toBe(named ? idOf(bad) : undefined);
+    }
+    await fillRow(1, { value: '5', unit: 'mmol/L' });
+    for (const f of ALL) expect(screen.getByLabelText(`${f}, test 1`).props['aria-describedby']).toBeUndefined();
   });
 
   it('every field has a label and a test can be added and removed', async () => {

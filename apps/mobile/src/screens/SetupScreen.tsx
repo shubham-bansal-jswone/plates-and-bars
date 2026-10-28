@@ -46,15 +46,18 @@ function Consent({ onContinue }: { onContinue: () => Promise<void> }) {
         <Switch
           accessibilityLabel={CONSENT.checkbox}
           accessibilityHint={err || undefined}
-          aria-invalid={err ? true : undefined}
-          aria-describedby={err ? errId : undefined}
+          invalid={!!err}
+          describedBy={err ? errId : undefined}
           value={ok}
           onValueChange={(v) => {
             setOk(v);
             setErr('');
           }}
         />
-        <Press tabIndex={-1} focusable={false} accessibilityElementsHidden importantForAccessibility="no" onPress={() => setOk(!ok)} style={{ flex: 1, minHeight: 44, justifyContent: 'center' }}>
+        <Press tabIndex={-1} focusable={false} accessibilityElementsHidden importantForAccessibility="no" onPress={() => {
+            setOk(!ok);
+            setErr('');
+          }} style={{ flex: 1, minHeight: 44, justifyContent: 'center' }}>
           <Text style={{ color: c.ink }}>{CONSENT.checkbox}</Text>
         </Press>
       </View>
