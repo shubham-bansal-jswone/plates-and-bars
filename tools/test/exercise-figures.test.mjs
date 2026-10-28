@@ -4,7 +4,6 @@ import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import vm from 'node:vm';
 import { AN } from '../exercise-figures/rig.mjs';
 import { buildBundle, renderFrame, serialize, slug, COLOURS, ISOMETRIC } from '../exercise-figures/generate.mjs';
 import { validateExerciseImages, MAX_FRAME_BYTES } from '../validate/exercise-images.mjs';
@@ -12,7 +11,7 @@ import { validateExerciseImages, MAX_FRAME_BYTES } from '../validate/exercise-im
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const names = Object.keys(JSON.parse(readFileSync(`${repo}/content/exercises.json`, 'utf8')).tags);
 const committed = readFileSync(`${repo}/content/exercise-images.json`, 'utf8');
-const html = readFileSync(`${repo}/docs/prototype/plate-and-bar.html`, 'utf8');
+const fixture = JSON.parse(readFileSync(`${repo}/tools/test/fixtures/an-poses.json`, 'utf8'));
 
 test('the rig has the 31 prototype poses plus batches 2, 3 and 4 (12 poses each) and Dead Bug and Dumbbell Fly and every one is an exercise in the app', () => {
   assert.equal(AN.names.length, 69);
@@ -20,15 +19,9 @@ test('the rig has the 31 prototype poses plus batches 2, 3 and 4 (12 poses each)
   assert.deepEqual(Object.keys(buildBundle(names).images).sort(), [...AN.names].sort());
 });
 
-test('the ported rig draws exactly what the prototype rig draws, for every pose', () => {
-  const start = html.indexOf('const AN = (() => {');
-  const end = html.indexOf('\n})();', start) + '\n})();'.length;
-  assert.ok(start > 0 && end > start);
-  const proto = vm.runInNewContext(`${html.slice(start, end)}; AN`, {});
-  assert.equal(proto.names.length, 31);
-  assert.deepEqual(AN.names.slice(0, 31), [...proto.names]); // batch 2 poses are appended after the prototype's
-  const C = { body: 'B', arm: 'A', hl: 'H', eq: 'E', bg: 'G' };
-  for (const n of proto.names) for (const k of [0, 0.25, 0.5, 1]) assert.equal(AN.frame(n, k, C), proto.frame(n, k, C), `${n} at ${k}`);
+test('the rig draws exactly the frozen output in test/fixtures/an-poses.json, for every pose (the first 31 were captured from the prototype rig, see tools/README.md)', () => {
+  assert.deepEqual(Object.keys(fixture.poses), AN.names);
+  for (const n of AN.names) fixture.ks.forEach((k, i) => assert.equal(AN.frame(n, k, fixture.colours), fixture.poses[n][i], `${n} at ${k}`));
 });
 
 test('output is deterministic: two builds and the committed bundle are byte-identical', () => {

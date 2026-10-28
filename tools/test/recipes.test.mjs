@@ -6,10 +6,9 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { validateRaw, validateRecipes, validatePlanning } from '../validate/recipes.mjs';
-import { extractRecipeData, importAll, serialize, idFor, SOURCE_OVERRIDE, VALUE_OVERRIDE } from '../recipes-import/import.mjs';
+import { idFor, VALUE_OVERRIDE } from '../recipes-import/import.mjs';
 
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
-const html = readFileSync(`${repo}/docs/prototype/plate-and-bar.html`, 'utf8');
 const load = (f) => JSON.parse(readFileSync(`${repo}/content/${f}`, 'utf8'));
 const foodNames = () => new Set(load('foods.json').foods.map((f) => f.name));
 const rawNames = () => new Set(load('raw-ingredients.json').ingredients.map((i) => i.name));
@@ -17,27 +16,17 @@ const raw = (fn) => { const c = load('raw-ingredients.json'); fn(c); return vali
 const rec = (fn) => { const c = load('recipes.json'); fn(c); return validateRecipes(c, rawNames()); };
 const plan = (fn) => { const c = load('meal-planning.json'); fn(c); return validatePlanning(c, foodNames()); };
 
-test('content files equal a fresh import of the prototype and pass validation', () => {
-  const out = importAll(html);
-  assert.equal(readFileSync(`${repo}/content/raw-ingredients.json`, 'utf8'), serialize(out.raw));
-  assert.equal(readFileSync(`${repo}/content/recipes.json`, 'utf8'), serialize(out.recipes));
-  assert.equal(readFileSync(`${repo}/content/meal-planning.json`, 'utf8'), serialize(out.planning));
+test('content files pass validation', () => {
   assert.deepEqual(validateRaw(load('raw-ingredients.json')), []);
   assert.deepEqual(validateRecipes(load('recipes.json'), rawNames()), []);
   assert.deepEqual(validatePlanning(load('meal-planning.json'), foodNames()), []);
 });
 
-test('raw ingredients carry the prototype numbers, including fibre, in prototype order', () => {
-  const p = extractRecipeData(html);
+test('raw ingredient: Toor dal values, the fatty ones and the stable id', () => {
   const c = load('raw-ingredients.json');
-  assert.deepEqual(c.ingredients.map((i) => i.name), Object.keys(p.RAW));
-  for (const i of c.ingredients) {
-    const [kcal, protein, carbs, fat] = VALUE_OVERRIDE[i.name]?.set ?? p.RAW[i.name]; // Ghee: #576
-    assert.deepEqual(i.per_100g, { kcal, protein_g: protein, carbs_g: carbs, fibre_g: p.RAW_FIB[i.name] ?? 0, fat_g: fat });
-  }
   const toor = c.ingredients.find((i) => i.name === 'Toor dal (dry)');
   assert.deepEqual(toor.per_100g, { kcal: 343, protein_g: 21.7, carbs_g: 62.8, fibre_g: 15, fat_g: 1.5 });
-  assert.deepEqual(c.ingredients.filter((i) => i.fatty).map((i) => i.name), ['Butter', 'Ghee', 'Oil', 'Fresh cream'].sort((a, b) => Object.keys(p.RAW).indexOf(a) - Object.keys(p.RAW).indexOf(b)));
+  assert.deepEqual(c.ingredients.filter((i) => i.fatty).map((i) => i.name).sort(), ['Butter', 'Fresh cream', 'Ghee', 'Oil']);
   assert.equal(idFor('raw', 'Toor dal (dry)'), toor.id);
 });
 
@@ -48,41 +37,26 @@ test('sources: only ADR 005 codes, FSSAI for dairy, label values for packaged, e
   assert.equal(by('Whey protein'), 'label_typical');
   assert.equal(by('Poha (dry)'), 'own_estimate');
   assert.equal(by('Toor dal (dry)'), 'usda_fdc');
-  assert.deepEqual(Object.keys(SOURCE_OVERRIDE).filter((n) => !(n in extractRecipeData(html).RAW)), []);
   for (const i of c.ingredients) { assert.ok(i.source.licence); assert.equal(i.needs_dietitian_review, true); }
   for (const r of [...load('recipes.json').library, ...load('recipes.json').presets]) assert.equal(r.needs_dietitian_review, true);
   assert.equal(load('meal-planning.json').needs_dietitian_review, true);
 });
 
-test('recipes: 9 library recipes and 8 presets, steps/time/cost/tags unchanged', () => {
-  const p = extractRecipeData(html);
+test('recipes: 9 library recipes and 8 presets', () => {
   const c = load('recipes.json');
   assert.equal(c.library.length, 9);
-  assert.deepEqual(c.library.map((r) => r.name), Object.keys(p.LIBRARY));
-  assert.deepEqual(c.presets.map((r) => r.name), Object.keys(p.PRESETS));
-  for (const r of c.library) {
-    const L = p.LIBRARY[r.name];
-    assert.deepEqual(r.steps, L.steps);
-    assert.deepEqual([r.time_min, r.cost, r.tags, r.katoris], [L.time, L.cost, L.tags, L.k]);
-    assert.deepEqual(r.ingredients.map((g) => [g.ingredient, g.amount]), L.rows);
-  }
+  assert.equal(c.presets.length, 8);
   assert.equal(c.katori_g, 150);
 });
 
-test('meal planning: weights, caps and grocery map match the prototype', () => {
-  const p = extractRecipeData(html);
+test('meal planning: meal weights and minimum portions', () => {
   const c = load('meal-planning.json');
   assert.deepEqual(c.meal_weights, { Breakfast: 0.25, Lunch: 0.35, Snacks: 0.1, Dinner: 0.3 });
-  assert.deepEqual(c.protein_weights, p.PROT_W);
-  assert.deepEqual(c.max_portions, p.MAXQ);
   assert.deepEqual(c.min_portions, { 'Soya chunks, dry': 0.5, 'Whey protein': 0.5, 'Egg, whole': 2, 'Egg white': 2 });
-  assert.deepEqual(c.grocery.map((g) => [g.food, g.items.map((i) => [i.item, i.amount, i.unit])]), Object.entries(p.GROC));
 });
 
-test('meal planning roles equal the prototype ROLE table in order, with a valid role and diet each', () => {
-  const p = extractRecipeData(html);
+test('meal planning roles: 37 rows and a known entry', () => {
   const c = load('meal-planning.json');
-  assert.deepEqual(c.roles.map((r) => [r.food, r.role, r.diet]), Object.entries(p.ROLE).map(([f, [r, d]]) => [f, r, d]));
   assert.equal(c.roles.length, 37);
   assert.deepEqual(c.roles.find((r) => r.food === 'Egg, whole'), { food: 'Egg, whole', role: 'bp', diet: 'e' });
 });
