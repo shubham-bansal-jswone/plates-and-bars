@@ -213,6 +213,7 @@ class SyncRoutinesIT extends SyncITBase {
         }
         int liveBefore = live(user);
         int rowsBefore = count("SELECT COUNT(*) FROM routines WHERE user_id = ?", user);
+        int versionsBefore = count("SELECT COALESCE(SUM(version), 0) FROM routines WHERE user_id = ?", user);
 
         Req req = Req.of(null);
         int nextLive = 0;
@@ -253,7 +254,7 @@ class SyncRoutinesIT extends SyncITBase {
             // Nothing applied: not a row, not a version, not a conflict.
             assertThat(live(user)).isEqualTo(liveBefore);
             assertThat(count("SELECT COUNT(*) FROM routines WHERE user_id = ?", user)).isEqualTo(rowsBefore);
-            assertThat(count("SELECT COUNT(*) FROM routines WHERE user_id = ? AND version > 1", user)).isZero();
+            assertThat(count("SELECT COALESCE(SUM(version), 0) FROM routines WHERE user_id = ?", user)).isEqualTo(versionsBefore);
             assertThat(count("SELECT COUNT(*) FROM sync_conflicts WHERE user_id = ?", user)).isZero();
         }
     }
