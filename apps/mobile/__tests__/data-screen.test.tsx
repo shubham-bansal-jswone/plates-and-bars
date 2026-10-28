@@ -136,7 +136,7 @@ describe('data screen (#27)', () => {
     expect(screen.queryByText(/Saved privately to your account/)).toBeNull();
   });
 
-  it('says the photos and lab data stay on this device once, not twice, when signed in', async () => {
+  it('says the photos stay on this device once, not twice, when signed in', async () => {
     await show({ signedIn: true }, consented());
     await screen.findByText('Saved privately to your account.');
     expect(screen.getAllByText(/photos \(progress and kitchen test\) are not in it; they stay on this device/i)).toHaveLength(1);
