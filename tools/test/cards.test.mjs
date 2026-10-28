@@ -29,7 +29,7 @@ test('all 30 KB cards carry over in prototype order with title, summary, evidenc
     const k = p.KB[c.id];
     // The five #549 cards differ from the prototype on purpose (CARD_OVERRIDES); every other field is unchanged.
     const o = CARD_OVERRIDES[c.id]?.set ?? {};
-    assert.deepEqual([c.title, c.summary, c.evidence, c.source], [k.t, k.s, o.evidence ?? k.ev, o.source ?? k.src]);
+    assert.deepEqual([c.title, c.summary, c.evidence, c.source], [o.title ?? k.t, o.summary ?? k.s, o.evidence ?? k.ev, o.source ?? k.src]);
   }
 });
 
