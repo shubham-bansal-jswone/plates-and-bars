@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ComponentRef, type ReactNode } from 'react';
 import { profileWhyValues } from '../why/values';
 import { WhyLink } from '../why/WhyLink';
 import { useFocusEffect } from 'expo-router';
-import { AccessibilityInfo, Platform, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { AccessibilityInfo, Platform, StyleSheet, Text as RNText, useWindowDimensions, View } from 'react-native';
 import { useDataVersion } from '../sync/useDataVersion';
 import { Text } from '../components/Text';
 import { HAND_PICKED, modsNote, overridesFromSettings, plannedCoverage, type WeekPlan, secondSessionChoices, sessionVolume, beginnerRamp, checkinFlags, isFocus, nextInList, coverageTemplates, mondayOf, planned, restFor, warmupSets, type Checkin, isLearning, exInfo, priorSessions, REST_EXTEND_SEC, type ExclusionReason } from '@plate-and-bar/core';
@@ -31,6 +31,8 @@ import { CardioBlock } from '../workout/CardioBlock';
 import { ModeNote, WeekTools } from '../workout/ScheduleTools';
 import { CantSheet } from '../workout/CantSheet';
 import { CompletionPanel } from '../workout/CompletionPanel';
+import { FinishWorkout } from '../workout/FinishWorkout';
+import { focusNode } from '../labelscan/focus';
 import { LibraryEntryButton } from '../library/LibraryEntryButton';
 import { Hero, IndexThumb, SegmentBar, StartButton } from '../workout/SessionHeader';
 import { HowToSheet, RestBar, ToastBar, type RestState } from '../workout/parts';
@@ -499,6 +501,9 @@ function SessionView({ now, db, reloadKey, w, profile, focus, rules, notify, tun
   // The muscle map is open until the first set is ticked (prototype sessionMapHtml); once the user taps it, their choice stays.
   const [mapOpen, setMapOpen] = useState<boolean | null>(null);
   const [adding, setAdding] = useState(false);
+  // After Complete workout the panel appears; focus moves to its heading once it is there.
+  const focusPanel = useRef(false);
+  const panelHeading = useRef<ComponentRef<typeof RNText>>(null);
   // One exercise is expanded at a time: the user's pick, else the first with sets left. Acting on an exercise pins it, so its rating chips and form question stay put after its last tick.
   const [pinned, setPinned] = useState<string | null>(null);
   const wk = day.workout as Workout;
@@ -516,6 +521,11 @@ function SessionView({ now, db, reloadKey, w, profile, focus, rules, notify, tun
   const { primary: mainMuscles, secondary: alsoMuscles } = musclesOf(day.exs.map((e) => e.name));
   const mapShown = mapOpen ?? done === 0;
   const complete = all > 0 && done === all;
+  useEffect(() => {
+    if (!focusPanel.current || !complete) return;
+    focusPanel.current = false;
+    focusNode(panelHeading.current);
+  }, [complete]);
   const current = pinned && day.exs.some((e) => e.name === pinned) ? pinned : (day.exs.find((e) => e.sets.some((s) => !s.done))?.name ?? null);
 
   // The map is open until the first tick on every width (prototype sessionMapHtml).
@@ -582,6 +592,7 @@ function SessionView({ now, db, reloadKey, w, profile, focus, rules, notify, tun
         </Card>
       ) : null}
       <CardioBlock value={wk.cardio_min} onSave={w.setCardio} />
+      {done > 0 && !complete ? <FinishWorkout done={done} all={all} onFinish={() => (focusPanel.current = w.finishEarly())} /> : null}
     </>
   );
 
@@ -597,7 +608,7 @@ function SessionView({ now, db, reloadKey, w, profile, focus, rules, notify, tun
       {complete ? null : <BurnLine db={db} date={date} profileKg={profile.weight_kg} exs={day.exs} cardio={wk.cardio_min} reloadKey={reloadKey} />}
       {notes.length ? <Note>Today: {notes.join('; ')}.</Note> : null}
       <View style={{ width: '100%', maxWidth: 560, alignSelf: 'center' }}>
-        <CompletionPanel db={db} date={date} profileKg={profile.weight_kg} exs={day.exs} cardio={wk.cardio_min} lifts={day.lifts} reloadKey={reloadKey} />
+        <CompletionPanel headingRef={panelHeading} db={db} date={date} profileKg={profile.weight_kg} exs={day.exs} cardio={wk.cardio_min} lifts={day.lifts} reloadKey={reloadKey} />
       </View>
     </>
   );

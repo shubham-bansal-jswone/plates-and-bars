@@ -1,4 +1,5 @@
-import { StyleSheet, View } from 'react-native';
+import { type ComponentRef, type Ref } from 'react';
+import { StyleSheet, Text as RNText, View } from 'react-native';
 import { sessionVolume, type LiftRecord } from '@plate-and-bar/core';
 import { Text } from '../components/Text';
 import { Card, Heading, MetricRow } from '../components/ui';
@@ -24,7 +25,7 @@ function bestSet(sets: readonly Row[]): Row | null {
  * "Session done": shown while every set is ticked, read from today's exercises only. Nothing is stored and nothing is locked:
  * un-tick a set and it goes. No duration (none is stored), no streak. A personal record is core's `updateLift` result (the record's `pbToast` is today).
  */
-export function CompletionPanel({ db, date, profileKg, exs, cardio, lifts, reloadKey }: { db: WorkoutDb; date: string; profileKg: number; exs: readonly ExState[]; cardio: number | null; lifts: Readonly<Record<string, LiftRecord>>; reloadKey: number }) {
+export function CompletionPanel({ db, date, profileKg, exs, cardio, lifts, reloadKey, headingRef }: { headingRef?: Ref<ComponentRef<typeof RNText>>; db: WorkoutDb; date: string; profileKg: number; exs: readonly ExState[]; cardio: number | null; lifts: Readonly<Record<string, LiftRecord>>; reloadKey: number }) {
   const c = useTheme();
   const sets = exs.flatMap((e) => e.sets);
   const done = sets.filter((s) => s.done).length;
@@ -40,7 +41,7 @@ export function CompletionPanel({ db, date, profileKg, exs, cardio, lifts, reloa
   const twoSessions = exs.some((e) => e.part === 2);
   return (
     <Card testID="completion-panel">
-      <Heading level={2} style={[type.title, { color: c.ink }]}>Session done</Heading>
+      <Heading ref={headingRef} level={2} style={[type.title, { color: c.ink }]}>Session done</Heading>
       {twoSessions ? <Text style={[type.caption, { color: c.muted }]}>Today, both sessions together.</Text> : null}
       {/* MetricRow holds 3 cells; a 4th (cardio) goes on a second row so none truncates at 360 px. */}
       <MetricRow cells={cells.slice(0, 3)} />

@@ -563,6 +563,39 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
     );
   };
 
+  /**
+   * "Complete workout": finishes early with only the ticked sets. Unticked work sets become tombstones and an exercise with no
+   * ticked set is removed, in one commit and one transaction, so a reload never sees half of it. Ratings, ramps of kept
+   * exercises and cardio stay. False when nothing is ticked. Lift records are untouched: only ticked sets feed them.
+   */
+  const finishEarly = () => {
+    const d = clone(ref.current);
+    if (!d.workout) return false;
+    const gone = new Set<string>();
+    const goneEx = new Set<string>();
+    const kept: ExState[] = [];
+    for (const e of d.exs) {
+      if (!e.sets.some((s) => s.done)) goneEx.add(e.name);
+      else {
+        for (const s of e.sets) if (!s.done) gone.add(s.id);
+        e.sets = e.sets.filter((s) => s.done);
+        kept.push(e);
+      }
+    }
+    if (!kept.length) return false;
+    d.exs = kept;
+    commit(d);
+    void enqueue(() =>
+      atomic(async (h) => {
+        const at = stamp(now());
+        for (const s of await loadSets(h, date)) if (!s.deleted_at && (gone.has(s.id) || goneEx.has(s.exercise))) await saveSet(h, date, { ...s, updated_at: at, deleted_at: at });
+        await writeWorkout(false, h);
+        for (const e of kept) await writeSets(e.name, 'work', ids(e.sets), h); // the rows left move up: set_index is the position
+      }),
+    );
+    return true;
+  };
+
   const rampStart = (i: number) => {
     const row = blankRow();
     change(i, (ex) => void (ex.ramp = [row]), (name) => writeSets(name, 'ramp', [row.id]));
@@ -800,5 +833,5 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
     notify(choice ? `Swapped in ${choice}` : `${draft.name} removed`);
   };
 
-  return { date, day: loaded === date ? day : NOT_READY, cant, setCardio, editSet, tick, rate, setForm, setFeel, skipRemaining, rampStart, rampSkip, rampAdd, rampTick, rampRated, addSet, removeSet, addExercise, removeExercise, start, startPicked, addSecond };
+  return { date, day: loaded === date ? day : NOT_READY, cant, setCardio, editSet, tick, rate, setForm, setFeel, skipRemaining, rampStart, rampSkip, rampAdd, rampTick, rampRated, addSet, removeSet, addExercise, removeExercise, finishEarly, start, startPicked, addSecond };
 }
