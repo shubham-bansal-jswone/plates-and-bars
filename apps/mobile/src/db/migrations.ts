@@ -267,6 +267,22 @@ export const MIGRATIONS: readonly string[] = [
      key TEXT PRIMARY KEY NOT NULL,
      data TEXT NOT NULL
    );`,
+  // v10: saved routines (#1184, ADR 011), the 17th sync table: one JSON document per routine under its random UUIDv4 id, deleted by
+  // tombstone (deleted_at in the document). Outbox triggers and backfill as for the other tables (the backfill is empty on an upgrade:
+  // no routine existed before this table).
+  `CREATE TABLE IF NOT EXISTS routines (
+     key TEXT PRIMARY KEY NOT NULL,
+     data TEXT NOT NULL
+   );
+   CREATE TRIGGER IF NOT EXISTS routines_outbox_i AFTER INSERT ON routines
+   BEGIN
+     INSERT OR REPLACE INTO sync_outbox (tbl, key, queued_at) VALUES ('routines', NEW.key, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
+   END;
+   CREATE TRIGGER IF NOT EXISTS routines_outbox_u AFTER UPDATE ON routines
+   BEGIN
+     INSERT OR REPLACE INTO sync_outbox (tbl, key, queued_at) VALUES ('routines', NEW.key, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
+   END;
+   INSERT OR IGNORE INTO sync_outbox (tbl, key, queued_at) SELECT 'routines', key, strftime('%Y-%m-%dT%H:%M:%fZ', 'now') FROM routines;`,
 ];
 
 export async function migrate(db: MigrationDb): Promise<number> {

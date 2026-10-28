@@ -43,12 +43,12 @@ describe('sync tables migration (v6)', () => {
     expect(await migrate(db)).toBe(MIGRATIONS.length);
     const names = tableNames(db);
     for (const local of Object.values(SYNC_TABLES)) expect(names).toContain(local);
-    expect(Object.keys(SYNC_TABLES)).toHaveLength(16);
+    expect(Object.keys(SYNC_TABLES)).toHaveLength(17);
     expect(await pendingCount(db)).toBe(0);
   });
 
-  it('is append-only and only adds objects (v7 adds the content store after it, v8 the device-only cycle log, v9 the device-only lab store)', () => {
-    expect(MIGRATIONS).toHaveLength(9);
+  it('is append-only and only adds objects (v7 adds the content store after it, v8 the device-only cycle log, v9 the device-only lab store, v10 the routines table)', () => {
+    expect(MIGRATIONS).toHaveLength(10);
     expect(MIGRATIONS[7]).not.toMatch(/DROP|DELETE|ALTER|sync_outbox|TRIGGER/i);
     expect(MIGRATIONS[8]).not.toMatch(/DROP|DELETE|ALTER|sync_outbox|TRIGGER/i);
     expect(MIGRATIONS[5]).not.toMatch(/DROP|DELETE|ALTER/i);
@@ -83,6 +83,19 @@ describe('sync tables migration (v6)', () => {
     expect(queued.some((q) => q.startsWith('settings:flag'))).toBe(false);
   });
 
+  it('upgrade from v9 (before routines) keeps every row, adds an empty routines table and queues nothing for it', async () => {
+    const db = open();
+    await installAt(db, 9);
+    db.raw.exec("INSERT INTO weights (key, data) VALUES ('2026-10-08', '{\"w\":1}')");
+    db.raw.exec('DELETE FROM sync_outbox');
+    expect(await migrate(db)).toBe(MIGRATIONS.length);
+    expect(db.raw.prepare('SELECT COUNT(*) AS n FROM routines').get()).toEqual({ n: 0 });
+    expect(db.raw.prepare("SELECT data FROM weights WHERE key = '2026-10-08'").get()).toEqual({ data: '{"w":1}' });
+    expect(await pendingCount(db)).toBe(0);
+    db.raw.exec("INSERT INTO routines (key, data) VALUES ('r1', '{}')"); // the new triggers are in place
+    expect((await pendingChanges(db)).map((e) => `${e.tbl}:${e.key}`)).toEqual(['routines:r1']);
+  });
+
   it('upgrade from v1 applies every later migration', async () => {
     const db = open();
     await installAt(db, 1);
@@ -95,7 +108,7 @@ describe('sync tables migration (v6)', () => {
 describe('outbox change tracking', () => {
   const key = (e: { tbl: string; key: string }) => `${e.tbl}:${e.key}`;
 
-  it('queues an insert and an update into every one of the 16 tables, with INSERT OR REPLACE too', async () => {
+  it('queues an insert and an update into every one of the 17 tables, with INSERT OR REPLACE too', async () => {
     const db = open();
     await migrate(db);
     for (const [contract, local] of Object.entries(SYNC_TABLES)) {

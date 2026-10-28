@@ -24,13 +24,15 @@ export interface Quarantined {
  * Sets the entry aside. It does nothing when the record was edited since it was sent (its `seq` moved on): the newer
  * edit is a different change and goes out on the next run. Returns whether it was set aside.
  */
-export async function quarantine(db: PullDb, e: OutboxEntry, field: string, guard: (txn: StoreDb) => Promise<void>): Promise<boolean> {
+export async function quarantine(db: PullDb, e: OutboxEntry, field: string, guard: (txn: StoreDb) => Promise<void>, unsupported = false): Promise<boolean> {
   let done = false;
   await inTransaction(db, async (txn) => {
     await guard(txn);
     const row = await txn.getFirstAsync<{ seq: number }>('SELECT seq FROM sync_outbox WHERE tbl = ? AND key = ?', e.tbl, e.key);
     if (row?.seq !== e.seq) return;
     await txn.runAsync('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', quarantineKey(e), field);
+    // The server did not implement the table (400 `unsupported_table`, #1281): remember it, so a later upgrade of the server can be tried (see `retryUnsupported`).
+    if (unsupported) await txn.runAsync("INSERT OR REPLACE INTO settings (key, value) VALUES (?, '1')", `${UNSUPPORTED_PREFIX}${e.seq}.${e.tbl}.${e.key}`);
     done = true;
   });
   return done;
@@ -45,6 +47,27 @@ export async function listQuarantined(db: WorkoutDb): Promise<Quarantined[]> {
 
 export async function quarantineCount(db: WorkoutDb): Promise<number> {
   return (await listQuarantined(db)).length;
+}
+
+const UNSUPPORTED_PREFIX = 'sync.unsupported.';
+
+/**
+ * Puts the records set aside for `unsupported_table` back in line (ADR 011): the server may have been upgraded since. Records set
+ * aside for another reason stay aside. A record the server still refuses is set aside again by the same run. Returns how many.
+ */
+export async function retryUnsupported(db: PullDb, guard: (txn: StoreDb) => Promise<void>): Promise<number> {
+  let n = 0;
+  if (!(await (db as unknown as WorkoutDb).getFirstAsync(`SELECT 1 AS x FROM settings WHERE key LIKE '${UNSUPPORTED_PREFIX}%' LIMIT 1`))) return 0; // the usual case: no transaction
+  await inTransaction(db, async (txn) => {
+    await guard(txn);
+    const rows = await (txn as WorkoutDb).getAllAsync<{ key: string }>(`SELECT key FROM settings WHERE key LIKE '${UNSUPPORTED_PREFIX}%'`);
+    for (const r of rows) {
+      await txn.runAsync('DELETE FROM settings WHERE key = ?', PREFIX + r.key.slice(UNSUPPORTED_PREFIX.length));
+      await txn.runAsync('DELETE FROM settings WHERE key = ?', r.key);
+    }
+    n = rows.length;
+  });
+  return n;
 }
 
 /** Puts every set-aside record back in line for the next run. */

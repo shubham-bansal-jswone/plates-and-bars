@@ -23,7 +23,7 @@ const UNSAFE_KEYS: ReadonlySet<string> = new Set(['__proto__', 'constructor', 'p
 /** Consent is never restored from a file: the user gives it on this device. */
 const SKIPPED: ReadonlySet<SyncTableName> = new Set<SyncTableName>(['consents']);
 /** Parents before children, as sync stores them. */
-const ORDER: SyncTableName[] = ['workouts', 'workout_sets', 'profiles', 'consents', 'food_logs', 'water_logs', 'day_notes', 'lift_stats', 'weights', 'measurements', 'user_foods', 'recipes', 'kitchen_tests', 'exclusions', 'swaps', 'settings'];
+const ORDER: SyncTableName[] = ['workouts', 'workout_sets', 'profiles', 'consents', 'food_logs', 'water_logs', 'day_notes', 'lift_stats', 'weights', 'measurements', 'user_foods', 'recipes', 'kitchen_tests', 'exclusions', 'swaps', 'settings', 'routines'];
 /** The record field that is the local key; the tables not listed are keyed by their random `id`, and profiles and settings by 'me'. */
 const KEY_FIELD: Partial<Record<SyncTableName, string>> = { day_notes: 'date', workouts: 'date', weights: 'date', measurements: 'date', lift_stats: 'exercise', swaps: 'from' };
 
@@ -92,6 +92,7 @@ function shapeOk(tbl: SyncTableName, key: string, rec: Doc): boolean {
   // A live lift stat is core's record shape: its day and its sets. A tombstone carries neither.
   if (tbl === 'lift_stats') return !!key && (rec.deleted_at != null || (isYmd(rec.date) && Array.isArray(rec.sets)));
   if (tbl === 'swaps') return key.length > 0;
+  if (tbl === 'routines') return UUID.test(key) && typeof rec.name === 'string' && Array.isArray(rec.exercises);
   if (tbl === 'profiles' || tbl === 'settings') return true;
   return UUID.test(key);
 }
