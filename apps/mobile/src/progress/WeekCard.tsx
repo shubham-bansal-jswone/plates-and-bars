@@ -5,7 +5,7 @@ import { Heading, Hint } from '../components/ui';
 import { dayName, fmt, shortDate } from '../format';
 import { type as typeScale } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
-import { WEEK_AVG_KCAL, WEEK_CURRENT, WEEK_AVG_PROTEIN, WEEK_LOADING, WEEK_NOT_LOGGED, WEEK_SESSIONS, WEEK_TARGET_HINT, WEEK_TITLE, WEEK_TRAINED } from './copy';
+import { WEEK_AVG_KCAL, WEEK_CURRENT, WEEK_AVG_PROTEIN, WEEK_LOADING, WEEK_NOT_LOGGED, WEEK_TARGET_HINT, WEEK_TITLE, WEEK_TRAINED } from './copy';
 
 interface Props {
   date: string;
@@ -54,7 +54,6 @@ export function WeekCard({ date, days, kcalTarget, pastDay = false }: Props) {
           <View style={styles.avg}>
             <Avg big={w.avgKcal === null ? '–' : fmt(w.avgKcal)} label={WEEK_AVG_KCAL} />
             <Avg big={w.avgProtein_g === null ? '–' : `${fmt(w.avgProtein_g)} g`} label={WEEK_AVG_PROTEIN} />
-            <Avg big={String(w.sessions)} label={WEEK_SESSIONS} />
           </View>
           <Hint>{WEEK_TARGET_HINT}</Hint>
         </>

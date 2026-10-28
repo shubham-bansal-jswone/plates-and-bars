@@ -1,4 +1,4 @@
-import { useRef, useState, type ComponentRef } from 'react';
+import { useEffect, useRef, useState, type ComponentRef } from 'react';
 import { StyleSheet, TextInput, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { Input } from '../components/Input';
@@ -10,13 +10,16 @@ import type { Row } from './model';
 import { SET_ROW_H, TICK_SIZE } from './setSizes';
 
 /** One set (or ramp set): index, weight and reps inputs, and the 56px tick. Labels are part of the app's test and a11y contract. */
-export function SetRow({ n, label, row, wHead, repsHead, ph, onEdit, onTick, current }: { n: string; label: string; row: Row; wHead: string; repsHead: string; ph: { w: string; r: string }; onEdit(f: 'w' | 'r', v: string): void; onTick(): 'w' | 'r' | void; /** The next set to do: its tick is the one lime ring; later undone sets keep a quiet outline. */ current?: boolean }) {
+export function SetRow({ n, label, row, wHead, repsHead, ph, onEdit, onTick, current, focusWeight }: { n: string; label: string; row: Row; wHead: string; repsHead: string; ph: { w: string; r: string }; onEdit(f: 'w' | 'r', v: string): void; onTick(): 'w' | 'r' | void; /** The next set to do: its tick is the one lime ring; later undone sets keep a quiet outline. */ current?: boolean; /** Focus the weight field when this turns true (the ramp was skipped, so focus is not lost with the button). */ focusWeight?: boolean }) {
   const c = useTheme();
   const num = [type.metricSm, tabular, styles.input];
   // A tick refused for an empty field: that field is focused and marked invalid until it is edited.
   const [bad, setBad] = useState<'w' | 'r' | null>(null);
   const wRef = useRef<ComponentRef<typeof TextInput>>(null);
   const rRef = useRef<ComponentRef<typeof TextInput>>(null);
+  useEffect(() => {
+    if (focusWeight) wRef.current?.focus();
+  }, [focusWeight]);
   const edit = (f: 'w' | 'r', v: string) => {
     setBad(null);
     onEdit(f, v);

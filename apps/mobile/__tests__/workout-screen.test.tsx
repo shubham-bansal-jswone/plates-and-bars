@@ -1,4 +1,4 @@
-import { AccessibilityInfo, Platform, StyleSheet, Vibration } from 'react-native';
+import { AccessibilityInfo, Platform, StyleSheet, TextInput, Vibration } from 'react-native';
 import { expand, press, pressDay, reveal, tickFirstSets } from './disclosure-helpers';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { WorkoutScreen } from '../src/screens/WorkoutScreen';
@@ -965,6 +965,18 @@ describe('Workout tab: first-time ramp', () => {
     await expand('Machine Shoulder Press');
     expect(screen.getByLabelText('Start the ramp for Machine Shoulder Press')).toBeTruthy();
     expect(screen.getByLabelText('I know my weight for Machine Shoulder Press')).toBeTruthy();
+  });
+
+  it('moves focus to the first working set weight field after "I know my weight", not leaving it on the removed button (#1144)', async () => {
+    await setup();
+    await press('Start Push B');
+    await screen.findByText('Push B');
+    await expand('Machine Shoulder Press');
+    // react-native's jest mock puts one shared jest.fn `focus` on TextInput's prototype.
+    const focus = (TextInput as unknown as { prototype: { focus: jest.Mock } }).prototype.focus;
+    focus.mockClear();
+    await press('I know my weight for Machine Shoulder Press');
+    await waitFor(() => expect(focus).toHaveBeenCalledTimes(1));
   });
 
   it('starts a ramp, stores its sets as kind ramp, and the rated weight becomes the working target', async () => {

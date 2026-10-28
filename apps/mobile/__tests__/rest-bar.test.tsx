@@ -28,6 +28,13 @@ describe('RestBar live region', () => {
     expect(StyleSheet.flatten(ring.parent?.props.style)).toMatchObject({ width: 100, height: 100 });
   });
 
+  it('shows "Rest done, go!" small enough to sit inside the 100px ring, clear of the stroke (#1144)', async () => {
+    await render(<RestBar rest={{ id: 1, end: Date.now() - 1000, total: 2, label: 'Next: set 2' }} onAdd={() => {}} onSkip={() => {}} />);
+    const style = StyleSheet.flatten(screen.getByTestId('rest-title').props.style);
+    expect(style.fontSize).toBeLessThanOrEqual(14);
+    expect(style.paddingHorizontal).toBeGreaterThanOrEqual(14);
+  });
+
   it('hides the live region visually only: 1x1, negative margin, transparent, not touchable, and never display none', async () => {
     await render(<RestBar rest={{ id: 1, end: Date.now() + 2000, total: 2, label: 'Next: set 2' }} onAdd={() => {}} onSkip={() => {}} />);
     const live = screen.getByTestId('rest-announce');

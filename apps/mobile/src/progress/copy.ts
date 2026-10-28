@@ -89,7 +89,6 @@ export const WEEK_TRAINED = 'trained';
 export const WEEK_NOT_LOGGED = 'not logged';
 export const WEEK_AVG_KCAL = 'avg kcal';
 export const WEEK_AVG_PROTEIN = 'avg protein';
-export const WEEK_SESSIONS = 'sessions';
 export const WEEK_TARGET_HINT = 'The thin vertical line on each bar is your calorie target.';
 
 // Rapid-loss card (prototype `calorieCard`).

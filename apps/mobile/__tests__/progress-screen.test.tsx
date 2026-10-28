@@ -912,7 +912,8 @@ describe('Progress screen, seven days', () => {
     expect(screen.getAllByText('not logged')).toHaveLength(5);
     expect(screen.getByLabelText('2,000 avg kcal')).toBeTruthy();
     expect(screen.getByLabelText('80 g avg protein')).toBeTruthy();
-    expect(screen.getByLabelText('0 sessions')).toBeTruthy();
+    // Sessions are in the check-in card above; the week block does not repeat them (#1144).
+    expect(screen.queryByLabelText('0 sessions')).toBeNull();
     // This day's 2,400 kcal is 92.7715…% of core's scale (1.3 × the 1,990 kcal target) and the target line sits at
     // 76.9230…% (1,990 / 2,587); over target, so the fill is the caution colour at the prototype's 0.85 opacity, and
     // the target line keeps the prototype's 0.5.
@@ -931,7 +932,7 @@ describe('Progress screen, seven days', () => {
     const week = within(screen.getByRole('header', { name: 'Seven days to 8 Oct' }).parent as never);
     expect(await week.findByLabelText('– avg kcal')).toBeTruthy();
     expect(week.getByLabelText('– avg protein')).toBeTruthy();
-    expect(week.getByLabelText('0 sessions')).toBeTruthy();
+    expect(week.queryByLabelText('0 sessions')).toBeNull();
     expect(week.getAllByText('not logged')).toHaveLength(7);
     expect(week.getByLabelText('Fri, not logged')).toBeTruthy();
   });
