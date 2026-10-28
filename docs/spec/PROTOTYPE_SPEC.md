@@ -26,6 +26,16 @@ When this spec, the fixtures and the prototype disagree, the prototype wins; fil
 - Targets coverage: a one-line legend after the planned-coverage "Why?" link, "Bars: grey is planned, coloured is done. A low count (under 6 sets) shows in orange." (the number is core's `COVER_LOW`). The prototype has no legend; colour alone carried the meaning.
 - Targets "Why it works": each row is one whole-row control (named "Open <title>") with the evidence level as a separate "<level> evidence" label, instead of the prototype's `.ev` pill beside the title and a separate Open button per row.
 
+**2026-10-28 — "Redo setup" keeps the stored height unless it is edited (spec-change; prototype and golden fixtures unchanged).**
+- #1224 (from #1196, implemented in PR #1208). The prototype's `startSetup` and `validateStep` rebuild the height from the feet and inches fields, so a stored 165 cm comes back as 165.1 cm and an unedited Redo shifts the targets (resting 1,706 kcal drifts). Only the prototype's recalculate path (`su-recalc`) kept the stored cm.
+- The app now keeps the stored height in cm on every Redo and Recalculate: the form still shows it as feet and inches (`draftFromProfile`), and while those fields are untouched `keepStoredHeight` (`apps/mobile/src/setup/logic.ts`) carries the stored cm into the saved profile. Editing any height field, in either unit, uses the edited value as before. An unedited Redo therefore leaves height and targets as they were.
+- Step 0 validates that same stored height, so a stored value at the limits (120 cm or 230 cm, which show as 3 ft 11 in and 7 ft 7 in) continues without edits. Regenerating the app from the prototype must not revert this. No calculation changes, so no fixture changes.
+
+**2026-10-28 — the Progress week is always the real current week; the burn card says "today so far" only for today (spec-change; prototype now matches the app; golden fixtures unchanged).**
+- #1136 (owner decision on #1123, 2026-10-27; implemented in PR #1132, with the past-day note from PR #1207). The prototype anchored the Progress "Seven days" block on the viewed day and always labelled the burn estimate "Estimated burn today so far". The prototype was changed to match in PR #1255.
+- In the app the week card (`WeekCard`, `apps/mobile/src/progress/WeekCard.tsx`; hint copy `WEEK_CURRENT` in `apps/mobile/src/progress/copy.ts`) is always the last 7 days up to the real today, whichever day is open. While a day before today is open, a hint says so: "The last 7 days up to today, whichever day you are viewing."
+- The burn card (`apps/mobile/src/food/BurnCard.tsx`) says "Estimated burn today so far" only when the viewed date is the real today; on another day it says "Estimated burn on <date>". The numbers are core's `burnToday`, unchanged, so no fixture changes.
+
 **2026-10-27 — the active session expands one exercise at a time (deliberate difference; prototype and golden fixtures unchanged).**
 - #1138 (owner decision; see `docs/ui-redesign-audit.md` and PR #1133). The prototype expands every exercise in the session. The app expands one and collapses the others to a row that still shows the suggestion, reason, warm-up, Learn mode and stall/ladder cards. Inside an exercise only "Guide and tools" is collapsed. Regenerating the app from the prototype must not revert this.
 
