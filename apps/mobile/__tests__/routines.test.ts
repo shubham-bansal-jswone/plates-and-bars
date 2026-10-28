@@ -88,6 +88,20 @@ describe('routines store (#1184)', () => {
     expect(await loadRoutines(db)).toHaveLength(100);
   });
 
+  it('two undos at 99 end at 100, never 101', async () => {
+    const db = await openDb();
+    for (let i = 0; i < 99; i++) await createRoutine(db, `R${i}`, squat, T(1));
+    const ids: string[] = [];
+    for (const n of ['A', 'B']) {
+      const r = await createRoutine(db, n, squat, T(1));
+      await deleteRoutine(db, r.id as string, T(2));
+      ids.push(r.id as string);
+    }
+    const res = await Promise.allSettled(ids.map((id) => undoDeleteRoutine(db, id, T(3))));
+    expect(res.map((x) => x.status).sort()).toEqual(['fulfilled', 'rejected']);
+    expect(await loadRoutines(db)).toHaveLength(100);
+  });
+
   it('a rename and a pull landing together both survive (no stale overwrite)', async () => {
     const db = await openDb();
     const r = await createRoutine(db, 'A', squat, T(1));
@@ -185,7 +199,7 @@ describe('routines in the device export and restore', () => {
     const summary = await applyRestore(dst, parsed, null);
     expect(summary.tables.routines).toMatchObject({ added: 2, overCap: 3 });
     expect(await loadRoutines(dst)).toHaveLength(100);
-    expect(RESTORE_COPY.table('Routines', summary.tables.routines!)).toContain('3 skipped (over the limit of 100)');
+    expect(RESTORE_COPY.table('Routines', summary.tables.routines!)).toContain(`3 skipped (over the limit of ${ROUTINE_LIMITS.maxLive})`);
   });
 
   it('restore still takes tombstones when the device is at 100', async () => {
@@ -197,6 +211,46 @@ describe('routines in the device export and restore', () => {
     for (let i = 0; i < 100; i++) await createRoutine(dst, `D${i}`, squat, T(1));
     expect((await applyRestore(dst, parsed, null)).tables.routines).toMatchObject({ added: 1 });
     expect(await loadRoutines(dst)).toHaveLength(100);
+  });
+
+  // A device at 100 and a file holding a newer tombstone of a live routine plus one new routine, in either file order.
+  const atCapWith = async (order: 'new-first' | 'tombstone-first') => {
+    const dst = await openDb();
+    for (let i = 0; i < 100; i++) await createRoutine(dst, `D${i}`, squat, T(1));
+    await clear(dst); // as if synced: no unsynced edit to conflict with
+    const file = JSON.parse(JSON.stringify((await buildLocalExport(dst)).file)) as { tables: { routines: Record<string, unknown>[] } };
+    const [first] = file.tables.routines as { id: string }[];
+    const tomb = { ...first, version: 5, deleted_at: T(9).toISOString(), updated_at: T(9).toISOString() };
+    const fresh = { ...first, id: '00000000-0000-4000-8000-00000000abcd', name: 'New', version: 0 };
+    file.tables.routines = order === 'new-first' ? [fresh, tomb] : [tomb, fresh];
+    const parsed = await parseRestore(JSON.stringify(file));
+    return { dst, parsed };
+  };
+
+  it.each(['new-first', 'tombstone-first'] as const)('a tombstone frees a slot at 100 whatever the file order (%s)', async (order) => {
+    const { dst, parsed } = await atCapWith(order);
+    const summary = await applyRestore(dst, parsed, null);
+    expect(summary.tables.routines).toMatchObject({ added: 1, newer: 1 });
+    expect(summary.tables.routines!.overCap).toBeUndefined();
+    expect(await loadRoutines(dst)).toHaveLength(100);
+  });
+
+  it('a routine already live on the device at 100 is applied as newer, not counted as new or skipped', async () => {
+    const dst = await openDb();
+    for (let i = 0; i < 100; i++) await createRoutine(dst, `D${i}`, squat, T(1));
+    await clear(dst); // as if synced: no unsynced edit to conflict with
+    const file = JSON.parse(JSON.stringify((await buildLocalExport(dst)).file)) as { tables: { routines: Record<string, unknown>[] } };
+    file.tables.routines = [{ ...file.tables.routines[0], version: 5, name: 'Renamed', updated_at: T(9).toISOString() }];
+    const summary = await applyRestore(dst, await parseRestore(JSON.stringify(file)), null);
+    expect(summary.tables.routines).toMatchObject({ added: 0, newer: 1 });
+    expect(summary.tables.routines!.overCap).toBeUndefined();
+    expect((await loadRoutines(dst)).map((x) => x.name)).toContain('Renamed');
+  });
+
+  it('the over-limit copy takes its number from the routine limit', () => {
+    const spy = jest.replaceProperty(ROUTINE_LIMITS, 'maxLive', 7 as never);
+    expect(RESTORE_COPY.table('Routines', { added: 0, newer: 0, older: 0, conflicts: 0, overCap: 1 })).toContain('(over the limit of 7)');
+    spy.restore();
   });
 
   it('refuses a routine row that is not a routine', async () => {

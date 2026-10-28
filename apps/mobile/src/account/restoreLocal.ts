@@ -196,7 +196,9 @@ async function merge(db: WorkoutDb, parsed: ParsedRestore, apply: boolean, addOn
   // Live routines by key, kept up to date as rows are (or would be) stored, so the 100 cap holds for the whole file.
   const live = new Set<string>();
   for (const r of await db.getAllAsync<{ key: string; data: string }>("SELECT key, data FROM routines WHERE json_valid(data) AND json_extract(data, '$.deleted_at') IS NULL")) live.add(r.key);
-  for (const { tbl, key, rec, setDate } of parsed.rows) {
+  // Routine tombstones go first, so one frees its slot before new routines are counted against the cap whatever the file order.
+  const rows = [...parsed.rows].sort((a, b) => Number(b.tbl === 'routines' && !!b.rec.deleted_at) - Number(a.tbl === 'routines' && !!a.rec.deleted_at));
+  for (const { tbl, key, rec, setDate } of rows) {
     if (SKIPPED.has(tbl)) continue;
     const c = (tables[tbl] ??= zero());
     if (typeof rec.date === 'string') {
