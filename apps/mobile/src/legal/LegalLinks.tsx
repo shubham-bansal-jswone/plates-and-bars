@@ -1,7 +1,7 @@
 import { Linking, View } from 'react-native';
 import { Text } from '../components/Text';
 import { Press } from '../components/ui';
-import { type } from '../theme/tokens';
+import { linkText, type } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { legalLinks } from './siteLinks';
 
@@ -14,7 +14,7 @@ export function LegalLinks() {
     <View style={{ gap: 4 }}>
       {links.map((l) => (
         <Press key={l.url} accessibilityRole="link" accessibilityLabel={l.label} onPress={() => void Linking.openURL(l.url)} style={{ minHeight: 44, justifyContent: 'center' }}>
-          <Text style={[type.caption, { color: c.link }]}>{l.label}</Text>
+          <Text style={[type.caption, linkText, { color: c.link }]}>{l.label}</Text>
         </Press>
       ))}
     </View>

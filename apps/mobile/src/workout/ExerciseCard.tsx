@@ -133,8 +133,8 @@ function LearnBlock({ ex, first, done }: { ex: ExState; first: boolean; done: nu
   const open = shown ?? first;
   const cue = card.key_cues[done % card.key_cues.length];
   return (
-    <View style={[styles.learn, { borderColor: c.brand }]}>
-      <Text style={{ color: c.link, fontSize: 12, fontWeight: '700', letterSpacing: 0.7, textTransform: 'uppercase' }}>Learn mode</Text>
+    <View style={[styles.learn, { borderColor: c.outline }]}>
+      <Text style={{ color: c.ink, fontSize: 12, fontWeight: '700', letterSpacing: 0.7, textTransform: 'uppercase' }}>Learn mode</Text>
       {done === 0 ? <ExerciseFigure name={ex.name} /> : null}
       {card.setup.length ? (
         <Disclosure label="Setup" a11yLabel={`Setup steps for ${ex.name}`} open={open} onOpenChange={setShown}>
@@ -350,7 +350,7 @@ export function ExerciseCard({ ex, info, sug, focus, warm, act, cards, learning,
         <WhyLink id="rest" subject={ex.name} />
         {tag ? (
           <Text style={{ color: c.ink, fontSize: 14 }}>
-            {isFocus(ex.name, focus, getCatalog().tags) ? <Text accessibilityLabel="Focus muscle exercise" style={{ color: c.link, fontWeight: '700' }}>Focus </Text> : null}
+            {isFocus(ex.name, focus, getCatalog().tags) ? <Text accessibilityLabel="Focus muscle exercise" style={{ color: c.ink, fontWeight: '700' }}>Focus </Text> : null}
             <Text style={{ fontWeight: '700' }}>Works: </Text>
             {listJoin(tag.primary.map((m) => muscleName(m)))}
             {tag.secondary.length ? <Text style={{ color: c.muted }}>, plus {listJoin(tag.secondary.map((m) => muscleName(m)))}</Text> : null}
