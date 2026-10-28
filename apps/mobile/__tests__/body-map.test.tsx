@@ -1,5 +1,5 @@
 import { render, screen } from '@testing-library/react-native';
-import { BodyMap, alsoFill } from '../src/workout/BodyMap';
+import { BodyMap } from '../src/workout/BodyMap';
 import { REGIONS } from '../src/workout/bodyMapData';
 import { light } from '../src/theme/tokens';
 
@@ -9,7 +9,7 @@ interface Node {
   children?: Node[] | null;
 }
 const argb = (hex: string) => (0xff000000 + parseInt(hex.slice(1), 16)) >>> 0;
-const also = alsoFill(light);
+const also = light.muscleAlso;
 const REGION_OF = new Map<string, string>(Object.values(REGIONS).flatMap((list) => list.flatMap(([region, polys]) => polys.map((p) => [`M${p}z`, region] as [string, string]))));
 
 /** Region name to the set of fills its polygons were drawn with. */
@@ -30,12 +30,12 @@ function drawn(): Map<string, Set<number>> {
 const regionsWith = (fill: string) => [...drawn()].filter(([, f]) => f.has(argb(fill))).map(([r]) => r).sort();
 
 describe('BodyMap', () => {
-  it('draws main muscles in the brand colour, also-working in the stronger tint (3:1 against the rest) and the rest in the soft surface colour', async () => {
+  it('draws main muscles in the brand colour, also-working in the stronger tint and the rest in the off colour', async () => {
     await render(<BodyMap primary={['chest']} secondary={['triceps']} />);
     const d = drawn();
     expect(d.get('CHEST')).toEqual(new Set([argb(light.brand)]));
     expect(d.get('TRICEPS')).toEqual(new Set([argb(also)]));
-    expect(d.get('ABS')).toEqual(new Set([argb(light.surfaceSoft)]));
+    expect(d.get('ABS')).toEqual(new Set([argb(light.muscleOff)]));
     expect(regionsWith(light.brand)).toEqual(['CHEST']);
     expect(regionsWith(also)).toEqual(['TRICEPS']);
   });

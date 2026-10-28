@@ -1,7 +1,6 @@
 import { dark, light, type Palette } from '../src/theme/tokens';
 import { blend } from '../src/theme/blend';
 import { toWeight } from '../src/theme/fonts';
-import { alsoFill } from '../src/workout/BodyMap';
 
 // WCAG 2.x relative luminance and contrast ratio.
 function lum(hex: string): number {
@@ -39,6 +38,8 @@ const GRAPHIC: [K, K][] = [
   ['focus', 'bg'], ['focus', 'surface'],
   // The off state of a switch (#153): its track must be visible against the page.
   ['muted', 'bg'], ['muted', 'surface'],
+  // Body map: an unworked muscle must show against the page and the cards (#1197).
+  ['muscleOff', 'bg'], ['muscleOff', 'surface'], ['muscleOff', 'surfaceElevated'],
 ];
 
 describe.each([['light', light], ['dark', dark]] as const)('%s palette', (_mode, p) => {
@@ -55,16 +56,13 @@ describe.each([['light', light], ['dark', dark]] as const)('%s palette', (_mode,
   it.each(['bar', 'caution'] as const)('%s fill at 0.85 opacity over track is at least 3:1', (k) => {
     expect(contrast(blend(p[k], p.track, 0.85), p.track)).toBeGreaterThanOrEqual(3);
   });
-  it('body map also-working fill is at least 3:1 against an untargeted region', () => {
-    expect(contrast(alsoFill(p), p.surfaceSoft)).toBeGreaterThanOrEqual(3);
+  // Light cannot have both 3:1 against white and 3:1 against the brand blue, so the three map tones are told apart by lightness steps (floors below are measured, light is the tight one).
+  it.each([['brand', 'muscleOff', 1.7], ['muscleAlso', 'muscleOff', 2], ['muscleAlso', 'brand', 1.9]] as const)('body map %s vs %s is at least %f:1', (a, b, min) => {
+    expect(contrast(p[a], p[b])).toBeGreaterThanOrEqual(min);
   });
   it('only uses six-digit hex colours, so the maths above is what is drawn', () => {
     for (const v of Object.values(p).filter((x) => typeof x === 'string')) expect(v).toMatch(/^#[0-9A-F]{6}$/);
   });
-});
-
-it('also-working alpha comes from the palette, so a copied palette keeps it', () => {
-  expect(alsoFill({ ...light })).toBe(alsoFill(light));
 });
 
 describe('font weights', () => {
