@@ -78,10 +78,10 @@ const LB_STEP_MIN = 2.5;
 /**
  * The lb step for an exercise: the type's `LB_STEP` when `kgStep` is that type's default kg step (see
  * `DEFAULT_STEP`: 2.5 kg for barbell/dumbbell/other, 5 kg for machine/cable/assisted); a step the user
- * set themselves converts to lb and rounds to the nearest 2.5 lb, at least 2.5 lb. Step 0 stays 0.
+ * set themselves converts to lb and rounds to the nearest 2.5 lb, at least 2.5 lb. Step 0 (the user turned rounding off) falls back to the type's `LB_STEP`, so lb weights stay loadable (0 for bodyweight and timed).
  */
 export function lbStepFor(type: ExType, kgStep: number, defaultKgStep: number): number {
-  if (!(kgStep > 0)) return 0;
+  if (!(kgStep > 0)) return LB_STEP[type];
   if (kgStep === defaultKgStep) return LB_STEP[type];
   return Math.max(LB_STEP_MIN, Math.round(kgToLb(kgStep) / LB_STEP_MIN) * LB_STEP_MIN);
 }

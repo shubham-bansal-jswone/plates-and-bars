@@ -219,7 +219,9 @@ export function kgLabel(w: number, info: ExInfo, unit: WeightUnit = 'kg'): strin
 /**
  * The exercise info with its step set for `unit`: kg unchanged; lb swaps the kg step for the lb step
  * (`LB_STEP`: barbell 5, dumbbell 2.5, machine 5 ...) expressed in kg, so `snap`, `harder` and `easier`
- * move in whole lb. Weights stay kg. New, no prototype counterpart.
+ * move in whole lb. Weights stay kg. A step of 0 in lb falls back to the type's `LB_STEP`. Pass this info (with
+ * the unit) to `setTarget`, `tickFill`, `rampRate`, `rampTickFill`, and to `warmupSets`, `warmupRamp` and
+ * `estimateFor`, whose results land on the lb grid only with lb info. New, no prototype counterpart.
  */
 export function infoForUnit(info: ExInfo, unit: WeightUnit = 'kg'): ExInfo {
   return unit === 'lb' ? { ...info, step: lbToKg(lbStepFor(info.type, info.step, DEFAULT_STEP[info.type])) } : info;
@@ -232,6 +234,19 @@ export function infoForUnit(info: ExInfo, unit: WeightUnit = 'kg'): ExInfo {
  */
 export function snapForUnit(kg: number, info: ExInfo, unit: WeightUnit = 'kg'): number {
   return unit === 'kg' ? snap(kg, info.step) : snapToLbStep(kg, infoForUnit(info, 'lb'));
+}
+
+/**
+ * A kg weight rounded in lb to the lb grid toward EASIER, never past `kg`: down for loaded types, up (more
+ * assistance) for assisted. `lbInfo` is an `infoForUnit(info, 'lb')` result. Holds and light days use it so
+ * "same weight" and "no weight increase" are never heavier than last time. No rounding for step 0.
+ */
+function snapEasierLb(kg: number, lbInfo: ExInfo): number {
+  const lbStep = Math.round(kgToLb(lbInfo.step) * 1e6) / 1e6;
+  if (!(lbStep > 0)) return kg;
+  const q = kgToLb(kg) / lbStep;
+  const n = lbInfo.type === 'assisted' ? Math.ceil(q - 1e-9) : Math.floor(q + 1e-9);
+  return lbToKg(n * lbStep);
 }
 
 /**
@@ -279,6 +294,8 @@ export function suggestBase(ex: { name: string }, c: ProgressionContext): Sugges
   const unit = c.unit ?? 'kg';
   /** In lb every suggested weight lands on the lb grid (history logged in kg is off it); kg is untouched. */
   const grid = (x: number): number => (unit === 'lb' ? snapToLbStep(x, info) : x);
+  /** Holds keep the weight: in lb the grid weight at or below last time (assisted: at or above the assistance). */
+  const hold = (x: number): number => (unit === 'lb' ? snapEasierLb(x, info) : x);
   const last = lastFor(ex.name, c.lifts, c.date);
   const rw = repWord(info.type);
   const range = `${info.lo}–${info.hi} ${rw}`;
@@ -314,8 +331,8 @@ export function suggestBase(ex: { name: string }, c: ProgressionContext): Sugges
     return { mode: 'down', w: nw, reps: info.lo, text: `${kgLabel(nw, info, unit)} × ${range}`, reason: `${summary} Below ${info.lo} ${rw} ${anyFail ? 'with a failed set' : 'two sessions running'}, so drop a little and build back up.` };
   }
   if (allTop && !anyFail && !anyHard) {
-    if (last.form === 'no') return { mode: 'hold', w: grid(top), reps: info.hi, text: `${kgLabel(grid(top), info, unit)} × ${range}`, reason: `${summary} You hit the top of the range, but form slipped, so stay here until it feels solid.` };
-    if (early && !allEasy) return { mode: 'hold', w: grid(top), reps: info.hi, text: `${kgLabel(grid(top), info, unit)} × ${range}`, reason: `${summary} First 2 weeks on this exercise: keep the weight and own the movement before adding more.` };
+    if (last.form === 'no') return { mode: 'hold', w: hold(top), reps: info.hi, text: `${kgLabel(hold(top), info, unit)} × ${range}`, reason: `${summary} You hit the top of the range, but form slipped, so stay here until it feels solid.` };
+    if (early && !allEasy) return { mode: 'hold', w: hold(top), reps: info.hi, text: `${kgLabel(hold(top), info, unit)} × ${range}`, reason: `${summary} First 2 weeks on this exercise: keep the weight and own the movement before adding more.` };
     const nw = grid(harder(top, info));
     const gtop = grid(top);
     const jump = gtop > 0 ? Math.abs(nw - gtop) / gtop : 0;
@@ -325,7 +342,7 @@ export function suggestBase(ex: { name: string }, c: ProgressionContext): Sugges
     return { mode: 'up', w: nw, reps: info.lo, text: `${kgLabel(nw, info, unit)} × ${range}`, reason: `${summary} Top of the range on every set, so ${offGrid ? `move to ${formatWeight(nw, unit)} ${unit}` : info.type === 'assisted' ? 'use less assistance' : `add ${formatWeight(info.step, unit)} ${unit}`} and aim for ${info.lo}+ ${rw}.${big}` };
   }
   const target = Math.min(info.hi, Math.max(info.lo, Math.round(avg) + 1));
-  return { mode: 'hold', w: grid(top), reps: target, text: `${kgLabel(grid(top), info, unit)} × ${target} ${rw}`, reason: `${summary} ${avg < info.lo ? `Stay at this weight and work up to ${info.lo}+ ${rw}.` : `Same weight, aim for ${target} ${rw} a set. Add weight once you reach ${info.hi} on every set.`}` };
+  return { mode: 'hold', w: hold(top), reps: target, text: `${kgLabel(hold(top), info, unit)} × ${target} ${rw}`, reason: `${summary} ${avg < info.lo ? `Stay at this weight and work up to ${info.lo}+ ${rw}.` : `Same weight, aim for ${target} ${rw} a set. Add weight once you reach ${info.hi} on every set.`}` };
 }
 
 /** Today's session modifiers (prototype `S.day.workout.mods`); only these fields are read. */
@@ -385,7 +402,7 @@ export function applyMods(sug: Suggestion, ex: { name: string; bridge?: boolean 
     note = ' Bridge set: lighter, after your new exercise.';
   }
   if ((m.light || m.deload || m.reentry) && sug.mode === 'up' && !note) {
-    w = grid(top);
+    w = unit === 'lb' ? snapEasierLb(top, info) : top;
     note = ' No weight increase today.';
   }
   const pct = m.deload ? 0.1 : m.reentry || 0;

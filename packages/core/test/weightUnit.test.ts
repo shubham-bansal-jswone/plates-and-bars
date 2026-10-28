@@ -121,7 +121,8 @@ describe('lb steps', () => {
     expect(lbStepFor('barbell', 1.25, 2.5)).toBe(2.5);
     expect(lbStepFor('barbell', 0.5, 2.5)).toBe(2.5);
     expect(lbStepFor('barbell', 10, 2.5)).toBe(22.5);
-    expect(lbStepFor('barbell', 0, 2.5)).toBe(0);
+    expect(lbStepFor('barbell', 0, 2.5)).toBe(5);
+    expect(lbStepFor('bodyweight', 0, 0)).toBe(0);
     expect(lbStepFor('machine', 2.5, 5)).toBe(5);
   });
   it('infoForUnit leaves kg alone and expresses lb steps in kg', () => {
@@ -350,5 +351,52 @@ describe('applyMods and reason text in lb from kg history', () => {
     const sug = { mode: 'hold' as const, reps: 8, w: 0, text: '', reason: '' };
     const t = setTarget([{ w: '132.3', r: '8', done: true, rate: 'easy' }], 1, sug, infoForUnit(info('barbell'), 'lb'), undefined, 'lb');
     expect(formatWeight(t.w as number, 'lb')).toBe('137.3');
+  });
+});
+
+describe('holds and light days round toward easier in lb', () => {
+  const make = (name: string, kg: number, extra: Record<string, unknown> = {}, rep = 40, rate: string | undefined = 'easy') =>
+    ({
+      date: '2026-03-01',
+      lifts: { [name]: { date: '2026-02-20', sets: [1, 2, 3].map(() => ({ w: kg, r: rep, ...(rate ? { rate } : {}) })), first: '2026-01-01' } },
+      catalog,
+      unit: 'lb',
+      ...extra,
+    }) as unknown as Parameters<typeof applyMods>[2];
+  const run = (name: string, kg: number, extra: Record<string, unknown> = {}, rep = 40, rate: string | undefined = 'easy') => {
+    const c = make(name, kg, extra, rep, rate);
+    return applyMods(suggestBase({ name }, c), { name }, c);
+  };
+  it('light day: 62.5 and 63 kg barbell give 135 lb; Assisted Dips 17 kg gives 40 lb assist', () => {
+    expect(run('Barbell Row', 62.5, { mods: { light: true } }).text).toBe('135 lb × 8–12 reps');
+    expect(run('Barbell Row', 63, { mods: { light: true } }).text).toBe('135 lb × 8–12 reps');
+    expect(run('Assisted Dips', 17, { mods: { light: true } }).text).toBe('40 lb assist × 6–12 reps');
+    expect(run('Barbell Row', lbToKg(135), { mods: { light: true } }).text).toBe('135 lb × 8–12 reps');
+    expect(run('Assisted Dips', lbToKg(40), { mods: { light: true } }).text).toBe('40 lb assist × 6–12 reps');
+  });
+  it('below-range hold never heavier than last time', () => {
+    const s = run('Barbell Row', 62.5, {}, 5, undefined);
+    expect(s.reason).toContain('Stay at this weight');
+    expect(s.text).toBe('135 lb × 8 reps');
+    expect(run('Lateral Raise', 102, {}, 5, undefined).w as number).toBeLessThanOrEqual(102 + 1e-9);
+  });
+  it('sweep: no hold or light day is heavier (assisted: less assisted) than last time', () => {
+    const names = ['Barbell Row', 'Incline Dumbbell Press', 'Machine Chest Press', 'Assisted Dips', 'Cable Crossover', 'Lateral Raise'];
+    for (const name of names)
+      for (let kg = 5; kg <= 150; kg += 1.7)
+        for (const [extra, rep, rate] of [[{ mods: { light: true } }, 40, 'easy'], [{}, 5, undefined], [{}, 10, 'right']] as const) {
+          const s = run(name, kg, extra as Record<string, unknown>, rep, rate);
+          if (s.mode !== 'hold' || typeof s.w !== 'number') continue;
+          if (name === 'Assisted Dips') expect(s.w).toBeGreaterThanOrEqual(kg - 1e-9);
+          else expect(s.w).toBeLessThanOrEqual(kg + 1e-9);
+        }
+  });
+  it('custom step 0 falls back to the lb step in lb; kg keeps 0', () => {
+    const c = make('Barbell Row', 60, { overrides: { 'Barbell Row': { step: 0 } }, mods: { deload: true } });
+    const s = applyMods(suggestBase({ name: 'Barbell Row' }, c), { name: 'Barbell Row' }, c);
+    const lb = fromKg(s.w as number, 'lb');
+    expect(Math.abs(lb / 5 - Math.round(lb / 5))).toBeLessThan(1e-9);
+    const k = { ...c, unit: 'kg' } as typeof c;
+    expect(suggestBase({ name: 'Barbell Row' }, k).w).toBe(60);
   });
 });
