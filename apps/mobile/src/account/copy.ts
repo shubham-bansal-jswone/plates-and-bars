@@ -1,4 +1,35 @@
 /** Copy for the data screen (#27). No message holds any user data. */
+const rc_name = (n: string): string => RESTORE_COPY.tables[n] ?? n;
+
+export const RESTORE_COPY = {
+  action: 'Restore from a file',
+  hint: 'Choose a file exported from this app. It is merged with what is here: newer records win, nothing newer is overwritten.',
+  picking: 'Reading the file...',
+  title: 'Restore this file?',
+  differentAccount: 'This file was exported from a different account. Only records this device does not have are added; nothing here is overwritten.',
+  tables: {
+    profiles: 'Profile', consents: 'Consents', food_logs: 'Food log', water_logs: 'Water log', day_notes: 'Day notes', workouts: 'Workouts', workout_sets: 'Workout sets', lift_stats: 'Lift progress', weights: 'Weights', measurements: 'Measurements', user_foods: 'Your foods', recipes: 'Recipes', kitchen_tests: 'Kitchen tests', exclusions: 'Exclusions', swaps: 'Swaps', settings: 'Settings',
+  } as Record<string, string>,
+  table: (name: string, c: { added: number; newer: number; older: number; conflicts: number; from?: string; to?: string }, otherAccount = false) =>
+    `${rc_name(name)}: ${c.added} new, ${otherAccount ? '' : `${c.newer} newer than here, `}${c.older} ${otherAccount ? 'already here (kept)' : 'older (kept as is)'}${otherAccount ? '' : `, ${c.conflicts} changed here and not synced yet (kept)`}${c.from && c.to ? `. Dates ${c.from} to ${c.to}` : ''}`,
+  deviceOnly: (cycle: boolean, reports: number, hold: boolean) =>
+    `Kept on this device only: ${[cycle ? 'cycle log' : '', reports ? `${reports} lab report${reports === 1 ? '' : 's'}` : '', hold ? 'lab hold' : ''].filter(Boolean).join(', ')}.`,
+  nothing: 'Nothing in this file is newer than what is on this device.',
+  confirm: 'Restore',
+  cancel: 'Cancel',
+  restoring: 'Restoring...',
+  done: 'Restored. Changes sync with your account when you are online and signed in.',
+  failed: 'Could not restore. Nothing was changed.',
+  errors: {
+    too_large: 'That file is too large to be an export from this app. Nothing was changed.',
+    not_json: 'That file is not a readable export. Nothing was changed.',
+    bad_format: 'That file is not an export from this app. Nothing was changed.',
+    bad_version: 'That export is from a version this app cannot read. Nothing was changed.',
+    bad_rows: 'That file is damaged or incomplete. Nothing was changed.',
+    unsafe: 'That file contains content the app refuses to read. Nothing was changed.',
+  },
+};
+
 export const DATA_COPY = {
   title: 'Your data',
   intro: 'Download a copy of what the app stores, or delete everything.',

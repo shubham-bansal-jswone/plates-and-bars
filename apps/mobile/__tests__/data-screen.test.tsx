@@ -17,6 +17,7 @@ jest.mock('../src/account/exportLocal', () => ({ buildLocalExport: async () => (
 const base: SyncState = {
   configured: true, signedIn: false, linked: false, wipePending: false, lastDeletion: null, clearLastDeletion: () => undefined, pending: 0, syncing: false, last: null, epoch: 0, dataVersion: 0, quarantined: 0, accountFull: false, signInUnavailable: false, retryQuarantined: async () => undefined, discardQuarantined: async () => undefined, holdSchedule: () => undefined,
   syncNow: async () => null,
+  dataChanged: () => undefined,
   startSignIn: async () => ({ ok: true, resendAfterSec: 60 }),
   verifyCode: async () => ({ kind: 'signed_in', wiped: false }),
   signOut: async () => 0,
