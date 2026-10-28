@@ -133,3 +133,76 @@ export function rigPose(frame: Frame, prev: RigDirs = DEFAULT_DIRS): { joints: R
 
 /** The rig joints for one pb19 frame with no previous frame. */
 export const rigJoints = (frame: Frame): RigJoints => rigPose(frame).joints;
+
+/** The rig's drawing space (px, tools/exercise-figures/rig.mjs) and the least gap kept between the figure and its edge once a clip is fitted. */
+export const FRAME_W = 320;
+export const FRAME_H = 240;
+export const FIT_PAD = 4;
+/** The floor line of the rig: its y, and the x span it is drawn over when the figure stays within it. */
+export const FLOOR_Y = 226;
+export const FLOOR_X: Vec2 = [60, 260];
+/** Stroke widths (px) of the drawn limbs and of the head circle's outline. */
+export const WIDTH = { foot: 7, sh: 12, th: 17, torso: 26, ua: 11, fa: 9 } as const;
+export const HEAD_STROKE = 5;
+/** Half the widest limb and the head's radius with its stroke: the reach of a joint's drawn shape beyond its centre. */
+export const LIMB_REACH = WIDTH.torso / 2;
+export const HEAD_REACH = RIG_SEG.head + HEAD_STROKE / 2;
+/** Samples taken per keyframe interval when looking for the extremes of a clip. */
+const FIT_SUBSTEPS = 4;
+
+/** One fixed scale and shift for a whole clip: drawn point = point * scale + [tx, ty]. `floor` is the x span (in the same space as the points, before the transform) the floor line covers. */
+export interface FitTransform { scale: number; tx: number; ty: number; floor: Vec2 }
+export const IDENTITY_FIT: FitTransform = { scale: 1, tx: 0, ty: 0, floor: FLOOR_X };
+
+/**
+ * The single fit-to-frame transform of a clip, from every frame (so the figure never rescales or jumps between frames).
+ * It looks at every keyframe (with the directions carried from the frame before, as playing does, and with none, as the key pose is drawn)
+ * and at FIT_SUBSTEPS poses between each pair of them; the clip's last keyframe is included whether or not the clip loops.
+ * A clip that already fits the 320 x 240 frame with FIT_PAD gets the identity (the standing figure's head top is 4.5 px from the edge): a standing clip is drawn as before.
+ * A clip that sticks out (lying and floor work reach well past the standing figure's 150 px ankle mark) slides in; one that is too big is shrunk by
+ * the same factor on both axes (aspect ratio kept), centred sideways, and kept on the floor line (its bottom edge), moved only as far as the padding needs.
+ * The floor line is stretched to span the figure and kept inside the frame.
+ */
+export function fitClip(m: MotionClip): FitTransform {
+  let minX = Infinity; let maxX = -Infinity; let minY = FLOOR_Y; let maxY = FLOOR_Y;
+  const take = (f: Frame, prev?: RigDirs): RigDirs => {
+    const p = rigPose(f, prev);
+    for (const [k, v] of Object.entries(p.joints) as [keyof RigJoints, Vec2][]) {
+      const r = k === 'head' ? HEAD_REACH : LIMB_REACH;
+      minX = Math.min(minX, v[0] - r); maxX = Math.max(maxX, v[0] + r);
+      minY = Math.min(minY, v[1] - r); maxY = Math.max(maxY, v[1] + r);
+    }
+    return p.dirs;
+  };
+  const n = m.frames.length;
+  const intervals = m.loop ? n : n - 1;
+  let dirs: RigDirs | undefined;
+  m.frames.forEach((f) => take(f)); // the key pose is drawn with no previous directions
+  for (let i = 0; i < intervals; i++) {
+    for (let s = 0; s < FIT_SUBSTEPS; s++) {
+      const a = m.frames[i]!;
+      const b = m.frames[(i + 1) % n]!;
+      const k = s / FIT_SUBSTEPS;
+      dirs = take(a.map((v, j) => v + (b[j]! - v) * k), dirs);
+    }
+  }
+  take(m.frames[n - 1]!, dirs);
+  const w = maxX - minX;
+  const h = maxY - minY;
+  const scale = Math.min(1, (FRAME_W - 2 * FIT_PAD) / w, (FRAME_H - 2 * FIT_PAD) / h);
+  let tx: number; let ty: number;
+  if (scale >= 1) {
+    // It is not too big: only slide it in if it sticks out.
+    tx = minX < FIT_PAD ? FIT_PAD - minX : maxX > FRAME_W - FIT_PAD ? FRAME_W - FIT_PAD - maxX : 0;
+    ty = minY < FIT_PAD ? FIT_PAD - minY : 0;
+  } else {
+    tx = FRAME_W / 2 - scale * ((minX + maxX) / 2);
+    ty = Math.max(FIT_PAD - scale * minY, Math.min(maxY - scale * maxY, FRAME_H - FIT_PAD - scale * maxY));
+  }
+  // The floor covers its usual span and the figure, but never more than the frame.
+  const floor: Vec2 = [Math.max(Math.min(FLOOR_X[0], minX), -tx / scale), Math.min(Math.max(FLOOR_X[1], maxX), (FRAME_W - tx) / scale)];
+  return floor[0] === FLOOR_X[0] && floor[1] === FLOOR_X[1] && scale === 1 && tx === 0 && ty === 0 ? IDENTITY_FIT : { scale, tx, ty, floor };
+}
+
+/** A point of the rig's drawing space under a fit. */
+export const applyFit = (p: Vec2, f: FitTransform): Vec2 => [p[0] * f.scale + f.tx, p[1] * f.scale + f.ty];

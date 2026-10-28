@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useLayoutEffect, useRef, useState, type ComponentRef, type ReactNode, type Ref } from 'react';
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState, type ComponentRef, type ReactNode, type Ref } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, Text as RNText, Switch as RNSwitch, useWindowDimensions, View, type PressableProps, type SwitchProps, type TextInput, type TextInputProps, type TextProps, type ViewProps } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { dark, glowShadow, pressedShadow, radius, space, tabular, type } from '../theme/tokens';
@@ -347,10 +347,24 @@ if (Platform.OS === 'web' && typeof document !== 'undefined' && !document.getEle
   document.head.appendChild(st);
 }
 
-/** Switch with the off-state track kept visible (#153) and a white thumb on web too. */
-export function Switch(props: SwitchProps) {
+/**
+ * Switch with the off-state track kept visible (#153) and a white thumb on web too.
+ * `invalid` / `describedBy` (id of the error text): react-native-web puts unknown aria props on the wrapper div, not on the focusable
+ * input role=switch, so on web they are set on the input itself through the ref, and removed again when they clear. Native keeps `accessibilityHint`.
+ */
+export function Switch({ invalid, describedBy, ...props }: SwitchProps & { invalid?: boolean; describedBy?: string }) {
   const c = useTheme();
   const f = useFocusRing();
+  const input = useRef<unknown>(null);
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    const el = input.current as { setAttribute?: (k: string, v: string) => void; removeAttribute?: (k: string) => void } | null;
+    if (!el?.setAttribute || !el.removeAttribute) return;
+    if (invalid) el.setAttribute('aria-invalid', 'true');
+    else el.removeAttribute('aria-invalid');
+    if (describedBy) el.setAttribute('aria-describedby', describedBy);
+    else el.removeAttribute('aria-describedby');
+  }, [invalid, describedBy]);
   return (
     // A key press after a mouse click re-checks :focus-visible on the ring (focus did not move, so onFocus has not).
     // The 44x44 hit area is a sibling Pressable behind the unchanged 40x20 track, so clicks on the switch never reach it (#1121).
@@ -368,6 +382,7 @@ export function Switch(props: SwitchProps) {
       />
       <View style={[styles.switchRing, f.ring]} onKeyDown={(e) => f.onFocus(e as unknown as { target: unknown })}>
         <RNSwitch
+          ref={input as never}
           trackColor={{ true: c.brand, false: c.muted }}
           thumbColor={props.value ? c.onBrand : c.ink}
           {...webThumb(c.onBrand)}
