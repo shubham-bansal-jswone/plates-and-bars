@@ -533,8 +533,9 @@ function SessionView({ now, db, reloadKey, w, profile, focus, rules, notify, tun
     <>
       {mainMuscles.length ? (
         <View>
-          <Button kind="link" label={`Muscles today: ${listJoin(mainMuscles.map((m) => muscleName(m)))}`} expanded={mapShown} onPress={() => setMapOpen(!mapShown)} />
-          {mapShown ? <BodyMap primary={mainMuscles} secondary={alsoMuscles} /> : null}
+          <Disclosure label={`Muscles today: ${listJoin(mainMuscles.map((m) => muscleName(m)))}`} open={mapShown} onOpenChange={setMapOpen}>
+            <BodyMap primary={mainMuscles} secondary={alsoMuscles} />
+          </Disclosure>
         </View>
       ) : null}
     </>
@@ -575,7 +576,7 @@ function SessionView({ now, db, reloadKey, w, profile, focus, rules, notify, tun
       })}
       <Button label="Add exercise" kind="ghost" onPress={() => setAdding(true)} />
       <AddExerciseFlow open={adding} onClose={() => setAdding(false)} inSession={day.exs.map((e) => e.name)} workouts={workoutLists(coverageTemplates(date, profile, settings.adjustments.weekPlan as WeekPlan | undefined) as readonly string[], wk.where ?? profile.where, { date, exclusions: rules.rules.exclusions, swaps: rules.rules.swaps, lifts: day.lifts })} add={w.addExercise} notify={notify} />
-      <Hint>Tap the tick with a field empty to use the suggested number. Rate each set so the next one adjusts: Easy adds a step, Couldn’t finish drops about 10%.</Hint>
+      <Hint>Tap the tick to log a set. An empty field uses the suggested number when there is one; on a first-time exercise, enter it yourself. Rate each set so the next one adjusts: Easy adds a step, Couldn’t finish drops about 10%.</Hint>
       {choices ? (
         <Card>
           <Button label="Training again later today?" kind="link" onPress={() => setOpen(!open)} />
