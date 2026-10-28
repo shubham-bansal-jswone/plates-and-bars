@@ -24,14 +24,16 @@ test('health-check answers tapped one after another all register', async ({ page
   await expect(label(page, 'Use these targets')).toBeVisible();
 });
 
-// Known failure (#1232): a second tab of the same origin blocks on the first tab's OPFS access handle
-// ("createSyncAccessHandle ... another open Access Handle"), SQLiteProvider rethrows, and the page stays blank for good.
-// When #1232 is fixed this reports "expected to fail, but passed" (red): then drop test.fail() and assert the real message.
-test('a second tab opened while the first is open shows the app or a message, not a blank page', async ({ page, context }) => {
+// #1232: a second tab of the same origin cannot take the first tab's OPFS access handle. It must say so, not stay blank,
+// and Retry must load the app once the first tab is closed.
+test('a second tab opened while the first is open shows the other-tab message, and Retry loads once the first closes', async ({ page, context }) => {
   await openApp(page);
   await expect(page.locator(READY).first()).toBeVisible({ timeout: 40_000 });
-  test.fail(true, '#1232: the second tab stays blank');
   const second = await context.newPage();
-  await second.goto('/', { waitUntil: 'domcontentloaded' }).catch(() => {});
-  await expect(second.locator('body')).not.toHaveText('', { timeout: 10_000 });
+  await second.goto('/', { waitUntil: 'domcontentloaded' });
+  await expect(second.getByText('Plate & Bar is open in another tab. Close it, then retry.')).toBeVisible({ timeout: 20_000 });
+  await expect(page.locator(READY).first()).toBeVisible(); // the first tab keeps working
+  await page.close();
+  await label(second, 'Retry').click();
+  await expect(second.locator(READY).first()).toBeVisible({ timeout: 40_000 });
 });

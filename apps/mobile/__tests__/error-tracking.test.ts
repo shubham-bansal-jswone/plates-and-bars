@@ -14,7 +14,8 @@ function fresh(): Errors & InstallId {
 }
 const mockInit = jest.fn();
 const mockSetUser = jest.fn();
-jest.mock('@sentry/react-native', () => ({ init: (o: unknown) => mockInit(o), setUser: (u: unknown) => mockSetUser(u) }));
+const mockCapture = jest.fn();
+jest.mock('@sentry/react-native', () => ({ init: (o: unknown) => mockInit(o), setUser: (u: unknown) => mockSetUser(u), captureException: (e: unknown) => mockCapture(e) }));
 jest.mock('expo-secure-store', () => ({ getItemAsync: jest.fn(async () => 'install-1'), setItemAsync: jest.fn(), deleteItemAsync: jest.fn(async () => undefined) }));
 const mockGet = jest.requireMock('expo-secure-store').getItemAsync as jest.Mock;
 const mockDelete = jest.requireMock('expo-secure-store').deleteItemAsync as jest.Mock;
@@ -215,5 +216,18 @@ describe('initErrorTracking', () => {
       else process.env.EXPO_PUBLIC_SENTRY_ENVIRONMENT = was;
     }
     expect(mockInit.mock.calls[0]![0].environment).toBe('staging');
+  });
+});
+
+describe('reportDbOpenBlocked', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  it('sends one DbOpenBlockedError whose message carries none of the original browser error text', () => {
+    const { reportDbOpenBlocked } = fresh();
+    reportDbOpenBlocked();
+    expect(mockCapture).toHaveBeenCalledTimes(1);
+    const sent = mockCapture.mock.calls[0]![0] as Error;
+    expect(sent.name).toBe('DbOpenBlockedError');
+    expect(sent.message).not.toMatch(/access handle|createSyncAccessHandle|FileSystem/i);
   });
 });

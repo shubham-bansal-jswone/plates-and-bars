@@ -11,20 +11,20 @@ jest.mock('barcode-detector/ponyfill', () => ({ BarcodeDetector: class {}, setZX
 const app = join(__dirname, '..');
 const dir = join(app, 'public/zxing');
 const read = (p: string) => readFileSync(p, 'utf8');
-const wasmDir = join(dir, '3.1.3');
+const wasmDir = join(dir, '3.1.6');
 const wasm = readFileSync(join(wasmDir, 'zxing_reader.wasm'));
 const sha = createHash('sha256').update(wasm).digest('hex');
 
 describe('self-hosted zxing reader', () => {
   it('ships the wasm and its licence, and nothing else', () => {
-    expect(readdirSync(dir).sort()).toEqual(['3.1.3', 'LICENSE.txt']);
+    expect(readdirSync(dir).sort()).toEqual(['3.1.6', 'LICENSE.txt']);
     expect(readdirSync(wasmDir)).toEqual(['zxing_reader.wasm']); // the folder name is the zxing-wasm version (see the next test)
   });
 
   it('the wasm is the one in the pinned npm package, and its sha256 is in the licence file', () => {
     const pkg = join(app, 'node_modules/zxing-wasm/dist/reader/zxing_reader.wasm');
     if (existsSync(pkg)) expect(readFileSync(pkg).equals(wasm)).toBe(true);
-    expect(read(join(dir, 'LICENSE.txt'))).toContain(`${sha}  3.1.3/zxing_reader.wasm`);
+    expect(read(join(dir, 'LICENSE.txt'))).toContain(`${sha}  3.1.6/zxing_reader.wasm`);
     expect(wasm.subarray(0, 4)).toEqual(Buffer.from([0x00, 0x61, 0x73, 0x6d])); // "\0asm"
   });
 
@@ -35,8 +35,8 @@ describe('self-hosted zxing reader', () => {
 
   it('pins barcode-detector and zxing-wasm exactly, and zxing-wasm is the version barcode-detector was built against', () => {
     const deps = JSON.parse(read(join(app, 'package.json'))).dependencies as Record<string, string>;
-    expect(deps['barcode-detector']).toBe('3.2.2');
-    expect(deps['zxing-wasm']).toBe('3.1.3');
+    expect(deps['barcode-detector']).toBe('3.2.3');
+    expect(deps['zxing-wasm']).toBe('3.1.6');
     const bd = join(app, 'node_modules/barcode-detector/package.json');
     if (existsSync(bd)) expect(JSON.parse(read(bd)).dependencies['zxing-wasm']).toBe(deps['zxing-wasm']);
     // barcode-detector inlines its own copy of the zxing-wasm glue, which names its version: a bump that changes the glue without the wasm fails here
@@ -61,7 +61,7 @@ describe('the ponyfill never reaches a third party', () => {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     require('../src/barcode/zxing-decoder');
     const locate = overrides[0]!.locateFile!;
-    expect(locate('zxing_reader.wasm', 'https://cdn.example/')).toBe('/zxing/3.1.3/zxing_reader.wasm');
+    expect(locate('zxing_reader.wasm', 'https://cdn.example/')).toBe('/zxing/3.1.6/zxing_reader.wasm');
     expect(locate('other.js', 'https://app.test/')).toBe('https://app.test/other.js');
   });
 
