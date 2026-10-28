@@ -83,7 +83,7 @@ Tab bar: `app/(tabs)/_layout.tsx`: four tabs (Food, Workout, Progress, Targets),
 | Asset | Path | Facts |
 |---|---|---|
 | Written how-to cards | `content/exercises.json` (`cards`) | Setup steps, key cues, common mistakes, breathing, easier/harder, where-to-feel, `misplaced_feel` |
-| Start/end drawings | `content/exercise-images.json` | 67 entries when audited (64 pairs, 3 single frames), SVG inline, 253,621 bytes; 68 drawings after #1114 (adds Dead Bug), 69 with the forearm-scale Dumbbell Fly (#1120). All `source: own_drawing`, licence **CC-BY-4.0**, author "Plate & Bar authors". 2 of 71 exercises have none (4 when audited): Prone Y-T-W Raise and Archer Push-ups, which need a front or top view (tracked in #1120) |
+| Start/end drawings | `content/exercise-images.json` | 67 entries when audited (64 pairs, 3 single frames), SVG inline, 253,621 bytes; 68 drawings after #1114 (adds Dead Bug), 69 with the forearm-scale Dumbbell Fly (#1161). All `source: own_drawing`, licence **CC-BY-4.0**, author "Plate & Bar authors". 2 of 71 exercises have none (4 when audited): Prone Y-T-W Raise and Archer Push-ups, which need a front or top view (tracked in #1120) |
 | Drawing pipeline | `tools/exercise-figures/` (`rig.mjs`, `generate.mjs`), validators in `tools/validate/` | Parametric rig; frames 320x240, 1-2 KB; colours via `currentColor` and `var(--fig-*)` so the app themes them (`workout/figures.ts` `themedSvg`); allowlist SVG parser (`svgAllowlist.ts`) |
 | Muscle map | `workout/BodyMap.tsx`, `bodyMapData.ts` | Front/back polygons; main = `c.fat` (amber), also = `c.carbs` (teal) |
 | Motion player | `src/motion/*`, `content/exercise-motion.json`, `tools/exercise-motion/` | Player exists behind `EXPO_PUBLIC_EXERCISE_MOTION=1`; **bundle has 0 entries** (361 bytes); no clips; pipeline is MediaPipe-based and was never run end to end (its README says so) |
@@ -171,7 +171,7 @@ Severity: **High** blocks the core job (start, log, understand), **Med** adds fr
 | U7 | **Link overload.** About 6 blue underlined links per exercise ("Why?", "How to do", "Can't do", "Form check", "Track set", "Setup"), all the same weight as primary content. | `ExerciseCard.tsx`; `audit-workout-1280x800-light.png` | Demote to an overflow/guide pattern; keep one visible "How to" affordance | Med |
 | U8 | **Exercise demonstrations are hard to reach.** The drawings (67 when audited, 69 now) appear only in Learn mode before the first set. The how-to sheet and library detail show the muscle map and text but no figure. The fallback is a YouTube search that leaves the app. | `ExerciseCard.tsx:153`; `parts.tsx` `HowToSheet`; `ExerciseDetail.tsx` | Show the existing figure in the how-to sheet, library detail and the session header | High |
 | U9 | **Library is buried.** Reachable only via Targets > "Exercise library" (a ghost button among account buttons). | `TargetsScreen.tsx:112` | Surface it from the Workout tab and from "Add exercise" | Med |
-| U10 | **Custom workouts are per-session only.** Users can hand-pick exercises for one start (`startPicked`) or condense the week ("Fewer days this week?"); there is no saved, named routine. Custom exercises exist (`CustomTagsSheet`). | `WorkoutScreen.tsx`; `ScheduleTools.tsx`; `core/plan.ts` `SPLITS` fixed by days | Product decision first (Open questions); a saved routine needs a synced record | Med |
+| U10 | **Custom workouts are per-session only.** Users can hand-pick exercises for one start (`startPicked`) or condense the week ("Fewer days this week?"); there is no saved, named routine. Custom exercises exist (`CustomTagsSheet`). | `WorkoutScreen.tsx`; `ScheduleTools.tsx`; `core/plan.ts` `SPLITS` fixed by days | Product decision first (Open questions); a saved routine needs a synced record (decided 2026-10-28: saved routines yes, #1184) | Med |
 | U11 | **Landing and navigation are nutrition-first.** Setup ends on Food; no "Today" overview ties food, workout and progress together. Targets mixes settings (targets, rules) with account/data/library/about. | `SetupFlow.save` -> `router.replace('/')`; `TargetsScreen.tsx` | Evolve the four tabs rather than replace: see 5.1 | Med |
 | U12 | **Progress opens with explainer text.** First content is weekly counters ("0 / 6 sessions") then paragraphs about weight trend and the calorie-burn formula. A "N weeks in a row" habit message exists (`progress/copy.ts:76`). | `audit-progress-375x812-light.png`; `CheckinCard.tsx:124` | Lead with real recent activity; keep counters honest and non-punitive; review the streak wording against the "no expiring streak" principle (Open question) | Med |
 | U13 | **Missed-session recovery is already good.** Core and cards cover missed days, "Welcome back", recovery week, fewer days this week and run-in-order mode. It is surfaced as stacked cards above the plan. | `ExerciseCards.tsx` `StartCards`, `RecheckCards`; `ScheduleTools.tsx` | Keep behaviour; restyle as one calm "Pick up where you left off" block | Low |
@@ -214,7 +214,7 @@ Contrast was computed (WCAG relative luminance) for the mandated values.
 
 Rules: (a) the mandated secondary `#777F76` may be used for large text and on `bg` only; body-size secondary text on surfaces uses `#8E968D`. (b) Lime text and lime fills never sit on lime. (c) Lime appears at most once per screen as a large filled element (the primary action or the key progress ring), plus small active indicators.
 
-Light theme: the app currently ships both palettes and axe-tests both. The mandated identity is black. Recommendation: make the new dark palette the default and the only designed theme for this redesign, keep `light` compiling but unreviewed until decided (Open question 1).
+Light theme: the app currently ships both palettes and axe-tests both. The mandated identity is black. Recommendation: make the new dark palette the default and the only designed theme for this redesign, keep `light` compiling but unreviewed until decided (Open question 1). (Superseded 2026-10-28: production follows the system colour scheme, so light is a designed and reviewed theme, #1188.)
 
 ### 4.2 Typography
 - Replace Roboto Light 300 for display/title/heading (reads thin against a bold identity) with **Inter 800 ExtraBold** for titles and large numbers and **Inter 700** for labels. `@expo-google-fonts/inter` is already installed and includes `800ExtraBold` and `900Black` (licence `MIT AND OFL-1.1`), so no new dependency; add per-weight imports in `theme/fonts.tsx` and entries in `FAMILY` and `toWeight`. A condensed athletic display face would be a new dependency and bundle-size/CSP check: Open question 3.
@@ -300,7 +300,7 @@ Keep four destinations; rename and reorder only if validated: **Today** (new lan
 - **Acceptance:** `setup-flow.test.tsx` Jest suite (28 `it` blocks) and e2e `setup.spec.mjs` unchanged in outcome; no extra mandatory fields.
 
 ### 5.9 Exercise library and detail
-- **Proposed:** list rows with figure thumbnail (69/71 have drawings after #1114 and #1120; show a neutral placeholder for the rest), filter chips as one collapsible row, detail with figure pair, muscle map, written card, "Add to today's session".
+- **Proposed:** list rows with figure thumbnail (69/71 have drawings after #1114 and #1161; show a neutral placeholder for the rest), filter chips as one collapsible row, detail with figure pair, muscle map, written card, "Add to today's session".
 - **Acceptance:** works offline; filter logic untouched (`filterLibrary`); `exercise-library.test.tsx` passes.
 
 ### 5.10 Cross-cutting
@@ -332,7 +332,7 @@ Skeleton loading for Workout and Progress; reusable `EmptyState`; consistent off
 | 4 | Completion summary and workout history | new `workout/Summary`, `progress/History`, core selectors if needed (`packages/core`) | phase 2 | core unit tests with fixtures; screen tests; verify against stored records |
 | 5 | Navigation/Today and library entry; Targets split | `app/(tabs)/*`, `TargetsScreen.tsx`, `FoodScreen.tsx` | owner decision on IA | `screens.spec.mjs`, `setup.spec.mjs`, Maestro |
 | 6 | Progress and Food restyle, setup polish (inline errors, chips), empty/loading/offline states, responsive wide layout | `ProgressScreen`, `FoodScreen`, `SetupScreen`, `progress/*`, shell | phases 1-2 | specs for each; `ui-qa` checklist |
-| 7 | Cleanup: remaining inline `fontSize` literals, light theme decision, docs | various | all | full Jest + e2e + axe |
+| 7 | Cleanup: remaining inline `fontSize` literals, light theme review (decided: follows the system scheme, #1188), docs | various | all | full Jest + e2e + axe |
 
 Process: each phase is its own PR into `design-overhaul`, preceded by a `ui-designer` brief and followed by `ui-qa` screenshots at 375x812, 768x1024 and 1280x800; `npm run typecheck`, `lint`, `test` in `apps/mobile` per the skill. GitNexus impact analysis before editing shared components (`Button`, `Choice`, `Card`, `Press` have wide fan-out through 70 files).
 
