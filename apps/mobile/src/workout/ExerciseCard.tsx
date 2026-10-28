@@ -136,13 +136,14 @@ function LearnBlock({ ex, first, done }: { ex: ExState; first: boolean; done: nu
     <View style={[styles.learn, { borderColor: c.brand }]}>
       <Text style={{ color: c.link, fontSize: 12, fontWeight: '700', letterSpacing: 0.7, textTransform: 'uppercase' }}>Learn mode</Text>
       {done === 0 ? <ExerciseFigure name={ex.name} /> : null}
-      {card.setup.length ? <Button label="Setup" a11yLabel={`Setup steps for ${ex.name}`} kind="link" expanded={open} onPress={() => setShown(!open)} /> : null}
-      {open ? (
-        <View style={{ gap: 3 }}>
-          {card.setup.map((x, k) => (
-            <Text key={k} style={{ color: c.ink, fontSize: 15, lineHeight: 21 }}>{k + 1}. {x}</Text>
-          ))}
-        </View>
+      {card.setup.length ? (
+        <Disclosure label="Setup" a11yLabel={`Setup steps for ${ex.name}`} open={open} onOpenChange={setShown}>
+          <View style={{ gap: 3 }}>
+            {card.setup.map((x, k) => (
+              <Text key={k} style={{ color: c.ink, fontSize: 15, lineHeight: 21 }}>{k + 1}. {x}</Text>
+            ))}
+          </View>
+        </Disclosure>
       ) : null}
       <Text style={{ color: c.ink, fontSize: 15, lineHeight: 21 }}><Text style={{ fontWeight: '700' }}>Focus this set:</Text> {cue}</Text>
     </View>

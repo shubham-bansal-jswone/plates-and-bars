@@ -713,6 +713,7 @@ describe('Workout tab: logging sets', () => {
     await screen.findByText('Enter the weight and reps first.');
     const w = screen.getByLabelText('Barbell Bench Press set 1 kg');
     expect(w.props['aria-invalid']).toBe(true);
+    expect(StyleSheet.flatten(w.props.style)).toMatchObject({ borderColor: expect.any(String), borderWidth: 2, outlineWidth: 0 }); // the browser's blue focus outline must not cover the danger border
     expect(screen.getByLabelText('Barbell Bench Press set 1 reps').props['aria-invalid']).toBeUndefined();
     await fireEvent.changeText(w, '40');
     expect(screen.getByLabelText('Barbell Bench Press set 1 kg').props['aria-invalid']).toBeUndefined();
@@ -981,6 +982,16 @@ describe('Workout tab: first-time ramp', () => {
     expect(ramp[0]).toMatchObject({ exercise: 'Machine Shoulder Press', set_index: 0, weight_kg: 20, reps: 10, done: true, rate: 'right' });
     expect(placeholder('Machine Shoulder Press set 1 kg')).toBe('20');
     expect(screen.getByText(/Working weight found/)).toBeTruthy();
+  });
+
+  it('marks the ramp weight invalid on a refused ramp tick', async () => {
+    await setup();
+    await press('Start Push B');
+    await screen.findByText('Push B');
+    await expand('Machine Shoulder Press');
+    await press('Start the ramp for Machine Shoulder Press');
+    await press('Mark Machine Shoulder Press ramp set 1 done');
+    expect(screen.getByLabelText('Machine Shoulder Press ramp set 1 weight').props['aria-invalid']).toBe(true);
   });
 
   it('shows the Easy note after an Easy ramp set, with the next step, and drops it for a later rating (#823)', async () => {

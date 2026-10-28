@@ -1,5 +1,6 @@
 import { Dimensions } from 'react-native';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { COVER_LOW } from '@plate-and-bar/core';
 import golden from '../../../docs/spec/golden/targets.json';
 import { TargetsScreen } from '../src/screens/TargetsScreen';
 import { saveProfile } from '../src/db/records';
@@ -348,7 +349,7 @@ describe('TargetsScreen', () => {
       // planned: core's count for the 6-day split, no hard-coded figure here
       const planned = screen.getByLabelText(/^Weekly coverage: your plan, Chest: \d+ sets/);
       expect(planned).toBeTruthy();
-      expect(screen.getByText('Bars: grey is planned, coloured is done, amber is low (under 6 sets).')).toBeTruthy(); // legend for the bar colours
+      expect(screen.getByText(`Bars: grey is planned, coloured is done. A low count (under ${COVER_LOW} sets) shows in amber.`)).toBeTruthy(); // legend for the bar colours
       expect(screen.getByLabelText(/^Done in the last 7 days, Calves: 0 sets, low$/)).toBeTruthy();
     });
 
