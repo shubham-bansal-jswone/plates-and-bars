@@ -1,12 +1,15 @@
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
-import { adjustSets, BALANCE_EXERCISE, isBlank, ROUTINE_EXERCISES_MAX, routineFromSession, seededSession, startRoutine, type Exclusion, type StartRoutineInput } from '../src/index';
+import { adjustSets, BALANCE_EXERCISE, isBlank, ROUTINE_EXERCISES_MAX, ROUTINE_MAX_LIVE, ROUTINE_NAME_MAX, ROUTINE_SETS_MAX, ROUTINE_SETS_MIN, routineFromSession, seededSession, startRoutine, type Exclusion, type StartRoutineInput } from '../src/index';
 
 type Rec = { name: string; exercises: Record<string, unknown>[] };
 const vectors = JSON.parse(readFileSync(resolve(__dirname, '../../api/test-vectors/routines.json'), 'utf8')) as {
   valid: { note: string; record: Rec }[];
   invalid: { note: string; field: string; record: Rec }[];
+  limits: { name_max: number; exercises_max: number; sets_min: number; sets_max: number; max_exercise_keys: number; max_live_routines: number };
+  cap: { cases: { live: number; push: string[]; refused: number[] }[] };
 };
+const blankVectors = JSON.parse(readFileSync(resolve(__dirname, '../../api/test-vectors/blank-text.json'), 'utf8')) as { must_fail: string[]; must_pass: string[] };
 
 const cp = (s: string) => [...s].length;
 /** The save-side limits of the vectors, as far as routineFromSession is responsible for them (exercises and sets). */
@@ -14,7 +17,7 @@ function exercisesValid(ex: Record<string, unknown>[]): boolean {
   return (
     ex.length >= 1 &&
     ex.length <= 50 &&
-    Object.keys(ex).length <= 50 &&
+    ex.every((e) => Object.keys(e).length <= vectors.limits.max_exercise_keys) &&
     ex.every((e) => typeof e.name === 'string' && !isBlank(e.name) && cp(e.name) <= 200 && Number.isInteger(e.sets) && (e.sets as number) >= 1 && (e.sets as number) <= 20)
   );
 }
@@ -133,10 +136,31 @@ describe('startRoutine (#1184, decision D2)', () => {
 describe('isBlank and adjustSets', () => {
   it.each(['', ' ', '\t\n', '\u0085', '\u00A0', '\u200B', '\u200D', '\u2060', '\uFEFF', '\u3000', ' \u200B '])('blank %j', (t) => expect(isBlank(t)).toBe(true));
   it.each(['a', ' a ', '\u200Bx', '0'])('not blank %j', (t) => expect(isBlank(t)).toBe(false));
+  it.each(blankVectors.must_fail.map((t) => [t]))('contract must_fail %j is blank', (t) => expect(isBlank(t)).toBe(true));
+  it.each(blankVectors.must_pass.map((t) => [t]))('contract must_pass %j is not blank', (t) => expect(isBlank(t)).toBe(false));
   it('adjustSets: deload ~60% min 2 never above n, light drops one above 2, deload wins', () => {
     expect([1, 2, 5, 10].map((n) => adjustSets(n, { deload: true }))).toEqual([1, 2, 3, 6]);
     expect([2, 3].map((n) => adjustSets(n, { light: true }))).toEqual([2, 2]);
     expect(adjustSets(5, { deload: true, light: true })).toBe(3);
     expect(adjustSets(5, {})).toBe(5);
+  });
+});
+
+describe('routine limits pinned to routines.json', () => {
+  it('match the contract', () => {
+    expect(ROUTINE_NAME_MAX).toBe(vectors.limits.name_max);
+    expect(ROUTINE_MAX_LIVE).toBe(vectors.limits.max_live_routines);
+    expect(ROUTINE_EXERCISES_MAX).toBe(vectors.limits.exercises_max);
+    expect(ROUTINE_SETS_MIN).toBe(vectors.limits.sets_min);
+    expect(ROUTINE_SETS_MAX).toBe(vectors.limits.sets_max);
+  });
+  it('name vectors sit on ROUTINE_NAME_MAX', () => {
+    for (const { record } of vectors.valid) expect(cp(record.name)).toBeLessThanOrEqual(ROUTINE_NAME_MAX);
+    expect(vectors.valid.some((v) => cp(v.record.name) === ROUTINE_NAME_MAX)).toBe(true);
+    expect(vectors.invalid.some((v) => v.field === 'name' && cp(v.record.name) === ROUTINE_NAME_MAX + 1)).toBe(true);
+  });
+  it('cap scenarios turn on ROUTINE_MAX_LIVE', () => {
+    expect(vectors.cap.cases.find((x) => x.live === ROUTINE_MAX_LIVE && x.push.join() === 'new')?.refused).toEqual([0]);
+    expect(vectors.cap.cases.find((x) => x.live === ROUTINE_MAX_LIVE - 1 && x.push.join() === 'new,new')?.refused).toEqual([1]);
   });
 });

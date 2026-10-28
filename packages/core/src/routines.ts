@@ -8,6 +8,10 @@ import { isBlank } from './blank';
 export const ROUTINE_EXERCISES_MAX = 50;
 export const ROUTINE_SETS_MIN = 1;
 export const ROUTINE_SETS_MAX = 20;
+/** Contract routine name limit, in code points (not UTF-16 units). The caller checks it; `routineFromSession` does not. */
+export const ROUTINE_NAME_MAX = 60;
+/** Contract cap on live (not deleted) routines per account. */
+export const ROUTINE_MAX_LIVE = 100;
 
 /** A stored routine exercise (contract `RoutineExercise`): exactly a name and a set count. */
 export type RoutineExercise = { name: string; sets: number };

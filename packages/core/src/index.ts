@@ -704,7 +704,7 @@ export type { SeededSession, SeededSessionInput } from './seeded';
  */
 export { isBlank } from './blank';
 export { adjustSets } from './session';
-export { routineFromSession, startRoutine, ROUTINE_EXERCISES_MAX, ROUTINE_SETS_MIN, ROUTINE_SETS_MAX } from './routines';
+export { routineFromSession, startRoutine, ROUTINE_EXERCISES_MAX, ROUTINE_SETS_MIN, ROUTINE_SETS_MAX, ROUTINE_NAME_MAX, ROUTINE_MAX_LIVE } from './routines';
 export type { RoutineExercise, StartRoutineInput, StartedRoutine } from './routines';
 
 /**
