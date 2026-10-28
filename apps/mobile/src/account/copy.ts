@@ -1,4 +1,30 @@
 /** Copy for the data screen (#27). No message holds any user data. */
+export const RESTORE_COPY = {
+  action: 'Restore from a file',
+  hint: 'Choose a file exported from this app. It is merged with what is here: newer records win, nothing newer is overwritten.',
+  picking: 'Reading the file...',
+  title: 'Restore this file?',
+  differentAccount: 'This file was exported from a different account. Its records are added to this device.',
+  table: (name: string, c: { added: number; newer: number; older: number; conflicts: number }) =>
+    `${name}: ${c.added} new, ${c.newer} newer than here, ${c.older} older (kept as is), ${c.conflicts} changed here and not synced yet (kept)`,
+  deviceOnly: (cycle: boolean, reports: number, hold: boolean) =>
+    `Kept on this device only: ${[cycle ? 'cycle log' : '', reports ? `${reports} lab report${reports === 1 ? '' : 's'}` : '', hold ? 'lab hold' : ''].filter(Boolean).join(', ')}.`,
+  nothing: 'Nothing in this file is newer than what is on this device.',
+  confirm: 'Restore',
+  cancel: 'Cancel',
+  restoring: 'Restoring...',
+  done: 'Restored. Changes sync with your account when you are online and signed in.',
+  failed: 'Could not restore. Nothing was changed.',
+  errors: {
+    too_large: 'That file is too large to be an export from this app. Nothing was changed.',
+    not_json: 'That file is not a readable export. Nothing was changed.',
+    bad_format: 'That file is not an export from this app. Nothing was changed.',
+    bad_version: 'That export is from a version this app cannot read. Nothing was changed.',
+    bad_rows: 'That file is damaged or incomplete. Nothing was changed.',
+    unsafe: 'That file contains content the app refuses to read. Nothing was changed.',
+  },
+};
+
 export const DATA_COPY = {
   title: 'Your data',
   intro: 'Download a copy of what the app stores, or delete everything.',
