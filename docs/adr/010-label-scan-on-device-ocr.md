@@ -4,7 +4,7 @@
 - Date: 2026-10-19
 - Issue: #1067 (spike and decision)
 - Decided on #1067 by the coordinator under the owner's delegation. No `openapi.yaml` change.
-- Amended 2026-10-29: decision 4 said the image is "never written to disk", which is wrong on Android. The picker puts a working copy in the app cache for both camera and gallery picks, and `releasePhoto` deletes it when the scan ends, only inside the app's own cache, so a gallery original is never deleted. On web nothing is on disk: the in-memory blob URL is revoked. If the app is killed mid-scan, the cached copy stays until Android clears the cache or `wipePhotos` runs. The image is still never sent, logged or kept as a progress photo. No decision changed.
+- Amended 2026-10-29: decision 4 said the image is "never written to disk", which is wrong on Android. The picker puts a working copy in the app cache for both camera and gallery picks, and `releasePhoto` deletes it when the scan ends, only inside the app's own cache, so a gallery original is never deleted. On web nothing is on disk: the in-memory blob URL is revoked. If the app is killed mid-scan, the cached copy stays until Android clears the cache or `wipePhotos` runs (on account switch, discard, or delete everything). The image is still never sent, logged or kept as a progress photo. No decision changed.
 
 ## Context
 
