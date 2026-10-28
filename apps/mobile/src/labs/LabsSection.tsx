@@ -4,14 +4,16 @@ import { isFlagged, labHistory, labResult, tipFor, validateLabReport, type LabRe
 import { Text } from '../components/Text';
 import { SheetModal } from '../components/Sheet';
 import { Button, Card, ErrorText, Field, Heading, Hint, Note, Chip } from '../components/ui';
+import { saveTextFile } from '../account/saveFile';
 import { shortDate } from '../format';
 import { type as typeScale } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { labs, tipText } from './content';
 import {
   FLAG_WORD, LABS_ADD, LABS_ADD_TEST, LABS_ALL, LABS_COUNT, LABS_DATE_LABEL, LABS_DATE_PLACEHOLDER, LABS_DELETE, LABS_DELETE_AGAIN, LABS_DISCARD, LABS_FIELD, LABS_LATEST, LABS_PLACEHOLDER,
-  LABS_PRIVATE, LABS_RANGE, LABS_REMOVE_TEST, LABS_SAVE, LABS_SEEN_DOCTOR, LABS_SHEET_TITLE, LABS_TEST_N, LABS_TITLE, LABS_TREND, LAB_ERRORS,
+  LABS_PRIVATE, LABS_RANGE, LABS_REMOVE_TEST, LABS_SAVE, LABS_SUMMARY_BUTTON, LABS_SUMMARY_FAILED, LABS_SUMMARY_NO_SHARE, LABS_SUMMARY_SAVED, LABS_SUMMARY_SHARED, LABS_SEEN_DOCTOR, LABS_SHEET_TITLE, LABS_TEST_N, LABS_TITLE, LABS_TREND, LAB_ERRORS,
 } from './copy';
+import { buildLabSummary, LABS_SUMMARY_FILE } from './summary';
 import type { Labs } from './useLabs';
 
 const BLANK: LabTest = { name: '', value: '', unit: '', low: '', high: '' };
@@ -33,6 +35,7 @@ export function LabsSection({ labs: l, today }: { labs: Labs; today: string }) {
   const [adding, setAdding] = useState(false);
   const [armed, setArmed] = useState(false);
   const [picked, setPicked] = useState<string | null>(null);
+  const [summaryNote, setSummaryNote] = useState<string | null>(null);
   useEffect(() => {
     if (!armed) return;
     const timer = setTimeout(() => setArmed(false), 4000); // a stray tap much later must not delete the reports
@@ -40,6 +43,16 @@ export function LabsSection({ labs: l, today }: { labs: Labs; today: string }) {
   }, [armed]);
   if (!l.enabled || !l.reports) return null;
   const reports = l.reports;
+  const summary = buildLabSummary(reports);
+  const shareSummary = async () => {
+    if (!summary) return;
+    try {
+      const r = await saveTextFile(LABS_SUMMARY_FILE, 'text/plain', summary);
+      setSummaryNote(r === 'saved' ? LABS_SUMMARY_SAVED(LABS_SUMMARY_FILE) : r === 'shared' ? LABS_SUMMARY_SHARED : LABS_SUMMARY_NO_SHARE);
+    } catch {
+      setSummaryNote(LABS_SUMMARY_FAILED); // never the error itself: it could carry the text
+    }
+  };
   const shown = reports.find((r) => r.id === picked) ?? reports[reports.length - 1];
   return (
     <View style={styles.section}>
@@ -58,6 +71,8 @@ export function LabsSection({ labs: l, today }: { labs: Labs; today: string }) {
       {reports.length ? (
         <>
           <Hint>{LABS_COUNT(reports.length)}</Hint>
+          {summary ? <Button kind="ghost" label={LABS_SUMMARY_BUTTON} onPress={() => void shareSummary()} /> : null}
+          {summaryNote ? <Hint>{summaryNote}</Hint> : null}
           <Button
             label={armed ? LABS_DELETE_AGAIN : LABS_DELETE}
             kind="link"

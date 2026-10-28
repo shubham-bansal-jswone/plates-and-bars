@@ -46,3 +46,12 @@ export const LAB_ERRORS: Record<LabReportError, string> = {
   unit_too_long: 'The unit is too long.',
   unit_missing: 'Enter the unit printed on your report, like mg/dL. This test needs one.',
 };
+
+// "Summary for my doctor" (#1088): a plain-text file shared through the same save/share path as the data export.
+export const LABS_SUMMARY_TITLE = 'Summary for my doctor';
+export const LABS_SUMMARY_BUTTON = 'Summary for my doctor';
+export const LABS_SUMMARY_EMPTY_VALUE = 'no value';
+export const LABS_SUMMARY_SAVED = (name: string): string => `Saved ${name}.`;
+export const LABS_SUMMARY_SHARED = 'Your summary is ready to share. It stays on this device unless you send it.';
+export const LABS_SUMMARY_NO_SHARE = 'Sharing is not available on this device.';
+export const LABS_SUMMARY_FAILED = 'Couldn’t make the summary. Try again.';
