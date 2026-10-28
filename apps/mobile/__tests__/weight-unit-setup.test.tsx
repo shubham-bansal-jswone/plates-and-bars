@@ -167,6 +167,13 @@ describe('exercise jump chips in pounds (#1185)', () => {
     await waitFor(() => expect(settings(db).exercise_overrides[BENCH]?.step_kg).toBe(2.5));
   });
 
+  it('tapping the already-pressed jump keeps the stored kg step instead of its lb conversion', async () => {
+    const db = await sheet('lb');
+    await fireEvent.press(screen.getByLabelText('Weight jump 5 lb'));
+    await fireEvent.press(screen.getByLabelText(`Save settings for ${BENCH}`));
+    await waitFor(() => expect(settings(db).exercise_overrides[BENCH]?.step_kg).toBe(2.5));
+  });
+
   it('a kg user keeps the kg list', async () => {
     await sheet('kg');
     for (const x of ['1', '1.25', '2', '2.5', '5', '10']) expect(screen.getByLabelText(`Weight jump ${x} kg`)).toBeTruthy();

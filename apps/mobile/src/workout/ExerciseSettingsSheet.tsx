@@ -133,7 +133,7 @@ function Sheet({ name, info, notify, onClose }: { name: string; info: ExInfo; no
                     ))
                   : LB_STEP_CHOICES.map((x) => (
                       // An lb gym's own jumps (not converted kg ones); the step is stored as the exact kg, so a saved step never changes when the unit is switched.
-                      <Chip key={x} label={`Weight jump ${x} ${unit}`} text={`${x} ${unit}`} pressed={lbStepFor(type, step, DEFAULT_STEP[type]) === x} onPress={() => setStep(lbToKg(x))} />
+                      <Chip key={x} label={`Weight jump ${x} ${unit}`} text={`${x} ${unit}`} pressed={lbStepFor(type, step, DEFAULT_STEP[type]) === x} onPress={() => setStep((cur) => (lbStepFor(type, cur, DEFAULT_STEP[type]) === x ? cur : lbToKg(x)))} />
                     ))}
               </View>
               <Hint>Machines differ between gyms. Set this to the real step on your gym’s machine.</Hint>
