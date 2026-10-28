@@ -71,9 +71,11 @@ export function AddSheet({ meal, mine, mineFacts, onAdd, onSaveMine, onClose, ca
           <Heading level={2} style={{ color: c.ink, fontWeight: '300', fontSize: 22 }}>{`Add to ${meal.toLowerCase()}`}</Heading>
           <View accessibilityRole="tablist" style={styles.row}>
             {[...MODES, ...(canDescribe || mode === 'describe' ? [DESCRIBE_MODE] : []), ...(canPhoto || mode === 'photo' ? [PHOTO_MODE] : [])].map(([k, l]) => (
-              <Press key={k} hitSlop={{ top: 6, bottom: 6 }} accessibilityRole="tab" accessibilityLabel={l} {...a11yState({ selected: mode === k })} onPress={() => { setMode(k); setStatus(null); if (k !== 'custom') setCustomCode(null); if (k === 'describe') setSeenDescribe(true); if (k === 'photo') setSeenPhoto(true); }}
-                style={[styles.tab, { backgroundColor: mode === k ? c.brand : c.surfaceSoft }]}>
-                <Text style={{ color: mode === k ? c.onBrand : c.ink, ...type.buttonSm }}>{l}</Text>
+              <Press key={k} accessibilityRole="tab" accessibilityLabel={l} {...a11yState({ selected: mode === k })} onPress={() => { setMode(k); setStatus(null); if (k !== 'custom') setCustomCode(null); if (k === 'describe') setSeenDescribe(true); if (k === 'photo') setSeenPhoto(true); }}
+                style={styles.tabHit}>
+                <View style={[styles.tab, { backgroundColor: mode === k ? c.brand : c.surfaceSoft }]}>
+                  <Text style={{ color: mode === k ? c.onBrand : c.ink, ...type.buttonSm }}>{l}</Text>
+                </View>
               </Press>
             ))}
           </View>
@@ -241,6 +243,8 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center' },
   gap: { gap: 8 },
   hidden: { display: 'none' },
+  // The 32px pill is the design; the Press around it is the 44px target.
+  tabHit: { minHeight: 44, minWidth: 44, justifyContent: 'center' },
   tab: { borderRadius: radius.full, paddingHorizontal: 12, minHeight: 32, justifyContent: 'center' },
   step: { borderWidth: 1, borderRadius: radius.full, width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   food: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: radius.md, padding: 16, minHeight: 56 },

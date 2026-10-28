@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
 import { StyleSheet } from 'react-native';
 import * as useThemeModule from '../src/theme/useTheme';
-import { Button, Choice, Switch } from '../src/components/ui';
+import { Button, Chip, Choice, Switch } from '../src/components/ui';
 import { dark, light } from '../src/theme/tokens';
 
 const ring = (el: { props: { style?: unknown } }) => {
@@ -76,6 +76,22 @@ describe('focus ring', () => {
   });
 });
 
+describe('chip targets (#1192)', () => {
+  it('Choice and Chip are at least 44x44, so a one-digit chip is not narrower', async () => {
+    await render(
+      <>
+        <Choice chip label="6" selected={false} onPress={() => {}} />
+        <Chip label="Easy" onPress={() => {}} />
+      </>,
+    );
+    for (const n of ['6', 'Easy']) {
+      const box = StyleSheet.flatten(screen.getByLabelText(n).props.style as never) as Record<string, number>;
+      expect(box.minWidth).toBeGreaterThanOrEqual(44);
+      expect(box.minHeight).toBeGreaterThanOrEqual(44);
+    }
+  });
+});
+
 describe('switch hit area (#1121)', () => {
   it('is at least 44x44 around the 40x20 track, and a tap on the padding toggles once', async () => {
     const onValueChange = jest.fn();
@@ -97,6 +113,11 @@ describe('switch hit area (#1121)', () => {
     await fireEvent(screen.getByLabelText('Rest timer'), 'valueChange', true);
     expect(onValueChange).toHaveBeenCalledTimes(1);
     expect(onValueChange).toHaveBeenCalledWith(true);
+  });
+
+  it('the hit-area div is not a tab stop (#1192)', async () => {
+    await render(<Switch accessibilityLabel="Rest timer" value={false} onValueChange={() => {}} />);
+    expect(screen.getByTestId('switch-hit-area').props.tabIndex).toBe(-1);
   });
 
   it.each([['dark', dark], ['light', light]])('keeps the off-state thumb and track visible in %s', async (_n, pal) => {

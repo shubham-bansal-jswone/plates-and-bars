@@ -326,6 +326,15 @@ const focusHandlers = (f: ReturnType<typeof useFocusRing>, props: object): objec
   };
 };
 
+// react-native-web's switch is a 40x20 root with an invisible checkbox filling it. On web the checkbox is stretched to the
+// 44x44 target (the visible track stays 40x20) and its default outline is dropped: the lime ring is drawn on the wrapper.
+if (Platform.OS === 'web' && typeof document !== 'undefined' && !document.getElementById('pb-switch-target')) {
+  const st = document.createElement('style');
+  st.id = 'pb-switch-target';
+  st.textContent = 'input[type=checkbox][role=switch]{outline:none;top:-12px;left:-2px;width:44px;height:44px}';
+  document.head.appendChild(st);
+}
+
 /** Switch with the off-state track kept visible (#153) and a white thumb on web too. */
 export function Switch(props: SwitchProps) {
   const c = useTheme();
@@ -338,6 +347,7 @@ export function Switch(props: SwitchProps) {
         testID="switch-hit-area"
         accessible={false}
         focusable={false}
+        tabIndex={-1}
         importantForAccessibility="no"
         disabled={props.disabled ?? false}
         onPress={() => props.onValueChange?.(!props.value)}
@@ -374,7 +384,7 @@ const styles = StyleSheet.create({
   card: { borderRadius: radius.lg, padding: space.lg, gap: space.sm },
   group: { gap: space.sm },
   opt: { borderRadius: radius.lg, padding: 16, gap: 2, minHeight: 56 },
-  chip: { borderRadius: radius.full, paddingHorizontal: space.lg, minHeight: 44, justifyContent: 'center' },
+  chip: { borderRadius: radius.full, paddingHorizontal: space.lg, minHeight: 44, minWidth: 44, justifyContent: 'center' },
   switchHit: { minWidth: 44, minHeight: 44, alignSelf: 'flex-start', alignItems: 'center', justifyContent: 'center' },
   switchRing: { alignSelf: 'flex-start', borderRadius: radius.full },
   input: { minWidth: 90, flexGrow: 1, maxWidth: 160 },
