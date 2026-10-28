@@ -27,9 +27,9 @@ test('all 30 KB cards carry over in prototype order with title, summary, evidenc
   assert.deepEqual(cards.map((c) => c.id), Object.keys(p.KB));
   for (const c of cards) {
     const k = p.KB[c.id];
-    // The five #549 cards differ from the prototype on purpose (CARD_OVERRIDES); every other field is unchanged.
+    // The five #549 cards differ from the prototype on purpose (CARD_OVERRIDES); every other field is unchanged except warmup, whose title, summary and body also differ (#1240, #1263).
     const o = CARD_OVERRIDES[c.id]?.set ?? {};
-    assert.deepEqual([c.title, c.summary, c.evidence, c.source], [k.t, k.s, o.evidence ?? k.ev, o.source ?? k.src]);
+    assert.deepEqual([c.title, c.summary, c.evidence, c.source], [o.title ?? k.t, o.summary ?? k.s, o.evidence ?? k.ev, o.source ?? k.src]);
   }
 });
 
@@ -43,6 +43,10 @@ test('#549 overrides: exactly the five weak-source cards, honest evidence labels
   assert.ok(byId.screening.source.includes('Health & Fitness Journal of Canada 2011;4(2):3-23') && byId.screening.body.includes('eparmedx.com'));
   for (const id of Object.keys(CARD_OVERRIDES)) assert.equal(byId[id].review_status, 'draft');
   // Changing a prototype value that an override replaces fails the import instead of silently shipping stale text.
+  for (const part of ["t:'Why warm up before the first big lift?'", "s:'A couple of lighter sets rehearse", '50% and 75% of your working weight']) {
+    assert.ok(html.includes(part), part);
+    assert.throws(() => importCards(html.replace(part, part.replace(/^(\w:')?(\w)/, '$1X$2'))), /warmup.*changed/);
+  }
   assert.throws(() => importCards(html.replace('Warburton et al., PAR-Q+ (Physical Activity Readiness Questionnaire for Everyone)', 'Warburton et al., PAR-Q+')), /screening.*changed/);
 });
 

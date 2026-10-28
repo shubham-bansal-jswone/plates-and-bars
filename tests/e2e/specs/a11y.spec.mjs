@@ -102,7 +102,7 @@ const screens = {
     await label(page, `Guide and tools for ${exercise}`).click();
     await expect(why(page, 'How your sessions are built')).toHaveCount(1);
     await expect(why(page, 'Why rest 2–3 minutes on big lifts?').first()).toBeVisible();
-    await expect(why(page, 'Why warm up before the first big lift?').first()).toBeVisible();
+    await expect(why(page, 'Why warm up before a big lift?').first()).toBeVisible();
   },
   progress: async (page) => {
     // Log one food first so the Seven days card has a logged day: a kcal and protein chip over a fill, which a blank
