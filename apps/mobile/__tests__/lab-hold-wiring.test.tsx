@@ -262,6 +262,25 @@ describe('the hold reaches a second session and a seeded pick session', () => {
     expect(max).toBeLessThanOrEqual(2);
   });
 
+  it('the hold note shows for a seeded pick and is hidden for a hand-picked one', async () => {
+    await mount(true);
+    expect(screen.getByText(labs.workout_note)).toBeTruthy();
+    await pressDay('Choose Pull A');
+    await pressDay('Pick exercises');
+    expect(screen.getByText(labs.workout_note)).toBeTruthy(); // seeded from Pull A: keeps the hold
+  });
+
+  it('a hand-picked session (no seed) has no lab hold, no note, and its mods.light stays off', async () => {
+    const db = await mount(true);
+    await pressDay('Pick exercises');
+    await press('Add Barbell Bench Press');
+    expect(screen.queryByText(labs.workout_note)).toBeNull();
+    await press('Start this exercise');
+    await screen.findByText('Session');
+    expect(stored(db).mods.light).toBeFalsy();
+    expect(Math.max(...Object.values(sets(db)))).toBeGreaterThan(2);
+  });
+
   it('control: without the hold a seeded pick session is normal', async () => {
     const { w, max } = await seededPick(false);
     expect(w.mods.light).toBe(false);
