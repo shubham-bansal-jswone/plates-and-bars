@@ -18,8 +18,36 @@ export function focusSheetTitle(title: string): boolean {
   const heading = dialog?.querySelector<HTMLElement>('[role=heading]');
   if (!dialog || !heading || !dialog.contains(document.activeElement)) return false;
   heading.setAttribute('tabindex', '-1'); // focusable by script, not in the tab order
+  // Only while it has focus: left on, the focus trap's walk would land on the title again at every wrap (#1275). Removed after
+  // the blur has been handled, not during it: the trap's Shift+Tab handler runs right after the blur and, with the title still
+  // focusable, wraps from it to the last control (a sync removal sent the first Shift+Tab forward to the first control).
+  // Kept until the removal happens: if focus is back on the title when the timer fires, the next blur tries again.
+  const onBlur = () =>
+    setTimeout(() => {
+      if (document.activeElement === heading) return;
+      heading.removeAttribute('tabindex');
+      heading.removeEventListener('blur', onBlur);
+    }, 0);
+  heading.addEventListener('blur', onBlur);
   heading.focus();
   return true;
+}
+
+// What a browser focuses on its own and what react-native-web marks tabbable (it sets `tabindex`), so a stop on anything else is not a control.
+const FOCUSABLE = 'a[href],area[href],button,input,select,textarea,summary,iframe,audio[controls],video[controls],[contenteditable]';
+
+/**
+ * Chromium lets script focus a scrolling container (the sheet's page ScrollView is `overflow: auto`). react-native-web's focus
+ * trap walks the dialog with `element.focus()` and keeps the first element that accepts it, so on a wrap it stopped on that
+ * unlabelled full-screen div instead of the first or last control, and Shift+Tab then stayed on it (#1275). A focus event on an
+ * element that is neither natively focusable nor given a `tabindex` is such a container: drop focus at once, so the trap's own
+ * check fails and it carries on to the next element (the title takes focus through `tabindex="-1"`, which is allowed).
+ */
+export function refuseScrollerFocus(event: { target: EventTarget | null }): void {
+  const el = event.target;
+  if (typeof HTMLElement === 'undefined' || !(el instanceof HTMLElement)) return;
+  if (el.hasAttribute('tabindex') || el.matches(FOCUSABLE)) return;
+  el.blur();
 }
 
 const TICK_MS = 16;
@@ -42,6 +70,15 @@ export function SheetModal({ title, onClose, children }: { title: string; onClos
   useEffect(() => {
     titleRef.current = title;
   });
+  // Web only, while the sheet is open (capture: focus does not bubble). Registered after react-native-web's trap, which lives below.
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof document === 'undefined') return;
+    // One function per sheet: the browser keeps a single copy of a listener registered twice with the same function, so a shared
+    // one would be removed for every open sheet when the top one of a stack closes.
+    const guard = (event: Event) => refuseScrollerFocus(event);
+    document.addEventListener('focus', guard, true);
+    return () => document.removeEventListener('focus', guard, true);
+  }, []);
   // Unmount only (not on a title change): give focus back to the opener and cancel a pending title focus.
   useEffect(
     () => () => {
