@@ -292,9 +292,12 @@ export function Chip({ label, text, pressed, danger, onPress }: { label: string;
   );
 }
 
+const NUMERIC_KEYBOARDS = ['numeric', 'decimal', 'decimal-pad', 'number-pad'];
+
+/** Text fields fill their column; numeric fields (by `inputMode` or `keyboardType`) stay at most 160px wide. Layout in `style` still wins. */
 export function Field({ label, invalid, style, ...rest }: TextInputProps & { ref?: Ref<TextInput>; label: string; /** The value is wrong: announces `aria-invalid` and draws a danger border (after the caller's style, so it wins). */ invalid?: boolean }) {
   const c = useTheme();
-  return <Input accessibilityLabel={label} aria-invalid={invalid || undefined} {...rest} style={[styles.input, style, invalid ? { borderColor: c.danger } : null]} />;
+  return <Input accessibilityLabel={label} aria-invalid={invalid || undefined} {...rest} style={[styles.input, NUMERIC_KEYBOARDS.includes(rest.inputMode ?? rest.keyboardType ?? '') ? styles.numeric : null, style, invalid ? { borderColor: c.danger } : null]} />;
 }
 
 /** `error` marks the group invalid and is its hint, so a screen reader hears why on entering it. */
@@ -392,7 +395,8 @@ const styles = StyleSheet.create({
   chip: { borderRadius: radius.full, paddingHorizontal: space.lg, minHeight: 44, minWidth: 44, justifyContent: 'center' },
   switchHit: { minWidth: 44, minHeight: 44, alignSelf: 'flex-start', alignItems: 'center', justifyContent: 'center' },
   switchRing: { alignSelf: 'flex-start', borderRadius: radius.full },
-  input: { minWidth: 90, flexGrow: 1, maxWidth: 160 },
+  input: { minWidth: 90, flexGrow: 1 },
+  numeric: { maxWidth: 160 },
 });
 
 function Chevron({ open, color }: { open: boolean; color: string }) {
