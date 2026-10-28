@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AppState, StyleSheet, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
-import Svg, { Circle, Line } from 'react-native-svg';
+import Svg, { Circle, G, Line } from 'react-native-svg';
 import { Text } from '../components/Text';
 import { useReducedMotion } from '../components/reducedMotion';
 import { Press } from '../components/ui';
@@ -10,7 +10,7 @@ import { useTheme } from '../theme/useTheme';
 import { getCatalog } from '../workout/catalog';
 import { figureColours } from '../workout/figures';
 import { motionAlt, motionCredit, type MotionEntry } from './data';
-import { RIG_SEG, keyFrameIndex, motionDuration, rigPose, sampleFrame, type RigJoints } from './project';
+import { RIG_SEG, fitClip, keyFrameIndex, motionDuration, rigPose, sampleFrame, type FitTransform, type RigJoints } from './project';
 
 // Drawing space and limb widths of the v1.1 rig (tools/exercise-figures/rig.mjs: 320 x 240, W, the floor line at y 226).
 const W = 320;
@@ -39,12 +39,13 @@ function useAppActive(): boolean {
   return active;
 }
 
-function Pose({ J, colours }: { J: RigJoints; colours: ReturnType<typeof figureColours> }) {
+function Pose({ J, fit, colours }: { J: RigJoints; fit: FitTransform; colours: ReturnType<typeof figureColours> }) {
   const seg = (a: readonly number[], b: readonly number[], w: number, c: string, k: string) => (
     <Line key={k} x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} stroke={c} strokeWidth={w} strokeLinecap="round" />
   );
   return (
     <Svg viewBox={`0 0 ${W} ${H}`} width="100%" height="100%">
+      <G transform={`translate(${fit.tx} ${fit.ty}) scale(${fit.scale})`}>
       <Line x1={60} y1={226} x2={260} y2={226} stroke={colours.eq} strokeWidth={2} />
       {seg(J.ankle, J.toe, WIDTH.foot, colours.body, 'foot')}
       {seg(J.ankle, J.knee, WIDTH.sh, colours.body, 'shin')}
@@ -53,6 +54,7 @@ function Pose({ J, colours }: { J: RigJoints; colours: ReturnType<typeof figureC
       <Circle cx={J.head[0]} cy={J.head[1]} r={RIG_SEG.head} fill={colours.bg} stroke={colours.body} strokeWidth={5} />
       {seg(J.sh, J.el, WIDTH.ua, colours.arm, 'upper-arm')}
       {seg(J.el, J.wr, WIDTH.fa, colours.arm, 'forearm')}
+      </G>
     </Svg>
   );
 }
@@ -85,6 +87,8 @@ export function MotionFigure({ name, entry }: { name: string; entry: MotionEntry
     }, 1000 / TICK_FPS);
     return () => clearInterval(id);
   }, [running, entry]);
+  // One transform for the whole clip (every frame), so the figure neither rescales nor jumps while it plays.
+  const fit = useMemo(() => fitClip(entry), [entry]);
   const keyPose = useMemo(() => rigPose(entry.frames[keyFrameIndex(entry)]!), [entry]);
   const alt = useMemo(() => motionAlt(name, reduced, getCatalog().cards[name]?.setup[0]), [name, reduced]);
   const colours = useMemo(() => figureColours(c), [c]);
@@ -94,7 +98,7 @@ export function MotionFigure({ name, entry }: { name: string; entry: MotionEntry
     <View style={{ gap: 4 }}>
       <View accessible accessibilityRole="image" accessibilityLabel={alt} testID="motion-figure" style={[styles.frame, { backgroundColor: c.tint, borderColor: c.line }]}>
         <View aria-hidden accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={StyleSheet.absoluteFill}>
-          <Pose J={(reduced ? keyPose : pose).joints} colours={colours} />
+          <Pose J={(reduced ? keyPose : pose).joints} fit={fit} colours={colours} />
         </View>
       </View>
       {entry.note ? <Text style={[type.caption, { color: c.body }]}>{entry.note}</Text> : null}
