@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Checks the ccache rules of android-release.yml: the size cap is 2G in both places that set it, the cache is saved only on
-# main and never on a pull request, and the job that deletes old ccache entries (the only one with `actions: write`) never
-# runs on a pull request, runs only on main after a green build, and keeps only the newest entry. The job's `if:` must equal the exact intended expression.
+# main or design-overhaul and never on a pull request, and the job that deletes old ccache entries (the only one with `actions: write`) never
+# runs on a pull request, runs only on main or design-overhaul after a green build, and keeps only the newest entry. The job's `if:` must equal the exact intended expression.
 # Run from anywhere: infra/scripts/test-android-ccache.sh
 set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
@@ -39,13 +39,14 @@ saves = [s for s in steps if str(s.get("uses", "")).startswith("actions/cache/sa
 check(len(saves) == 1, "expected exactly one cache save step")
 for s in saves:
     cond = s.get("if", "")
-    check("github.event_name != 'pull_request'" in cond and "github.ref == 'refs/heads/main'" in cond,
-          "the ccache save must be limited to non-PR runs on main")
+    check("github.event_name != 'pull_request'" in cond and "github.ref == 'refs/heads/main'" in cond
+          and "github.ref == 'refs/heads/design-overhaul'" in cond,
+          "the ccache save must be limited to non-PR runs on main or design-overhaul")
 
 if prune:
     cond = prune.get("if", "")
     norm = " ".join(str(cond).replace("${{", "").replace("}}", "").split())
-    want = "github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && needs.build.result == 'success'"
+    want = "github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/design-overhaul') && needs.build.result == 'success'"
     check(norm == want, f"ccache-prune if: must be exactly: {want} (got: {norm})")
     check(prune.get("needs") == "build", "ccache-prune must need the build job")
     check(prune.get("permissions") == {"actions": "write"}, "ccache-prune permissions must be exactly actions: write")

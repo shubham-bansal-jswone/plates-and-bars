@@ -34,7 +34,7 @@ name: Android release build
 # Pull requests build a faster variant (assembleRelease for arm64-v8a only, no bundleRelease; the ABI is passed as
 # -PreactNativeArchitectures so nothing is committed or edited). Pushes to main (same paths as the PR trigger), tags and
 # manual runs build all four ABIs with assembleRelease bundleRelease, so a break in another ABI or in the AAB shows on main.
-# Every run compiles the NDK code through ccache. Only pushes to main and manual runs on main save the cache; pull requests
+# Every run compiles the NDK code through ccache. Only pushes to main or design-overhaul and manual runs on them save the cache; pull requests
 # only restore it (a PR-scoped cache is invisible to other PRs and would only evict the npm and Gradle caches).
 # The ccache cap is 2G: a 4-ABI build with precompiled headers overflowed 400M (run 39226041548: 98.5 % of 1376 calls cacheable,
 # cache full at 0.4 GB, 555 cleanups, 24.7 % hits), so ccache evicted its own objects mid-build. Each main run saves a new
@@ -51,8 +51,9 @@ name: Android release build
 on:
   push:
     tags: ['v*']
-    # Deliberately main only: deploying every design-overhaul merge is not wanted until main is fast-forwarded.
-    branches: [main]
+    # design-overhaul is the default branch: only a branch's own, its base's and the default branch's caches restore on a PR, so
+    # its pushes must save the ccache. This workflow only builds and uploads artefacts (no deploy, no publish), so that is safe.
+    branches: [main, design-overhaul]
     paths:
       - '.github/workflows/android-release.yml'
       - 'infra/scripts/android-signing.sh'
@@ -258,9 +259,9 @@ jobs:
         env:
           CCACHE_DIR: ${{ runner.temp }}/ccache
         run: ccache -s -v
-      # Saves only on main; pull requests restore the newest main entry and never save or delete (see ccache-prune below).
+      # Saves only on main and design-overhaul (the default branch); pull requests restore the newest entry and never save or delete (see ccache-prune below).
       - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        if: always() && github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && steps.ccache-key.outputs.prefix != ''
+        if: always() && github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/design-overhaul') && steps.ccache-key.outputs.prefix != ''
         with:
           path: ${{ runner.temp }}/ccache
           key: ${{ steps.ccache-key.outputs.prefix }}-${{ github.run_id }}
@@ -304,7 +305,7 @@ jobs:
   ccache-prune:
     name: prune old ccache entries
     needs: build
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && needs.build.result == 'success'
+    if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/design-overhaul') && needs.build.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
