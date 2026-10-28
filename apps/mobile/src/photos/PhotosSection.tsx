@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { SheetModal } from '../components/Sheet';
 import { Image, PanResponder, Platform, ScrollView, StyleSheet, View, type ImageStyle } from 'react-native';
-import { measureAt, round1, weeklyAvg, type MeasurementFacts, type WeighIn } from '@plate-and-bar/core';
+import { measureAt, weeklyAvg, type MeasurementFacts, type WeighIn } from '@plate-and-bar/core';
+import { useWeightUnit } from '../settings/weightUnit';
+import { weightWithUnit } from '../workout/unitText';
 import { Text } from '../components/Text';
 import { Button, Heading, Hint, Note, Chip } from '../components/ui';
 import { shortDate } from '../format';
@@ -41,6 +43,7 @@ interface Props {
 
 /** Progress photos on the Progress tab (prototype `renderPhotos`): device only, check-ins, compare, delete. */
 export function PhotosSection({ db, date, weights, tapes, notify }: Props) {
+  const { unit } = useWeightUnit();
   const c = useTheme();
   const ph = usePhotos({ db, date });
   const [sheet, setSheet] = useState(false);
@@ -57,7 +60,7 @@ export function PhotosSection({ db, date, weights, tapes, notify }: Props) {
   const caption = (d: string) => {
     const w = weeklyAvg(weights, d);
     const waist = measureAt(tapes, 'waist_cm', d);
-    return `${shortDate(d)}${w ? `, ${round1(w)} kg` : ''}${waist ? `, waist ${waist.v} cm` : ''}`;
+    return `${shortDate(d)}${w ? `, ${weightWithUnit(w, unit)}` : ''}${waist ? `, waist ${waist.v} cm` : ''}`;
   };
   const del = async (d: string) => {
     if (armed !== d) return setArmed(d);

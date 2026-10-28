@@ -105,7 +105,7 @@ export function CheckinCard({ date, c: ci, cycleNote = false }: { date: string; 
             <>
               <Text style={{ color: t.ink, fontWeight: '700' }}>A shorter week might fit better</Text>
               <Text style={{ color: t.ink }}>{`You trained ${k.sessions} of ${k.plannedN} days. A 4-day plan next week keeps every muscle covered with fewer sessions.`}</Text>
-              <Button label="Use a 4-day plan next week" onPress={ci.shorterWeek} />
+              <Button label="Use a 4-day plan next week" kind="ghost" onPress={ci.shorterWeek} />
               <Button label={NOT_NOW} kind="ghost" onPress={ci.decline} />
             </>
           ) : (

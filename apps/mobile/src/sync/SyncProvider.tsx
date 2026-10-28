@@ -55,6 +55,8 @@ export interface SyncState {
   epoch: number;
   /** Bumps after a sync stored pulled records; stores reload from SQLite when it changes (no remount). */
   dataVersion: number;
+  /** Local data was changed outside the usual save paths (a restore): the stores reload from SQLite, no remount. */
+  dataChanged(): void;
   /** Sends the set-aside records again with the next run (and runs it). */
   retryQuarantined(): Promise<void>;
   /** Stops sending the set-aside records; they stay on this device. */
@@ -304,6 +306,7 @@ export function SyncProvider({ db, children, tokens = secureTokens, api: apiOver
       last,
       epoch,
       dataVersion,
+      dataChanged: () => setDataVersion((v) => v + 1),
       holdSchedule: (hold) => void (held.current = hold),
       retryQuarantined: async () => {
         await retryQuarantined(db);

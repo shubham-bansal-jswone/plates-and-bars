@@ -4,6 +4,8 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-
 import { addDays, lbToKg, type LiftRecord } from '@plate-and-bar/core';
 import { saveProfile } from '../src/db/records';
 import { saveWeight } from '../src/db/progress';
+import { saveCycle } from '../src/db/cycle';
+import { BURN_HOW_LB } from '../src/progress/copy';
 import { saveSettings } from '../src/db/settings';
 import { defaultSettings } from '../src/settings/types';
 import { ProgressScreen } from '../src/screens/ProgressScreen';
@@ -13,7 +15,7 @@ import { buildSessions, setText } from '../src/progress/history/logic';
 import { e1rmSummary } from '../src/progress/e1rm';
 import { buildProfile, emptyDraft } from '../src/setup/logic';
 import type { WorkoutSet } from '../src/workout/types';
-import { memoryDb, withProfile } from './helpers';
+import { hardCodedKg, memoryDb, withProfile } from './helpers';
 
 jest.mock('expo-router', () => ({
   useRouter: () => ({ replace: jest.fn(), push: jest.fn() }),
@@ -85,6 +87,27 @@ describe('Progress in pounds (#1185)', () => {
     expect(screen.getByLabelText('Weight in lb').props.value).toBe('180');
   });
 
+  it('pressing Save weight on an unedited box writes nothing: 80 kg stays 80, not 80.0137', async () => {
+    const db = await mount('lb', async (d) => saveWeight(d, weigh(DATE, 80)));
+    expect(screen.getByLabelText('Weight in lb').props.value).toBe('176.4');
+    await fireEvent.press(screen.getByLabelText('Save weight'));
+    expect(await screen.findByText('Weight saved')).toBeTruthy();
+    expect(weights(db)).toEqual([expect.objectContaining({ weight_kg: 80, version: 0 })]);
+  });
+
+  it('the cycle hint follows the unit', async () => {
+    const db = await mount('lb', async (d) => {
+      await saveCycle(d, { on: true, starts: ['2026-09-12', '2026-10-01'], len: 28 });
+      await saveWeight(d, weigh('2026-09-19', 81.24));
+    });
+    expect(await screen.findByText('Same day last cycle (19 Sept): 179.1 lb.')).toBeTruthy();
+    expect(db).toBeTruthy();
+  });
+
+  it('the how-this-works note says 3,500 kcal per lb, built from core', () => {
+    expect(BURN_HOW_LB).toMatch(/about 3,500 kcal equals 1 lb/);
+  });
+
   it('a weigh-in that is shown in lb and left alone is never re-saved', async () => {
     const db = await mount('lb', async (d) => saveWeight(d, weigh(DATE, 81.64)));
     expect(screen.getByLabelText('Weight in lb').props.value).toBe('180');
@@ -111,6 +134,7 @@ describe('History and trends in pounds (#1185)', () => {
     await inUnit('lb', <WorkoutDay session={s.find((x) => x.date === '2026-10-08')!} sessions={s} lifts={{} as Record<string, LiftRecord>} onBack={() => {}} />);
     expect(await screen.findByText('Set 1: 154.3 lb x 8')).toBeTruthy(); // 70 kg
     expect(screen.getByText('lb lifted')).toBeTruthy();
+    expect(screen.getByText(/Heaviest set 154\.3 lb\./)).toBeTruthy(); // one decimal, like the set lines
     expect(screen.getByText('2,161')).toBeTruthy(); // 70 x 14 = 980 kg = 2160.6 lb
   });
 
@@ -132,14 +156,9 @@ describe('History and trends in pounds (#1185)', () => {
   });
 });
 
-describe('no hard-coded kg in the Progress and History screens', () => {
+describe('no hard-coded kg on the Progress tab', () => {
   const src = join(__dirname, '../src');
-  const files = ['screens/ProgressScreen.tsx', ...['progress', 'progress/history'].flatMap((d) => readdirSync(join(src, d)).filter((f) => /\.(ts|tsx)$/.test(f)).map((f) => `${d}/${f}`))];
-  // A kg inside a string or JSX text. `weight_kg` and the like are identifiers, not text; the unit value 'kg' defaults are fine.
-  const bad = (text: string): string[] =>
-    text.replace(/\/\*[\s\S]*?\*\//g, '').split('\n').filter((l) => !l.trim().startsWith('//') && !l.startsWith('export const BURN_HOW =')) // the kg note: its lb twin is BURN_HOW_LB
-      .map((l) => l.replace(/\s\/\/.*$/, '').replace(/\$\{[^}]*\}/g, '').replace(/unit(?:: WeightUnit)? = 'kg'/g, '').replace(/(unit\s*(?:=|!==|===)\s*)'kg'/g, '$1UNIT'))
-      .filter((l) => (l.match(/(['"`])(?:(?!\1).)*\1/g) ?? []).some((q) => /\bkg\b/i.test(q)) || /(\}\s*kg\b)|(>\s*kg\b)/i.test(l));
-  it('catches the shapes it is meant to', () => expect(bad("const a = `${w} kg`;\n<Text>{w} kg</Text>\nconst weight_kg = 1;\nconst f = (unit: WeightUnit = 'kg') => 1;")).toHaveLength(2));
-  it.each(files)('%s has no kg in a string or in JSX text', (f) => expect(bad(readFileSync(join(src, f), 'utf8'))).toEqual([]));
+  const files = ['screens/ProgressScreen.tsx', ...['progress', 'progress/history', 'photos', 'cycle'].flatMap((d) => readdirSync(join(src, d)).filter((f) => /\.(ts|tsx)$/.test(f)).map((f) => `${d}/${f}`))];
+  it('catches the shapes it is meant to', () => expect(hardCodedKg("const a = `${w} kg`;\n<Text>{w} kg</Text>\nconst weight_kg = 1;\nconst f = (unit: WeightUnit = 'kg') => 1;")).toHaveLength(2));
+  it.each(files)('%s has no kg in a string or in JSX text', (f) => expect(hardCodedKg(readFileSync(join(src, f), 'utf8'))).toEqual([]));
 });

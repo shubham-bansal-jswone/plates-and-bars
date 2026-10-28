@@ -7,6 +7,7 @@ import { fmt, shortDate, weekdayLong } from '../../format';
 import { space, tabular, type as typeScale } from '../../theme/tokens';
 import { useTheme } from '../../theme/useTheme';
 import { useWeightUnit } from '../../settings/weightUnit';
+import { weightWithUnit } from '../../workout/unitText';
 import { focusNode, useFocusOnMount } from '../../labelscan/focus';
 import { getLibrary } from '../../library/exercises';
 import { E1RM_NOTE, E1rmTrend } from '../E1rmTrend';
@@ -104,7 +105,7 @@ export function WorkoutDay({ session, sessions, lifts, onBack }: { session: Hist
                     </View>
                   ))}
                 </View>
-                <Text style={[typeScale.small, { color: c.muted }]}>{`Volume, last ${t.points.length} sessions${t.heaviest ? `. Heaviest set ${volumeText(t.heaviest, unit)}.` : '.'}`}</Text>
+                <Text style={[typeScale.small, { color: c.muted }]}>{`Volume, last ${t.points.length} sessions${t.heaviest ? `. Heaviest set ${weightWithUnit(t.heaviest, unit)}.` : '.'}`}</Text>
               </View>
             ) : null}
             <E1rmTrend points={e1} type={typeOf(e.name) ?? 'other'} span={`Last ${Math.min(sessions.length, HISTORY_LIMIT)} sessions`} note={false} />

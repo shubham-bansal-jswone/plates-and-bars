@@ -1,5 +1,5 @@
 import measuresContent from '../../../../content/measures.json';
-import { RAPID_LOSS_KCAL, type MeasureKey, type WeightUnit } from '@plate-and-bar/core';
+import { KCAL_PER_KG, KG_PER_LB, RAPID_LOSS_KCAL, type MeasureKey, type WeightUnit } from '@plate-and-bar/core';
 import { contentReader, isObj, isStr, isTrimmedText, perLoad } from '../content/reader';
 
 /** One tape measure from content/measures.json. */
@@ -71,8 +71,8 @@ export const CHECKIN_NEEDS_SETUP = 'Run setup (Targets tab) to see your weekly c
 export const WEIGHT_WEEK_NONE = 'Weight: log at least 3 weigh-ins a week to see your weekly trend.';
 export const BURN_TITLE = 'Calorie burn from your real data';
 export const BURN_HOW = 'If you eat about the same each day and your weight trend changes, the difference shows your real burn: about 7,700 kcal equals 1 kg of body weight. This is usually more accurate than any formula or fitness tracker. It’s smoothed week to week so one odd week doesn’t swing your targets.';
-/** The same note for an lb user: 7,700 kcal per kg is about 3,500 kcal per lb. */
-export const BURN_HOW_LB = 'If you eat about the same each day and your weight trend changes, the difference shows your real burn: about 3,500 kcal equals 1 lb of body weight. This is usually more accurate than any formula or fitness tracker. It’s smoothed week to week so one odd week doesn’t swing your targets.';
+/** The same note for an lb user: the kcal per kg times the kg per lb, to the nearest 100 (about 3,500). */
+export const BURN_HOW_LB = BURN_HOW.replace(`about ${KCAL_PER_KG.toLocaleString('en-US')} kcal equals 1 kg`, `about ${(Math.round((KCAL_PER_KG * KG_PER_LB) / 100) * 100).toLocaleString('en-US')} kcal equals 1 lb`);
 export const NOT_NOW = 'Not now';
 export const STOP_SUGGESTING = 'Stop suggesting this';
 export const KEEP_TARGETS = 'Keep current targets';

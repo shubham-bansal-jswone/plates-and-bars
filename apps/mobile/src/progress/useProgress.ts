@@ -1,6 +1,6 @@
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { addDays, measurementRow, scaleJump, weightEntry, type MeasureKey, type ScaleJump, type WeightUnit } from '@plate-and-bar/core';
+import { addDays, formatWeight, measurementRow, scaleJump, weightEntry, type MeasureKey, type ScaleJump, type WeightUnit } from '@plate-and-bar/core';
 import { loadMeasurements, loadWeights, saveMeasurement, saveWeight } from '../db/progress';
 import { loadDayNote, patchDayNote } from '../db/food';
 import type { WorkoutDb } from '../db/workouts';
@@ -102,6 +102,8 @@ export function useProgress({ db, date: shown, now, notify, reloadKey = 0 }: Opt
       const entry = weightEntry(text, unit);
       const prev = weightsRef.current.find((w) => w.date === date);
       const t = stamp(now());
+      // A box shown from the stored kg and left alone writes nothing: its rounded lb text must not replace the exact kg.
+      if (entry.kind === 'save' && prev && !prev.deleted_at && text.trim() === formatWeight(prev.weight_kg, unit)) return notify('Weight saved');
       if (entry.kind === 'save') {
         const note = scaleJump(weightsRef.current, date, entry.kg);
         if (note) setJump(note);
