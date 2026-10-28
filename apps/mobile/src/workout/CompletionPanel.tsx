@@ -3,6 +3,7 @@ import { Platform, StyleSheet, Text as RNText, View } from 'react-native';
 import { type LiftRecord } from '@plate-and-bar/core';
 import { Text } from '../components/Text';
 import { Button, Card, Heading, MetricRow, Note } from '../components/ui';
+import { sessionTimeLine } from '../progress/e1rm';
 import type { WorkoutDb } from '../db/workouts';
 import { radius, tabular, type } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
@@ -12,13 +13,15 @@ import type { ExState } from './model';
 import { buildShareCard } from './shareModel';
 import { ShareCard } from './ShareCard';
 import { shareWorkoutImage } from './shareImage';
+import { useWeightUnit } from '../settings/weightUnit';
 
 /**
  * "Session done": shown while every set is ticked, read from today's exercises only. Nothing is stored and nothing is locked:
- * un-tick a set and it goes. No duration (none is stored), no streak. A personal record is core's `updateLift` result (the record's `pbToast` is today).
+ * un-tick a set and it goes. The elapsed time is core's `sessionElapsed` over the ticks (`t`), shown only when every ticked set has one; no streak. A personal record is core's `updateLift` result (the record's `pbToast` is today).
  */
 export function CompletionPanel({ db, date, profileKg, exs, cardio, lifts, reloadKey, headingRef }: { headingRef?: Ref<ComponentRef<typeof RNText>>; db: WorkoutDb; date: string; profileKg: number; exs: readonly ExState[]; cardio: number | null; lifts: Readonly<Record<string, LiftRecord>>; reloadKey: number }) {
   const c = useTheme();
+  const { unit } = useWeightUnit();
   const cardRef = useRef<ComponentRef<typeof View>>(null);
   const sharing = useRef(false);
   const [busy, setBusy] = useState(false);
@@ -26,7 +29,8 @@ export function CompletionPanel({ db, date, profileKg, exs, cardio, lifts, reloa
   const sets = exs.flatMap((e) => e.sets);
   const done = sets.filter((s) => s.done).length;
   if (sets.length === 0 || done !== sets.length) return null;
-  const card = buildShareCard({ date, exs, cardio, lifts });
+  const card = buildShareCard({ date, exs, cardio, lifts, unit });
+  const elapsed = sessionTimeLine(exs.flatMap((e) => [...e.ramp, ...e.sets]));
   const share = () => {
     if (sharing.current) return; // a second tap while one runs would race on the same cache file
     sharing.current = true;
@@ -50,6 +54,7 @@ export function CompletionPanel({ db, date, profileKg, exs, cardio, lifts, reloa
       {/* MetricRow holds 3 cells; a 4th (cardio) goes on a second row so none truncates at 360 px. */}
       <MetricRow cells={card.stats.slice(0, 3)} />
       {card.stats.length > 3 ? <MetricRow cells={card.stats.slice(3)} /> : null}
+      {elapsed ? <Text testID="completion-elapsed" accessibilityLabel={`Time: ${elapsed}`} style={[type.caption, { color: c.body }]}>{`Time: ${elapsed}`}</Text> : null}
       {exs.map((e, i) => {
         const rates = [...new Set(e.sets.flatMap((s) => (s.rate ? [RATE_LABEL[s.rate]] : [])))];
         const pr = lifts[e.name]?.pbToast === date;

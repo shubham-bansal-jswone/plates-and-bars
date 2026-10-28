@@ -1,4 +1,4 @@
-import { sessionVolume, type LiftRecord } from '@plate-and-bar/core';
+import { formatWeight, fromKg, sessionVolume, type LiftRecord, type WeightUnit } from '@plate-and-bar/core';
 import { fmt, shortDate, weekdayLong } from '../format';
 import type { ExState, Row } from './model';
 
@@ -46,26 +46,27 @@ export interface ShareCardModel {
  * best set and personal records. Built only from the ticked sets, so it cannot carry body weight, health answers, how a set
  * felt, calories (they depend on body weight), photos or any identifier.
  */
-export function buildShareCard(p: { date: string; exs: readonly ExState[]; cardio: number | null; lifts: Readonly<Record<string, LiftRecord>> }): ShareCardModel {
+export function buildShareCard(p: { date: string; exs: readonly ExState[]; cardio: number | null; lifts: Readonly<Record<string, LiftRecord>>; unit?: WeightUnit }): ShareCardModel {
+  const unit = p.unit ?? 'kg';
   const sets = p.exs.flatMap((e) => e.sets);
   const done = sets.filter((s) => s.done).length;
   const vol = sessionVolume(p.exs);
   const reps = sets.reduce((t, s) => t + n(s.r), 0);
   const stats = [
     { label: 'Sets', value: `${done}/${sets.length}` },
-    vol > 0 ? { label: 'Volume (kg)', value: fmt(vol) } : { label: 'Reps', value: fmt(reps) },
+    vol > 0 ? { label: `Volume (${unit})`, value: fmt(fromKg(vol, unit)) } : { label: 'Reps', value: fmt(reps) },
     { label: 'Exercises', value: String(p.exs.length) },
     ...(p.cardio ? [{ label: 'Cardio (min)', value: fmt(p.cardio) }] : []),
   ];
   const cardStats = [
     { label: 'Sets', value: `${done}/${sets.length}` },
-    vol > 0 ? { label: 'Volume kg', value: compact(vol) } : { label: 'Reps', value: compact(reps) },
+    vol > 0 ? { label: `Volume ${unit}`, value: compact(fromKg(vol, unit)) } : { label: 'Reps', value: compact(reps) },
     { label: 'Exercises', value: String(p.exs.length) },
     ...(p.cardio ? [{ label: 'Cardio min', value: compact(p.cardio) }] : []),
   ];
   const rows = p.exs.map((e) => {
     const b = bestSet(e.sets);
-    return { name: e.name, best: !b ? '' : n(b.w) ? `${r1(n(b.w))} x ${n(b.r)}` : `${n(b.r)} reps`, pr: p.lifts[e.name]?.pbToast === p.date };
+    return { name: e.name, best: !b ? '' : n(b.w) ? `${formatWeight(n(b.w), unit)} x ${n(b.r)}` : `${n(b.r)} reps`, pr: p.lifts[e.name]?.pbToast === p.date };
   });
   const title = `${weekdayLong(p.date)} workout`;
   const dateLabel = `${shortDate(p.date)} ${p.date.slice(0, 4)}`;

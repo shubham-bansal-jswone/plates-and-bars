@@ -7,10 +7,15 @@ import { fmt, shortDate, weekdayLong } from '../../format';
 import { space, tabular, type as typeScale } from '../../theme/tokens';
 import { useTheme } from '../../theme/useTheme';
 import { focusNode, useFocusOnMount } from '../../labelscan/focus';
-import { exerciseTrend, setText, type HistorySession } from './logic';
+import { getLibrary } from '../../library/exercises';
+import { E1RM_NOTE, E1rmTrend } from '../E1rmTrend';
+import { HISTORY_LIMIT, exerciseE1rm, exerciseTrend, setText, type HistorySession } from './logic';
 
 export const HISTORY_EMPTY = 'No workouts logged yet. Your sessions will appear here.';
 const FIRST = 5;
+
+/** The library's exercise type, so bodyweight, time and assisted work gets no estimate; unknown names count as loaded (core's rule). */
+const typeOf = (name: string) => getLibrary().find((x) => x.name === name)?.type;
 
 const volumeText = (kg: number): string => `${fmt(kg)} kg`;
 const count = (n: number, one: string): string => `${n} ${one}${n === 1 ? '' : 's'}`;
@@ -66,6 +71,7 @@ export function WorkoutDay({ session, sessions, lifts, onBack }: { session: Hist
         <Heading level={2} style={[typeScale.title, { color: c.ink }]}>{session.name}</Heading>
       </View>
       <Hint>{`${weekdayLong(session.date)}, ${shortDate(session.date)}`}</Hint>
+      {session.elapsed ? <Text testID="session-elapsed" accessibilityLabel={`Time: ${session.elapsed}`} style={[typeScale.caption, { color: c.body }]}>{`Time: ${session.elapsed}`}</Text> : null}
       <Card>
         <MetricRow cells={[
           { value: String(session.setsDone), label: 'sets', lime: true, spoken: count(session.setsDone, 'set') },
@@ -75,6 +81,7 @@ export function WorkoutDay({ session, sessions, lifts, onBack }: { session: Hist
       </Card>
       {session.exercises.map((e) => {
         const t = exerciseTrend(sessions, e.name, lifts[e.name]);
+        const e1 = exerciseE1rm(sessions, e.name, typeOf(e.name));
         const max = Math.max(...t.points.map((p) => p.volume), 0);
         return (
           <Card key={e.name} style={styles.gap}>
@@ -95,9 +102,11 @@ export function WorkoutDay({ session, sessions, lifts, onBack }: { session: Hist
                 <Text style={[typeScale.small, { color: c.muted }]}>{`Volume, last ${t.points.length} sessions${t.heaviest ? `. Heaviest set ${fmt(t.heaviest)} kg.` : '.'}`}</Text>
               </View>
             ) : null}
+            <E1rmTrend points={e1} type={typeOf(e.name) ?? 'other'} span={`Last ${Math.min(sessions.length, HISTORY_LIMIT)} sessions`} note={false} />
           </Card>
         );
       })}
+      {session.exercises.some((e) => exerciseE1rm(sessions, e.name, typeOf(e.name)).length >= 2) ? <Hint>{E1RM_NOTE}</Hint> : null}
     </View>
   );
 }

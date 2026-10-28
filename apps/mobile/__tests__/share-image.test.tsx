@@ -4,6 +4,8 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react-nativ
 import { Dimensions, Platform, StyleSheet } from 'react-native';
 import { CompletionPanel } from '../src/workout/CompletionPanel';
 import { blankRow, type ExState, type Row } from '../src/workout/model';
+import { formatWeight, fromKg } from '@plate-and-bar/core';
+import { fmt } from '../src/format';
 import { buildShareCard, CARD_H, CARD_MAX_ROWS, CARD_PAD, CARD_W, HEADER_H, MORE_H, ROW_H, STATS_H } from '../src/workout/shareModel';
 import { memoryDb } from './helpers';
 
@@ -188,6 +190,18 @@ describe('what the card contains', () => {
     const m = buildShareCard({ date: '2026-10-08', exs: heavy, cardio: 45, lifts: {} });
     expect(m.cardStats).toEqual([{ label: 'Sets', value: '1/1' }, { label: 'Volume kg', value: '12k' }, { label: 'Exercises', value: '1' }, { label: 'Cardio min', value: '45' }]);
     expect(m.stats[1]).toEqual({ label: 'Volume (kg)', value: '12,000' }); // the panel keeps the full figure
+  });
+});
+
+describe('pounds', () => {
+  it('shows volume and best sets in lb, as the panel does', () => {
+    const heavy = [ex('Leg Press', [row('100', '5', true)])];
+    const m = buildShareCard({ date: '2026-10-08', exs: heavy, cardio: null, lifts: {}, unit: 'lb' });
+    expect(m.stats[1]).toEqual({ label: 'Volume (lb)', value: fmt(fromKg(500, 'lb')) });
+    expect(m.cardStats[1].label).toBe('Volume lb');
+    expect(m.bests[0]).toBe(`${formatWeight(100, 'lb')} x 5`);
+    expect(m.bests[0]).toBe('220.5 x 5');
+    expect(buildShareCard({ date: '2026-10-08', exs: heavy, cardio: null, lifts: {} }).bests[0]).toBe(`${formatWeight(100, 'kg')} x 5`);
   });
 });
 
