@@ -128,7 +128,7 @@ describe('the module registration and build', () => {
   it('CI runs the module unit tests and lint, and the OCR flag is mapped like the other two', () => {
     const wf = read(join(app, '../../.github/workflows/android-release.yml'));
     expect(wf).toContain(':plate-label-scanner:testDebugUnitTest :plate-label-scanner:lintDebug');
-    expect(wf).toContain("EXPO_PUBLIC_LABEL_SCAN: ${{ github.event_name != 'pull_request' && vars.EXPO_PUBLIC_LABEL_SCAN || '' }}");
+    expect(wf).toContain("EXPO_PUBLIC_LABEL_SCAN: ${{ github.event_name != 'pull_request' && !(github.event_name == 'push' && github.ref == 'refs/heads/design-overhaul') && vars.EXPO_PUBLIC_LABEL_SCAN || '' }}");
     expect(read(join(app, '../../.github/workflows/web-deploy.yml'))).toContain('EXPO_PUBLIC_LABEL_SCAN: ${{ vars.EXPO_PUBLIC_LABEL_SCAN }}');
   });
 });
