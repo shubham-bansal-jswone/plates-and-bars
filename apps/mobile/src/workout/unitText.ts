@@ -8,9 +8,11 @@ import { formatWeight, parseWeightInput, type WeightUnit } from '@plate-and-bar/
 
 /** The text a set row's weight field shows: the stored kg text in `unit`, rounded as core's `formatWeight` does. kg is shown as stored. */
 export function weightFieldText(kgText: string, unit: WeightUnit): string {
-  if (unit === 'kg' || kgText.trim() === '') return kgText;
+  if (kgText.trim() === '') return kgText;
   const kg = Number(kgText);
-  return Number.isFinite(kg) ? formatWeight(kg, unit) : kgText;
+  if (!Number.isFinite(kg)) return kgText;
+  // kg is shown as stored, except a value that came from lb (`61.23496995`) is rounded like every shown weight.
+  return unit === 'kg' && !/\.\d{3,}/.test(kgText) ? kgText : formatWeight(kg, unit);
 }
 
 /**
@@ -20,7 +22,9 @@ export function weightFieldText(kgText: string, unit: WeightUnit): string {
 export function weightFromField(typed: string, unit: WeightUnit): string | null {
   if (unit === 'kg') return typed;
   if (typed.trim() === '') return '';
-  const kg = parseWeightInput(typed, unit);
+  // A number still being typed counts, as in kg: "135." is 135 and ".5" is 0.5 (one separator, at the end or the start).
+  const t = typed.trim();
+  const kg = parseWeightInput(/^\d+[.,]$/.test(t) ? t.slice(0, -1) : /^[.,]\d+$/.test(t) ? `0${t}` : t, unit);
   return kg === null ? null : String(kg);
 }
 

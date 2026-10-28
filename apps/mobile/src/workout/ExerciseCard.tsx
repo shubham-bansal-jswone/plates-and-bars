@@ -166,7 +166,7 @@ export function ExerciseCard({ ex, info, sug, focus, warm, act, cards, learning,
     return () => clearTimeout(t);
   }, [armed]);
   const c = useTheme();
-  const { unit } = useWeightUnit();
+  const { unit, ready } = useWeightUnit();
   // Rows hold kg text; core's lb steps and rounding come from the lb info, and rows are shown to core in the display unit (#1185).
   const uinfo = infoForUnit(info, unit);
   const shown = (rows: readonly Row[]) => rows.map((r) => displayRow(r, unit));
@@ -283,7 +283,7 @@ export function ExerciseCard({ ex, info, sug, focus, warm, act, cards, learning,
               {heads(unit, 'reps')}
               {ex.ramp.map((s, j) => (
                 <View key={s.id} style={{ gap: 6 }}>
-                  <SetRow n={`R${j + 1}`} label={`${ex.name} ramp set ${j + 1}`} row={s} wHead="weight" repsHead="reps" ph={rampPh(j)} onEdit={(f, v) => act.edit('ramp', j, f, v)} onTick={() => act.rampTick(j)} unit={unit} current={!s.done && ex.ramp.findIndex((x) => !x.done) === j} />
+                  <SetRow n={`R${j + 1}`} label={`${ex.name} ramp set ${j + 1}`} row={s} wHead="weight" repsHead="reps" ph={rampPh(j)} onEdit={(f, v) => act.edit('ramp', j, f, v)} onTick={() => act.rampTick(j)} unit={unit} locked={!ready} current={!s.done && ex.ramp.findIndex((x) => !x.done) === j} />
                   <RateRow row={s} label={`${ex.name} ramp set ${j + 1}`} onRate={(v) => act.rampRate(j, v)} />
                 </View>
               ))}
@@ -311,7 +311,7 @@ export function ExerciseCard({ ex, info, sug, focus, warm, act, cards, learning,
           const label = `${ex.name} set ${j + 1}`;
           return (
             <View key={s.id} style={{ gap: 6 }}>
-              <SetRow n={String(j + 1)} label={label} focusWeight={skipped && j === 0} onFocused={() => setSkipped(false)} row={s} wHead={wHead} repsHead={rw} unit={unit} ph={{ w: t.w !== '' && t.w !== undefined ? formatWeight(Number(t.w), unit) : nl ? 'BW' : '–', r: t.r ? String(t.r) : '–' }} onEdit={(f, v) => act.edit('work', j, f, v)} onTick={() => act.tick(j)} current={!s.done && ex.sets.findIndex((x) => !x.done) === j} />
+              <SetRow n={String(j + 1)} label={label} focusWeight={skipped && j === 0} onFocused={() => setSkipped(false)} row={s} wHead={wHead} repsHead={rw} unit={unit} locked={!ready} ph={{ w: t.w !== '' && t.w !== undefined ? formatWeight(Number(t.w), unit) : nl ? 'BW' : '–', r: t.r ? String(t.r) : '–' }} onEdit={(f, v) => act.edit('work', j, f, v)} onTick={() => act.tick(j)} current={!s.done && ex.sets.findIndex((x) => !x.done) === j} />
               <RateRow row={s} label={label} onRate={(v) => act.rate(j, v)} />
             </View>
           );

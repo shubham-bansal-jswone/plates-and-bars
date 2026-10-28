@@ -1,4 +1,4 @@
-import { readFileSync } from 'fs';
+import { readdirSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { act, fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react-native';
 import { lbToKg } from '@plate-and-bar/core';
@@ -13,6 +13,8 @@ import { saveSettings } from '../src/db/settings';
 import { defaultSettings } from '../src/settings/types';
 import { buildProfile, emptyDraft } from '../src/setup/logic';
 import { dayQueue } from '../src/workout/dayQueue';
+import { getCatalog } from '../src/workout/catalog';
+import { guidance, progressionContext } from '../src/workout/guidance';
 import { useWorkoutDay } from '../src/workout/useWorkoutDay';
 import { memoryDb, withProfile } from './helpers';
 import { openDb } from './sync-helpers';
@@ -115,32 +117,156 @@ describe('set row edges', () => {
     expect(onEdit.mock.calls[1]).toEqual(['w', '']);
   });
 
-  it('ticking in lb leaves a typed weight untouched and stores a suggested one as kg', async () => {
+  const stored = async (db: Awaited<ReturnType<typeof openDb>>, name: string, kind: 'work' | 'ramp', j: number) =>
+    (await loadSets(db, DATE)).find((x) => x.exercise === name && x.set_index === j && x.kind === kind && !x.deleted_at);
+  async function hook(unit: 'kg' | 'lb', seed?: string) {
     const db = await openDb();
-    const opts = { db, profile: profile(), now: THURSDAY, focus: [], adjustments: {}, notify: jest.fn(), startRest: jest.fn(), exclusions: [], swaps: [], saveRule: jest.fn(), tune: { unit: 'lb' } } as unknown as Parameters<typeof useWorkoutDay>[0];
+    if (seed) await saveLift(db, seed, lift(80) as never);
+    const opts = { db, profile: profile(), now: THURSDAY, focus: [], adjustments: {}, notify: jest.fn(), startRest: jest.fn(), exclusions: [], swaps: [], saveRule: jest.fn(), tune: { unit } } as unknown as Parameters<typeof useWorkoutDay>[0];
     const view = await renderHook(() => useWorkoutDay({ ...opts, reloadKey: 0 }));
     await waitFor(() => expect(view.result.current.day.ready).toBe(true));
-    await act(async () => void (await view.result.current.start('Upper A', {}, null)));
+    await act(async () => void (await view.result.current.start('Push B', {}, null)));
     await act(async () => void (await dayQueue.current));
+    return { db, view };
+  }
+  const settle = () => act(async () => void (await dayQueue.current));
+
+  it('ticking in lb leaves a typed weight untouched', async () => {
+    const { db, view } = await hook('lb');
+    const name = view.result.current.day.exs[0]!.name;
     await act(async () => view.result.current.editSet(0, 'work', 0, 'w', '100.123'));
     await act(async () => view.result.current.editSet(0, 'work', 0, 'r', '8'));
     await act(async () => void view.result.current.tick(0, 0));
-    await act(async () => void (await dayQueue.current));
+    await settle();
     expect(view.result.current.day.exs[0]!.sets[0]!.w).toBe('100.123');
-    const name = view.result.current.day.exs[0]!.name;
-    expect((await loadSets(db, DATE)).find((s) => s.exercise === name && s.set_index === 0 && s.kind === 'work')?.weight_kg).toBe(100.123);
+    expect((await stored(db, name, 'work', 0))?.weight_kg).toBe(100.123);
+  });
+
+  it('ticking a blank weight in lb stores the suggestion as its exact kg, not the rounded lb text', async () => {
+    const { db, view } = await hook('lb', 'Barbell Bench Press');
+    const ex = view.result.current.day.exs[0]!;
+    expect(ex.name).toBe('Barbell Bench Press');
+    const day = view.result.current.day;
+    const ctx = progressionContext(DATE, day.lifts, profile(), day.workout, { unit: 'lb' });
+    const sug = guidance(ex, ctx, day.workout).sug;
+    expect(typeof sug.w === 'number' && sug.w > 0).toBe(true);
+    await act(async () => view.result.current.editSet(0, 'work', 0, 'r', '8'));
+    await act(async () => void view.result.current.tick(0, 0));
+    await settle();
+    const kg = (await stored(db, ex.name, 'work', 0))?.weight_kg;
+    expect(kg).toBe(sug.w);
+    expect(kg).not.toBe(Math.round((kg as number) * 10) / 10); // 79.37866475, not 79.4
+  });
+
+  it('a ramp tick after an Easy set stores the next weight as exact kg', async () => {
+    const { db, view } = await hook('lb');
+    const name = view.result.current.day.exs[1]!.name;
+    await act(async () => view.result.current.rampStart(1));
+    await settle();
+    await act(async () => view.result.current.editSet(1, 'ramp', 0, 'w', String(lbToKg(45))));
+    await act(async () => void view.result.current.rampTick(1, 0));
+    await act(async () => view.result.current.rampRated(1, 0, 'easy'));
+    await settle();
+    await act(async () => void view.result.current.rampTick(1, 1));
+    await settle();
+    const ramp = view.result.current.day.exs[1]!.ramp;
+    const { exInfo, infoForUnit, rampTickFill } = jest.requireActual('@plate-and-bar/core') as typeof import('@plate-and-bar/core');
+    const info = infoForUnit(exInfo(name, getCatalog()), 'lb');
+    const want = rampTickFill([{ w: '45', r: '5', done: true, rate: 'easy' }, { w: '', r: '', done: false }], 1, info, 'lb').w;
+    expect(Number(want)).toBeGreaterThan(45);
+    expect((await stored(db, name, 'ramp', 1))?.weight_kg).toBe(lbToKg(Number(want)));
+    expect(ramp[1]!.done).toBe(true);
+  });
+
+  const setRow = (unit: 'kg' | 'lb', onTick = jest.fn(), locked = false) =>
+    render(<SetRow n="1" label="Squat set 1" row={blankRow()} wHead={unit} repsHead="reps" ph={{ w: '–', r: '–' }} onEdit={jest.fn()} onTick={onTick} unit={unit} locked={locked} />);
+
+  it.each([['135.', 135], ['135,', 135], ['.5', 0.5]])('a part-typed %s is a number in lb: saved, and the tick goes ahead', async (text, lb) => {
+    const onEdit = jest.fn();
+    const onTick = jest.fn();
+    await render(<SetRow n="1" label="Squat set 1" row={blankRow()} wHead="lb" repsHead="reps" ph={{ w: '–', r: '–' }} onEdit={onEdit} onTick={onTick} unit="lb" />);
+    await fireEvent.changeText(screen.getByLabelText('Squat set 1 lb'), text);
+    expect(onEdit).toHaveBeenLastCalledWith('w', String(lbToKg(lb)));
+    await fireEvent.press(screen.getByLabelText('Mark Squat set 1 done'));
+    expect(onTick).toHaveBeenCalledTimes(1);
+  });
+
+  it('in kg a part-typed 135. is passed on as typed and ticks', async () => {
+    const onTick = jest.fn();
+    await setRow('kg', onTick);
+    await fireEvent.changeText(screen.getByLabelText('Squat set 1 kg'), '135.');
+    await fireEvent.press(screen.getByLabelText('Mark Squat set 1 done'));
+    expect(onTick).toHaveBeenCalledTimes(1);
+  });
+
+  it('in lb a weight that is not a number refuses the tick, with a message, until it is fixed', async () => {
+    const onTick = jest.fn();
+    await setRow('lb', onTick);
+    await fireEvent.changeText(screen.getByLabelText('Squat set 1 lb'), '12abc');
+    await fireEvent.press(screen.getByLabelText('Mark Squat set 1 done'));
+    expect(onTick).not.toHaveBeenCalled();
+    expect(screen.getByText('Enter the weight as a number, like 135 or 62.5.')).toBeTruthy();
+    expect(screen.getByLabelText('Squat set 1 lb').props['aria-invalid']).toBe(true);
+    await fireEvent.changeText(screen.getByLabelText('Squat set 1 lb'), '125');
+    expect(screen.queryByText(/Enter the weight as a number/)).toBeNull();
+    await fireEvent.press(screen.getByLabelText('Mark Squat set 1 done'));
+    expect(onTick).toHaveBeenCalledTimes(1);
+  });
+
+  it('an empty weight still ticks (the suggestion fills it)', async () => {
+    const onTick = jest.fn();
+    await setRow('lb', onTick);
+    await fireEvent.press(screen.getByLabelText('Mark Squat set 1 done'));
+    expect(onTick).toHaveBeenCalledTimes(1);
+  });
+
+  it('a kg value that came from lb shows rounded, a typed kg value stays as typed', async () => {
+    const mk = (w: string) => <SetRow n="1" label="Squat set 1" row={{ ...blankRow(), w }} wHead="kg" repsHead="reps" ph={{ w: '–', r: '–' }} onEdit={jest.fn()} onTick={() => undefined} unit="kg" />;
+    const v = await render(mk('61.23496995'));
+    expect(screen.getByLabelText('Squat set 1 kg').props.value).toBe('61.2');
+    await v.rerender(mk('101.25'));
+    expect(screen.getByLabelText('Squat set 1 kg').props.value).toBe('101.25');
+  });
+
+  it('until the stored unit has loaded the set row cannot be edited or ticked', async () => {
+    const onTick = jest.fn();
+    await setRow('kg', onTick, true);
+    expect(screen.getByLabelText('Squat set 1 kg').props.editable).toBe(false);
+    expect(screen.getByLabelText('Squat set 1 reps').props.editable).toBe(false);
+    await fireEvent.press(screen.getByLabelText('Mark Squat set 1 done'));
+    expect(onTick).not.toHaveBeenCalled();
+  });
+
+  it('the provider is not ready until it has read the stored unit', async () => {
+    const db = memoryDb();
+    db.rows.set(KEY, 'lb');
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    const read = db.getFirstAsync.bind(db);
+    db.getFirstAsync = (async (...a: Parameters<typeof read>) => (await gate, read(...a))) as typeof db.getFirstAsync;
+    const { result } = await renderHook(() => useWeightUnit(), { wrapper: ({ children }) => <WeightUnitProvider db={db}>{children}</WeightUnitProvider> });
+    expect(result.current.ready).toBe(false);
+    release();
+    await waitFor(() => expect(result.current).toMatchObject({ ready: true, unit: 'lb' }));
   });
 });
 
 describe('no hard-coded kg in the session screens', () => {
-  const files = ['workout/SetRow.tsx', 'workout/ExerciseCard.tsx', 'workout/CompletionPanel.tsx', 'workout/copy.ts', 'workout/ExerciseSettingsSheet.tsx', 'screens/WorkoutScreen.tsx'];
-  it.each(files)('%s has no " kg" in a string or in JSX text', (f) => {
-    const src = readFileSync(join(__dirname, '../src', f), 'utf8')
+  const dir = join(__dirname, '../src/workout');
+  const files = [...readdirSync(dir).filter((f) => /\.(ts|tsx)$/.test(f) && f !== 'unitText.ts').map((f) => `workout/${f}`), 'screens/WorkoutScreen.tsx'];
+  const badLines = (src: string): string[] =>
+    src
       .replace(/\/\*[\s\S]*?\*\//g, '')
       .split('\n')
       .filter((l) => !l.trim().startsWith('//'))
-      .map((l) => l.replace(/\s\/\/.*$/, '').replace(/(unit\s*(?:=|!==|===)\s*)'kg'/gi, '$1UNIT')); // the unit value 'kg' is not text
-    const bad = src.filter((l) => /(['"`][^'"`\n]*\bkg\b)|(\}\s*kg\b)|(>\s*kg\b)/.test(l));
-    expect(bad).toEqual([]);
+      .map((l) => l.replace(/\s\/\/.*$/, '').replace(/(unit\s*(?:=|!==|===|\?\?)\s*)'kg'/gi, '$1UNIT')) // the unit value 'kg' is not text
+      .filter((l) => /(['"`][^'"`\n]*\bkg\b)|(\}\s*kg\b)|(>\s*kg\b)|(^\s*kg\b)/i.test(l));
+  it('catches the shapes it is meant to', () => {
+    expect(badLines("const a = 'Kg';\nx = `${w} KG`;\n<Text>{w}\n  kg lifted</Text>\n<Text>{w} kg</Text>")).toHaveLength(4);
+    expect(badLines("const weight_kg = 1; const unit = 'kg'; if (unit === 'kg') {}")).toEqual([]);
+  });
+  it('covers every session file', () => expect(files.length).toBeGreaterThan(30));
+  it.each(files)('%s has no kg in a string or in JSX text', (f) => {
+    expect(badLines(readFileSync(join(__dirname, '../src', f), 'utf8'))).toEqual([]);
   });
 });
