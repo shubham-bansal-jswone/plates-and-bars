@@ -4,7 +4,7 @@ import { DailyRead } from '../why/DailyRead';
 import { useOptionalSettings } from '../state/SettingsProvider';
 import { profileWhyValues } from '../why/values';
 import { StyleSheet, View } from 'react-native';
-import { DEFAULT_KCAL_TARGET, round1, waterRetentionPhase, latestWeight, navyBodyFat, stepsTarget, trendChange, waistSeries, weightSeries, WAIST_CHART_BOX, WEIGHT_CHART_BOX, type MeasureKey } from '@plate-and-bar/core';
+import { DEFAULT_KCAL_TARGET, formatWeight, round1, waterRetentionPhase, latestWeight, navyBodyFat, stepsTarget, trendChange, waistSeries, weightSeries, WAIST_CHART_BOX, WEIGHT_CHART_BOX, type MeasureKey } from '@plate-and-bar/core';
 import { useDataVersion } from '../sync/useDataVersion';
 import { useStepsVersion } from '../steps/DeviceStepsProvider';
 import { Text } from '../components/Text';
@@ -21,6 +21,8 @@ import { TrendChart } from '../progress/TrendChart';
 import { useProgress } from '../progress/useProgress';
 import { useStoredText } from '../progress/useStoredText';
 import { useProfile } from '../state/ProfileProvider';
+import { useWeightUnit } from '../settings/weightUnit';
+import { weightNumber, weightWithUnit } from '../workout/unitText';
 import { type as typeScale } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { ToastBar } from '../workout/parts';
@@ -112,39 +114,45 @@ type Progress = ReturnType<typeof useProgress>;
 
 function WeightSection({ p }: { p: Progress }) {
   const c = useTheme();
+  const { unit } = useWeightUnit();
   const mine = p.weights.find((w) => w.date === p.date && !w.deleted_at);
-  const [text, setText] = useState(mine ? r1(mine.weight_kg) : '');
+  // The box shows the stored kg in the display unit; it is read back only when Save weight is pressed, never on its own.
+  const [text, setText] = useStoredText(mine ? formatWeight(mine.weight_kg, unit) : '');
   const latest = latestWeight(p.weights, p.date);
   const recent = p.weights.filter((w) => !w.deleted_at && w.date <= p.date).sort((a, b) => b.date.localeCompare(a.date)).slice(0, RECENT_WEIGH_INS);
-  const series = weightSeries(p.weights, p.date);
-  const change = trendChange(series);
+  const kgSeries = weightSeries(p.weights, p.date);
+  const series = kgSeries.map((pt) => ({ ...pt, v: weightNumber(pt.v, unit) }));
+  // The change is taken in exact kg and converted once, so rounding each point first cannot drift it by 0.1.
+  const kgChange = trendChange(kgSeries);
+  const amount = kgChange ? weightNumber(Math.abs(kgChange.diff), unit) : 0;
+  const change = kgChange ? { amount, direction: amount === 0 ? 'none' : kgChange.diff < 0 ? 'down' : 'up', since: kgChange.since } : null;
   return (
     <Card style={styles.section}>
       <Heading level={2} style={[typeScale.heading, { color: c.ink }]}>Body weight</Heading>
       <View style={styles.inline}>
-        <Field label="Weight in kg" inputMode="decimal" placeholder="kg" value={text} onChangeText={setText} />
-        <Button kind="ghost" label="Save weight" onPress={() => p.saveWeightText(text)} />
+        <Field label={`Weight in ${unit}`} inputMode="decimal" placeholder={unit} value={text} onChangeText={setText} />
+        <Button kind="ghost" label="Save weight" onPress={() => p.saveWeightText(text, unit)} />
       </View>
-      {latest !== null ? <Text style={{ color: c.ink }} accessibilityLabel={`Latest weigh-in ${r1(latest)} kg`}>{`Latest: ${r1(latest)} kg`}</Text> : <Hint>Log a few weigh-ins to see them here.</Hint>}
+      {latest !== null ? <Text style={{ color: c.ink }} accessibilityLabel={`Latest weigh-in ${weightWithUnit(latest, unit)}`}>{`Latest: ${weightWithUnit(latest, unit)}`}</Text> : <Hint>Log a few weigh-ins to see them here.</Hint>}
       {series.length >= 2 ? (
         <>
-          <TrendChart points={series} box={WEIGHT_CHART_BOX} label={`Weight from ${series[0]?.v} to ${series[series.length - 1]?.v} kg`} />
-          {change ? <Hint>{change.direction === 'none' ? `No change since ${shortDate(change.since)}.` : `${change.direction === 'down' ? 'Down' : 'Up'} ${change.amount} kg since ${shortDate(change.since)}.`}</Hint> : null}
+          <TrendChart points={series} box={WEIGHT_CHART_BOX} label={`Weight from ${series[0]?.v} to ${series[series.length - 1]?.v} ${unit}`} />
+          {change ? <Hint>{change.direction === 'none' ? `No change since ${shortDate(change.since)}.` : `${change.direction === 'down' ? 'Down' : 'Up'} ${change.amount} ${unit} since ${shortDate(change.since)}.`}</Hint> : null}
         </>
       ) : (
         <Hint>{TREND_NONE}</Hint>
       )}
       {recent.map((w) => (
-        <Card key={w.date} style={[styles.row, { backgroundColor: c.surfaceSoft }]} accessible accessibilityLabel={`${shortDate(w.date)}, ${r1(w.weight_kg)} kg`}>
+        <Card key={w.date} style={[styles.row, { backgroundColor: c.surfaceSoft }]} accessible accessibilityLabel={`${shortDate(w.date)}, ${weightWithUnit(w.weight_kg, unit)}`}>
           <Text style={{ color: c.muted }}>{shortDate(w.date)}</Text>
-          <Text style={{ color: c.ink, fontWeight: '700' }}>{`${r1(w.weight_kg)} kg`}</Text>
+          <Text style={{ color: c.ink, fontWeight: '700' }}>{weightWithUnit(w.weight_kg, unit)}</Text>
         </Card>
       ))}
       <Hint>{WEIGHT_HINT}</Hint>
       <WhyLink id="scale" />
       {p.scaleJump ? (
         <Card accessibilityRole="alert">
-          <Text style={{ color: c.ink, fontWeight: '700' }}>{SCALE_JUMP_TITLE(round1(p.scaleJump.kg))}</Text>
+          <Text style={{ color: c.ink, fontWeight: '700' }}>{SCALE_JUMP_TITLE(formatWeight(p.scaleJump.kg, unit), unit)}</Text>
           <Hint>{SCALE_JUMP_BODY}</Hint>
           <WhyLink id="scale" />
           <Button label="Got it" onPress={p.dismissJump} />

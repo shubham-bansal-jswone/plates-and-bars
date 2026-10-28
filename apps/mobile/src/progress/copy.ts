@@ -1,5 +1,5 @@
 import measuresContent from '../../../../content/measures.json';
-import { RAPID_LOSS_KCAL, type MeasureKey } from '@plate-and-bar/core';
+import { KCAL_PER_KG, KG_PER_LB, RAPID_LOSS_KCAL, type MeasureKey, type WeightUnit } from '@plate-and-bar/core';
 import { contentReader, isObj, isStr, isTrimmedText, perLoad } from '../content/reader';
 
 /** One tape measure from content/measures.json. */
@@ -50,7 +50,7 @@ export const getMeasures: () => readonly MeasureDef[] = perLoad(() =>
 
 // Messages from the prototype's Progress screen.
 export const WEIGHT_HINT = 'Weigh in each morning before eating. Day-to-day swings of a kilo are normal; the weekly direction is what counts.';
-export const WEIGHT_BAD = 'Enter your weight in kg, like 81.6';
+export const WEIGHT_BAD = (unit: WeightUnit = 'kg'): string => `Enter your weight in ${unit}, like ${unit === 'lb' ? '180.2' : '81.6'}`;
 export const MEASURE_NONE = 'Enter at least one measurement in cm.';
 export const HOW_TO_MEASURE = 'Measure in the morning before eating, relaxed and not sucking in. Waist: around the navel. Neck: just below the Adam’s apple. Keep the tape level and snug, not tight. Every 1–2 weeks is plenty.';
 /** Added to HOW_TO_MEASURE only where the Hips field shows. */
@@ -62,7 +62,7 @@ export const BF_NO_PROFILE = 'Run setup (Targets tab) and add waist and neck for
 export const STEPS_BAD = 'Enter steps as a whole number, like 8000.';
 export const SLEEP_BAD = 'Enter hours slept, like 7.5.';
 export const TREND_NONE = 'Log a few weigh-ins to see your trend line here.';
-export const SCALE_JUMP_TITLE = (kg: number): string => `The scale went up ${kg} kg`;
+export const SCALE_JUMP_TITLE = (amount: string, unit: WeightUnit = 'kg'): string => `The scale went up ${amount} ${unit}`;
 export const SCALE_JUMP_BODY = 'That’s almost certainly water, not fat. Your weekly average is what counts.';
 
 // Weekly check-in, burn card and habits (prototype `renderCheckin`, `consistencyHtml`).
@@ -71,6 +71,8 @@ export const CHECKIN_NEEDS_SETUP = 'Run setup (Targets tab) to see your weekly c
 export const WEIGHT_WEEK_NONE = 'Weight: log at least 3 weigh-ins a week to see your weekly trend.';
 export const BURN_TITLE = 'Calorie burn from your real data';
 export const BURN_HOW = 'If you eat about the same each day and your weight trend changes, the difference shows your real burn: about 7,700 kcal equals 1 kg of body weight. This is usually more accurate than any formula or fitness tracker. It’s smoothed week to week so one odd week doesn’t swing your targets.';
+/** The same note for an lb user: the kcal per kg times the kg per lb, to the nearest 100 (about 3,500). */
+export const BURN_HOW_LB = BURN_HOW.replace(`about ${KCAL_PER_KG.toLocaleString('en-US')} kcal equals 1 kg`, `about ${(Math.round((KCAL_PER_KG * KG_PER_LB) / 100) * 100).toLocaleString('en-US')} kcal equals 1 lb`);
 export const NOT_NOW = 'Not now';
 export const STOP_SUGGESTING = 'Stop suggesting this';
 export const KEEP_TARGETS = 'Keep current targets';
@@ -94,5 +96,5 @@ export const WEEK_TARGET_HINT = 'The thin vertical line on each bar is your calo
 
 // Rapid-loss card (prototype `calorieCard`).
 export const RAPID_TITLE = 'Weight is dropping fast';
-export const RAPID_BODY = (drop: number, twoWeeks: boolean, stalls: number): string =>
-  `Your weekly average fell about ${drop} kg${twoWeeks ? ', faster than 1% of your bodyweight a week for 2 weeks running' : `, and ${stalls} lifts have stalled`}. Losing faster than about 1% a week makes it harder to keep muscle. Adding about ${RAPID_LOSS_KCAL} kcal a day helps protect muscle.`;
+export const RAPID_BODY = (drop: number, twoWeeks: boolean, stalls: number, unit: WeightUnit = 'kg'): string =>
+  `Your weekly average fell about ${drop} ${unit}${twoWeeks ? ', faster than 1% of your bodyweight a week for 2 weeks running' : `, and ${stalls} lifts have stalled`}. Losing faster than about 1% a week makes it harder to keep muscle. Adding about ${RAPID_LOSS_KCAL} kcal a day helps protect muscle.`;

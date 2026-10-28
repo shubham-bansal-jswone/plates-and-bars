@@ -1,6 +1,8 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { fitWithin } from '../src/photos/capture';
 import { PhotosSection } from '../src/photos/PhotosSection';
+import { WeightUnitProvider } from '../src/settings/weightUnit';
+import { memoryDb } from './helpers';
 
 // The Progress photos section (#429) against an in-memory vault, with capture stubbed (no camera in tests).
 const mockStore = new Map<string, string>();
@@ -102,6 +104,15 @@ describe('progress photos (#429)', () => {
     await fireEvent.press(screen.getByLabelText('Choose side'));
     await waitFor(() => expect(mockCapture).toHaveBeenCalledTimes(2));
     expect(mockStore.size).toBe(0);
+  });
+
+  it('an lb user sees the caption weight in lb (#1185)', async () => {
+    mockStore.set('2026-09-21|front', 'b2xk');
+    mockStore.set('2026-10-12|front', 'bmV3');
+    const kv = memoryDb();
+    kv.rows.set('settings:device.weight_unit', 'lb');
+    await render(<WeightUnitProvider db={kv}><PhotosSection db={db as never} date={TODAY} weights={weights} tapes={tapes} notify={jest.fn()} /></WeightUnitProvider>);
+    expect(await screen.findByText(/21 Sept, 180\.8 lb, waist 90 cm/)).toBeTruthy();
   });
 
   it('compares the first and last check-in side by side with weekly weight and waist, by pose', async () => {
