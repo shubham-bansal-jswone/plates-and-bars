@@ -331,7 +331,7 @@ const focusHandlers = (f: ReturnType<typeof useFocusRing>, props: object): objec
 if (Platform.OS === 'web' && typeof document !== 'undefined' && !document.getElementById('pb-switch-target')) {
   const st = document.createElement('style');
   st.id = 'pb-switch-target';
-  st.textContent = 'input[type=checkbox][role=switch]{outline:none;top:-12px;left:-2px;width:44px;height:44px}';
+  st.textContent = 'input[type=checkbox][role=switch]{outline:none;top:-12px;left:0;width:44px;height:44px}';
   document.head.appendChild(st);
 }
 
@@ -340,6 +340,7 @@ export function Switch(props: SwitchProps) {
   const c = useTheme();
   const f = useFocusRing();
   return (
+    // A key press after a mouse click re-checks :focus-visible on the ring (focus did not move, so onFocus has not).
     // The 44x44 hit area is a sibling Pressable behind the unchanged 40x20 track, so clicks on the switch never reach it (#1121).
     // Not an a11y node or tab stop: the switch carries the role, label and state.
     <View style={styles.switchHit}>
@@ -353,7 +354,7 @@ export function Switch(props: SwitchProps) {
         onPress={() => props.onValueChange?.(!props.value)}
         style={StyleSheet.absoluteFill}
       />
-      <View style={[styles.switchRing, f.ring]}>
+      <View style={[styles.switchRing, f.ring]} onKeyDown={(e) => f.onFocus(e as unknown as { target: unknown })}>
         <RNSwitch
           trackColor={{ true: c.brand, false: c.muted }}
           thumbColor={props.value ? c.onBrand : c.ink}

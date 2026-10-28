@@ -41,6 +41,11 @@ for (const scheme of ['light', 'dark']) {
       expect(seen[0].role).toBe('switch');
       expect(seen[0].parentRing).toBe(`2px solid ${FOCUS[scheme]}`);
       expect(seen[0].ring).toContain('none'); // no browser-default outline on the checkbox itself
+      // Mouse click, then Space: the ring shows on keyboard use even though focus did not move.
+      await label(page, 'I understand and agree to my data being stored as described').click();
+      await page.keyboard.press('Space');
+      await expect(label(page, 'I understand and agree to my data being stored as described')).not.toBeChecked();
+      expect(await label(page, 'I understand and agree to my data being stored as described').evaluate((e) => getComputedStyle(e.parentElement.parentElement).outlineWidth)).toBe('2px');
       // One click toggles once (#1134): on, not on-then-off.
       await label(page, 'I understand and agree to my data being stored as described').click();
       await expect(label(page, 'I understand and agree to my data being stored as described')).toBeChecked();
