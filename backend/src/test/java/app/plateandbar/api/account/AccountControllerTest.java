@@ -33,7 +33,7 @@ import org.springframework.test.web.servlet.MvcResult;
 
 @WebMvcTest(AccountController.class)
 @WebMvcAuthSlice
-@Import(AccountControllerTest.Config.class)
+@Import({AccountControllerTest.Config.class, app.plateandbar.api.common.MdcTaskDecorator.class})
 @TestPropertySource(properties = {"app.rate-limit.export-per-user.capacity=2", "app.rate-limit.export-per-ip.capacity=3"})
 class AccountControllerTest {
 
@@ -102,6 +102,35 @@ class AccountControllerTest {
 
     private static String uid() {
         return java.util.UUID.randomUUID().toString(); // buckets live as long as the cached context
+    }
+
+    @Test
+    void aLogLineWrittenWhileTheExportStreamsCarriesTheRequestId() throws Exception {
+        streamsDocument();
+        var logger = (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(AccountController.class);
+        var appender = new ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent>();
+        appender.start();
+        logger.addAppender(appender);
+        try {
+            MvcResult started = mvc.perform(get("/api/v1/me/export")
+                            .header("Authorization", bearer(uid()))
+                            .header("X-Request-Id", "req-export-1")
+                            .with(r -> {
+                                r.setRemoteAddr("10.9.9.1");
+                                return r;
+                            }))
+                    .andReturn();
+            started.getAsyncResult(5000);
+            mvc.perform(asyncDispatch(started)).andExpect(status().isOk());
+            var written = appender.list.stream()
+                    .filter(e -> e.getFormattedMessage().startsWith("Export written"))
+                    .findFirst()
+                    .orElseThrow();
+            org.assertj.core.api.Assertions.assertThat(written.getMDCPropertyMap())
+                    .containsEntry("requestId", "req-export-1");
+        } finally {
+            logger.detachAppender(appender);
+        }
     }
 
     @Test
