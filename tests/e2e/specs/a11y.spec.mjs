@@ -6,7 +6,7 @@ import { answerSetup, axeSource, completeSetup, expect, label, openApp, reloadTo
 // KNOWN by screen, as `{ rule, issue, match }` (see support/axe.mjs): it matches the rule AND the element, so a new
 // violation still fails, and once the bug is fixed the entry matches nothing, goes stale and fails the test.
 // The scan runs page-has-heading-one with passForModal off, because react-native-web's full-screen layers would otherwise make it pass on every screen.
-const KNOWN = Object.fromEntries(['consent', 'setup', 'setup-screening', 'setup-results', 'food', 'workout', 'workout-session', 'progress', 'targets', 'data', 'library', 'about', 'recipes', 'sheet-food-add', 'sheet-workout-settings', 'sheet-workout-cant', 'sheet-workout-howto', 'sheet-workout-add', 'sheet-workout-custom', 'sheet-progress-checkin', 'sheet-targets-avoid', 'sheet-targets-cant'].map((n) => [n, []]));
+const KNOWN = Object.fromEntries(['consent', 'setup', 'setup-screening', 'setup-results', 'food', 'workout', 'workout-session', 'progress', 'targets', 'data', 'library', 'library-exercise', 'about', 'recipes', 'sheet-food-add', 'sheet-workout-settings', 'sheet-workout-cant', 'sheet-workout-howto', 'sheet-workout-add', 'sheet-workout-custom', 'sheet-progress-checkin', 'sheet-targets-avoid', 'sheet-targets-cant'].map((n) => [n, []]));
 const RULES = ['region', 'landmark-one-main', 'landmark-no-duplicate-main', 'page-has-heading-one'];
 
 // Exactly one level-one heading in the accessibility tree: the other tabs stay mounted but are aria-hidden, so they do not count.
@@ -110,6 +110,14 @@ const screens = {
     await tab(page, 'Targets');
     await label(page, 'Exercise library').click();
     await expect(label(page, 'Search exercises')).toBeVisible();
+  },
+  // An exercise's detail, which draws the front and back muscle map (the unworked-muscle outline, #1197).
+  'library-exercise': async (page) => {
+    await tab(page, 'Targets');
+    await label(page, 'Exercise library').click();
+    await page.getByRole('button').filter({ hasText: ' · ' }).first().click();
+    await expect(label(page, 'Back to library')).toBeVisible();
+    await expect(page.getByText(/Main muscles: /)).toBeVisible();
   },
   about: async (page) => {
     await tab(page, 'Targets');
