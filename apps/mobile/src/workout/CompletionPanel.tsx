@@ -41,7 +41,7 @@ export function CompletionPanel({ db, date, profileKg, exs, cardio, lifts, reloa
   const twoSessions = exs.some((e) => e.part === 2);
   return (
     <Card testID="completion-panel">
-      <Heading ref={headingRef} level={2} style={[type.title, { color: c.ink }]}>Session done</Heading>
+      <Heading ref={headingRef} level={2} style={[type.title, { color: c.ink, textAlign: 'center' }]}>Session done</Heading>
       {twoSessions ? <Text style={[type.caption, { color: c.muted }]}>Today, both sessions together.</Text> : null}
       {/* MetricRow holds 3 cells; a 4th (cardio) goes on a second row so none truncates at 360 px. */}
       <MetricRow cells={cells.slice(0, 3)} />

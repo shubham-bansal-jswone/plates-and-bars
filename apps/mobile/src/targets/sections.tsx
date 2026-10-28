@@ -4,7 +4,7 @@ import { WhyLink } from '../why/WhyLink';
 import { useFocusEffect } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 import { Text } from '../components/Text';
-import { addDays, coverageRows, doneCoverage, focusPicker, plannedCoverage, toggleFocus, FOCUS_MAX, type CoverageDay, type CoverageRow, type WeekPlan } from '@plate-and-bar/core';
+import { COVER_LOW, addDays, coverageRows, doneCoverage, focusPicker, plannedCoverage, toggleFocus, FOCUS_MAX, type CoverageDay, type CoverageRow, type WeekPlan } from '@plate-and-bar/core';
 import { loadSets, loadWorkout, loadLifts, type WorkoutDb } from '../db/workouts';
 import { loadExclusions, loadSwaps } from '../db/rules';
 import { fmt } from '../format';
@@ -99,6 +99,7 @@ export function CoverageSection({ db, profile, settings, today }: { db: WorkoutD
           <Meter title="Weekly coverage: your plan" rows={rows.planned} />
           <Hint>Approximate hard sets per week from your plan, counting secondary muscles as half. Around 10 is a good target for most muscles; under 6 is flagged.</Hint>
           <WhyLink id="volume" />
+          <Hint>{`Bars: grey is planned, coloured is done. A low count (under ${COVER_LOW} sets) shows in orange.`}</Hint>
           <Meter title="Done in the last 7 days" rows={rows.done} done />
         </>
       ) : null}

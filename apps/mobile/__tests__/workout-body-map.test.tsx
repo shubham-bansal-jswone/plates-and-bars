@@ -1,3 +1,4 @@
+import { StyleSheet } from 'react-native';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { WorkoutScreen } from '../src/screens/WorkoutScreen';
 import { saveProfile } from '../src/db/records';
@@ -102,6 +103,7 @@ describe('Workout session: Muscles today', () => {
     const toggle = screen.getByLabelText(`Muscles today: ${MAIN}`);
     expect(toggle.props.accessibilityRole).toBe('button');
     expect(toggle.props.accessibilityState).toMatchObject({ expanded: true });
+    expect(StyleSheet.flatten(toggle.props.style)).toMatchObject({ minHeight: 56, borderTopWidth: 1 }); // the shared Disclosure row
     expect(screen.getByLabelText(`Muscles worked: ${MAIN}`)).toBeTruthy();
     expect(screen.getByText('Main focus')).toBeTruthy();
 
