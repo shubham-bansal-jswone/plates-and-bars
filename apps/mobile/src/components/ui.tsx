@@ -7,6 +7,9 @@ import { useBottomInset } from './bottomInset';
 import { Input } from './Input';
 import { Text } from './Text';
 
+/** Width of the readable content column; `Page` and the library list both use it. */
+export const COLUMN_MAX = 560;
+
 const ScrollTop = createContext<() => void>(() => {});
 
 /**
@@ -377,7 +380,7 @@ export const layout = StyleSheet.create({
 
 const styles = StyleSheet.create({
   page: { padding: space.lg, alignItems: 'center', flexGrow: 1 },
-  column: { width: '100%', maxWidth: 560, gap: space.sm },
+  column: { width: '100%', maxWidth: COLUMN_MAX, gap: space.sm },
   columnWide: { maxWidth: 1040 },
   h1: { ...type.title, marginTop: space.sm },
   hint: { ...type.caption },
