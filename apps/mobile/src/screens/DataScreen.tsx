@@ -204,6 +204,7 @@ export function DataScreen({ db, now = () => new Date() }: { db: WorkoutDb & Pul
       </View>
       <Hint>{t.withdraw}</Hint>
       <Hint>{Platform.OS === 'android' ? `${t.exportHint} ${t.exportHintAndroid}` : t.exportHint}</Hint>
+      <Hint>{t.exportUnitNote}</Hint>
       </Card>
       {message ? <Note>{message}</Note> : null}
       {error ? <ErrorText>{error}</ErrorText> : null}

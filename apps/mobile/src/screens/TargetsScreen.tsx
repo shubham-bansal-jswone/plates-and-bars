@@ -6,7 +6,7 @@ import { useLabHold } from '../labs/useLabHold';
 import { View } from 'react-native';
 import { Text } from '../components/Text';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { weightDrift, type WeekPlan } from '@plate-and-bar/core';
+import { formatWeight, weightDrift, type WeekPlan } from '@plate-and-bar/core';
 import { loadKitchenTests } from '../db/kitchenTests';
 import { loadWeights } from '../db/progress';
 import { listIntro } from '../kitchen/copy';
@@ -17,6 +17,7 @@ import type { PullDb } from '../db/outbox';
 import { setupText } from '../setup/summary';
 import { localDate } from '../setup/logic';
 import { useProfile } from '../state/ProfileProvider';
+import { useWeightUnit } from '../settings/weightUnit';
 import { useSettings } from '../state/SettingsProvider';
 import { TargetsEditor } from '../targets/TargetsEditor';
 import { RulesSection } from '../targets/RulesSection';
@@ -30,7 +31,6 @@ import { DeviceStepsSection } from '../steps/DeviceStepsSection';
 import { RemindersSection } from '../reminders/RemindersSection';
 import { MyFoodsSection, WaterSizesSection } from '../targets/WaterAndFoods';
 
-const r1 = (n: number): string => (Math.round(n * 10) / 10).toString();
 
 interface Props {
   db: WorkoutDb & PullDb;
@@ -45,6 +45,7 @@ export function TargetsScreen({ db, now = () => new Date() }: Props) {
   const router = useRouter();
   const labHold = useLabHold(db);
   const c = useTheme();
+  const { unit } = useWeightUnit();
   const wide = useWide();
   const [toast, setToast] = useState<string | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -86,7 +87,7 @@ export function TargetsScreen({ db, now = () => new Date() }: Props) {
       </Page>
     );
   }
-  const summary = setupText(profile);
+  const summary = setupText(profile, unit);
   const drift = weightDrift(weights, profile.weight_kg);
   const whyValues = profileWhyValues(profile, { date: localDate(now()), flex: settings.flex, labHold: labHold === true });
   // The first heading of a column sits at the same top as the H1 (its own marginTop), so the two columns start level.
@@ -151,7 +152,7 @@ export function TargetsScreen({ db, now = () => new Date() }: Props) {
       {section('Account and data')}
       {drift ? (
         <View style={{ gap: 8 }}>
-          <Note>{`Your latest weight is ${r1(drift.latest)} kg, ${r1(drift.diff)} kg ${drift.lower ? 'lower' : 'higher'} than at setup. Recalculate your targets?`}</Note>
+          <Note>{`Your latest weight is ${formatWeight(drift.latest, unit)} ${unit}, ${formatWeight(drift.diff, unit)} ${unit} ${drift.lower ? 'lower' : 'higher'} than at setup. Recalculate your targets?`}</Note>
           <Button label="Recalculate targets" onPress={() => router.push('/setup?recalc=1' as never)} />
         </View>
       ) : null}
