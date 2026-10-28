@@ -77,6 +77,66 @@ export function warmupSets(
   ];
 }
 
+/** Work weight (kg) at and above which `warmupRamp` uses three steps instead of the prototype's two (#1240). */
+export const WARMUP_RAMP_HEAVY_KG = 60;
+/** Light ramp (work weight below `WARMUP_RAMP_HEAVY_KG`): the prototype's 50% x 8, 75% x 4. */
+export const WARMUP_RAMP_LIGHT: readonly { readonly pct: number; readonly reps: number }[] = [
+  { pct: 0.5, reps: 8 },
+  { pct: 0.75, reps: 4 },
+];
+/** Heavy ramp (work weight at or above `WARMUP_RAMP_HEAVY_KG`): 40% x 8, 60% x 5, 80% x 3. */
+export const WARMUP_RAMP_HEAVY: readonly { readonly pct: number; readonly reps: number }[] = [
+  { pct: 0.4, reps: 8 },
+  { pct: 0.6, reps: 5 },
+  { pct: 0.8, reps: 3 },
+];
+
+/**
+ * Graduated warm-up ramp (decisions 2 and 3 of #1240). Same arguments as `warmupSets`.
+ *
+ * Steps: below 60 kg work weight, 50% x 8 then 75% x 4 (identical to `warmupSets`); at 60 kg and above,
+ * 40% x 8, 60% x 5, 80% x 3. Each step snaps to the exercise step (2.5 kg when 0); a step is dropped when
+ * it snaps to 0, equals the previous kept step, or is at or above the work weight.
+ *
+ * Shown for a loaded, non-assisted compound with no set ticked and a suggested weight above 0 that is either
+ * the first compound of the session (as `warmupSets`) or a later compound none of whose primary muscles
+ * (catalogue `tags[name].primary`) is a primary muscle of an earlier exercise in `exercises`. Never for
+ * isolation, no-load or assisted exercises. Null when not shown, or when every step is dropped.
+ *
+ * Extends `warmupSets` (prototype `warmupHtml`); `warmupSets` is unchanged and stays the prototype port.
+ */
+export function warmupRamp(
+  ex: { name: string; sets: readonly { done?: boolean | null }[] },
+  i: number,
+  sug: { w?: number | '' | null },
+  exercises: readonly { name: string }[],
+  info: ExInfo,
+  tags: ExerciseCatalog['tags'],
+): readonly WarmupSet[] | null {
+  const isCompound = (n: string): boolean => {
+    const t = tags[n];
+    return !!t && COMPOUND.has(t.pattern);
+  };
+  if (noLoad(info.type) || info.type === 'assisted' || !isCompound(ex.name) || ex.sets.some((s) => s.done)) return null;
+  const w = sug.w;
+  if (!(typeof w === 'number' && w > 0)) return null;
+  if (exercises.findIndex((e) => isCompound(e.name)) !== i) {
+    // a later compound: only when its primary muscles are not already warm from an earlier exercise
+    const mine = tags[ex.name]?.primary ?? [];
+    const warm = new Set<string>();
+    for (const e of exercises.slice(0, Math.max(0, i))) for (const m of tags[e.name]?.primary ?? []) warm.add(m);
+    if (i < 0 || mine.some((m) => warm.has(m))) return null;
+  }
+  const step = info.step || 2.5;
+  const out: WarmupSet[] = [];
+  for (const { pct, reps } of w >= WARMUP_RAMP_HEAVY_KG ? WARMUP_RAMP_HEAVY : WARMUP_RAMP_LIGHT) {
+    const sw = snap(w * pct, step);
+    if (sw <= 0 || sw >= w || sw === out[out.length - 1]?.w) continue;
+    out.push({ w: sw, reps });
+  }
+  return out.length ? out : null;
+}
+
 /** Today's check-in answers (prototype `S.day.workout.checkin`); unanswered questions are absent or null. */
 export interface Checkin {
   sleep?: 'good' | 'ok' | 'poor' | null;

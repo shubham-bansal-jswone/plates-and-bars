@@ -9,7 +9,11 @@ import {
   REST_OTHER_SEC,
   restFor,
   restLabel,
+  warmupRamp,
   warmupSets,
+  WARMUP_RAMP_HEAVY,
+  WARMUP_RAMP_HEAVY_KG,
+  WARMUP_RAMP_LIGHT,
   type Checkin,
   type CheckinReason,
   type ExerciseOverride,
@@ -132,6 +136,89 @@ describe('warmupSets', () => {
       expect(html).toBe(ours ? `<p class="hint warm"><b>Warm up first:</b> ${ours[0].reps} reps at ${kgLabel(ours[0].w, info)}, then ${ours[1].reps} at ${kgLabel(ours[1].w, info)}. Not logged. </p>` : '');
     }
     expect(shown).toBeGreaterThan(500); // the grid reaches the shown branch often enough to matter
+  });
+});
+
+describe('warmupRamp', () => {
+  const squat = 'Barbell Back Squat';
+  const bench = 'Barbell Bench Press';
+  const incline = 'Incline Dumbbell Press';
+  const info = exInfo(squat, catalog);
+  const ex = { name: squat, sets: [{ done: false }] };
+  const ramp = (w: number | '' | undefined, i = ex, inf: typeof info = info) => warmupRamp(i, 0, w === undefined ? {} : { w }, [i], inf, tags);
+
+  it('named constants', () => {
+    expect(WARMUP_RAMP_HEAVY_KG).toBe(60);
+    expect(WARMUP_RAMP_LIGHT).toEqual([{ pct: 0.5, reps: 8 }, { pct: 0.75, reps: 4 }]);
+    expect(WARMUP_RAMP_HEAVY).toEqual([{ pct: 0.4, reps: 8 }, { pct: 0.6, reps: 5 }, { pct: 0.8, reps: 3 }]);
+  });
+  it('light first compound is the prototype pair', () => {
+    expect(ramp(40)).toEqual([{ w: 20, reps: 8 }, { w: 30, reps: 4 }]);
+    expect(ramp(59.9)).toEqual(warmupSets(ex, 0, { w: 59.9 }, [ex], info, tags));
+  });
+  it('heavy first compound has three steps, from exactly 60 kg', () => {
+    expect(ramp(100)).toEqual([{ w: 40, reps: 8 }, { w: 60, reps: 5 }, { w: 80, reps: 3 }]);
+    expect(ramp(60)).toEqual([{ w: 25, reps: 8 }, { w: 35, reps: 5 }, { w: 47.5, reps: 3 }]);
+  });
+  it('snaps to the exercise step; step 0 is 2.5', () => {
+    expect(ramp(100, ex, { ...info, step: 5 })).toEqual([{ w: 40, reps: 8 }, { w: 60, reps: 5 }, { w: 80, reps: 3 }]);
+    expect(ramp(62, ex, { ...info, step: 5 })).toEqual([{ w: 25, reps: 8 }, { w: 35, reps: 5 }, { w: 50, reps: 3 }]);
+    expect(ramp(61, ex, { ...info, step: 0 })).toEqual(ramp(61, ex, { ...info, step: 2.5 }));
+  });
+  it('drops steps that collapse to 0, repeat the previous step or reach w', () => {
+    expect(ramp(3, ex, { ...info, step: 5 })).toBeNull(); // 1.5 and 2.25 snap to 0
+    expect(ramp(5, ex, { ...info, step: 5 })).toBeNull(); // 2.5 -> 5 and 3.75 -> 5 both reach w
+    expect(ramp(6, ex, { ...info, step: 5 })).toEqual([{ w: 5, reps: 8 }]); // 3 -> 5, then 4.5 -> 5 repeats
+    expect(ramp(65, ex, { ...info, step: 20 })).toEqual([{ w: 20, reps: 8 }, { w: 40, reps: 5 }, { w: 60, reps: 3 }]);
+  });
+  it('a step at or above w is dropped', () => {
+    expect(ramp(2, ex, { ...info, step: 2.5 })).toBeNull(); // 1 -> 0, 1.5 -> 2.5 (>= 2)
+  });
+  it('null for no weight, bodyweight, assisted, isolation, ticked set', () => {
+    for (const w of [0, -5, '', undefined] as const) expect(ramp(w)).toBeNull();
+    expect(ramp(100, ex, { ...info, type: 'bodyweight' })).toBeNull();
+    expect(ramp(100, ex, { ...info, type: 'assisted' })).toBeNull();
+    const lat = { name: 'Lateral Raise', sets: [] };
+    expect(ramp(10, lat, exInfo('Lateral Raise', catalog))).toBeNull();
+    expect(ramp(100, { name: squat, sets: [{ done: true }] })).toBeNull();
+  });
+  it('differential: for every catalogue compound below 60 kg, equals warmupSets', () => {
+    let compared = 0;
+    for (const name of Object.keys(tags).filter((n) => restFor(n, tags) === REST_COMPOUND_SEC)) {
+      const e = { name, sets: [] };
+      const inf = exInfo(name, catalog);
+      for (const w of [10, 20, 25, 30, 40, 45, 50, 57.5, 59.5]) {
+        const old = warmupSets(e, 0, { w }, [e], inf, tags);
+        const cur = warmupRamp(e, 0, { w }, [e], inf, tags);
+        if (!old) {
+          expect(cur).toBeNull();
+          continue;
+        }
+        // steps that warmupSets keeps but the ramp drops (0, repeat, >= w) are outside the parity range
+        if (old[0].w <= 0 || old[0].w === old[1].w || old[1].w >= w) continue;
+        expect(cur).toEqual(old);
+        compared++;
+      }
+    }
+    expect(compared).toBeGreaterThan(100);
+  });
+  it('later compounds: bench after squat gets a ramp; incline after bench none', () => {
+    const sq = { name: squat, sets: [] };
+    const be = { name: bench, sets: [] };
+    const inc = { name: incline, sets: [] };
+    expect(warmupRamp(be, 1, { w: 80 }, [sq, be], exInfo(bench, catalog), tags)).toEqual([{ w: 32.5, reps: 8 }, { w: 47.5, reps: 5 }, { w: 65, reps: 3 }]);
+    expect(warmupRamp(inc, 1, { w: 30 }, [be, inc], exInfo(incline, catalog), tags)).toBeNull();
+    expect(warmupRamp(inc, 2, { w: 30 }, [sq, be, inc], exInfo(incline, catalog), tags)).toBeNull();
+    expect(warmupRamp(be, 0, { w: 80 }, [be, inc], exInfo(bench, catalog), tags)).not.toBeNull();
+    // an earlier isolation exercise warms the muscle too; an unrelated one does not
+    const fly = Object.keys(tags).find((n) => restFor(n, tags) !== REST_COMPOUND_SEC && tags[n]?.primary.includes('chest')) as string;
+    const lat = { name: 'Lateral Raise', sets: [] };
+    expect(warmupRamp(be, 1, { w: 80 }, [{ name: fly, sets: [] }, be], exInfo(bench, catalog), tags)).not.toBeNull(); // still the first compound
+    expect(warmupRamp(be, 2, { w: 80 }, [{ name: fly, sets: [] }, sq, be], exInfo(bench, catalog), tags)).toBeNull(); // chest already warm
+    expect(warmupRamp(be, 1, { w: 80 }, [lat, be], exInfo(bench, catalog), tags)).not.toBeNull(); // first compound is index 1
+    expect(warmupRamp(be, 2, { w: 80 }, [sq, lat, be], exInfo(bench, catalog), tags)).not.toBeNull();
+    expect(warmupRamp(be, -1, { w: 80 }, [sq, be], exInfo(bench, catalog), tags)).toBeNull();
+    expect(warmupRamp(be, 1, { w: 80 }, [{ name: 'Mystery Lift', sets: [] }, be], exInfo(bench, catalog), tags)).not.toBeNull();
   });
 });
 
