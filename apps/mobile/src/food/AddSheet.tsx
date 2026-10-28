@@ -105,7 +105,7 @@ export function AddSheet({ meal, mine, mineFacts, onAdd, onSaveMine, onClose, ca
       </ScrollView>
       <View style={[styles.bar, { backgroundColor: c.bg, borderTopColor: c.line, borderTopWidth: 1 }]}>
         <View style={[styles.barIn, styles.gap]}>
-          {status ? (status.error ? <ErrorText>{status.text}</ErrorText> : <Text accessibilityRole="alert" style={{ color: c.link, fontWeight: '600' }}>{status.text}</Text>) : null}
+          {status ? (status.error ? <ErrorText>{status.text}</ErrorText> : <Text accessibilityRole="alert" style={{ color: c.ink, fontWeight: '600' }}>{status.text}</Text>) : null}
           <Button label="Done" onPress={onClose} kind="ghost" />
         </View>
       </View>
