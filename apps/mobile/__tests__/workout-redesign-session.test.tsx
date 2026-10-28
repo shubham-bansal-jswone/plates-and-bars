@@ -21,6 +21,7 @@ describe('CompletionPanel', () => {
   it('shows only values derived from the sets: done/all, volume, exercises, best set, ratings', async () => {
     await panel([ex('Barbell Bench Press', [row('60', '8', true, 'right'), row('62.5', '6', true, 'hard')]), ex('Pec Deck Fly', [row('30', '12', true)])]);
     expect(screen.getByText('Session done')).toBeTruthy();
+    expect(StyleSheet.flatten(screen.getByText('Session done').props.style).textAlign).toBe('center'); // centred like the stats row
     expect(screen.getByLabelText('Sets: 3/3')).toBeTruthy();
     expect(screen.getByLabelText('Volume (kg): 1,215')).toBeTruthy(); // 60x8 + 62.5x6 + 30x12 = 480 + 375 + 360
     expect(screen.getByLabelText('Exercises: 2')).toBeTruthy();

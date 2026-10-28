@@ -17,7 +17,7 @@ export const CONSENT = {
   ],
   note: 'This app gives general fitness and nutrition guidance. It isn’t medical advice. It’s for adults 18 and over; if you have a medical condition, are pregnant, or are unsure whether exercise is safe for you, check with a doctor first.',
   checkbox: 'I understand and agree to my data being stored as described',
-  needsTick: 'Tick the box to continue.',
+  needsTick: 'Switch this on to continue.',
 };
 
 export const SCREEN_Q = [

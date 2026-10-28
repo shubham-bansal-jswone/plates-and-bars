@@ -1,11 +1,14 @@
 import { createContext, useCallback, useContext, useLayoutEffect, useRef, useState, type ComponentRef, type ReactNode, type Ref } from 'react';
-import { Platform, Pressable, ScrollView, StyleSheet, Text as RNText, Switch as RNSwitch, useWindowDimensions, View, type PressableProps, type SwitchProps, type TextInputProps, type TextProps, type ViewProps } from 'react-native';
+import { Platform, Pressable, ScrollView, StyleSheet, Text as RNText, Switch as RNSwitch, useWindowDimensions, View, type PressableProps, type SwitchProps, type TextInput, type TextInputProps, type TextProps, type ViewProps } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { dark, glowShadow, pressedShadow, radius, space, tabular, type } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { useBottomInset } from './bottomInset';
 import { Input } from './Input';
 import { Text } from './Text';
+
+/** Width of the readable content column; `Page` and the library list both use it. */
+export const COLUMN_MAX = 560;
 
 const ScrollTop = createContext<() => void>(() => {});
 
@@ -238,7 +241,9 @@ export function Choice({
   onPress,
   chip,
   action,
+  focusRef,
 }: {
+  focusRef?: Ref<ComponentRef<typeof View>>;
   label: string;
   sub?: string;
   selected: boolean;
@@ -250,6 +255,7 @@ export function Choice({
   const c = useTheme();
   return (
     <Press
+      ref={focusRef}
       accessibilityRole={action ? 'button' : 'radio'}
       accessibilityLabel={sub ? `${label}. ${sub}` : label}
       // A radio must announce its state on web too (WCAG 4.1.2).
@@ -289,14 +295,18 @@ export function Chip({ label, text, pressed, danger, onPress }: { label: string;
   );
 }
 
-export function Field({ label, invalid, style, ...rest }: TextInputProps & { label: string; /** The value is wrong: announces `aria-invalid` and draws a danger border (after the caller's style, so it wins). */ invalid?: boolean }) {
+const NUMERIC_KEYBOARDS = ['numeric', 'decimal', 'decimal-pad', 'number-pad'];
+
+/** Text fields fill their column; numeric fields (by `inputMode` or `keyboardType`) stay at most 160px wide. Layout in `style` still wins. */
+export function Field({ label, invalid, style, ...rest }: TextInputProps & { ref?: Ref<ComponentRef<typeof TextInput>>; label: string; /** The value is wrong: announces `aria-invalid` and draws a danger border (after the caller's style, so it wins). */ invalid?: boolean }) {
   const c = useTheme();
-  return <Input accessibilityLabel={label} aria-invalid={invalid || undefined} {...rest} style={[styles.input, style, invalid ? { borderColor: c.danger } : null]} />;
+  return <Input accessibilityLabel={label} aria-invalid={invalid || undefined} {...rest} style={[styles.input, NUMERIC_KEYBOARDS.includes(rest.inputMode ?? rest.keyboardType ?? '') ? styles.numeric : null, style, invalid ? { borderColor: c.danger } : null]} />;
 }
 
-export function Group({ children, label }: { children: ReactNode; label?: string }) {
+/** `error` marks the group invalid and is its hint, so a screen reader hears why on entering it. */
+export function Group({ children, label, error }: { children: ReactNode; label?: string; error?: string }) {
   return (
-    <View accessibilityRole="radiogroup" accessibilityLabel={label} style={styles.group}>
+    <View accessibilityRole="radiogroup" accessibilityLabel={label} accessibilityHint={error} aria-invalid={error ? true : undefined} style={styles.group}>
       {children}
     </View>
   );
@@ -374,7 +384,7 @@ export const layout = StyleSheet.create({
 
 const styles = StyleSheet.create({
   page: { padding: space.lg, alignItems: 'center', flexGrow: 1 },
-  column: { width: '100%', maxWidth: 560, gap: space.sm },
+  column: { width: '100%', maxWidth: COLUMN_MAX, gap: space.sm },
   columnWide: { maxWidth: 1040 },
   h1: { ...type.title, marginTop: space.sm },
   hint: { ...type.caption },
@@ -388,7 +398,8 @@ const styles = StyleSheet.create({
   chip: { borderRadius: radius.full, paddingHorizontal: space.lg, minHeight: 44, minWidth: 44, justifyContent: 'center' },
   switchHit: { minWidth: 44, minHeight: 44, alignSelf: 'flex-start', alignItems: 'center', justifyContent: 'center' },
   switchRing: { alignSelf: 'flex-start', borderRadius: radius.full },
-  input: { minWidth: 90, flexGrow: 1, maxWidth: 160 },
+  input: { minWidth: 90, flexGrow: 1 },
+  numeric: { maxWidth: 160 },
 });
 
 function Chevron({ open, color }: { open: boolean; color: string }) {
@@ -428,13 +439,13 @@ export function Disclosure({ label, defaultOpen = false, open: controlled, onOpe
   );
 }
 
-/** A row of up to 3 figures with 1px dividers between them, each cell at least 56px tall. `small` is muted text after the value (e.g. " / 6"); `lime` draws the value in the brand colour when it is a real, non-zero number (set on one cell per screen). Spoken as "label: value". */
-export function MetricRow({ cells }: { cells: readonly { label: string; value: string; small?: string; lime?: boolean }[] }) {
+/** A row of up to 3 figures with 1px dividers between them, each cell at least 56px tall. `small` is muted text after the value (e.g. " / 6"); `lime` draws the value in the brand colour when it is a real, non-zero number (set on one cell per screen). Spoken as "label: value", or as `spoken` when that reads better (e.g. "3 sets"). */
+export function MetricRow({ cells }: { cells: readonly { label: string; value: string; small?: string; lime?: boolean; spoken?: string }[] }) {
   const c = useTheme();
   return (
     <View style={extra.metricRow}>
       {cells.map((m, i) => (
-        <View key={m.label} accessible accessibilityLabel={`${m.label}: ${m.value}${m.small ?? ''}`} style={[extra.metricCell, i > 0 && { borderLeftWidth: 1, borderLeftColor: c.line }]}>
+        <View key={m.label} accessible accessibilityLabel={m.spoken ?? `${m.label}: ${m.value}${m.small ?? ''}`} style={[extra.metricCell, i > 0 && { borderLeftWidth: 1, borderLeftColor: c.line }]}>
           <Text style={[type.metricSm, tabular, { color: m.lime && m.value !== '–' && m.value !== '0' ? c.brand : c.ink }]}>
             {m.value}
             {m.small ? <Text style={[type.small, { color: c.muted }]}>{m.small}</Text> : null}
