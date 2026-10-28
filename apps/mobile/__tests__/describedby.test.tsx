@@ -47,3 +47,31 @@ describe('setup errors are described by their text', () => {
     expect(screen.getByLabelText('Age').props['aria-describedby']).toBeUndefined();
   });
 });
+
+describe('the consent switch is described by its error', () => {
+  it('is invalid and points at the error after Continue without agreeing, and clears on agreeing', async () => {
+    await render(withProfile(memoryDb(), <SetupScreen />));
+    await screen.findByText('Before you start');
+    const label = 'I understand and agree to my data being stored as described';
+    expect(screen.getByLabelText(label).props.accessibilityHint).toBeUndefined();
+    await fireEvent.press(screen.getByLabelText('Continue'));
+    const err = screen.getByRole('alert');
+    expect(err.props.nativeID).toMatch(/\S/);
+    const sw = screen.getByLabelText(label);
+    // Native reads the hint; the web aria attributes go on the DOM input (switch-web-aria.test.tsx).
+    expect(sw.props.accessibilityHint).toBe(err.props.children);
+    await fireEvent(screen.getByLabelText(label), 'valueChange', true);
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.getByLabelText(label).props.accessibilityHint).toBeUndefined();
+  });
+
+  it('tapping the label text clears the error like toggling the switch', async () => {
+    await render(withProfile(memoryDb(), <SetupScreen />));
+    await screen.findByText('Before you start');
+    await fireEvent.press(screen.getByLabelText('Continue'));
+    expect(screen.getByRole('alert')).toBeTruthy();
+    await fireEvent.press(screen.getByText('I understand and agree to my data being stored as described', { includeHiddenElements: true }));
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.getByLabelText('I understand and agree to my data being stored as described').props.accessibilityHint).toBeUndefined();
+  });
+});

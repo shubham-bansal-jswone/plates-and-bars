@@ -26,6 +26,8 @@ function Consent({ onContinue }: { onContinue: () => Promise<void> }) {
   const c = useTheme();
   const [ok, setOk] = useState(false);
   const [err, setErr] = useState('');
+  // Web drops accessibilityHint, so the error text gets an id and the switch points at it with aria-describedby.
+  const errId = `${useId().replace(/:/g, '')}-consent-error`;
   return (
     <Page>
       <H1>{CONSENT.title}</H1>
@@ -43,17 +45,23 @@ function Consent({ onContinue }: { onContinue: () => Promise<void> }) {
       <View style={[layout.row, { marginTop: 8 }]}>
         <Switch
           accessibilityLabel={CONSENT.checkbox}
+          accessibilityHint={err || undefined}
+          invalid={!!err}
+          describedBy={err ? errId : undefined}
           value={ok}
           onValueChange={(v) => {
             setOk(v);
             setErr('');
           }}
         />
-        <Press tabIndex={-1} focusable={false} accessibilityElementsHidden importantForAccessibility="no" onPress={() => setOk(!ok)} style={{ flex: 1, minHeight: 44, justifyContent: 'center' }}>
+        <Press tabIndex={-1} focusable={false} accessibilityElementsHidden importantForAccessibility="no" onPress={() => {
+            setOk(!ok);
+            setErr('');
+          }} style={{ flex: 1, minHeight: 44, justifyContent: 'center' }}>
           <Text style={{ color: c.ink }}>{CONSENT.checkbox}</Text>
         </Press>
       </View>
-      {err ? <ErrorText>{err}</ErrorText> : null}
+      {err ? <ErrorText id={errId}>{err}</ErrorText> : null}
       <Button
         label="Continue"
         onPress={() => {
