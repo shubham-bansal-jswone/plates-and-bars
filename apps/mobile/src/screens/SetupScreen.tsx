@@ -313,7 +313,7 @@ function SetupFlow({ recalc, weight }: { recalc: boolean; weight: number | null 
   if (!consent) return <Consent onContinue={giveConsent} />;
 
   const next = () => {
-    const found = stepErrors(step, d);
+    const found = stepErrors(step, stored ? keepStoredHeight(d, stored) : d); // an unedited redo checks the stored cm, not the rounded ft/in (#1224)
     setErr('');
     setErrs(Object.fromEntries(found));
     if (!found.length) setStep(step + 1);

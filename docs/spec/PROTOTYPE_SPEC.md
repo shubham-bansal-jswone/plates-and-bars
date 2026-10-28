@@ -10,6 +10,9 @@ When this spec, the fixtures and the prototype disagree, the prototype wins; fil
 
 ## 0. Changes since the Development Plan was written
 
+**2026-10-28 — Progress "Seven days" target-line hint wording (deliberate difference; prototype and golden fixtures unchanged).**
+- #1190 (wording shipped in PR #1201), #1204 (recorded here). The prototype's hint says "The dark line on each bar is your calorie target." (`docs/prototype/plate-and-bar.html:4119`); the app says "The thin vertical line on each bar is your calorie target." because the line is `ink` at half opacity, so it is light in dark mode and "dark line" would be wrong there. The prototype is not edited. Regenerating the app from the prototype must not revert this.
+
 **2026-10-28 — no "Targets updated" toast after first setup (deliberate difference; prototype and golden fixtures unchanged).**
 - #1233 (decision), #1194 (implemented in PR #1228). The prototype toasts "Targets updated" after any "Use these targets", first setup included (`docs/prototype/plate-and-bar.html:4387`, no `hadSettings` check). The app posts no toast after first setup, because nothing was updated; a redo of setup still toasts "Targets updated", or "Setup saved, targets unchanged" when the targets are kept. Regenerating the app from the prototype must not revert this.
 
