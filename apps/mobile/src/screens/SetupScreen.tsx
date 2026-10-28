@@ -49,7 +49,7 @@ function Consent({ onContinue }: { onContinue: () => Promise<void> }) {
             setErr('');
           }}
         />
-        <Press focusable={false} accessibilityElementsHidden importantForAccessibility="no" onPress={() => setOk(!ok)} style={{ flex: 1 }}>
+        <Press tabIndex={-1} focusable={false} accessibilityElementsHidden importantForAccessibility="no" onPress={() => setOk(!ok)} style={{ flex: 1, minHeight: 44, justifyContent: 'center' }}>
           <Text style={{ color: c.ink }}>{CONSENT.checkbox}</Text>
         </Press>
       </View>

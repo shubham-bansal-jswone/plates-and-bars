@@ -34,5 +34,5 @@ export function Input({ style, onFocus, onBlur, ...rest }: TextInputProps) {
 
 const styles = StyleSheet.create({
   input: { borderWidth: 1, borderRadius: radius.sm, paddingHorizontal: 14, minHeight: 52, fontSize: 17 },
-  focused: { borderWidth: 2, paddingHorizontal: 13 },
+  focused: { borderWidth: 2, paddingHorizontal: 13, outlineWidth: 0 },
 });
