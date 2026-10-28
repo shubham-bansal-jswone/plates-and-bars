@@ -8,7 +8,7 @@ import { buildRecord, type Doc } from '../sync/records';
 import { getUserId } from '../sync/store';
 
 /** Id source for records exported before any account exists: all-zero namespace, so ids still have the contract's shape. */
-const NO_USER = '00000000-0000-0000-0000-000000000000';
+export const NO_USER = '00000000-0000-0000-0000-000000000000';
 
 export interface LocalExport {
   format_version: 1;

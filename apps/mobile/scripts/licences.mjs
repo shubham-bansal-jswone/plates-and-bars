@@ -180,11 +180,11 @@ const ANDROID_LICENCES = [
   ['com.squareup.zstd', 'Apache-2.0', null, 'zstd-kmp@0.4.0 zstd-kmp-android@0.4.0 zstd-kmp-okio@0.4.0 zstd-kmp-okio-android@0.4.0'],
   ['com.vanniktech', 'Apache-2.0', null, 'android-image-cropper@4.7.0'],
   ['commons-codec', 'Apache-2.0', null, 'commons-codec@1.10'],
-  ['commons-io', 'Apache-2.0', null, 'commons-io@1.4'],
+  ['commons-io', 'Apache-2.0', null, 'commons-io@2.6'],
   // The native half of Expo modules installed from npm (their prebuilt AARs); the Expo repository's MIT licence.
   ['expo.modules.asset', 'MIT', 'expo.txt', 'expo.modules.asset@58.0.16'],
   ['expo.modules.router', 'MIT', 'expo.txt', 'expo.modules.router@58.0.22'],
-  ['host.exp.exponent', 'MIT', 'expo.txt', 'expo.modules.clipboard@58.0.3 expo.modules.crypto@58.0.7 expo.modules.filesystem@58.0.9 expo.modules.font@58.0.8 expo.modules.haptics@58.0.7 expo.modules.imageloader@58.0.3 expo.modules.imagemanipulator@58.0.14 expo.modules.imagepicker@58.0.10 expo.modules.keepawake@58.0.3 expo.modules.linking@58.0.13 expo.modules.securestore@58.0.2 expo.modules.sharing@58.0.19 expo.modules.splashscreen@58.0.10 expo.modules.sqlite@58.0.13 expo.modules.statusbar@58.0.3 expo.modules.videothumbnails@58.0.2'],
+  ['host.exp.exponent', 'MIT', 'expo.txt', 'expo.modules.clipboard@58.0.3 expo.modules.crypto@58.0.7 expo.modules.documentpicker@58.0.4 expo.modules.filesystem@58.0.9 expo.modules.font@58.0.8 expo.modules.haptics@58.0.7 expo.modules.imageloader@58.0.3 expo.modules.imagemanipulator@58.0.14 expo.modules.imagepicker@58.0.10 expo.modules.keepawake@58.0.3 expo.modules.linking@58.0.13 expo.modules.securestore@58.0.2 expo.modules.sharing@58.0.19 expo.modules.splashscreen@58.0.10 expo.modules.sqlite@58.0.13 expo.modules.statusbar@58.0.3 expo.modules.videothumbnails@58.0.2'],
   // zxing-cpp (barcode reader for the scanner, #944): its POM and LICENSE are Apache-2.0; the Android build has writers off, so the bundled libzint is not in it; libzueci is (see NATIVE).
   ['io.github.zxing-cpp', 'Apache-2.0', 'zxing-cpp-android.txt', 'android@3.1.1'],
   ['io.github.expo', 'MIT', 'expo-modules-v2-android.txt', 'expo-modules-v2-react@0.2.5'],
