@@ -1,3 +1,4 @@
+import { lbToKg, type WeightUnit } from './weightUnit';
 import { addDays, daysBetween, mondayOf, weekdayOf } from './dates';
 import { dayComplete, logTotals, type FoodLogFacts } from './food';
 import { num } from './num';
@@ -805,10 +806,14 @@ export type WeightEntry = { kind: 'save'; kg: number } | { kind: 'clear' } | { k
  * contract's exclusive bounds, so 20.01–20.04 and 399.95–399.99 (which round to 20.0 and 400.0) are
  * bad (#247); a blank box clears; anything else is bad.
  *
+ * With `unit` 'lb' the typed text is pounds, rounded to 0.1 lb, and `kg` is that exactly (whole pounds 100 to 300
+ * show back unchanged); kg is unchanged.
+ *
  * Mirrors the checks in the prototype's `case 'saveW'` (document click listener).
  */
-export function weightEntry(text: string): WeightEntry {
-  const kg = round1(num(text));
+export function weightEntry(text: string, unit: WeightUnit = 'kg'): WeightEntry {
+  // In lb the box is rounded to 0.1 lb (what the user sees) and saves that exactly in kg; the bounds are in kg.
+  const kg = unit === 'lb' ? lbToKg(round1(num(text))) : round1(num(text));
   if (kg > WEIGHT_ABOVE_KG && kg < WEIGHT_BELOW_KG) return { kind: 'save', kg };
   if (!text.trim()) return { kind: 'clear' };
   return { kind: 'bad' };
