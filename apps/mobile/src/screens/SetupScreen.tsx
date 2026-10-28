@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { WhyLink } from '../why/WhyLink';
 import { View } from 'react-native';
 import { Text } from '../components/Text';
@@ -75,7 +75,12 @@ function StepBody({ step, d, set, errs, focus }: { step: number; d: Draft; set: 
   const bad = (f: SetupField) => !!errs[f];
   // The inline error is also the invalid field's hint, so focusing the field again reads why it is wrong.
   const hint = (f: SetupField) => errs[f];
-  const showErr = (at: SetupField) => (errs[at] ? <ErrorText>{errs[at]}</ErrorText> : null);
+  // Web drops accessibilityHint, so the error text gets an id and its field or group points at it with aria-describedby.
+  const uid = useId().replace(/:/g, '');
+  const errId = (at: SetupField) => `${uid}-${at}-error`;
+  const hintId = (at: SetupField) => `${uid}-${at}-hint`;
+  const describe = (at: SetupField, ...more: string[]) => [...more, ...(errs[at] ? [errId(at)] : [])].join(' ') || undefined;
+  const showErr = (at: SetupField) => (errs[at] ? <ErrorText id={errId(at)}>{errs[at]}</ErrorText> : null);
   if (step === 0)
     return (
       <>
@@ -83,13 +88,13 @@ function StepBody({ step, d, set, errs, focus }: { step: number; d: Draft; set: 
         <Hint>Four quick steps. You can change any answer later.</Hint>
         <View style={layout.field}>
           <Label>Sex</Label>
-          <Group label="Sex" error={hint('sex')}>
+          <Group label="Sex" error={hint('sex')} describedBy={describe('sex', hintId('sex'))}>
             <View style={layout.row}>
               <Choice focusRef={focus('sex')} chip label="Male" selected={d.sex === 'male'} onPress={() => set('sex', 'male')} />
               <Choice chip label="Female" selected={d.sex === 'female'} onPress={() => set('sex', 'female')} />
             </View>
           </Group>
-          <Hint>Used only for the calorie formula, which differs by sex.</Hint>
+          <Hint id={hintId('sex')}>Used only for the calorie formula, which differs by sex.</Hint>
           {showErr('sex')}
         </View>
         {d.sex === 'female' ? (
@@ -107,7 +112,7 @@ function StepBody({ step, d, set, errs, focus }: { step: number; d: Draft; set: 
         <View style={layout.field}>
           <Caption>Age</Caption>
           <View style={layout.row}>
-            <Field ref={focus('age')} label="Age" invalid={bad('age')} accessibilityHint={hint('age')} inputMode="numeric" placeholder="Years" value={d.age} onChangeText={(v) => set('age', v)} />
+            <Field ref={focus('age')} label="Age" invalid={bad('age')} accessibilityHint={hint('age')} describedBy={describe('age')} inputMode="numeric" placeholder="Years" value={d.age} onChangeText={(v) => set('age', v)} />
           </View>
           {showErr('age')}
         </View>
@@ -116,13 +121,13 @@ function StepBody({ step, d, set, errs, focus }: { step: number; d: Draft; set: 
           <View style={layout.row}>
             {d.unit === 'ft' ? (
               <>
-                <Field ref={focus('height')} label="Height feet" invalid={bad('height')} accessibilityHint={hint('height')} inputMode="numeric" placeholder="ft" value={d.ft} onChangeText={(v) => set('ft', v)} />
-                <Field label="Height inches" invalid={bad('height')} accessibilityHint={hint('height')} inputMode="numeric" placeholder="in" value={d.inch} onChangeText={(v) => set('inch', v)} />
+                <Field ref={focus('height')} label="Height feet" invalid={bad('height')} accessibilityHint={hint('height')} describedBy={describe('height')} inputMode="numeric" placeholder="ft" value={d.ft} onChangeText={(v) => set('ft', v)} />
+                <Field label="Height inches" invalid={bad('height')} accessibilityHint={hint('height')} describedBy={describe('height')} inputMode="numeric" placeholder="in" value={d.inch} onChangeText={(v) => set('inch', v)} />
                 <Button kind="link" label="Use cm" onPress={() => set('unit', 'cm')} />
               </>
             ) : (
               <>
-                <Field ref={focus('height')} label="Height in cm" invalid={bad('height')} accessibilityHint={hint('height')} inputMode="numeric" placeholder="cm" value={d.cm} onChangeText={(v) => set('cm', v)} />
+                <Field ref={focus('height')} label="Height in cm" invalid={bad('height')} accessibilityHint={hint('height')} describedBy={describe('height')} inputMode="numeric" placeholder="cm" value={d.cm} onChangeText={(v) => set('cm', v)} />
                 <Button kind="link" label="Use feet and inches" onPress={() => set('unit', 'ft')} />
               </>
             )}
@@ -132,7 +137,7 @@ function StepBody({ step, d, set, errs, focus }: { step: number; d: Draft; set: 
         <View style={layout.field}>
           <Caption>Weight (kg)</Caption>
           <View style={layout.row}>
-            <Field ref={focus('weight')} label="Weight in kg" invalid={bad('weight')} accessibilityHint={hint('weight')} inputMode="decimal" placeholder="kg" value={d.weight} onChangeText={(v) => set('weight', v)} />
+            <Field ref={focus('weight')} label="Weight in kg" invalid={bad('weight')} accessibilityHint={hint('weight')} describedBy={describe('weight')} inputMode="decimal" placeholder="kg" value={d.weight} onChangeText={(v) => set('weight', v)} />
           </View>
           {showErr('weight')}
         </View>
@@ -142,8 +147,8 @@ function StepBody({ step, d, set, errs, focus }: { step: number; d: Draft; set: 
     return (
       <>
         <H1>How active is your day, outside the gym?</H1>
-        <Hint>Think of a typical weekday. Training comes in the next step.</Hint>
-        <Group label="Activity" error={hint('activity')}>
+        <Hint id={hintId('activity')}>Think of a typical weekday. Training comes in the next step.</Hint>
+        <Group label="Activity" error={hint('activity')} describedBy={describe('activity', hintId('activity'))}>
           {entries(ACTIVITY).map(([k, [l, s]], i) => (
             <Choice key={k} focusRef={i === 0 ? focus('activity') : undefined} label={l} sub={s} selected={d.activity === k} onPress={() => set('activity', k)} />
           ))}
@@ -157,7 +162,7 @@ function StepBody({ step, d, set, errs, focus }: { step: number; d: Draft; set: 
         <H1>How do you train?</H1>
         <View style={layout.field}>
           <Label>Sessions per week</Label>
-          <Group label="Sessions per week" error={hint('days')}>
+          <Group label="Sessions per week" error={hint('days')} describedBy={describe('days')}>
             <View style={layout.row}>
               {DAY_CHOICES.map((n) => (
                 <Choice key={n} focusRef={n === DAY_CHOICES[0] ? focus('days') : undefined} chip label={n === 0 ? 'None yet' : String(n)} selected={d.days === n} onPress={() => set('days', n)} />
@@ -170,7 +175,7 @@ function StepBody({ step, d, set, errs, focus }: { step: number; d: Draft; set: 
           <>
             <View style={layout.field}>
               <Label>Where do you train?</Label>
-              <Group label="Where do you train?" error={hint('where')}>
+              <Group label="Where do you train?" error={hint('where')} describedBy={describe('where')}>
                 {entries(WHERE).map(([k, [l, s]], i) => (
                   <Choice key={k} focusRef={i === 0 ? focus('where') : undefined} label={l} sub={s} selected={d.where === k} onPress={() => set('where', k)} />
                 ))}
@@ -179,7 +184,7 @@ function StepBody({ step, d, set, errs, focus }: { step: number; d: Draft; set: 
             </View>
             <View style={layout.field}>
               <Label>Training experience</Label>
-              <Group label="Training experience" error={hint('exp')}>
+              <Group label="Training experience" error={hint('exp')} describedBy={describe('exp')}>
                 {entries(EXPERIENCE).map(([k, [l, s]], i) => (
                   <Choice key={k} focusRef={i === 0 ? focus('exp') : undefined} label={l} sub={s} selected={d.exp === k} onPress={() => set('exp', k)} />
                 ))}
@@ -188,7 +193,7 @@ function StepBody({ step, d, set, errs, focus }: { step: number; d: Draft; set: 
             </View>
             <View style={layout.field}>
               <Label>Typical session length</Label>
-              <Group label="Typical session length" error={hint('minutes')}>
+              <Group label="Typical session length" error={hint('minutes')} describedBy={describe('minutes')}>
                 <View style={layout.row}>
                   {SESSION_MINUTES.map((m, i) => (
                     <Choice key={m} focusRef={i === 0 ? focus('minutes') : undefined} chip label={`${m} min`} selected={d.minutes === m} onPress={() => set('minutes', m)} />
@@ -204,7 +209,7 @@ function StepBody({ step, d, set, errs, focus }: { step: number; d: Draft; set: 
   return (
     <>
       <H1>What’s your main goal?</H1>
-      <Group label="Main goal" error={hint('goal')}>
+      <Group label="Main goal" error={hint('goal')} describedBy={describe('goal')}>
         {entries(GOALS).map(([k, [l, s]], i) => (
           <Choice key={k} focusRef={i === 0 ? focus('goal') : undefined} label={l} sub={s} selected={d.goal === k} onPress={() => set('goal', k)} />
         ))}
@@ -216,7 +221,7 @@ function StepBody({ step, d, set, errs, focus }: { step: number; d: Draft; set: 
         {SCREEN_Q.map((q, i) => (
           <View key={q} style={{ gap: 6, marginBottom: 8 }}>
             <Text style={{ color: c.ink, fontSize: 15, lineHeight: 21 }}>{q}</Text>
-            <Group label={q} error={d.screen[i] ? undefined : hint('screen')}>
+            <Group label={q} error={d.screen[i] ? undefined : hint('screen')} describedBy={d.screen[i] ? undefined : describe('screen')}>
               <View style={layout.row}>
                 {(['no', 'yes'] as const).map((a) => (
                   <Choice

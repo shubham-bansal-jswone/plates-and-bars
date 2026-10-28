@@ -92,9 +92,10 @@ export function a11yState(s: { selected?: boolean; checked?: boolean; expanded?:
   };
 }
 
-export function Hint({ children }: { children: ReactNode }) {
+/** `id` lets a field or group name this text in `describedBy`: react-native-web renders it as the DOM `id`. */
+export function Hint({ children, id }: { children: ReactNode; id?: string }) {
   const c = useTheme();
-  return <Text style={[styles.hint, { color: c.muted }]}>{children}</Text>;
+  return <Text nativeID={id} style={[styles.hint, { color: c.muted }]}>{children}</Text>;
 }
 
 export function Label({ children }: { children: ReactNode }) {
@@ -116,10 +117,11 @@ export function Note({ children }: { children: ReactNode }) {
   return <Text style={[styles.note, { color: c.ink, backgroundColor: c.tint, borderColor: c.line }]}>{children}</Text>;
 }
 
-export function ErrorText({ children }: { children: string }) {
+/** `id` lets the invalid field or group name this message in `describedBy` (web drops accessibilityHint). */
+export function ErrorText({ children, id }: { children: string; id?: string }) {
   const c = useTheme();
   return (
-    <Text accessibilityRole="alert" style={[styles.hint, { color: c.danger }]}>
+    <Text nativeID={id} accessibilityRole="alert" style={[styles.hint, { color: c.danger }]}>
       {children}
     </Text>
   );
@@ -295,15 +297,15 @@ export function Chip({ label, text, pressed, danger, onPress }: { label: string;
 const NUMERIC_KEYBOARDS = ['numeric', 'decimal', 'decimal-pad', 'number-pad'];
 
 /** Text fields fill their column; numeric fields (by `inputMode` or `keyboardType`) stay at most 160px wide. Layout in `style` still wins. */
-export function Field({ label, invalid, style, ...rest }: TextInputProps & { ref?: Ref<TextInput>; label: string; /** The value is wrong: announces `aria-invalid` and draws a danger border (after the caller's style, so it wins). */ invalid?: boolean }) {
+export function Field({ label, invalid, describedBy, style, ...rest }: TextInputProps & { ref?: Ref<TextInput>; label: string; /** Ids of the error and hint texts for this field (space separated). Web reads them as `aria-describedby`; native keeps `accessibilityHint`. */ describedBy?: string; /** The value is wrong: announces `aria-invalid` and draws a danger border (after the caller's style, so it wins). */ invalid?: boolean }) {
   const c = useTheme();
-  return <Input accessibilityLabel={label} aria-invalid={invalid || undefined} {...rest} style={[styles.input, NUMERIC_KEYBOARDS.includes(rest.inputMode ?? rest.keyboardType ?? '') ? styles.numeric : null, style, invalid ? { borderColor: c.danger } : null]} />;
+  return <Input accessibilityLabel={label} aria-invalid={invalid || undefined} aria-describedby={describedBy} {...rest} style={[styles.input, NUMERIC_KEYBOARDS.includes(rest.inputMode ?? rest.keyboardType ?? '') ? styles.numeric : null, style, invalid ? { borderColor: c.danger } : null]} />;
 }
 
 /** `error` marks the group invalid and is its hint, so a screen reader hears why on entering it. */
-export function Group({ children, label, error }: { children: ReactNode; label?: string; error?: string }) {
+export function Group({ children, label, error, describedBy }: { children: ReactNode; label?: string; error?: string; /** Ids of the error and hint texts (space separated), read on web as `aria-describedby`. */ describedBy?: string }) {
   return (
-    <View accessibilityRole="radiogroup" accessibilityLabel={label} accessibilityHint={error} aria-invalid={error ? true : undefined} style={styles.group}>
+    <View accessibilityRole="radiogroup" accessibilityLabel={label} accessibilityHint={error} aria-invalid={error ? true : undefined} aria-describedby={describedBy} style={styles.group}>
       {children}
     </View>
   );
