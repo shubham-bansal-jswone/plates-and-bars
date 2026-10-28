@@ -802,9 +802,11 @@ paths:
           revived routine past the limit, each with `field` = `changes.routines[<i>]` and
           issue `too_many_routines`. Every other change in the push (deletes included) is
           counted first, wherever it sits in the array; then the new and revived routines
-          are added one by one in array order, and each one that takes the count over 100
-          is listed. So with 100 live, `[new, new, delete]` lists only index 1. Nothing is
-          applied, as for any 400. The app sets those records aside in one round.
+          that are live after last-writer-wins (`deleted_at` null) are added one by one in
+          array order, and each one that takes the count over 100 is listed. A new id pushed
+          already deleted, or one that loses to a stored tombstone, never counts. So with
+          100 live, `[new, new, delete]` lists only index 1. Nothing is applied, as for any
+          400. The app sets those records aside in one round.
         - The count and the apply run in the one per-account serialised transaction, like
           the account record cap, never in the stateless validator, so two devices pushing
           at once cannot overrun it.
