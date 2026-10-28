@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState, type ComponentRef } from 'react';
 import { StyleSheet, View } from 'react-native';
-import type { LiftRecord } from '@plate-and-bar/core';
+import { fromKg, type LiftRecord, type WeightUnit } from '@plate-and-bar/core';
 import { Text } from '../../components/Text';
 import { Button, Card, Heading, Hint, MetricRow, Press } from '../../components/ui';
 import { fmt, shortDate, weekdayLong } from '../../format';
 import { space, tabular, type as typeScale } from '../../theme/tokens';
 import { useTheme } from '../../theme/useTheme';
+import { useWeightUnit } from '../../settings/weightUnit';
 import { focusNode, useFocusOnMount } from '../../labelscan/focus';
 import { getLibrary } from '../../library/exercises';
 import { E1RM_NOTE, E1rmTrend } from '../E1rmTrend';
@@ -17,13 +18,16 @@ const FIRST = 5;
 /** The library's exercise type, so bodyweight, time and assisted work gets no estimate; unknown names count as loaded (core's rule). */
 const typeOf = (name: string) => getLibrary().find((x) => x.name === name)?.type;
 
-const volumeText = (kg: number): string => `${fmt(kg)} kg`;
+/** Volume is weight x reps, so it converts like a weight. */
+const volumeNumber = (kg: number, unit: WeightUnit): string => fmt(fromKg(kg, unit));
+const volumeText = (kg: number, unit: WeightUnit): string => `${volumeNumber(kg, unit)} ${unit}`;
 const count = (n: number, one: string): string => `${n} ${one}${n === 1 ? '' : 's'}`;
-const summary = (s: HistorySession): string => `${shortDate(s.date)}, ${s.name}, ${s.setsDone} ${s.setsDone === 1 ? 'set' : 'sets'}${s.volume > 0 ? `, ${volumeText(s.volume)}` : ''}`;
+const summary = (s: HistorySession, unit: WeightUnit): string => `${shortDate(s.date)}, ${s.name}, ${s.setsDone} ${s.setsDone === 1 ? 'set' : 'sets'}${s.volume > 0 ? `, ${volumeText(s.volume, unit)}` : ''}`;
 
 /** "Recent workouts": one row per logged day, newest first. Tap opens that day. `focusDate`: the day just closed; focus returns to its row. */
 export function RecentWorkouts({ sessions, onOpen, focusDate = null }: { sessions: readonly HistorySession[]; onOpen: (date: string) => void; focusDate?: string | null }) {
   const c = useTheme();
+  const { unit } = useWeightUnit();
   const rows = useRef<Record<string, ComponentRef<typeof View> | null>>({});
   useEffect(() => {
     if (focusDate) focusNode(rows.current[focusDate]);
@@ -38,7 +42,7 @@ export function RecentWorkouts({ sessions, onOpen, focusDate = null }: { session
       ) : (
         <>
           {shown.map((s) => (
-            <Press key={s.date} ref={(n) => void (rows.current[s.date] = n)} accessibilityRole="button" accessibilityLabel={summary(s)} onPress={() => onOpen(s.date)}>
+            <Press key={s.date} ref={(n) => void (rows.current[s.date] = n)} accessibilityRole="button" accessibilityLabel={summary(s, unit)} onPress={() => onOpen(s.date)}>
               <Card style={styles.row}>
                 <View style={styles.grow}>
                   <Text style={[typeScale.bodyStrong, { color: c.ink }]}>{s.name}</Text>
@@ -46,8 +50,8 @@ export function RecentWorkouts({ sessions, onOpen, focusDate = null }: { session
                 </View>
                 {s.volume > 0 ? (
                   <Text style={[typeScale.metricSm, tabular, { color: c.ink }]}>
-                    {fmt(s.volume)}
-                    <Text style={[typeScale.small, { color: c.muted }]}> kg</Text>
+                    {volumeNumber(s.volume, unit)}
+                    <Text style={[typeScale.small, { color: c.muted }]}>{` ${unit}`}</Text>
                   </Text>
                 ) : null}
               </Card>
@@ -63,6 +67,7 @@ export function RecentWorkouts({ sessions, onOpen, focusDate = null }: { session
 /** One day: its exercises with the sets that were ticked, and each exercise's trend over the recent sessions. */
 export function WorkoutDay({ session, sessions, lifts, onBack }: { session: HistorySession; sessions: readonly HistorySession[]; lifts: Readonly<Record<string, LiftRecord>>; onBack: () => void }) {
   const c = useTheme();
+  const { unit } = useWeightUnit();
   const focus = useFocusOnMount();
   return (
     <View style={styles.section}>
@@ -75,7 +80,7 @@ export function WorkoutDay({ session, sessions, lifts, onBack }: { session: Hist
       <Card>
         <MetricRow cells={[
           { value: String(session.setsDone), label: 'sets', lime: true, spoken: count(session.setsDone, 'set') },
-          ...(session.volume > 0 ? [{ value: fmt(session.volume), label: 'kg lifted', spoken: `${fmt(session.volume)} kg lifted` }] : []),
+          ...(session.volume > 0 ? [{ value: volumeNumber(session.volume, unit), label: `${unit} lifted`, spoken: `${volumeNumber(session.volume, unit)} ${unit} lifted` }] : []),
           { value: String(session.exercises.length), label: 'exercises', spoken: count(session.exercises.length, 'exercise') },
         ]} />
       </Card>
@@ -87,11 +92,11 @@ export function WorkoutDay({ session, sessions, lifts, onBack }: { session: Hist
           <Card key={e.name} style={styles.gap}>
             <Heading level={3} style={[typeScale.label, { color: c.ink }]}>{e.name}</Heading>
             {e.sets.map((s, i) => (
-              <Text key={i} style={[typeScale.textBody, tabular, { color: c.body }]}>{`Set ${i + 1}: ${setText(s)}`}</Text>
+              <Text key={i} style={[typeScale.textBody, tabular, { color: c.body }]}>{`Set ${i + 1}: ${setText(s, unit)}`}</Text>
             ))}
             {t.pbDate === session.date ? <Text style={[typeScale.small, { color: c.brand }]}>Personal best</Text> : null}
             {t.points.length >= 2 && max > 0 ? (
-              <View accessible accessibilityRole="image" accessibilityLabel={`${e.name} volume over ${t.points.length} sessions, ${t.points.map((p) => volumeText(p.volume)).join(', ')}`}>
+              <View accessible accessibilityRole="image" accessibilityLabel={`${e.name} volume over ${t.points.length} sessions, ${t.points.map((p) => volumeText(p.volume, unit)).join(', ')}`}>
                 <View style={styles.bars}>
                   {t.points.map((p) => (
                     <View key={p.date} style={[styles.bar, { backgroundColor: c.track }]}>
@@ -99,7 +104,7 @@ export function WorkoutDay({ session, sessions, lifts, onBack }: { session: Hist
                     </View>
                   ))}
                 </View>
-                <Text style={[typeScale.small, { color: c.muted }]}>{`Volume, last ${t.points.length} sessions${t.heaviest ? `. Heaviest set ${fmt(t.heaviest)} kg.` : '.'}`}</Text>
+                <Text style={[typeScale.small, { color: c.muted }]}>{`Volume, last ${t.points.length} sessions${t.heaviest ? `. Heaviest set ${volumeText(t.heaviest, unit)}.` : '.'}`}</Text>
               </View>
             ) : null}
             <E1rmTrend points={e1} type={typeOf(e.name) ?? 'other'} span={`Last ${Math.min(sessions.length, HISTORY_LIMIT)} sessions`} note={false} />

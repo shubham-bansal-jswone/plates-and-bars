@@ -1,28 +1,31 @@
 import { StyleSheet, View } from 'react-native';
 import { WhyLink } from '../why/WhyLink';
 import { CYCLE_CHECKIN_NOTE } from '../cycle/copy';
-import { CARDIO_WEEK_MIN, RAPID_LOSS_KCAL, round1 } from '@plate-and-bar/core';
+import { CARDIO_WEEK_MIN, RAPID_LOSS_KCAL, formatWeight, round1, type WeightUnit } from '@plate-and-bar/core';
 import { Text } from '../components/Text';
 import { Heading, Button, Card, Disclosure, Hint, MetricRow } from '../components/ui';
 import { fmt, shortDate } from '../format';
 import { useProfile } from '../state/ProfileProvider';
+import { useWeightUnit } from '../settings/weightUnit';
 import { type as typeScale } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
-import { BURN_HOW, BURN_TITLE, CHECKIN_NEEDS_SETUP, CHECKIN_TITLE, HABIT_MESSAGE, KEEP_TARGETS, NOT_NOW, RAPID_BODY, RAPID_TITLE, SETTINGS_UNREADABLE, STOP_SUGGESTING, WEIGHT_WEEK_NONE } from './copy';
+import { BURN_HOW, BURN_HOW_LB, BURN_TITLE, CHECKIN_NEEDS_SETUP, CHECKIN_TITLE, HABIT_MESSAGE, KEEP_TARGETS, NOT_NOW, RAPID_BODY, RAPID_TITLE, SETTINGS_UNREADABLE, STOP_SUGGESTING, WEIGHT_WEEK_NONE } from './copy';
 import type { useCheckin } from './useCheckin';
 
 type Checkin = ReturnType<typeof useCheckin>;
-const L = (n: number): string => round1(n).toLocaleString('en-IN');
+/** A stored kg weight in the display unit, one decimal. */
+const LW = (kg: number, unit: WeightUnit): string => Number(formatWeight(kg, unit)).toLocaleString('en-IN');
 
 /** "Weight is dropping fast": offers adding 150 kcal to the targets. Nothing shows when muted, dismissed, or settings are unreadable. */
 export function RapidLossCard({ c: ci }: { c: Checkin }) {
   const t = useTheme();
+  const { unit } = useWeightUnit();
   const r = ci.rapid;
   if (!r || ci.settingsFailed) return null;
   return (
     <Card style={styles.gap}>
       <Text style={{ color: t.ink, fontWeight: '700' }}>{RAPID_TITLE}</Text>
-      <Text style={{ color: t.ink }}>{RAPID_BODY(round1(r.drop), r.twoWeeks, r.stalls)}</Text>
+      <Text style={{ color: t.ink }}>{RAPID_BODY(Number(formatWeight(r.drop, unit)), r.twoWeeks, r.stalls, unit)}</Text>
       <Button label={`Add ${RAPID_LOSS_KCAL} kcal`} onPress={() => void ci.addCalories()} />
       <Button label={NOT_NOW} kind="ghost" onPress={ci.declineRapid} />
       {ci.rapidDeclines >= 3 ? <Button label={STOP_SUGGESTING} kind="ghost" onPress={ci.stopSuggestingRapid} /> : null}
@@ -35,6 +38,7 @@ export function RapidLossCard({ c: ci }: { c: Checkin }) {
 export function CheckinCard({ date, c: ci, cycleNote = false }: { date: string; c: Checkin; cycleNote?: boolean }) {
   const t = useTheme();
   const { profile } = useProfile();
+  const { unit } = useWeightUnit();
   const k = ci.checkin;
   const h = ci.habit;
   if (!profile) return (
@@ -52,7 +56,7 @@ export function CheckinCard({ date, c: ci, cycleNote = false }: { date: string; 
   if (!k || !h) return null;
   const target = profile.targets.kcal;
   const ch = k.weeklyChange;
-  const weekly = ch ? `Weight: weekly average ${L(k.w1 ?? 0)} kg, ${ch.down ? 'down' : 'up'} ${L(ch.amount)} kg from last week.` : WEIGHT_WEEK_NONE;
+  const weekly = ch ? `Weight: weekly average ${LW(k.w1 ?? 0, unit)} ${unit}, ${ch.down ? 'down' : 'up'} ${LW(ch.amount, unit)} ${unit} from last week.` : WEIGHT_WEEK_NONE;
   const slope = k.slopePerWeek ?? 0;
   const cardio = `Cardio: ${fmt(k.cardioMin)} of ${CARDIO_WEEK_MIN} min this week (brisk walking counts).${k.steps !== null ? ` Steps: about ${fmt(k.steps)} a day.` : ''}${k.sleep !== null ? ` Sleep: ${round1(k.sleep)} hours a night${k.sleepShort ? ', under the 7–9 hours that best supports fat loss and recovery' : ''}.` : ''}`;
   const lifts = `${k.improved.length ? `Stronger on ${k.improved.map((x) => `${x.n} (+${x.pct}%)`).join(', ')}.` : 'No lift beat its previous best this week.'}${k.stalled.length ? ` Stalled: ${k.stalled.join(', ')}.` : ''}`;
@@ -82,11 +86,11 @@ export function CheckinCard({ date, c: ci, cycleNote = false }: { date: string; 
       <Card style={styles.gap}>
         <Text style={{ color: t.ink, fontWeight: '700' }}>{BURN_TITLE}</Text>
         {b.ready ? (
-          <Text style={{ color: t.ink }}>{`About ${fmt(b.burn)} kcal a day${k.formula !== null ? `, compared with ${fmt(k.formula)} from the setup formula` : ''}. Based on ${b.logged} complete days and your weight trend (${slope <= 0 ? 'down' : 'up'} ${L(Math.abs(slope))} kg a week).`}</Text>
+          <Text style={{ color: t.ink }}>{`About ${fmt(b.burn)} kcal a day${k.formula !== null ? `, compared with ${fmt(k.formula)} from the setup formula` : ''}. Based on ${b.logged} complete days and your weight trend (${slope <= 0 ? 'down' : 'up'} ${LW(Math.abs(slope), unit)} ${unit} a week).`}</Text>
         ) : (
           <Hint>{`Needs ${[b.needDays ? `${b.needDays} more complete day${b.needDays === 1 ? '' : 's'} in the last 2 weeks (tick “I’ve logged everything” on the Food tab)` : '', b.needW ? `${b.needW} more weigh-in${b.needW === 1 ? '' : 's'} in the last 3 weeks` : ''].filter(Boolean).join(' and ')}. Until then, the setup formula is used.`}</Hint>
         )}
-        <Disclosure label="How this works"><Hint>{BURN_HOW}</Hint></Disclosure>
+        <Disclosure label="How this works"><Hint>{unit === 'lb' ? BURN_HOW_LB : BURN_HOW}</Hint></Disclosure>
       </Card>
       {s ? (
         <Card style={styles.gap}>

@@ -1,6 +1,6 @@
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { addDays, measurementRow, scaleJump, weightEntry, type MeasureKey, type ScaleJump } from '@plate-and-bar/core';
+import { addDays, measurementRow, scaleJump, weightEntry, type MeasureKey, type ScaleJump, type WeightUnit } from '@plate-and-bar/core';
 import { loadMeasurements, loadWeights, saveMeasurement, saveWeight } from '../db/progress';
 import { loadDayNote, patchDayNote } from '../db/food';
 import type { WorkoutDb } from '../db/workouts';
@@ -98,8 +98,8 @@ export function useProgress({ db, date: shown, now, notify, reloadKey = 0 }: Opt
 
   /** Saves the day's weigh-in; an empty box clears it (a tombstone). A rise of 0.8 kg or more adds the scale-jump note. */
   const saveWeightText = useCallback(
-    (text: string) => {
-      const entry = weightEntry(text);
+    (text: string, unit: WeightUnit = 'kg') => {
+      const entry = weightEntry(text, unit);
       const prev = weightsRef.current.find((w) => w.date === date);
       const t = stamp(now());
       if (entry.kind === 'save') {
@@ -110,7 +110,7 @@ export function useProgress({ db, date: shown, now, notify, reloadKey = 0 }: Opt
       } else if (entry.kind === 'clear') {
         if (prev && !prev.deleted_at) putWeight({ ...prev, deleted_at: t, updated_at: t });
         notify('Weight cleared');
-      } else notify(WEIGHT_BAD);
+      } else notify(WEIGHT_BAD(unit));
     },
     [date, now, notify, putWeight],
   );
