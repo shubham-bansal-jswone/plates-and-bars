@@ -7,7 +7,7 @@ export const CYCLE_WATER_NOTE = 'Water retention is common around now, so the sc
 export const CYCLE_LATE = 'Your period seems later than usual. Log it when it starts.';
 export const CYCLE_DAY = (day: number): string => `Day ${day}`;
 export const CYCLE_OF = (len: number, phase: string): string => ` of about ${len}, ${phase}.`;
-export const CYCLE_SAME_DAY = (date: string, kg: string): string => `Same day last cycle (${date}): ${kg} kg.`;
+export const CYCLE_SAME_DAY = (date: string, weight: string): string => `Same day last cycle (${date}): ${weight}.`;
 export const CYCLE_DATE_LABEL = 'Date your period started';
 export const CYCLE_DATE_PLACEHOLDER = 'YYYY-MM-DD';
 export const CYCLE_DATE_BAD = 'Enter the date as YYYY-MM-DD, today or earlier.';
