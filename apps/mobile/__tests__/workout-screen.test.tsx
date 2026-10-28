@@ -705,6 +705,22 @@ describe('Workout tab: logging sets', () => {
     expect(storedSets(db).some((s) => s.done)).toBe(false);
   });
 
+  it('focuses the first empty field and marks it invalid on a refused tick, clearing it on edit', async () => {
+    await setup();
+    await press('Start Push B');
+    await screen.findByText('Push B');
+    await press('Mark Barbell Bench Press set 1 done');
+    await screen.findByText('Enter the weight and reps first.');
+    const w = screen.getByLabelText('Barbell Bench Press set 1 kg');
+    expect(w.props['aria-invalid']).toBe(true);
+    expect(StyleSheet.flatten(w.props.style)).toMatchObject({ borderColor: expect.any(String), borderWidth: 2, outlineStyle: 'solid', outlineWidth: 2 }); // the focus outline is drawn in danger, not the browser's blue
+    expect(screen.getByLabelText('Barbell Bench Press set 1 reps').props['aria-invalid']).toBeUndefined();
+    await fireEvent.changeText(w, '40');
+    expect(screen.getByLabelText('Barbell Bench Press set 1 kg').props['aria-invalid']).toBeUndefined();
+    await press('Mark Barbell Bench Press set 1 done'); // weight typed; reps fill from the suggestion
+    expect(screen.getByLabelText('Mark Barbell Bench Press set 1 done').props.accessibilityState).toMatchObject({ checked: true });
+  });
+
   it('announces the empty-tick message to screen readers (iOS has no live regions)', async () => {
     const os = Platform.OS;
     const say = jest.spyOn(AccessibilityInfo, 'announceForAccessibility').mockImplementation(() => {});
@@ -966,6 +982,16 @@ describe('Workout tab: first-time ramp', () => {
     expect(ramp[0]).toMatchObject({ exercise: 'Machine Shoulder Press', set_index: 0, weight_kg: 20, reps: 10, done: true, rate: 'right' });
     expect(placeholder('Machine Shoulder Press set 1 kg')).toBe('20');
     expect(screen.getByText(/Working weight found/)).toBeTruthy();
+  });
+
+  it('marks the ramp weight invalid on a refused ramp tick', async () => {
+    await setup();
+    await press('Start Push B');
+    await screen.findByText('Push B');
+    await expand('Machine Shoulder Press');
+    await press('Start the ramp for Machine Shoulder Press');
+    await press('Mark Machine Shoulder Press ramp set 1 done');
+    expect(screen.getByLabelText('Machine Shoulder Press ramp set 1 weight').props['aria-invalid']).toBe(true);
   });
 
   it('shows the Easy note after an Easy ramp set, with the next step, and drops it for a later rating (#823)', async () => {

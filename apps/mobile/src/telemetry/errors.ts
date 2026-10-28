@@ -77,3 +77,11 @@ class KeystoreResetError extends Error {
 export function reportKeystoreResetFailed(): void {
   Sentry.captureException(new KeystoreResetError('keystore reset failed'));
 }
+
+class DbOpenBlockedError extends Error {
+  name = 'DbOpenBlockedError';
+}
+/** The web database could not be opened after the retries (another tab holds it). Carries no text: only the error name reaches the server. */
+export function reportDbOpenBlocked(): void {
+  Sentry.captureException(new DbOpenBlockedError('database open blocked'));
+}

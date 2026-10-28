@@ -9,6 +9,7 @@ import { useTheme } from '../theme/useTheme';
 import { BodyMap } from './BodyMap';
 import { MUSCLE_CODES, muscleName } from './copy';
 import { FALLBACK_TAGS, tagsFromSuggestion } from './suggestTags';
+import { type } from '../theme/tokens';
 import { isBlank } from '../text/blank';
 
 /**
@@ -63,7 +64,7 @@ export function CustomTagsSheet({ name, onSave, onClose }: { name: string; onSav
   return (
     <SheetModal title={name} onClose={onClose}>
       <ScrollView style={{ backgroundColor: c.bg }} contentContainerStyle={styles.sheet}>
-        <Heading level={2} style={{ color: c.ink, fontWeight: '300', fontSize: 22 }}>
+        <Heading level={2} style={[type.heading, { color: c.ink }]}>
           {name}
         </Heading>
         {busy ? (

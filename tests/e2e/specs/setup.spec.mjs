@@ -13,7 +13,7 @@ test('the profile survives a reload and the app opens straight to Targets', asyn
   await page.reload({ waitUntil: 'load' });
   await expect(label(page, 'Redo setup')).toBeVisible({ timeout: 40_000 });
   // The targets are the editable "Daily targets" fields now (#483), so read the calories field's value.
-  await expect(label(page, 'Calories (kcal)')).toHaveValue('1990');
+  await expect(label(page, 'Calories (kcal)')).toHaveValue('1,990');
 });
 
 test('a redo from Targets also ends on Food with the toast', async ({ page }) => {

@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { StyleSheet } from 'react-native';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import type { ApiClient, Schemas } from '@plate-and-bar/api';
 import { AiProvider, KEY_AI_CONSENT } from '../src/ai/AiProvider';
@@ -46,6 +47,11 @@ const pressed = (label: string) => !!screen.getByLabelText(label).props.accessib
 const tap = async (label: string) => fireEvent.press(await screen.findByLabelText(label));
 
 describe('custom exercise tag suggestion', () => {
+  it('the title is a bold heading (#1194)', async () => {
+    await open();
+    expect(Number(StyleSheet.flatten(screen.getByRole('header', { name: 'Pec deck' }).props.style).fontWeight)).toBeGreaterThanOrEqual(600);
+  });
+
   it('with AI on, sends only the name, shows the suggestion on the chips and the body map, and saves it as confirmed', async () => {
     const { POST, onSave } = await open();
     await waitFor(() => expect(POST).toHaveBeenCalledTimes(1));

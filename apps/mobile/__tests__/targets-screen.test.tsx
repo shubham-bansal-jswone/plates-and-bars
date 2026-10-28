@@ -1,5 +1,6 @@
 import { Dimensions } from 'react-native';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { COVER_LOW } from '@plate-and-bar/core';
 import golden from '../../../docs/spec/golden/targets.json';
 import { TargetsScreen } from '../src/screens/TargetsScreen';
 import { saveProfile } from '../src/db/records';
@@ -102,7 +103,7 @@ describe('TargetsScreen', () => {
     await saveProfile(db, goldenProfile());
     await render(withProfile(db, <TargetsScreen db={db} />));
     // The targets are the editable "Daily targets" fields now (prototype tK, tP, tC, tF).
-    expect((await screen.findByLabelText('Calories (kcal)')).props.value).toBe('1990');
+    expect((await screen.findByLabelText('Calories (kcal)')).props.value).toBe('1,990');
     expect(g.output.kcal).toBe(1990);
     expect(screen.getByLabelText('Protein (g)').props.value).toBe(String(g.output.protein));
     expect(screen.getByLabelText('Carbs (g)').props.value).toBe(String(g.output.carbs));
@@ -151,7 +152,7 @@ describe('TargetsScreen', () => {
     const db = memoryDb();
     await saveProfile(db, goldenProfile());
     await render(withProfile(db, <TargetsScreen db={db} />));
-    expect((await screen.findByLabelText('Calories (kcal)')).props.value).toBe('1990');
+    expect((await screen.findByLabelText('Calories (kcal)')).props.value).toBe('1,990');
     // The results block is rendered with `hideTargets`, as prototype `renderTargets` has only the editable
     // fields: the four read-only tiles would repeat the same numbers right above them (#483 review).
     expect(screen.queryByTestId('target-0')).toBeNull();
@@ -348,6 +349,7 @@ describe('TargetsScreen', () => {
       // planned: core's count for the 6-day split, no hard-coded figure here
       const planned = screen.getByLabelText(/^Weekly coverage: your plan, Chest: \d+ sets/);
       expect(planned).toBeTruthy();
+      expect(screen.getByText(`Bars: grey is planned, coloured is done. A low count (under ${COVER_LOW} sets) shows in orange.`)).toBeTruthy(); // legend for the bar colours
       expect(screen.getByLabelText(/^Done in the last 7 days, Calves: 0 sets, low$/)).toBeTruthy();
     });
 

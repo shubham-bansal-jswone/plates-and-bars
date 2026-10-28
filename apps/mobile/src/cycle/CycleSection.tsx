@@ -62,7 +62,7 @@ export function CycleSection({ cycle, date, today, weights, female, notify }: { 
       )}
       <View style={styles.inline}>
         <Field label={CYCLE_DATE_LABEL} placeholder={CYCLE_DATE_PLACEHOLDER} autoCapitalize="none" autoCorrect={false} value={text} onChangeText={setText} />
-        <Button label={CYCLE_LOG} onPress={() => (validStart(text.trim(), today) ? void cycle.logStart(text.trim()) : notify(CYCLE_DATE_BAD))} />
+        <Button kind="ghost" label={CYCLE_LOG} onPress={() => (validStart(text.trim(), today) ? void cycle.logStart(text.trim()) : notify(CYCLE_DATE_BAD))} />
       </View>
       {d.starts.length ? (
         <>
