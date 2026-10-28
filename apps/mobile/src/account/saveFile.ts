@@ -9,7 +9,7 @@ const PREFIX = 'plate-and-bar-';
 /** App start skips files this young: a share target on Android may still be reading a file from the session before. */
 export const RECENT_EXPORT_MS = 10 * 60 * 1000;
 
-/** Native: deletes leftover export files from the cache. Call at app start (with `minAgeMs`), at the start of an
+/** Native: deletes leftover export files, and the picker's copies of restore files, from the cache. Call at app start (with `minAgeMs`), at the start of an
  * export, and on sign-out, delete-everything and "Delete all reports" (no age limit, for privacy). No-op on web. */
 export function clearOldExports(opts: { minAgeMs?: number; now?: number } = {}): void {
   if (Platform.OS === 'web') return;
@@ -23,6 +23,13 @@ export function clearOldExports(opts: { minAgeMs?: number; now?: number } = {}):
     }
   } catch {
     // the cache is only a courtesy to clean
+  }
+  // expo-document-picker copies a picked file (a restore file: all the user's data) into this folder and is the only user of it.
+  try {
+    const picked = new Directory(Paths.cache, 'DocumentPicker');
+    if (picked.exists) picked.delete();
+  } catch {
+    // as above
   }
 }
 

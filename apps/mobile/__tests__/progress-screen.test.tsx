@@ -632,6 +632,8 @@ describe('Weekly check-in, burn and habits', () => {
   it('offers a 4-day plan next week when sessions fall short', async () => {
     const db = memoryDb();
     await setup({ db });
+    // #1271: a suggestion is not the screen's primary action, so it is a ghost button, not the accent fill.
+    expect(StyleSheet.flatten((await screen.findByLabelText('Use a 4-day plan next week')).props.style)).toMatchObject({ backgroundColor: 'transparent' });
     await fireEvent.press(await screen.findByLabelText('Use a 4-day plan next week'));
     await waitFor(() => expect(JSON.parse(db.rows.get('user_settings:me')!).adjustments.weekPlan).toEqual({ start: '2026-10-12', list: ['Upper A', 'Lower A', 'Upper B', 'Lower B'] }));
   });

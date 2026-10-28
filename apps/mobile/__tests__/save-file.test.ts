@@ -7,6 +7,8 @@ const mockFiles: Fake[] = [];
 const mockEvents: string[] = [];
 let mockShare: () => Promise<void> = async () => undefined;
 let mockListed: unknown[] = [];
+let mockPickerDeleted = false;
+let mockPickerDir: unknown = null;
 
 jest.mock('expo-sharing', () => ({ isAvailableAsync: async () => true, shareAsync: () => (mockEvents.push('share'), mockShare()) }));
 jest.mock('expo-file-system', () => {
@@ -28,6 +30,13 @@ jest.mock('expo-file-system', () => {
     }
   }
   class Directory {
+    exists = true;
+    constructor(_base?: unknown, name?: string) {
+      if (name === 'DocumentPicker') mockPickerDir = this;
+    }
+    delete() {
+      mockPickerDeleted = true;
+    }
     list() {
       return mockListed;
     }
@@ -43,6 +52,8 @@ beforeEach(() => {
   mockFiles.length = 0;
   mockEvents.length = 0;
   mockListed = [];
+  mockPickerDeleted = false;
+  mockPickerDir = null;
   mockShare = async () => undefined;
 });
 
@@ -80,6 +91,13 @@ describe('export files in the cache (security review L10)', () => {
     clearOldExports();
     expect(mine.deleted).toBe(true);
     expect(other.deleted).toBe(false);
+  });
+
+  it('also removes the document picker cache folder, which holds copies of restore files', () => {
+    Platform.OS = 'android';
+    clearOldExports();
+    expect(mockPickerDir).not.toBeNull();
+    expect(mockPickerDeleted).toBe(true);
   });
 
   it('with minAgeMs, skips files changed within that time and deletes older ones', () => {
