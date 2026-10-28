@@ -43,6 +43,8 @@ class ExportGoldenIT extends SyncITBase {
                 "{\"name\":\"Poha \\\"special\\\" \\u00fc \\ud83c\\udf5b\",\"kcal\":291.5,\"protein_g\":6,\"meal\":\"b\",\"qty\":1}");
         row("weights", rid(300), 2, "2026-10-07 05:00:00.000", null, 2, "{\"date\":\"2026-10-07\",\"kg\":62.5}");
         row("settings", rid(400), 1, "2026-10-08 06:00:00.000", null, 9, "{\"unit\":\"kg\",\"nested\":{\"b\":[1,2,{\"c\":null}],\"a\":true}}");
+        row("routines", rid(500), 2, "2026-10-08 07:00:00.000", "2026-10-08 08:00:00.000", 10,
+                "{\"name\":\"Upper \\u00fc\",\"exercises\":[{\"name\":\"Squat\",\"sets\":3,\"group\":\"a\"}],\"created_at\":\"2026-10-08T06:00:00Z\"}");
         jdbc.update(
                 "INSERT INTO sync_conflicts (user_id, table_name, record_id, loser, version, winner_version, updated_at,"
                         + " deleted_at, record, logged_at) VALUES (?, 'water_logs', ?, 'client', 1, 2, '2026-10-08 10:00:00.000',"

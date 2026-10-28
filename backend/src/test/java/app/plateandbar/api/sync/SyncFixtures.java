@@ -143,7 +143,14 @@ final class SyncFixtures {
                  'water_sizes':{'glass_ml':250,'bottle_ml':1000},'exercise_overrides':{},'flex':[],'returning':{},
                  'ladder_stay':{},'checkin_seen':null,'adjustments':{},'adaptive':{},'learn':{},'meal_plan':null,'prep':[]}"""),
                 naturalId(userId, "settings", "me"), 0, updatedAt, null));
+        m.put(SyncTable.routines, routine(id(), 0, updatedAt, null, "Upper A"));
         return m;
+    }
+
+    static ObjectNode routine(String id, int version, String updatedAt, String deletedAt, String name) {
+        ObjectNode f = obj("{'created_at':'2026-10-08T06:00:00Z','exercises':[{'name':'Barbell Bench Press','sets':3},{'name':'Pull-up','sets':4}]}");
+        f.put("name", name);
+        return withMeta(f, id, version, updatedAt, deletedAt);
     }
 
     static JsonNode copy(JsonNode n) {
