@@ -152,9 +152,9 @@ export function draftFromProfile(p: Profile): Draft {
 }
 
 /**
- * Recalculate keeps the stored height (prototype `su-recalc` skips `validateStep`): when the height fields still hold
- * what `draftFromProfile` filled in, the answers carry the stored cm instead of the rounded feet and inches.
- * Once any height field is edited, the form's height is used.
+ * Any redo keeps the stored height (it was first the prototype `su-recalc` rule; now it applies to every redo, see #1224):
+ * when the height fields still hold what `draftFromProfile` filled in, the answers carry the stored cm instead of the
+ * rounded feet and inches. Once any height field is edited, the form's height is used.
  */
 export function keepStoredHeight(d: Draft, stored: Profile): Draft {
   const filled = draftFromProfile(stored);

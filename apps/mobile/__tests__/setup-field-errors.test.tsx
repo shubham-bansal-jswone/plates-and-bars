@@ -1,6 +1,7 @@
-import { fireEvent, render, screen } from '@testing-library/react-native';
+import { fireEvent, render, screen, within } from '@testing-library/react-native';
 import { View } from 'react-native';
 import { SetupScreen } from '../src/screens/SetupScreen';
+import { SCREEN_Q } from '../src/setup/copy';
 import { emptyDraft, stepErrors, validateStep } from '../src/setup/logic';
 import { memoryDb, withProfile } from './helpers';
 
@@ -65,6 +66,40 @@ describe('setup all errors at once', () => {
     expect(screen.getByLabelText('Sex', { exact: true }).props['aria-invalid']).toBe(true);
     expect(screen.getByLabelText('Sex', { exact: true }).props.accessibilityHint).toBe('Choose male or female for the calorie formula.');
     for (const l of ['Age', 'Height feet', 'Height inches', 'Weight in kg']) expect(screen.getByLabelText(l).props['aria-invalid']).toBe(true);
+  });
+});
+
+describe('setup health check focus', () => {
+  it('focuses the "No" of the first unanswered question, not an answered one', async () => {
+    await render(withProfile(memoryDb(), <SetupScreen />));
+    await screen.findByText('Before you start');
+    const press = async (l: string) => fireEvent.press(screen.getByLabelText(l));
+    await fireEvent(screen.getByLabelText('I understand and agree to my data being stored as described'), 'valueChange', true);
+    await press('Continue');
+    await screen.findByText('Let’s work out your targets');
+    await press('Male');
+    await fireEvent.changeText(screen.getByLabelText('Age'), '30');
+    await press('Use cm');
+    await fireEvent.changeText(screen.getByLabelText('Height in cm'), '165');
+    await fireEvent.changeText(screen.getByLabelText('Weight in kg'), '82');
+    await press('Continue');
+    await press('Mostly sitting. Desk job, little walking (under ~5,000 steps)');
+    await press('Continue');
+    await press('6');
+    await press('At a gym. Machines, cables, barbells and dumbbells');
+    await press('Some experience. 6 months to 2 years of regular training');
+    await press('60 min');
+    await press('Continue');
+    await press('Lose fat. Steady fat loss while keeping muscle');
+    for (const q of SCREEN_Q.slice(0, SCREEN_Q.length - 1)) await fireEvent.press(within(screen.getByLabelText(q)).getByLabelText('No'));
+    const focus = jest.spyOn(View.prototype as never, 'focus' as never);
+    focus.mockClear();
+    await press('See my targets');
+    // Exactly one control was focused, a "No" that is still unchecked. Q1-Q4 are answered, so it can only be Q5's.
+    const focused = focus.mock.contexts.map((c) => c as { props: { accessibilityLabel?: string; accessibilityState?: { checked?: boolean } } });
+    expect(focused.map((c) => c.props.accessibilityLabel)).toEqual(['No']);
+    expect(focused[0]?.props.accessibilityState?.checked).toBe(false);
+    focus.mockRestore();
   });
 });
 
