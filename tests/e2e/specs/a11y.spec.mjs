@@ -106,7 +106,7 @@ const screens = {
   },
   progress: async (page) => {
     // Log one food first so the Seven days card has a logged day: a kcal and protein chip over a fill, which a blank
-    // week never draws (#1204). The bar's label starts with today's name and has a "kcal" figure only when logged.
+    // week never draws (#1204). Today is Monday (the pinned test clock), and a bar's label has a "kcal" figure only when logged; hidden tabs are filtered out.
     await tab(page, 'Food');
     await label(page, '+ Add to breakfast').click();
     await page.locator('[aria-label^="Roti / chapati"]').first().click();
@@ -114,7 +114,7 @@ const screens = {
     await expect(label(page, '102 of 1,990 kcal eaten')).toBeVisible();
     await tab(page, 'Progress');
     await expect(label(page, 'Save weight')).toBeVisible();
-    await expect(page.locator('[role=img][aria-label*=" kcal, "]')).toHaveCount(1);
+    await expect(page.locator('[role=img][aria-label^="Mon, "][aria-label*=" kcal, "] >> visible=true')).toHaveCount(1);
   },
   targets: async (page) => {
     await tab(page, 'Targets');
