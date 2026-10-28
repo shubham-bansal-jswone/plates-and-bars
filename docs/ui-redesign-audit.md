@@ -66,7 +66,7 @@ Tab bar: `app/(tabs)/_layout.tsx`: four tabs (Food, Workout, Progress, Targets),
 
 | Flow | Path in code | Result |
 |---|---|---|
-| First open | `Gate` -> `/setup` -> `SetupFlow.saveSetup` -> `router.replace('/')` | Lands on **Food**, toast "Targets updated" |
+| First open | `Gate` -> `/setup` -> `SetupFlow.saveSetup` -> `router.replace('/')` | Lands on **Food**, no toast after first setup (a redo of setup still toasts; #1233) |
 | See today's plan | `WorkoutScreen` -> `StartView`; plan from core `planned()` + `nextInList` | Fixed weekdays by default; "run in order" mode after misses (`ModeNote`) |
 | Preview another day / hand-pick | `previewT`, `picked`, `AddExerciseFlow` (`workout/AddExerciseFlow.tsx`) | Nothing stored until Start (comment cites #1005) |
 | Start | `w.start(template, ci, choice, override)` / `w.startPicked` in `workout/useWorkoutDay.ts` (803 lines) | Builds session with `buildSession` (core rules), saves a `workouts` record |
