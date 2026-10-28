@@ -697,6 +697,14 @@ export { seededSession } from './seeded';
 export type { SeededSession, SeededSessionInput } from './seeded';
 
 /**
+ * - `routineFromSession` and `startRoutine` are new (#1184, ADR 011), not prototype ports (no prototype behaviour, no golden
+ *   fixture): the exercises to store for a saved routine, and a hand-picked session from one, with `seededSession`'s
+ *   check-in, re-entry and deload adjustments on the stored set counts.
+ */
+export { routineFromSession, startRoutine, ROUTINE_EXERCISES_MAX, ROUTINE_SETS_MIN, ROUTINE_SETS_MAX } from './routines';
+export type { RoutineExercise, StartRoutineInput, StartedRoutine } from './routines';
+
+/**
  * Meal photo rules (#1011). `capPhotoItems` mirrors `raw.slice(0, 12)` and `clampPhotoServings` the 0.25 to 6 clamp in prototype
  * `analysePhoto`; `photoMacros` mirrors `phMacros`; `photoLogQty` and `photoEstimateLog` the `r1` / `Math.round` amounts in `ph-add`;
  * `stepPhotoAdj` the 0.5 to 2 step 0.25 portion slider; `photoAdjLabel` its `r1(it.adj)` label.
