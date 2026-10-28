@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { BackHandler, FlatList, StyleSheet, View } from 'react-native';
+import { Skeleton } from '../components/Skeleton';
 import { Text } from '../components/Text';
 import { useBottomInset } from '../components/bottomInset';
-import { a11yState, Button, COLUMN_MAX, Chip, Field, H1, Hint, Label, layout, Press } from '../components/ui';
+import { a11yState, Button, COLUMN_MAX, Chip, Field, H1, Hint, Label, layout, Page, Press } from '../components/ui';
 import { radius, space, type } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { ExerciseFigure, hasFigure } from '../workout/ExerciseFigure';
@@ -64,13 +65,20 @@ function Row({ e, onOpen }: { e: LibraryExercise; onOpen: () => void }) {
   );
 }
 
+const NONE: readonly LibraryExercise[] = [];
+
 /** Browse the exercise content: search by name, filter by equipment, main muscle and type, open one for its drawing and notes. Works offline. */
-export function ExerciseLibraryScreen({ onBack, list = getLibrary(), session }: { onBack: () => void; list?: readonly LibraryExercise[]; session?: SessionTarget }) {
+export function ExerciseLibraryScreen({ onBack, list: given, session }: { onBack: () => void; list?: readonly LibraryExercise[]; session?: SessionTarget }) {
   const c = useTheme();
   const bottom = useBottomInset();
   const [f, setF] = useState<LibraryFilter>(NO_FILTER);
   const [open, setOpen] = useState<string | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  // Cold load: the first paint is the skeleton, the content is read after it (a `list` passed in is shown at once).
+  const [ready, setReady] = useState(!!given);
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- deliberate: flips after the first paint so the skeleton shows before the list is built
+  useEffect(() => setReady(true), []);
+  const list = given ?? (ready ? getLibrary() : NONE);
   const shown = useMemo(() => filterLibrary(list, f), [list, f]);
   const picked = open ? list.find((e) => e.name === open) : undefined;
   // Android hardware back closes the detail and returns to the list.
@@ -86,6 +94,7 @@ export function ExerciseLibraryScreen({ onBack, list = getLibrary(), session }: 
   if (f.equipment) active.push(['equipment', equipmentLabel(f.equipment)]);
   if (f.muscle) active.push(['muscle', muscleLabel(f.muscle)]);
   if (f.type) active.push(['type', typeLabel(f.type)]);
+  if (!ready) return <View role="main" aria-busy style={{ flex: 1, backgroundColor: c.bg }}><Page><Skeleton heights={[56, 56, 56, 56, 56]} /></Page></View>;
   if (picked) return <ExerciseDetail exercise={picked} onBack={() => setOpen(null)} {...(session ? { session } : {})} />;
   return (
     <FlatList
