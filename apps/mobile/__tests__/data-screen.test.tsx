@@ -139,7 +139,7 @@ describe('data screen (#27)', () => {
   it('says the photos and lab data stay on this device once, not twice, when signed in', async () => {
     await show({ signedIn: true }, consented());
     await screen.findByText('Saved privately to your account.');
-    expect(screen.getAllByText(/photos and lab data are not in it; they stay on this device/i)).toHaveLength(1);
+    expect(screen.getAllByText(/photos \(progress and kitchen test\) are not in it; they stay on this device/i)).toHaveLength(1);
   });
 
   it('adds "Some changes are waiting to sync." while the queue holds records, and drops it when it empties', async () => {
