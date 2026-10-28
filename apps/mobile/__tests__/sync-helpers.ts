@@ -84,6 +84,10 @@ export function fakeServer(userId: string) {
     force400: [] as ({ field?: unknown; issue: string }[] | undefined)[],
     /** Answers 400 `invalid_request` naming every pushed record this returns a field for (the request applies nothing). */
     rejectIf: null as null | ((table: string, rec: Rec) => string | null),
+    /** Tables this server does not implement (#1281): each pushed record of one is refused with 400 `unsupported_table`, the rest applies on a later request. */
+    unsupported: [] as string[],
+    /** The 100-routine cap with a smaller number for tests: a pushed routine that is new, live and over it is refused with 400 `too_many_routines`. */
+    maxLiveRoutines: null as null | number,
     /** The request size limit in bytes (the contract's 2 MB); a larger body is refused with 400 `too_large` and no record named. */
     maxBytes: 2_097_152,
     /** What an over-limit body is answered with: the contract's 400, or 413 as a proxy in front of the API may. */
@@ -164,6 +168,14 @@ export function fakeServer(userId: string) {
         const details = s.force400.shift();
         return json(400, { code: 'invalid_request', message: 'Some fields are invalid.', ...(details ? { details } : {}) });
       }
+      if (s.unsupported.length || s.maxLiveRoutines !== null) {
+        const details = Object.entries(body.changes ?? {}).flatMap(([table, recs]) => recs.flatMap((r, i) => {
+          if (s.unsupported.includes(table)) return [{ field: `changes.${table}[${i}]`, issue: 'unsupported_table' }];
+          const live = [...store.entries()].filter(([k, v]) => k.startsWith('routines:') && !v.deleted_at).length;
+          return table === 'routines' && s.maxLiveRoutines !== null && !store.has(`routines:${r.id}`) && !r.deleted_at && live >= s.maxLiveRoutines ? [{ field: `changes.${table}[${i}]`, issue: 'too_many_routines' }] : [];
+        }));
+        if (details.length) return json(400, { code: 'invalid_request', message: 'Some fields are invalid.', details });
+      }
       if (s.rejectIf) {
         const details = Object.entries(body.changes ?? {}).flatMap(([table, recs]) => recs.flatMap((r, i) => {
           const f = s.rejectIf?.(table, r);
@@ -224,6 +236,8 @@ export function fakeServer(userId: string) {
 export async function seedConsent(db: StoreDb): Promise<void> {
   await db.runAsync("INSERT INTO consents (key, data) VALUES ('c1', ?)", JSON.stringify({ id: 'c1', version: 1, updated_at: '2026-10-01T00:00:00.000Z', deleted_at: null, kind: 'data_storage', given_at: '2026-10-01T00:00:00.000Z', text_version: '1' }));
   await db.runAsync('DELETE FROM sync_outbox');
+  // The one-time full re-pull after the routines upgrade (ADR 011) is done: tests that seed a cursor keep it.
+  await db.runAsync("INSERT OR REPLACE INTO settings (key, value) VALUES ('sync.routines_pulled', '1')");
 }
 
 /**

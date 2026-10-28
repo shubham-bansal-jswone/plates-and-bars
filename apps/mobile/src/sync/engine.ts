@@ -6,11 +6,11 @@ import type { Workout } from '../workout/types';
 import type { StoreDb } from '../db/records';
 import { InvalidRecord, buildRecord, normalizeTimestamps, patchMeta, resolveOrphanSets, sameContent, setWorkoutDate, storeRecord, localKey, type Doc, type PullCtx } from './records';
 import { BODY_BUDGET_BYTES, BodySize, MAX_BODY_BYTES, utf8Length } from './batch';
-import { quarantine } from './quarantine';
+import { quarantine, retryUnsupported } from './quarantine';
 import { forgetBase, restoreBases, setBase, takeBases } from './base';
 import { clearAccountFull, forgetSent, heldEntries, holdEntries, isAccountFull, markSent, setAccountFull, stampOf, touchHeld, unmarkSent, wasSent } from './held';
 import { withTimeout, REFRESH_TIMEOUT_MS, REQUEST_TIMEOUT_MS } from './timeout';
-import { KEY_CURSOR, getCursor, getUserId, setKv } from './store';
+import { KEY_CURSOR, KEY_ROUTINES_PULLED, getCursor, getKv, getUserId, setKv } from './store';
 import type { TokenStore } from './tokens';
 import { signInUnavailable, takeAttempt, trackCookieCall } from './cookieHealth';
 import { authInit, cookieMode, refreshBody } from './transport';
@@ -78,7 +78,7 @@ export interface SyncDeps {
 }
 
 // Pulled records go in this order so a workout is stored before its sets.
-const ORDER: SyncTableName[] = ['workouts', 'workout_sets', 'profiles', 'consents', 'food_logs', 'water_logs', 'day_notes', 'lift_stats', 'weights', 'measurements', 'user_foods', 'recipes', 'kitchen_tests', 'exclusions', 'swaps', 'settings'];
+const ORDER: SyncTableName[] = ['workouts', 'workout_sets', 'profiles', 'consents', 'food_logs', 'water_logs', 'day_notes', 'lift_stats', 'weights', 'measurements', 'user_foods', 'recipes', 'kitchen_tests', 'exclusions', 'swaps', 'settings', 'routines'];
 const MAX_ROUNDS = 40;
 /** Rounds per run that may be spent setting refused records aside without counting against MAX_ROUNDS (each costs one request). */
 const MAX_ASIDE_ROUNDS = 40;
@@ -96,7 +96,7 @@ const MAX_HELD_BATCHES = 50;
 const DAY_MS = 86_400_000;
 
 type Guard = (db: StoreDb) => Promise<void>;
-type Failure = { ok: false; result: SyncResult; /** A 400, or a 413 that is not `account_full`: the request was refused whole and nothing in it was stored. */ refused?: true; /** For a 400: the `details[].field` paths the server named. */ fields?: string[]; /** A 400 `too_large`: the body was over the size limit, and no record is named. */ tooLarge?: boolean; /** A 413 whose body is the `account_full` error (a 413 with any other body is a proxy refusing the size). */ accountFull?: { /** `record_cap.new_records`: how many records in the refused request the server does not store; unknown when absent. */ newRecords?: number } };
+type Failure = { ok: false; result: SyncResult; /** A 400, or a 413 that is not `account_full`: the request was refused whole and nothing in it was stored. */ refused?: true; /** For a 400: the `details[].field` paths the server named. */ fields?: string[]; /** A 400 `too_large`: the body was over the size limit, and no record is named. */ tooLarge?: boolean; /** For a 400: the paths the server refused with `unsupported_table`. */ unsupported?: string[]; /** A 413 whose body is the `account_full` error (a 413 with any other body is a proxy refusing the size). */ accountFull?: { /** `record_cap.new_records`: how many records in the refused request the server does not store; unknown when absent. */ newRecords?: number } };
 type Outcome<T> = { ok: true; data: T } | Failure;
 const fail = (status: SyncStatus, retryAfterSec?: number): Failure => ({ ok: false, result: { status, conflicts: 0, ...(retryAfterSec ? { retryAfterSec } : {}) } });
 
@@ -111,7 +111,8 @@ function failFrom(res: Response, body?: unknown): Failure {
   if (res.status === 400 && error?.code === 'invalid_request' && Array.isArray(error.details)) {
     const fields = error.details.flatMap((d) => (typeof d?.field === 'string' ? [d.field] : []));
     const tooLarge = error.details.some((d) => (d as { issue?: unknown } | null)?.issue === 'too_large');
-    return { ...fail('rejected'), refused: true, fields, ...(tooLarge ? { tooLarge } : {}) };
+    const unsupported = error.details.flatMap((d) => ((d as { issue?: unknown } | null)?.issue === 'unsupported_table' && typeof d?.field === 'string' ? [d.field] : []));
+    return { ...fail('rejected'), refused: true, fields, ...(tooLarge ? { tooLarge } : {}), ...(unsupported.length ? { unsupported } : {}) };
   }
   // Any other 413: a proxy in front of the API refusing a large body before the server sees it, the same as `too_large`.
   if (res.status === 413) return { ...fail('rejected'), refused: true, tooLarge: true };
@@ -349,9 +350,12 @@ async function putBackBases(db: PullDb, bases: Map<string, Workout>, guard: Guar
 let running: Promise<SyncResult> | null = null;
 /** When held records were last retried in this app run, per user: due on launch (nothing yet), then at most once a day. */
 let heldTried: { user: string; at: number } | null = null;
+/** When records set aside for `unsupported_table` were last retried in this app run, per user: due on launch, then at most once a day. */
+let unsupportedTried: { user: string; at: number } | null = null;
 /** Makes the next run retry held records, as a fresh app launch does. */
 export function forgetHeldRetry(): void {
   heldTried = null;
+  unsupportedTried = null;
 }
 let pauses = 0; // a counter, so overlapping pauses nest: sync resumes only when the last one ends
 
@@ -405,6 +409,7 @@ async function run(d: SyncDeps): Promise<SyncResult> {
   const guard: Guard = async (db) => {
     if (pauses > 0 || (await getUserId(db)) !== userId) throw new Aborted();
   };
+  const now = d.now ?? Date.now;
   let conflicts = 0;
   let pulled = 0;
   let pushed = 0;
@@ -414,7 +419,6 @@ async function run(d: SyncDeps): Promise<SyncResult> {
   let splitRounds = 0;
   let halvings = 0;
   let cap = MAX_PUSH; // records per request; halved when the server says a request was too large
-  const now = d.now ?? Date.now;
   let full = await isAccountFull(d.db); // see sync/held.ts
   let phase: 'main' | 'held' = 'main'; // 'held': retrying held records in small batches, after everything else
   let sessionStamp = '';
@@ -427,6 +431,20 @@ async function run(d: SyncDeps): Promise<SyncResult> {
   // drop what another device stored for the day, and the server does not send the loser's copy back.
   let prePull = false;
   try {
+    // ADR 011: an app build that predates the routines table moved its cursor past `routines` changes it ignored. Once, after the upgrade,
+    // start the pull from the beginning. (A device with no cursor pulls everything already.) The marker is set in the same transaction.
+    if ((await getKv(d.db, KEY_ROUTINES_PULLED)) === null) {
+      await inTransaction(d.db, async (txn) => {
+        await guard(txn);
+        await txn.runAsync('DELETE FROM settings WHERE key = ?', KEY_CURSOR);
+        await setKv(txn, KEY_ROUTINES_PULLED, '1');
+      });
+    }
+    // ADR 011: records the server refused as `unsupported_table` are tried again, in case it was upgraded since.
+    if (!unsupportedTried || unsupportedTried.user !== userId || now() - unsupportedTried.at >= DAY_MS) {
+      await retryUnsupported(d.db, guard);
+      unsupportedTried = { user: userId, at: now() };
+    }
     prePull = await hasPending(d.db, 'workouts');
     // Web after a reload (or a refresh that could not finish): no access token in memory, so restore it from the cookie first.
     if (cookieMode() && !(await d.tokens.load()) && !(await refreshForRun(d, userId))) return { status: 'signed_out', conflicts: 0 };
@@ -571,7 +589,7 @@ async function run(d: SyncDeps): Promise<SyncResult> {
           const bad = m ? order[m[1] as string]?.[Number(m[2])] : undefined;
           if (!bad || seen.has(bad.seq)) continue;
           seen.add(bad.seq);
-          if (await quarantine(d.db, bad, f, guard)) aside++;
+          if (await quarantine(d.db, bad, f, guard, out.unsupported?.includes(f))) aside++;
         }
         if (aside > 0) {
           quarantined += aside;

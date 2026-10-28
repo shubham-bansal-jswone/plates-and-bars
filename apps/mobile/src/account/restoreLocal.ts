@@ -7,6 +7,7 @@ import { NO_USER, type LocalExport } from './exportLocal';
 import { InvalidRecord, normalizeTimestamps, storeRecord, type Doc } from '../sync/records';
 import { naturalId } from '../sync/ids';
 import { getLiftVersion } from '../sync/store';
+import { ROUTINE_LIMITS } from '../db/routines';
 import { deleteKitchenPhoto } from '../photos/vault';
 
 // Restore from a device export file (#1177). It merges by record id using the record version and tombstones, the rule sync
@@ -23,7 +24,7 @@ const UNSAFE_KEYS: ReadonlySet<string> = new Set(['__proto__', 'constructor', 'p
 /** Consent is never restored from a file: the user gives it on this device. */
 const SKIPPED: ReadonlySet<SyncTableName> = new Set<SyncTableName>(['consents']);
 /** Parents before children, as sync stores them. */
-const ORDER: SyncTableName[] = ['workouts', 'workout_sets', 'profiles', 'consents', 'food_logs', 'water_logs', 'day_notes', 'lift_stats', 'weights', 'measurements', 'user_foods', 'recipes', 'kitchen_tests', 'exclusions', 'swaps', 'settings'];
+const ORDER: SyncTableName[] = ['workouts', 'workout_sets', 'profiles', 'consents', 'food_logs', 'water_logs', 'day_notes', 'lift_stats', 'weights', 'measurements', 'user_foods', 'recipes', 'kitchen_tests', 'exclusions', 'swaps', 'settings', 'routines'];
 /** The record field that is the local key; the tables not listed are keyed by their random `id`, and profiles and settings by 'me'. */
 const KEY_FIELD: Partial<Record<SyncTableName, string>> = { day_notes: 'date', workouts: 'date', weights: 'date', measurements: 'date', lift_stats: 'exercise', swaps: 'from' };
 
@@ -92,6 +93,7 @@ function shapeOk(tbl: SyncTableName, key: string, rec: Doc): boolean {
   // A live lift stat is core's record shape: its day and its sets. A tombstone carries neither.
   if (tbl === 'lift_stats') return !!key && (rec.deleted_at != null || (isYmd(rec.date) && Array.isArray(rec.sets)));
   if (tbl === 'swaps') return key.length > 0;
+  if (tbl === 'routines') return UUID.test(key) && typeof rec.name === 'string' && Array.isArray(rec.exercises);
   if (tbl === 'profiles' || tbl === 'settings') return true;
   return UUID.test(key);
 }
@@ -157,6 +159,8 @@ export interface TableCounts {
   conflicts: number;
   /** Same version and time: nothing to do. */
   same: number;
+  /** Routines only: live routines that would take this device past 100. The first that fit are stored, these are skipped. */
+  overCap?: number;
   /** First and last day among the file's rows of this table that have a date. */
   from?: string;
   to?: string;
@@ -189,7 +193,12 @@ interface Merged extends Omit<RestoreSummary, 'differentAccount'> {
 async function merge(db: WorkoutDb, parsed: ParsedRestore, apply: boolean, addOnly: boolean): Promise<Merged> {
   const deletedKitchen: string[] = [];
   const tables: RestoreSummary['tables'] = {};
-  for (const { tbl, key, rec, setDate } of parsed.rows) {
+  // Live routines by key, kept up to date as rows are (or would be) stored, so the 100 cap holds for the whole file.
+  const live = new Set<string>();
+  for (const r of await db.getAllAsync<{ key: string; data: string }>("SELECT key, data FROM routines WHERE json_valid(data) AND json_extract(data, '$.deleted_at') IS NULL")) live.add(r.key);
+  // Routine tombstones go first, so one frees its slot before new routines are counted against the cap whatever the file order.
+  const rows = [...parsed.rows].sort((a, b) => Number(b.tbl === 'routines' && !!b.rec.deleted_at) - Number(a.tbl === 'routines' && !!a.rec.deleted_at));
+  for (const { tbl, key, rec, setDate } of rows) {
     if (SKIPPED.has(tbl)) continue;
     const c = (tables[tbl] ??= zero());
     if (typeof rec.date === 'string') {
@@ -204,6 +213,14 @@ async function merge(db: WorkoutDb, parsed: ParsedRestore, apply: boolean, addOn
     else {
       const doc = JSON.parse(row.data) as Doc;
       outcome = compare(rec, { version: tbl === 'lift_stats' ? await getLiftVersion(db, key) : Number(doc.version ?? 0), at: tbl === 'lift_stats' ? null : stamp(doc) });
+    }
+    if (tbl === 'routines' && (outcome === 'added' || outcome === 'newer')) {
+      if (!rec.deleted_at && !live.has(key) && live.size >= ROUTINE_LIMITS.maxLive) {
+        c.overCap = (c.overCap ?? 0) + 1; // ADR 011: the server would refuse it; skipped here instead
+        continue;
+      }
+      if (rec.deleted_at) live.delete(key);
+      else live.add(key);
     }
     c[outcome]++;
     // The table triggers queue the write, so it syncs up like any edit made here.

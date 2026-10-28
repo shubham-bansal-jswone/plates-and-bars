@@ -291,6 +291,7 @@ describe('deletion notice', () => {
       kitchen_tests: 'kitchen tests',
       exclusions: 'exclusions',
       swaps: 'swaps',
+      routines: 'saved routines',
       settings: 'settings',
     };
     expect(Object.keys(named).sort()).toEqual(Object.keys(SYNC_TABLES).sort());
