@@ -159,7 +159,7 @@ function ListTab({ mine, mineFacts, onAdd, say, canDescribe, onScan, onScanLabel
       </View>
       <Hint>{GRAMS_HINT}</Hint>
       <View style={styles.row}>
-        <Field label="Search foods" placeholder="Search roti, paneer, whey…" value={q} onChangeText={setQ} style={[styles.search, styles.fill]} />
+        <Field label="Search foods" placeholder="Search roti, paneer, whey…" value={q} onChangeText={setQ} style={styles.fill} />
         {onScan ? <Button kind="ghost" label={BARCODE_COPY.scanButton} a11yLabel={BARCODE_COPY.scanButtonA11y} onPress={onScan} /> : null}
         {onScanLabel ? <Button kind="ghost" label={LABEL_COPY.entry} a11yLabel={LABEL_COPY.entryA11y} onPress={onScanLabel} /> : null}
       </View>
@@ -198,8 +198,8 @@ function EatOutTab({ onAdd, say }: { onAdd: (n: NewLog) => void; say: Say }) {
 }
 
 /** A visible caption over one field of the custom-food grid; the caption text is the field's accessible name. */
-function Captioned({ label, children }: { label: string; children: ReactNode }) {
-  return <View style={styles.captioned}><Caption>{label}</Caption>{children}</View>;
+function Captioned({ label, wide, children }: { label: string; wide?: boolean; children: ReactNode }) {
+  return <View style={[styles.captioned, wide ? styles.captionedWide : null]}><Caption>{label}</Caption>{children}</View>;
 }
 
 function CustomTab({ meal, onAdd, onSaveMine, onClose, say, barcode }: { barcode: string | null; meal: string; onAdd: (n: NewLog) => void; onSaveMine: Props['onSaveMine']; onClose: () => void; say: Say }) {
@@ -219,9 +219,9 @@ function CustomTab({ meal, onAdd, onSaveMine, onClose, say, barcode }: { barcode
     <View style={styles.gap}>
       {barcode ? <Hint>{`${BARCODE_COPY.customCode} ${barcode}`}</Hint> : null}
       <Caption>Food</Caption>
-      <Field label="Food" placeholder="e.g. Office canteen thali" value={f.name} onChangeText={set('name')} style={styles.wide} />
+      <Field label="Food" placeholder="e.g. Office canteen thali" value={f.name} onChangeText={set('name')} />
       <View style={styles.row}>
-        <Captioned label="Calories (kcal)"><Field label="Calories (kcal)" placeholder="auto from macros" keyboardType="decimal-pad" value={f.kcal} onChangeText={set('kcal')} style={styles.fieldFill} /></Captioned>
+        <Captioned label="Calories (kcal)" wide><Field label="Calories (kcal)" placeholder="auto from macros" keyboardType="decimal-pad" value={f.kcal} onChangeText={set('kcal')} style={styles.fieldWide} /></Captioned>
         <Captioned label="Servings"><Field label="Servings" keyboardType="decimal-pad" value={f.qty} onChangeText={set('qty')} style={styles.fieldFill} /></Captioned>
         <Captioned label="Protein (g)"><Field label="Protein (g)" keyboardType="decimal-pad" value={f.protein} onChangeText={set('protein')} style={styles.fieldFill} /></Captioned>
         <Captioned label="Carbs (g)"><Field label="Carbs (g)" keyboardType="decimal-pad" value={f.carbs} onChangeText={set('carbs')} style={styles.fieldFill} /></Captioned>
@@ -250,8 +250,8 @@ const styles = StyleSheet.create({
   food: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: radius.md, padding: 16, minHeight: 56 },
   fill: { flex: 1 },
   foodHead: { flexDirection: 'row', alignItems: 'baseline', gap: 8 },
-  search: { maxWidth: undefined },
-  wide: { maxWidth: undefined },
   captioned: { gap: 4, minWidth: 90, flexGrow: 1, maxWidth: 160 },
-  fieldFill: { maxWidth: undefined, flexGrow: 0 },
+  captionedWide: { maxWidth: '100%', flexBasis: '100%' },
+  fieldFill: { flexGrow: 0 },
+  fieldWide: { flexGrow: 0, maxWidth: '100%' },
 });
