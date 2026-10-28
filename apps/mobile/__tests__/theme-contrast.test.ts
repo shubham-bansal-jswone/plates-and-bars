@@ -55,6 +55,10 @@ describe.each([['light', light], ['dark', dark]] as const)('%s palette', (_mode,
   it.each(['bar', 'caution'] as const)('%s fill at 0.85 opacity over track is at least 3:1', (k) => {
     expect(contrast(blend(p[k], p.track, 0.85), p.track)).toBeGreaterThanOrEqual(3);
   });
+  // #1190: Seven-days labels sit on a `bg` chip, so they never meet the fill (lime, blue, caution). bar-colours.test.tsx asserts the chip.
+  it('Seven-days label ink on its bg chip is at least 4.5:1', () => {
+    expect(contrast(p.ink, p.bg)).toBeGreaterThanOrEqual(4.5);
+  });
   it('body map also-working fill is at least 3:1 against an untargeted region', () => {
     expect(contrast(alsoFill(p), p.surfaceSoft)).toBeGreaterThanOrEqual(3);
   });
