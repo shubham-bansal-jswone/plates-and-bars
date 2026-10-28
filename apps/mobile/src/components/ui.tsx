@@ -301,8 +301,7 @@ const NUMERIC_KEYBOARDS = ['numeric', 'decimal', 'decimal-pad', 'number-pad'];
 
 /** Text fields fill their column; numeric fields (by `inputMode` or `keyboardType`) stay at most 160px wide. Layout in `style` still wins. */
 export function Field({ label, invalid, describedBy, style, ...rest }: TextInputProps & { ref?: Ref<ComponentRef<typeof TextInput>>; label: string; /** Ids of the error and hint texts for this field (space separated). Web reads them as `aria-describedby`; native keeps `accessibilityHint`. */ describedBy?: string; /** The value is wrong: announces `aria-invalid` and draws a danger border (after the caller's style, so it wins). */ invalid?: boolean }) {
-  const c = useTheme();
-  return <Input accessibilityLabel={label} aria-invalid={invalid || undefined} aria-describedby={describedBy} {...rest} style={[styles.input, NUMERIC_KEYBOARDS.includes(rest.inputMode ?? rest.keyboardType ?? '') ? styles.numeric : null, style, invalid ? { borderColor: c.danger } : null]} />;
+  return <Input accessibilityLabel={label} invalid={invalid} aria-invalid={invalid || undefined} aria-describedby={describedBy} {...rest} style={[styles.input, NUMERIC_KEYBOARDS.includes(rest.inputMode ?? rest.keyboardType ?? '') ? styles.numeric : null, style]} />;
 }
 
 /** `error` marks the group invalid and is its hint, so a screen reader hears why on entering it. */
