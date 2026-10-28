@@ -21,14 +21,14 @@ export function focusSheetTitle(title: string): boolean {
   // Only while it has focus: left on, the focus trap's walk would land on the title again at every wrap (#1275). Removed after
   // the blur has been handled, not during it: the trap's Shift+Tab handler runs right after the blur and, with the title still
   // focusable, wraps from it to the last control (a sync removal sent the first Shift+Tab forward to the first control).
-  heading.addEventListener(
-    'blur',
-    () =>
-      setTimeout(() => {
-        if (document.activeElement !== heading) heading.removeAttribute('tabindex');
-      }, 0),
-    { once: true },
-  );
+  // Kept until the removal happens: if focus is back on the title when the timer fires, the next blur tries again.
+  const onBlur = () =>
+    setTimeout(() => {
+      if (document.activeElement === heading) return;
+      heading.removeAttribute('tabindex');
+      heading.removeEventListener('blur', onBlur);
+    }, 0);
+  heading.addEventListener('blur', onBlur);
   heading.focus();
   return true;
 }

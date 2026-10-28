@@ -46,17 +46,16 @@ describe('SheetModal', () => {
     expect(document.getElementById('title')?.getAttribute('tabindex')).toBe('-1');
     jest.useFakeTimers();
     try {
-      document.getElementById('first')?.focus(); // focus leaves the title: it is not a stop any more, once the blur is handled
-      expect(document.getElementById('title')?.getAttribute('tabindex')).toBe('-1');
-      jest.runOnlyPendingTimers();
-      expect(document.getElementById('title')?.hasAttribute('tabindex')).toBe(false);
-      // Focus back on the title before the timer fires: it keeps its tabindex.
-      document.getElementById('title')?.setAttribute('tabindex', '-1');
-      document.getElementById('title')?.focus();
+      // Focus leaves and comes back before the timer fires (a fast wrap): the title keeps its tabindex.
       document.getElementById('first')?.focus();
       document.getElementById('title')?.focus();
       jest.runOnlyPendingTimers();
       expect(document.getElementById('title')?.getAttribute('tabindex')).toBe('-1');
+      // The next blur still removes it: the title is not a stop any more, once the blur is handled.
+      document.getElementById('first')?.focus();
+      expect(document.getElementById('title')?.getAttribute('tabindex')).toBe('-1');
+      jest.runOnlyPendingTimers();
+      expect(document.getElementById('title')?.hasAttribute('tabindex')).toBe(false);
     } finally {
       jest.useRealTimers();
     }
