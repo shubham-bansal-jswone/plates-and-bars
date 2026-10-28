@@ -65,20 +65,37 @@ public class SyncRequestValidator {
 
     private final ObjectMapper reader;
 
+    /**
+     * Contract tables this backend does not implement (the contract's {@code SyncTable} enum minus {@link SyncTable}).
+     * A record pushed for one is refused, never dropped; see {@link #validate}.
+     */
+    private final Set<String> unimplemented = new LinkedHashSet<>();
+
     /** For tests: a mapper with Jackson's default limits. */
     SyncRequestValidator() {
         this(new ObjectMapper());
     }
 
+
     /** {@code reader} is the request mapper, so the byte measuring parses with the same limits as the request. */
     @org.springframework.beans.factory.annotation.Autowired
     public SyncRequestValidator(ObjectMapper reader) {
+        this(reader, null);
+    }
+
+    /** For tests: reads the contract from {@code contract} (the classpath copy when null). */
+    SyncRequestValidator(ObjectMapper reader, InputStream contract) {
         this.reader = reader;
         JsonNode components;
-        try (InputStream in = SyncRequestValidator.class.getResourceAsStream("/openapi.yaml")) {
+        try (InputStream in = contract != null ? contract : SyncRequestValidator.class.getResourceAsStream("/openapi.yaml")) {
             components = new YAMLMapper().readTree(in).path("components");
         } catch (IOException | JacksonException e) {
             throw new IllegalStateException("openapi.yaml cannot be read", e);
+        }
+        for (JsonNode name : components.path("schemas").path("SyncTable").path("enum")) {
+            if (SyncTable.byName(name.asString()).isEmpty()) {
+                unimplemented.add(name.asString());
+            }
         }
         ObjectMapper json = new ObjectMapper();
         ObjectNode wrapper = json.createObjectNode();
@@ -111,6 +128,15 @@ public class SyncRequestValidator {
             throw invalid(List.of(new ErrorResponse.Detail("changes", "too_many_records")));
         }
         List<ErrorResponse.Detail> problems = new ArrayList<>();
+        // A table in the contract that this backend does not store: refuse each record by its path, so the app sets
+        // it aside like any other refused record, instead of dropping it unseen. Only the table name and index are
+        // named, never the record. Pulls never return such a table (the service reads SyncTable.values() only).
+        for (String table : unimplemented) {
+            JsonNode list = body.path("changes").path(table);
+            for (int i = 0; list.isArray() && i < list.size(); i++) {
+                problems.add(new ErrorResponse.Detail("changes." + table + "[" + i + "]", "unsupported_table"));
+            }
+        }
         for (com.networknt.schema.Error m : requestSchema.validate(body)) {
             problems.add(detail(m));
         }

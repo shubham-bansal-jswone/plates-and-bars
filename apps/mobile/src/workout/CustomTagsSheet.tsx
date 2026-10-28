@@ -4,7 +4,7 @@ import { ScrollView, StyleSheet, View } from 'react-native';
 import type { ExerciseTag } from '@plate-and-bar/core';
 import { useAi } from '../ai/AiProvider';
 import { AI_COPY, failureMessage } from '../ai/copy';
-import { Button, ErrorText, Heading, Hint, Label, Chip } from '../components/ui';
+import { Button, COLUMN_MAX, ErrorText, Heading, Hint, Label, Chip } from '../components/ui';
 import { useTheme } from '../theme/useTheme';
 import { BodyMap } from './BodyMap';
 import { MUSCLE_CODES, muscleName } from './copy';
@@ -96,6 +96,6 @@ export function CustomTagsSheet({ name, onSave, onClose }: { name: string; onSav
 }
 
 const styles = StyleSheet.create({
-  sheet: { padding: 16, gap: 12 },
+  sheet: { padding: 16, gap: 12, width: '100%', maxWidth: COLUMN_MAX + 32, alignSelf: 'center' },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
 });
