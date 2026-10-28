@@ -5,12 +5,12 @@
 #     expo export), never at workflow or job level and never on a step that runs npm ci;
 #   - the environment name is exactly `production` on a v* tag, else `staging`, and on web equals the deploy job's
 #     `environment:` expression; the DSN and site URL come from `vars`; on Android the DSN is blank on pull requests
-#     (no environment there, so a repository-level variable must not reach debug-signed artifacts), on web the deploy job
+#     and design-overhaul pushes (no environment there, so a repository-level variable must not reach debug-signed artifacts), on web the deploy job
 #     never runs on pull requests;
 #   - a check step BEFORE the bundling step runs check-site-url.sh (release/production builds need the site URL) and, on
 #     web, check-sentry-origin.sh with both the origin and the DSN;
 #   - the feature flags EXPO_PUBLIC_BARCODE_SCAN, _POSE_TRACKING, _EXERCISE_MOTION, _LABEL_SCAN and _LAB_REPORTS are held to the same rules (a duplicate on another step
-#     or at job or workflow level fails), come from `vars` on that step, and on Android are blank on pull requests;
+#     or at job or workflow level fails), come from `vars` on that step, and on Android are blank on pull requests and design-overhaul pushes;
 #   - web tag builds stamp the tag's version (without the v) into app.json before expo export.
 # Needs python3 with PyYAML (present on GitHub's Ubuntu runners). Run from anywhere: infra/scripts/test-release-env.sh
 set -euo pipefail
@@ -25,9 +25,9 @@ bundlers = {"android-release.yml": "gradlew", "web-deploy.yml": "expo export"}
 TAG_ENV = "${{ startsWith(github.ref, 'refs/tags/v') && 'production' || 'staging' }}"
 IS_TAG = "${{ startsWith(github.ref, 'refs/tags/v') }}"
 DSN = "${{ vars.EXPO_PUBLIC_SENTRY_DSN }}"
-DSN_ANDROID = "${{ github.event_name != 'pull_request' && vars.EXPO_PUBLIC_SENTRY_DSN || '' }}"
+DSN_ANDROID = "${{ github.event_name != 'pull_request' && github.ref != 'refs/heads/design-overhaul' && vars.EXPO_PUBLIC_SENTRY_DSN || '' }}"
 SITE = "${{ vars.EXPO_PUBLIC_SITE_URL }}"
-FLAG_ANDROID = "${{ github.event_name != 'pull_request' && vars.%s || '' }}"
+FLAG_ANDROID = "${{ github.event_name != 'pull_request' && github.ref != 'refs/heads/design-overhaul' && vars.%s || '' }}"
 FLAG_WEB = "${{ vars.%s }}"
 bad = []
 

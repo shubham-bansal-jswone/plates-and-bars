@@ -24,16 +24,16 @@ name: Android release build
 #   EXPO_PUBLIC_LABEL_SCAN     set to 1 to switch on label scanning (on-device OCR, #1067); unset = off.
 #   EXPO_PUBLIC_EXERCISE_MOTION  set to 1 to play exercise motion loops where a clip exists (#1069); unset = off.
 #   EXPO_PUBLIC_LAB_REPORTS    set to 1 to show Lab reports on the Progress tab and apply the lab hold (#1070); unset = off.
-# PR runs never get the DSN or the four flags (no environment, and the workflow blanks them).
+# PR runs and design-overhaul pushes never get the DSN or the five flags (no environment, and the workflow blanks them).
 # EXPO_PUBLIC_SENTRY_ENVIRONMENT is set here, not by you: `production` on a v* tag, `staging` otherwise.
 # Nothing here uploads to Google Play: take the .aab from a v* tag run and upload it by hand. Staged rollout (10 % -> 50 % -> 100 %), halting
 # a rollout and content-only fixes: infra/RUNBOOK.md section 8 and tests/e2e/RELEASE_CHECKLIST.md.
 # android.versionCode comes from the tag (v1.2.3 -> 1002003) or, on non-tag runs, the run number; see
 # infra/scripts/android-release-config.sh.
 #
-# Pull requests build a faster variant (assembleRelease for arm64-v8a only, no bundleRelease; the ABI is passed as
+# Pull requests and design-overhaul pushes build a faster variant (assembleRelease for arm64-v8a only, no bundleRelease; the ABI is passed as
 # -PreactNativeArchitectures so nothing is committed or edited). Pushes to main (same paths as the PR trigger), tags and
-# manual runs build all four ABIs with assembleRelease bundleRelease, so a break in another ABI or in the AAB shows on main.
+# manual runs on main build all four ABIs with assembleRelease bundleRelease, so a break in another ABI or in the AAB shows on main.
 # Every run compiles the NDK code through ccache. Only pushes to main or design-overhaul and manual runs on them save the cache; pull requests
 # only restore it (a PR-scoped cache is invisible to other PRs and would only evict the npm and Gradle caches).
 # The ccache cap is 2G: a 4-ABI build with precompiled headers overflowed 400M (run 39226041548: 98.5 % of 1376 calls cacheable,
@@ -44,9 +44,9 @@ name: Android release build
 # stays alive as long as android runs keep restoring it.
 # The native-libs guard compares .so file names with the ABI directory stripped, so it holds for one ABI or four.
 #
-# Secrets are withheld on pull_request runs (always debug-signed) and are only
+# Secrets are withheld on pull_request runs and design-overhaul pushes (always debug-signed) and are only
 # exposed to the decode and signing steps and the Gradle step, never to npm ci
-# or expo prebuild. Tag and manual builds run in the protected GitHub
+# or expo prebuild. Main, tag and manual builds run in the protected GitHub
 # environment `android-release`. See infra/README.md.
 on:
   push:
@@ -120,7 +120,7 @@ jobs:
     defaults:
       run:
         working-directory: apps/mobile
-    # PR runs use no environment (and get no secrets); others use the protected one
+    # PR runs and design-overhaul pushes use no environment (and get no secrets); others use the protected one
     environment: ${{ github.event_name != 'pull_request' && github.ref != 'refs/heads/design-overhaul' && 'android-release' || '' }}
     env:
       EXPO_PUBLIC_API_URL: ${{ vars.ANDROID_API_URL }}
@@ -247,7 +247,7 @@ jobs:
           CCACHE_COMPILERCHECK: content # the NDK is unpacked afresh on a runner, so its mtime would always miss
           CCACHE_MAXSIZE: 2G
         # Pull requests and design-overhaul pushes: arm64-v8a APK only (the bulk of the 30 minutes is compiling the NDK code four times and the AAB).
-        # Push to main, push of a tag and manual runs: everything, as before.
+        # Push to main, push of a tag and manual runs on main or a tag: everything, as before.
         run: |
           if [ "$GITHUB_EVENT_NAME" = pull_request ] || [ "$GITHUB_REF" = refs/heads/design-overhaul ]; then
             ./gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a --no-daemon
@@ -299,8 +299,8 @@ jobs:
         if: always()
         run: rm -f "$RUNNER_TEMP/upload.jks"
 
-  # Keeps the 10 GB cache quota from filling with one ~2 GB ccache entry per main run: after a green main build (which saved
-  # its entry) delete every `ccache-*` entry except the newest one. Never runs on pull requests. The only job with
+  # Keeps the 10 GB cache quota from filling with one ~2 GB ccache entry per main run: after a green main or design-overhaul build (which saved
+  # its entry) delete every `ccache-*` entry of that branch except the newest one. Never runs on pull requests. The only job with
   # `actions: write`; it needs no checkout and no secrets.
   ccache-prune:
     name: prune old ccache entries
