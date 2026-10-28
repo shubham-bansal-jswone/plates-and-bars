@@ -12,9 +12,8 @@ const IMAGE = fileURLToPath(new URL('../fixtures/nutrition-label.png', import.me
 
 test('reading a label photo runs the self-hosted engine under the CSP and COEP, stays on our origin and caches nothing of it', async ({ page }) => {
   const seen = [];
-  page.on('request', (r) => seen.push({ url: new URL(r.url()), method: r.method() }));
-  // The worker is a Web Worker: its own requests (core, language data) are reported on the context too.
-  page.context().on('request', (r) => seen.push({ url: new URL(r.url()), method: r.method(), worker: true }));
+  // The context reports every request once: the page's and the Web Worker's own (core, language data).
+  page.context().on('request', (r) => seen.push({ url: new URL(r.url()), method: r.method() }));
 
   await answerSetup(page, { days: 'None yet' });
   await label(page, 'Use these targets').click();
