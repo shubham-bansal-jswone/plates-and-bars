@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useLayoutEffect, useRef, useState, type ComponentRef, type ReactNode, type Ref } from 'react';
-import { Platform, Pressable, ScrollView, StyleSheet, Switch as RNSwitch, useWindowDimensions, View, type PressableProps, type SwitchProps, type TextInputProps, type TextProps, type ViewProps } from 'react-native';
+import { Platform, Pressable, ScrollView, StyleSheet, Text as RNText, Switch as RNSwitch, useWindowDimensions, View, type PressableProps, type SwitchProps, type TextInputProps, type TextProps, type ViewProps } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { dark, glowShadow, pressedShadow, radius, space, tabular, type } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
@@ -56,9 +56,9 @@ export type HeadingLevel = 1 | 2 | 3;
  * A heading at an explicit level. react-native-web renders `accessibilityRole="header"` as `<h1 role="heading">` and an
  * explicit role without `aria-level` counts as level 2, so the level is always passed (#382). Native ignores it.
  */
-export function Heading({ level, style, children }: { level: HeadingLevel; style?: TextProps['style']; children: ReactNode }) {
+export function Heading({ level, style, children, ref }: { level: HeadingLevel; style?: TextProps['style']; children: ReactNode; ref?: Ref<ComponentRef<typeof RNText>> }) {
   return (
-    <Text accessibilityRole="header" aria-level={level} style={style}>
+    <Text ref={ref} accessibilityRole="header" aria-level={level} style={style}>
       {children}
     </Text>
   );
@@ -184,7 +184,9 @@ export function Button({
   busy,
   surface,
   disabled,
+  ref,
 }: {
+  ref?: Ref<ComponentRef<typeof View>>;
   label: string;
   onPress: () => void;
   /** Not pressable and drawn faded; announced as disabled. */
@@ -207,6 +209,7 @@ export function Button({
   }[kind];
   return (
     <Press
+      ref={ref}
       surface={surface}
       accessibilityRole="button"
       accessibilityLabel={a11yLabel ?? label}
