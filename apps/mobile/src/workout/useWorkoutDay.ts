@@ -4,6 +4,7 @@ import {
   cantRule,
   noLoad,
   rampRate,
+  infoForUnit,
   rampTickFill,
   repWord,
   setTarget,
@@ -30,6 +31,7 @@ import { localDate } from '../setup/logic';
 import { parseCardio } from './cardio';
 import { freshRead } from '../state/freshRead';
 import type { Profile } from '../setup/types';
+import { displayRow, weightFromField } from './unitText';
 import { buildSession } from './buildSession';
 import { getCatalog } from './catalog';
 import { rangesOf } from './adjust';
@@ -434,13 +436,15 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
           ex.form = null;
           return;
         }
-        const f = tickFill(s, setTarget(ex.sets, j, sug, info, ex.found), info);
+        const unit = ctx.unit ?? 'kg';
+        const uinfo = infoForUnit(info, unit);
+        const f = tickFill(displayRow(s, unit), setTarget(ex.sets.map((r) => displayRow(r, unit)), j, sug, uinfo, ex.found, unit), uinfo, unit);
         if (!f.ok) {
           empty = f.w === '' && !noLoad(info.type) ? 'w' : 'r';
           notify(`Enter the ${noLoad(info.type) ? '' : 'weight and '}${repWord(info.type)} first.`);
           return false;
         }
-        s.w = f.w;
+        if (s.w === '') s.w = weightFromField(f.w, unit) ?? ''; // a typed weight is left as it is; only a blank takes the suggestion (as kg text)
         s.r = f.r;
         s.done = true;
         s.t = stamp(now());
@@ -752,13 +756,14 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
           ex.found = null;
           return;
         }
-        const f = rampTickFill(ex.ramp, j, info);
+        const unit = tune.unit ?? 'kg';
+        const f = rampTickFill(ex.ramp.map((r) => displayRow(r, unit)), j, infoForUnit(info, unit), unit);
         if (!f.ok) {
           empty = 'w';
           notify('Enter the weight first.');
           return false;
         }
-        s.w = f.w;
+        if (s.w === '') s.w = weightFromField(f.w, unit) ?? '';
         s.r = f.r;
         s.done = true;
         s.t = stamp(now());
@@ -779,11 +784,12 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
     const ex0 = d0.exs[i];
     if (!profile || !ex0) return;
     const { info } = guidance(ex0, progressionContext(date, d0.lifts, profile, d0.workout, tune), d0.workout);
+    const unit = tune.unit ?? 'kg';
     change(
       i,
       (ex) => {
         (ex.ramp[j] as { rate: Rate | null }).rate = value;
-        const r = rampRate(ex.ramp, j, value, info);
+        const r = rampRate(ex.ramp.map((x) => displayRow(x, unit)), j, value, infoForUnit(info, unit), unit);
         ex.found = r.found;
         if (r.addSet) ex.ramp.push(blankRow());
         rows = ids(ex.ramp); // the rows this action touched, fixed now (not whatever is there when the write runs)
