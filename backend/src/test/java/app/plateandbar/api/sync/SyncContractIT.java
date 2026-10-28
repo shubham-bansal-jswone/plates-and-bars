@@ -190,18 +190,31 @@ class SyncContractIT extends SyncITBase {
         assertThat(loggedServerCopies(user)).containsExactlyInAnyOrder((ObjectNode) storedFood, (ObjectNode) storedSettings);
     }
 
+    /**
+     * Contract tables the backend has not implemented yet, each tied to the issue that will. A contract table that is
+     * neither a {@link SyncTable} nor listed here fails the build; the validator refuses pushes for these per record
+     * (SyncRequestValidatorUnsupportedTableTest). Remove the entry in the PR that adds the table.
+     */
+    private static final Map<String, String> NOT_YET_IMPLEMENTED = Map.of("routines", "#1184");
+
     @Test
     void syncTableEnumMatchesTheContract() {
         List<String> contract = new ArrayList<>();
         ContractSchemas.schema("SyncTable").path("enum").forEach(n -> contract.add(n.asString()));
+        for (SyncTable t : SyncTable.values()) {
+            assertThat(contract).as("backend table %s is in the contract", t.name()).contains(t.name());
+            assertThat(ContractSchemas.schema(ContractSchemas.schemaNameOf(t)).isMissingNode()).as(t.name()).isFalse();
+        }
         List<String> ours = new ArrayList<>();
         for (SyncTable t : SyncTable.values()) {
             ours.add(t.name());
         }
-        assertThat(ours).isEqualTo(contract);
-        for (SyncTable t : SyncTable.values()) {
-            assertThat(ContractSchemas.schema(ContractSchemas.schemaNameOf(t)).isMissingNode()).as(t.name()).isFalse();
-        }
+        List<String> unimplemented = contract.stream().filter(c -> !ours.contains(c)).toList();
+        assertThat(unimplemented).as("contract tables the backend does not implement must be allowlisted with an issue")
+                .allMatch(NOT_YET_IMPLEMENTED::containsKey);
+        // An entry for a table the backend now implements is stale. (One the contract does not have yet is fine: the
+        // allowlist must pass both before and after the contract PR that adds the table.)
+        assertThat(NOT_YET_IMPLEMENTED.keySet()).as("stale allowlist entries").noneMatch(ours::contains);
     }
 
     @Test

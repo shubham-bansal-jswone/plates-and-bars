@@ -271,6 +271,7 @@ CONTENT_UPDATED_AT="$(backend/scripts/content-updated-at.sh)" ./gradlew bootRun
 
 Package `app.plateandbar.api.sync`. The user is always the token's principal; no body field names a user.
 
+- **Contract tables not yet implemented.** A table in the contract's `SyncTable` enum that the backend has no `SyncTable` constant for (allowlisted with its issue in `SyncContractIT`, today `routines`, #1184) is refused per record: a push with records for it gets 400 `invalid_request` with one detail `changes.<table>[i]`, `unsupported_table` per record, never dropped. Pulls return nothing for it.
 - **Storage.** One table per contract `SyncTable` (`profiles`, `food_logs`, ... `settings`), all the same shape:
   `user_id, id, version, updated_at, deleted_at, seq, data JSON`, primary key `(user_id, id)`. `data` holds the
   record's other fields, so the engine is generic over tables. Foreign key to `users` with `ON DELETE CASCADE`.
