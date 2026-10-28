@@ -129,4 +129,24 @@ describe('SheetModal', () => {
       jest.useRealTimers();
     }
   });
+
+  it('the title it focuses has no default browser outline (#1302)', () => {
+    document.body.innerHTML = '<div role="dialog" aria-label="T"><button id="first">x</button><h2 role="heading" id="title">T</h2></div>';
+    (document.getElementById('first') as HTMLElement).focus();
+    expect(focusSheetTitle('T')).toBe(true);
+    expect((document.getElementById('title') as HTMLElement).style.getPropertyValue('outline')).toBe('none');
+  });
+
+  it('on close, focus goes to the opener re-created with the same label while the sheet was open (#1302)', async () => {
+    document.body.innerHTML = '<button aria-label="How to do X" id="old">Open</button>';
+    (document.getElementById('old') as HTMLElement).focus();
+    const view = await render(
+      <SheetModal title="X" onClose={() => {}}>
+        <Text>body</Text>
+      </SheetModal>,
+    );
+    document.body.innerHTML = '<button aria-label="How to do X" id="new">Open</button>'; // the page behind re-rendered
+    await view.unmount();
+    expect(document.activeElement?.id).toBe('new');
+  });
 });

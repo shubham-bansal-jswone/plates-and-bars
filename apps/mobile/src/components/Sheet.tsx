@@ -17,6 +17,7 @@ export function focusSheetTitle(title: string): boolean {
   // Unquoted on purpose: the heading-levels guard flags the quoted form as an assignment of the role.
   const heading = dialog?.querySelector<HTMLElement>('[role=heading]');
   if (!dialog || !heading || !dialog.contains(document.activeElement)) return false;
+  heading.style.setProperty('outline', 'none'); // not a control: the browser's default blue outline on script focus is off-palette (#1302)
   heading.setAttribute('tabindex', '-1'); // focusable by script, not in the tab order
   // Only while it has focus: left on, the focus trap's walk would land on the title again at every wrap (#1275). Removed after
   // the blur has been handled, not during it: the trap's Shift+Tab handler runs right after the blur and, with the title still
@@ -83,7 +84,11 @@ export function SheetModal({ title, onClose, children }: { title: string; onClos
   useEffect(
     () => () => {
       clearTimeout(timer.current);
-      opener.current?.focus();
+      // The opener may have been re-created while the sheet was open (the page behind re-renders): then focus its twin by name
+      // instead of dropping to the body (#1302).
+      const el = opener.current;
+      const label = el?.getAttribute('aria-label'); // a detached element keeps its attributes
+      (el?.isConnected || !label ? el : Array.from(document.querySelectorAll<HTMLElement>('[aria-label]')).find((e) => e.getAttribute('aria-label') === label))?.focus();
     },
     [],
   );
