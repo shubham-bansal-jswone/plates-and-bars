@@ -5,7 +5,7 @@ import { Text } from './Text';
 import { fmt } from '../format';
 import { buildResults } from '../setup/results';
 import type { Profile } from '../setup/types';
-import { radius, tabular, type } from '../theme/tokens';
+import { radius, space, tabular, type } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { ClearanceCard } from './ClearanceCard';
 import { Button, Card, H1, Heading, Hint, Note, useWide } from './ui';
@@ -32,7 +32,9 @@ export function ResultsView({ profile, onCleared, hideTargets, hideHeadline, sho
   const left = (
     <View style={styles.wrap}>
       {hideHeadline ? null : <H1>{v.headline}</H1>}
-      <Hint>{v.range}</Hint>
+      <View style={{ paddingBottom: space.sm }}>
+        <Hint>{v.range}</Hint>
+      </View>
       {v.rows.map(([label, kcal]) => (
         <View key={label} style={[styles.row, { borderColor: c.line }]} accessible accessibilityLabel={`${label}, ${fmt(kcal)} kilocalories`}>
           <Text style={{ color: c.ink }}>{label}</Text>

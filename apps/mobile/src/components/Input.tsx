@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { StyleSheet, TextInput, type TextInputProps } from 'react-native';
+import type { ComponentRef, Ref } from 'react';
 import { useFontFamily } from '../theme/fonts';
 import { radius } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 
 /** Text input: 10px radius, 1px outline, 2px focus ring, in the body font. Callers pass layout (width, flex) in `style`. */
-export function Input({ style, onFocus, onBlur, ...rest }: TextInputProps) {
+export function Input({ style, onFocus, onBlur, ref, ...rest }: TextInputProps & { ref?: Ref<ComponentRef<typeof TextInput>> }) {
   const c = useTheme();
   const family = useFontFamily();
   const [focused, setFocused] = useState(false);
@@ -13,6 +14,7 @@ export function Input({ style, onFocus, onBlur, ...rest }: TextInputProps) {
     <TextInput
       placeholderTextColor={c.muted}
       {...rest}
+      ref={ref}
       onFocus={(e) => {
         setFocused(true);
         onFocus?.(e);

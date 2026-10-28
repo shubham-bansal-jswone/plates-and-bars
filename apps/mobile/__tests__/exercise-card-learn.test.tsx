@@ -1,4 +1,4 @@
-import { Text } from 'react-native';
+import { StyleSheet, Text } from 'react-native';
 import { fireEvent, render, screen } from '@testing-library/react-native';
 import { exInfo, type Suggestion } from '@plate-and-bar/core';
 import { ExerciseCard, type Actions } from '../src/workout/ExerciseCard';
@@ -18,6 +18,10 @@ function card(o: { learning?: boolean; prior?: number; done?: number; sets?: num
   const ex: ExState = { name: NAME, part: 1, bridge: false, form: null, found: null, skipRamp: true, feel: null, ramp: [], sets };
   return render(<ExerciseCard ex={ex} info={exInfo(NAME, getCatalog())} sug={SUG} focus={[]} warm={null} act={act} infoOf={(n) => exInfo(n, getCatalog())} learning={o.learning ?? true} prior={o.prior} />);
 }
+/** Only the shared Disclosure is a 56px row with a top rule; the old lime link was neither. */
+const isDisclosure = (el: ReturnType<typeof screen.getByRole>) => {
+  expect(StyleSheet.flatten(el.props.style)).toMatchObject({ minHeight: 56, borderTopWidth: 1 });
+};
 const setup = () => screen.getByRole('button', { name: `Setup steps for ${NAME}` });
 
 describe('Learn mode block', () => {
@@ -25,6 +29,7 @@ describe('Learn mode block', () => {
     await card({ prior: 0 });
     expect(screen.getByText('Learn mode')).toBeTruthy();
     expect(setup().props.accessibilityState).toMatchObject({ expanded: true });
+    isDisclosure(setup());
     steps().forEach((x, k) => expect(screen.getByText(`${k + 1}. ${x}`)).toBeTruthy());
     expect(screen.getByText(`Focus this set: ${cue(0)}`)).toBeTruthy();
   });
@@ -43,7 +48,9 @@ describe('Learn mode block', () => {
 
   it('closes Setup on the first session once a set is done, and moves the cue to the next one', async () => {
     await card({ prior: 0, done: 1 });
-    expect(setup().props.accessibilityState).toMatchObject({ expanded: false });
+    expect(setup().props.accessibilityState).toMatchObject({ expanded: false }); // a disclosure with a closed state, not a bare heading
+    isDisclosure(setup());
+    expect(screen.queryByText(`1. ${steps()[0]}`)).toBeNull();
     expect(screen.getByText(`Focus this set: ${cue(1)}`)).toBeTruthy();
   });
 
@@ -64,6 +71,21 @@ describe('Learn mode block', () => {
     expect(screen.queryByText('Learn mode')).toBeNull();
     expect(screen.queryByRole('button', { name: `Setup steps for ${NAME}` })).toBeNull();
     expect(screen.queryByText(/Focus this set/)).toBeNull();
+  });
+});
+
+describe('Setup guard', () => {
+  it('shows no Setup disclosure for an exercise with no setup steps', async () => {
+    const c = getCatalog().cards[NAME]!;
+    const saved = c.setup;
+    c.setup = [];
+    try {
+      await card({ prior: 0 });
+      expect(screen.getByText('Learn mode')).toBeTruthy();
+      expect(screen.queryByRole('button', { name: `Setup steps for ${NAME}` })).toBeNull();
+    } finally {
+      c.setup = saved;
+    }
   });
 });
 
