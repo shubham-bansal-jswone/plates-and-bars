@@ -10,12 +10,8 @@ import { useTheme } from '../theme/useTheme';
 import { getCatalog } from '../workout/catalog';
 import { figureColours } from '../workout/figures';
 import { motionAlt, motionCredit, type MotionEntry } from './data';
-import { RIG_SEG, fitClip, keyFrameIndex, motionDuration, rigPose, sampleFrame, type FitTransform, type RigJoints } from './project';
+import { FLOOR_Y, FRAME_H as H, FRAME_W as W, HEAD_STROKE, RIG_SEG, WIDTH, fitClip, keyFrameIndex, motionDuration, rigPose, sampleFrame, type FitTransform, type RigJoints } from './project';
 
-// Drawing space and limb widths of the v1.1 rig (tools/exercise-figures/rig.mjs: 320 x 240, W, the floor line at y 226).
-const W = 320;
-const H = 240;
-const WIDTH = { foot: 7, sh: 12, th: 17, torso: 26, ua: 11, fa: 9 } as const;
 /** Redraws per second. The pose is computed from the clock, so a slow device skips frames instead of slowing the motion down. */
 const TICK_FPS = 15;
 
@@ -46,12 +42,12 @@ function Pose({ J, fit, colours }: { J: RigJoints; fit: FitTransform; colours: R
   return (
     <Svg viewBox={`0 0 ${W} ${H}`} width="100%" height="100%">
       <G transform={`translate(${fit.tx} ${fit.ty}) scale(${fit.scale})`}>
-      <Line x1={60} y1={226} x2={260} y2={226} stroke={colours.eq} strokeWidth={2} />
+      <Line x1={fit.floor[0]} y1={FLOOR_Y} x2={fit.floor[1]} y2={FLOOR_Y} stroke={colours.eq} strokeWidth={2} />
       {seg(J.ankle, J.toe, WIDTH.foot, colours.body, 'foot')}
       {seg(J.ankle, J.knee, WIDTH.sh, colours.body, 'shin')}
       {seg(J.knee, J.hip, WIDTH.th, colours.body, 'thigh')}
       {seg(J.hip, J.sh, WIDTH.torso, colours.body, 'torso')}
-      <Circle cx={J.head[0]} cy={J.head[1]} r={RIG_SEG.head} fill={colours.bg} stroke={colours.body} strokeWidth={5} />
+      <Circle cx={J.head[0]} cy={J.head[1]} r={RIG_SEG.head} fill={colours.bg} stroke={colours.body} strokeWidth={HEAD_STROKE} />
       {seg(J.sh, J.el, WIDTH.ua, colours.arm, 'upper-arm')}
       {seg(J.el, J.wr, WIDTH.fa, colours.arm, 'forearm')}
       </G>

@@ -7,7 +7,7 @@ import { LICENCES, SOURCE_HOSTS, isCalendarDate, isSourceUrl, MAX_COORD, MAX_FPS
 import { MOTION_ENTRY_NAME, motionFixtureBundle } from './motion-helpers';
 import { ALT_MAX } from '../src/workout/figures';
 import {
-  END_ON_RATIO, FIT_PAD, IDENTITY_FIT, JOINT_NAMES, RIG_SEG, applyFit, fitClip, jointAt, jointIndex, keyFrameIndex, motionDuration, projectSide, rigJoints, rigPose, sampleFrame, type Frame, type FitTransform, type MotionClip,
+  END_ON_RATIO, FIT_PAD, IDENTITY_FIT, JOINT_NAMES, RIG_SEG, WIDTH, applyFit, fitClip, jointAt, jointIndex, keyFrameIndex, motionDuration, projectSide, rigJoints, rigPose, sampleFrame, type Frame, type FitTransform, type MotionClip, type RigDirs, type RigJoints,
 } from '../src/motion/project';
 
 const dist = (a: readonly number[], b: readonly number[]) => Math.hypot(a[0]! - b[0]!, a[1]! - b[1]!);
@@ -314,12 +314,25 @@ describe('fitting a clip to the 320 x 240 frame', () => {
     l_hip: [0.09, 0.1, z0 + 0.5], r_hip: [-0.09, 0.1, z0 + 0.5], r_knee: [-0.09, 0.1, z0 + 0.25], r_ankle: [-0.09, 0.05, z0],
     r_heel: [-0.09, 0, z0 - 0.02], r_toe: [-0.09, 0, z0 + 0.1],
   });
+  /** The drawn extent of every pose a player can show (dense samples, every keyframe, the key pose and the last frame with default directions), shapes included:
+   * the head circle with its stroke, and each limb end with half its stroke width. */
   const extent = (m: MotionClip, t: FitTransform) => {
+    const poses: RigJoints[] = [];
+    let dirs: RigDirs | undefined;
+    for (let i = 0; i <= 200; i++) {
+      const p = rigPose(sampleFrame(m, (i / 200) * motionDuration(m) - (i === 200 ? 1e-9 : 0)), dirs);
+      dirs = p.dirs; poses.push(p.joints);
+    }
+    for (const f of [...m.frames, m.frames[keyFrameIndex(m)]!, m.frames[m.frames.length - 1]!]) poses.push(rigPose(f).joints);
     const xs: number[] = []; const ys: number[] = [];
-    for (let i = 0; i < 20; i++) {
-      for (const p of Object.values(rigPose(sampleFrame(m, (i / 20) * motionDuration(m))).joints)) {
-        const q = applyFit(p, t); xs.push(q[0]); ys.push(q[1]);
-      }
+    const add = (p: readonly number[], r: number) => {
+      const q = applyFit([p[0]!, p[1]!], t);
+      xs.push(q[0] - r * t.scale, q[0] + r * t.scale); ys.push(q[1] - r * t.scale, q[1] + r * t.scale);
+    };
+    for (const J of poses) {
+      add(J.head, RIG_SEG.head + 2.5);
+      add(J.ankle, WIDTH.sh / 2); add(J.toe, WIDTH.foot / 2); add(J.knee, WIDTH.th / 2); add(J.hip, WIDTH.torso / 2);
+      add(J.sh, WIDTH.torso / 2); add(J.el, WIDTH.ua / 2); add(J.wr, WIDTH.fa / 2);
     }
     return { minX: Math.min(...xs), maxX: Math.max(...xs), minY: Math.min(...ys), maxY: Math.max(...ys) };
   };
@@ -349,6 +362,33 @@ describe('fitting a clip to the 320 x 240 frame', () => {
     const J = rigPose(lying(0)).joints;
     expect(dist(applyFit(J.ankle, t), applyFit(J.knee, t))).toBeCloseTo(RIG_SEG.sh * t.scale, 6);
     expect(applyFit([0, 226], t)[1]).toBeCloseTo(226, 6);
+  });
+  it('also fits the last keyframe and the key pose of a clip that does not loop', () => {
+    const sitting = frame({
+      head: [0, 0.57, 0.3], neck: [0, 0.45, 0.3], r_shoulder: [-0.12, 0.4, 0.3], r_elbow: [-0.12, 0.3, 0.45], r_wrist: [-0.12, 0.3, 0.6],
+      l_hip: [0.09, 0.1, 0], r_hip: [-0.09, 0.1, 0], r_knee: [-0.09, 0.1, -0.25], r_ankle: [-0.09, 0.05, -0.5], r_heel: [-0.09, 0, -0.52], r_toe: [-0.09, 0, -0.4],
+    });
+    const m: MotionClip = { fps: 5, loop: false, frames: [sitting, lying(0.3)] };
+    expect(keyFrameIndex(m)).toBe(1);
+    expect(extent(m, IDENTITY_FIT).maxX).toBeGreaterThan(320 - FIT_PAD); // the last pose is cut off without the fit
+    const e = extent(m, fitClip(m));
+    expect(e.minX).toBeGreaterThanOrEqual(FIT_PAD - 1e-6);
+    expect(e.maxX).toBeLessThanOrEqual(320 - FIT_PAD + 1e-6);
+    expect(e.minY).toBeGreaterThanOrEqual(FIT_PAD - 1e-6);
+    expect(e.maxY).toBeLessThanOrEqual(240 - FIT_PAD + 1e-6);
+  });
+  it('stretches the floor line under a figure that was slid, inside the frame', () => {
+    for (const m of [clip([lying(0), lying(0, 0.15)]), clip([lying(0.2), lying(0.2, 0.15)]), clip([lying(-0.9), lying(0.1)])]) {
+      const t = fitClip(m);
+      const e = extent(m, t);
+      const f0 = t.floor[0] * t.scale + t.tx;
+      const f1 = t.floor[1] * t.scale + t.tx;
+      expect(f0).toBeGreaterThanOrEqual(-1e-6);
+      expect(f1).toBeLessThanOrEqual(320 + 1e-6);
+      expect(f0).toBeLessThanOrEqual(e.minX + 1e-6);
+      expect(f1).toBeGreaterThanOrEqual(e.maxX - 1e-6);
+    }
+    expect(fitClip(clip([STANDING, STANDING])).floor).toEqual([60, 260]);
   });
   it('uses one transform for the whole clip whatever the order of its frames', () => {
     const a = fitClip(clip([lying(-0.9), lying(0.1)]));
