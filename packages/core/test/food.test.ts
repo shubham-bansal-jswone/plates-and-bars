@@ -256,7 +256,7 @@ describe('unitGrams and quantityFromGrams', () => {
     const dir = resolve(REPO_ROOT, 'packages/core/src');
     const sources = readdirSync(dir).filter((f) => f.endsWith('.ts')).map((f) => [f, readFileSync(resolve(dir, f), 'utf8')] as const);
     expect(sources.length).toBeGreaterThan(10);
-    for (const [name, text] of [...sources, ['plate-and-bar.html', prototypeSource()] as const]) {
+    for (const [name, text] of [...sources, ['prototype-oracle.js', prototypeSource()] as const]) {
       expect([name, text.includes('(?<')]).toEqual([name, false]);
     }
   });
