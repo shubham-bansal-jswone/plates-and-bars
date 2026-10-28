@@ -29,12 +29,18 @@ const SPLIT_DAYS = [2, 3, 4, 5, 6];
 // Evidence stays within the existing Strong / Moderate / Emerging scale (the app and validator accept only those).
 export const CARD_OVERRIDES = {
   warmup: {
-    from: { evidence: 'Moderate', source: 'Common strength-training practice; Fradkin et al., 2010 (warm-up and performance review)' },
+    from: {
+      title: 'Why warm up before the first big lift?',
+      summary: 'A couple of lighter sets rehearse the movement and prepare your joints.',
+      body: 'Specific warm-up sets at around 50% and 75% of your working weight improve performance on the heavier sets that follow and give you a final form check. They’re short and light on purpose, so they don’t tire you out. Later exercises in the session usually don’t need them because you’re already warm.',
+      evidence: 'Moderate',
+      source: 'Common strength-training practice; Fradkin et al., 2010 (warm-up and performance review)',
+    },
     set: {
       // Copy follows the graduated ramp and later-compound warm-ups (#1240, #1263); no numbers, so it cannot drift from core WARMUP_RAMP_*.
       title: 'Why warm up before a big lift?',
       summary: 'A few lighter sets rehearse the movement and prepare your joints.',
-      body: 'Before a heavy compound lift, a few lighter sets that build up toward your working weight improve performance on the heavier sets that follow and give you a final form check. The same applies to a later compound that works muscles you have not used yet today. The sets are short and light on purpose, so they do not tire you out. Exercises that work muscles you have already warmed up usually do not need them.',
+      body: 'Before a heavy compound lift, a few lighter sets that build up toward your working weight improve performance on the heavier sets that follow and give you a final form check. The same applies to a later compound lift that works muscles no earlier big lift has used today. The sets are short and light on purpose, so they do not tire you out. Exercises whose muscles an earlier big lift already warmed up usually do not need them.',
       evidence: 'Emerging',
       source: 'Common strength-training practice (coaching convention, limited direct evidence); Fradkin et al., 2010 (warm-up and performance review)',
     },
