@@ -13,10 +13,12 @@ import { Button, Card, ErrorText, H1, Hint, Note, Page } from '../components/ui'
 import { LegalLinks } from '../legal/LegalLinks';
 import type { WorkoutDb } from '../db/workouts';
 import type { PullDb } from '../db/outbox';
+import { ImportWorkouts } from '../import/ImportWorkouts';
+import { IMPORT_COPY } from '../import/copy';
 import { hasConsent } from '../sync/engine';
 import { useSync } from '../sync/SyncProvider';
 
-type Step = 'home' | 'confirm' | 'done' | 'restore';
+type Step = 'home' | 'confirm' | 'done' | 'restore' | 'import';
 
 const saved = (name: string, r: SaveResult) => (r === 'saved' ? t.exportSaved(name) : r === 'shared' ? t.exportShared : t.exportNoShare);
 const serverMessage = (r: Exclude<ServerExportResult, { kind: 'ok' }>): string =>
@@ -129,6 +131,8 @@ export function DataScreen({ db, now = () => new Date() }: { db: WorkoutDb & Pul
   const linkedOut = s.linked && !s.signedIn && !s.wipePending;
   const toSignIn = () => router.push('/sign-in' as never);
 
+  if (step === 'import') return <ImportWorkouts db={db} onClose={() => setStep('home')} />;
+
   if (step === 'done') {
     return (
       <Page>
@@ -218,6 +222,7 @@ export function DataScreen({ db, now = () => new Date() }: { db: WorkoutDb & Pul
         ) : null}
         <Hint>{rc.hint}</Hint>
         <Button kind="ghost" label={rc.action} onPress={() => void chooseRestore()} />
+        <Button kind="ghost" label={IMPORT_COPY.open} onPress={() => setStep('import')} />
         <Button
           kind="ghost"
           label={t.delete}
