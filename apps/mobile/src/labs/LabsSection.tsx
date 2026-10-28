@@ -51,7 +51,7 @@ export function LabsSection({ labs: l, today }: { labs: Labs; today: string }) {
           <Button label={LABS_SEEN_DOCTOR} onPress={() => void l.seenDoctor()} />
         </Card>
       ) : null}
-      <Button label={LABS_ADD} onPress={() => setAdding(true)} />
+      <Button kind="ghost" label={LABS_ADD} onPress={() => setAdding(true)} />
       {shown ? <Results reports={reports} shown={shown} onPick={setPicked} /> : null}
       {reports.length ? (
         <>

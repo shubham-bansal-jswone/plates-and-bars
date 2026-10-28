@@ -85,7 +85,7 @@ export function PhotosSection({ db, date, weights, tapes, notify }: Props) {
         <>
           {!persistent ? <Note>{PHOTOS_NO_STORAGE}</Note> : null}
           {ph.staleDays !== null ? <Note>{PHOTOS_STALE(ph.staleDays)}</Note> : null}
-          <Button label={PHOTOS_NEW(ph.hasToday)} onPress={() => setSheet(true)} />
+          <Button kind="ghost" label={PHOTOS_NEW(ph.hasToday)} onPress={() => setSheet(true)} />
           <Compare ph={ph} caption={caption} />
           {ph.thumbs.length ? (
             <>
