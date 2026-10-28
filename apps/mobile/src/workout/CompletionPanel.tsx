@@ -1,18 +1,19 @@
 import { type ComponentRef, type Ref } from 'react';
 import { StyleSheet, Text as RNText, View } from 'react-native';
-import { sessionVolume, type LiftRecord } from '@plate-and-bar/core';
+import { formatWeight, fromKg, sessionVolume, type LiftRecord } from '@plate-and-bar/core';
 import { Text } from '../components/Text';
 import { Card, Heading, MetricRow } from '../components/ui';
 import { fmt } from '../format';
+import { sessionTimeLine } from '../progress/e1rm';
 import type { WorkoutDb } from '../db/workouts';
 import { radius, tabular, type } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { BurnLine } from './BurnLine';
 import { RATE_LABEL } from './copy';
 import type { ExState, Row } from './model';
+import { useWeightUnit } from '../settings/weightUnit';
 
 const n = (s: string): number => Number(s) || 0;
-const r1 = (x: number): number => Math.round(x * 10) / 10;
 
 /** The heaviest ticked set (then the most reps); display only. */
 function bestSet(sets: readonly Row[]): Row | null {
@@ -23,10 +24,11 @@ function bestSet(sets: readonly Row[]): Row | null {
 
 /**
  * "Session done": shown while every set is ticked, read from today's exercises only. Nothing is stored and nothing is locked:
- * un-tick a set and it goes. No duration (none is stored), no streak. A personal record is core's `updateLift` result (the record's `pbToast` is today).
+ * un-tick a set and it goes. The elapsed time is core's `sessionElapsed` over the ticks (`t`), shown only when every ticked set has one; no streak. A personal record is core's `updateLift` result (the record's `pbToast` is today).
  */
 export function CompletionPanel({ db, date, profileKg, exs, cardio, lifts, reloadKey, headingRef }: { headingRef?: Ref<ComponentRef<typeof RNText>>; db: WorkoutDb; date: string; profileKg: number; exs: readonly ExState[]; cardio: number | null; lifts: Readonly<Record<string, LiftRecord>>; reloadKey: number }) {
   const c = useTheme();
+  const { unit } = useWeightUnit();
   const sets = exs.flatMap((e) => e.sets);
   const done = sets.filter((s) => s.done).length;
   if (sets.length === 0 || done !== sets.length) return null;
@@ -34,10 +36,11 @@ export function CompletionPanel({ db, date, profileKg, exs, cardio, lifts, reloa
   const reps = sets.reduce((t, s) => t + n(s.r), 0);
   const cells = [
     { label: 'Sets', value: `${done}/${sets.length}` },
-    vol > 0 ? { label: 'Volume (kg)', value: fmt(vol) } : { label: 'Reps', value: fmt(reps) },
+    vol > 0 ? { label: `Volume (${unit})`, value: fmt(fromKg(vol, unit)) } : { label: 'Reps', value: fmt(reps) },
     { label: 'Exercises', value: String(exs.length) },
     ...(cardio ? [{ label: 'Cardio (min)', value: fmt(cardio) }] : []),
   ];
+  const elapsed = sessionTimeLine(exs.flatMap((e) => [...e.ramp, ...e.sets]));
   const twoSessions = exs.some((e) => e.part === 2);
   return (
     <Card testID="completion-panel">
@@ -46,6 +49,7 @@ export function CompletionPanel({ db, date, profileKg, exs, cardio, lifts, reloa
       {/* MetricRow holds 3 cells; a 4th (cardio) goes on a second row so none truncates at 360 px. */}
       <MetricRow cells={cells.slice(0, 3)} />
       {cells.length > 3 ? <MetricRow cells={cells.slice(3)} /> : null}
+      {elapsed ? <Text testID="completion-elapsed" accessibilityLabel={`Time: ${elapsed}`} style={[type.caption, { color: c.body }]}>{`Time: ${elapsed}`}</Text> : null}
       {exs.map((e, i) => {
         const b = bestSet(e.sets);
         const rates = [...new Set(e.sets.flatMap((s) => (s.rate ? [RATE_LABEL[s.rate]] : [])))];
@@ -57,7 +61,7 @@ export function CompletionPanel({ db, date, profileKg, exs, cardio, lifts, reloa
               {rates.length ? <Text style={[type.caption, { color: c.muted }]}>Felt: {rates.join(', ')}</Text> : null}
             </View>
             {pr ? <Text style={[type.small, styles.pr, { backgroundColor: c.brand, color: c.onBrand }]}>Personal record</Text> : null}
-            {b ? <Text style={[type.heading, tabular, { color: c.ink }]}>{n(b.w) ? `${r1(n(b.w))} x ${n(b.r)}` : `${n(b.r)} reps`}</Text> : null}
+            {b ? <Text style={[type.heading, tabular, { color: c.ink }]}>{n(b.w) ? `${formatWeight(n(b.w), unit)} x ${n(b.r)}` : `${n(b.r)} reps`}</Text> : null}
           </View>
         );
       })}

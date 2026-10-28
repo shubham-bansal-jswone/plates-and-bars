@@ -1,0 +1,1044 @@
+{
+ "description": "Routine records (#1184, contract 0.1.27). A record is valid when its name is 1 to 60 code points (not UTF-16 units: 60 emoji pass, 61 fail) and not blank (blank-text.json pattern), it has 1 to 50 exercises, each with a non-blank name of 1 to 200 code points, an integer sets from 1 to 20, and at most 20 keys in total; an unlisted key is kept and its value must be a boolean, number, string or null. Only these fields are checked; id, version, updated_at, deleted_at and created_at follow SyncMeta. The cap section holds the 100-live-routine scenarios. Backend and app tests should load this file.",
+ "limits": {
+  "name_max": 60,
+  "exercises_min": 1,
+  "exercises_max": 50,
+  "exercise_name_max": 200,
+  "sets_min": 1,
+  "sets_max": 20,
+  "max_exercise_keys": 20,
+  "max_live_routines": 100,
+  "cap_issue": "too_many_routines",
+  "cap_field": "changes.routines[<i>]"
+ },
+ "valid": [
+  {
+   "note": "minimal",
+   "record": {
+    "name": "A",
+    "exercises": [
+     {
+      "name": "Squat",
+      "sets": 1
+     }
+    ]
+   }
+  },
+  {
+   "note": "name at the limit",
+   "record": {
+    "name": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "exercises": [
+     {
+      "name": "Squat",
+      "sets": 20
+     }
+    ]
+   }
+  },
+  {
+   "note": "non-ASCII name",
+   "record": {
+    "name": "छाती दिन",
+    "exercises": [
+     {
+      "name": "Push-up",
+      "sets": 3
+     }
+    ]
+   }
+  },
+  {
+   "note": "50 exercises",
+   "record": {
+    "name": "Upper A",
+    "exercises": [
+     {
+      "name": "Ex 0",
+      "sets": 3
+     },
+     {
+      "name": "Ex 1",
+      "sets": 3
+     },
+     {
+      "name": "Ex 2",
+      "sets": 3
+     },
+     {
+      "name": "Ex 3",
+      "sets": 3
+     },
+     {
+      "name": "Ex 4",
+      "sets": 3
+     },
+     {
+      "name": "Ex 5",
+      "sets": 3
+     },
+     {
+      "name": "Ex 6",
+      "sets": 3
+     },
+     {
+      "name": "Ex 7",
+      "sets": 3
+     },
+     {
+      "name": "Ex 8",
+      "sets": 3
+     },
+     {
+      "name": "Ex 9",
+      "sets": 3
+     },
+     {
+      "name": "Ex 10",
+      "sets": 3
+     },
+     {
+      "name": "Ex 11",
+      "sets": 3
+     },
+     {
+      "name": "Ex 12",
+      "sets": 3
+     },
+     {
+      "name": "Ex 13",
+      "sets": 3
+     },
+     {
+      "name": "Ex 14",
+      "sets": 3
+     },
+     {
+      "name": "Ex 15",
+      "sets": 3
+     },
+     {
+      "name": "Ex 16",
+      "sets": 3
+     },
+     {
+      "name": "Ex 17",
+      "sets": 3
+     },
+     {
+      "name": "Ex 18",
+      "sets": 3
+     },
+     {
+      "name": "Ex 19",
+      "sets": 3
+     },
+     {
+      "name": "Ex 20",
+      "sets": 3
+     },
+     {
+      "name": "Ex 21",
+      "sets": 3
+     },
+     {
+      "name": "Ex 22",
+      "sets": 3
+     },
+     {
+      "name": "Ex 23",
+      "sets": 3
+     },
+     {
+      "name": "Ex 24",
+      "sets": 3
+     },
+     {
+      "name": "Ex 25",
+      "sets": 3
+     },
+     {
+      "name": "Ex 26",
+      "sets": 3
+     },
+     {
+      "name": "Ex 27",
+      "sets": 3
+     },
+     {
+      "name": "Ex 28",
+      "sets": 3
+     },
+     {
+      "name": "Ex 29",
+      "sets": 3
+     },
+     {
+      "name": "Ex 30",
+      "sets": 3
+     },
+     {
+      "name": "Ex 31",
+      "sets": 3
+     },
+     {
+      "name": "Ex 32",
+      "sets": 3
+     },
+     {
+      "name": "Ex 33",
+      "sets": 3
+     },
+     {
+      "name": "Ex 34",
+      "sets": 3
+     },
+     {
+      "name": "Ex 35",
+      "sets": 3
+     },
+     {
+      "name": "Ex 36",
+      "sets": 3
+     },
+     {
+      "name": "Ex 37",
+      "sets": 3
+     },
+     {
+      "name": "Ex 38",
+      "sets": 3
+     },
+     {
+      "name": "Ex 39",
+      "sets": 3
+     },
+     {
+      "name": "Ex 40",
+      "sets": 3
+     },
+     {
+      "name": "Ex 41",
+      "sets": 3
+     },
+     {
+      "name": "Ex 42",
+      "sets": 3
+     },
+     {
+      "name": "Ex 43",
+      "sets": 3
+     },
+     {
+      "name": "Ex 44",
+      "sets": 3
+     },
+     {
+      "name": "Ex 45",
+      "sets": 3
+     },
+     {
+      "name": "Ex 46",
+      "sets": 3
+     },
+     {
+      "name": "Ex 47",
+      "sets": 3
+     },
+     {
+      "name": "Ex 48",
+      "sets": 3
+     },
+     {
+      "name": "Ex 49",
+      "sets": 3
+     }
+    ]
+   }
+  },
+  {
+   "note": "60 emoji name (60 code points, 120 UTF-16 units, 240 UTF-8 bytes)",
+   "record": {
+    "name": "🏋🏋🏋🏋🏋🏋🏋🏋🏋🏋🏋🏋🏋🏋🏋🏋🏋🏋🏋🏋🏋🏋🏋🏋🏋🏋🏋🏋🏋🏋🏋🏋🏋🏋🏋🏋🏋🏋🏋🏋🏋🏋🏋🏋🏋🏋🏋🏋🏋🏋🏋🏋🏋🏋🏋🏋🏋🏋🏋🏋",
+    "exercises": [
+     {
+      "name": "Squat",
+      "sets": 3
+     }
+    ]
+   }
+  },
+  {
+   "note": "unknown exercise key kept (bounded open)",
+   "record": {
+    "name": "R",
+    "exercises": [
+     {
+      "name": "Squat",
+      "sets": 3,
+      "group": "a"
+     }
+    ]
+   }
+  }
+ ],
+ "invalid": [
+  {
+   "note": "blank name",
+   "field": "name",
+   "record": {
+    "name": " ​",
+    "exercises": [
+     {
+      "name": "Squat",
+      "sets": 3
+     }
+    ]
+   }
+  },
+  {
+   "note": "name over 60",
+   "field": "name",
+   "record": {
+    "name": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "exercises": [
+     {
+      "name": "Squat",
+      "sets": 3
+     }
+    ]
+   }
+  },
+  {
+   "note": "no exercises",
+   "field": "exercises",
+   "record": {
+    "name": "Empty",
+    "exercises": []
+   }
+  },
+  {
+   "note": "51 exercises",
+   "field": "exercises",
+   "record": {
+    "name": "Big",
+    "exercises": [
+     {
+      "name": "Ex 0",
+      "sets": 3
+     },
+     {
+      "name": "Ex 1",
+      "sets": 3
+     },
+     {
+      "name": "Ex 2",
+      "sets": 3
+     },
+     {
+      "name": "Ex 3",
+      "sets": 3
+     },
+     {
+      "name": "Ex 4",
+      "sets": 3
+     },
+     {
+      "name": "Ex 5",
+      "sets": 3
+     },
+     {
+      "name": "Ex 6",
+      "sets": 3
+     },
+     {
+      "name": "Ex 7",
+      "sets": 3
+     },
+     {
+      "name": "Ex 8",
+      "sets": 3
+     },
+     {
+      "name": "Ex 9",
+      "sets": 3
+     },
+     {
+      "name": "Ex 10",
+      "sets": 3
+     },
+     {
+      "name": "Ex 11",
+      "sets": 3
+     },
+     {
+      "name": "Ex 12",
+      "sets": 3
+     },
+     {
+      "name": "Ex 13",
+      "sets": 3
+     },
+     {
+      "name": "Ex 14",
+      "sets": 3
+     },
+     {
+      "name": "Ex 15",
+      "sets": 3
+     },
+     {
+      "name": "Ex 16",
+      "sets": 3
+     },
+     {
+      "name": "Ex 17",
+      "sets": 3
+     },
+     {
+      "name": "Ex 18",
+      "sets": 3
+     },
+     {
+      "name": "Ex 19",
+      "sets": 3
+     },
+     {
+      "name": "Ex 20",
+      "sets": 3
+     },
+     {
+      "name": "Ex 21",
+      "sets": 3
+     },
+     {
+      "name": "Ex 22",
+      "sets": 3
+     },
+     {
+      "name": "Ex 23",
+      "sets": 3
+     },
+     {
+      "name": "Ex 24",
+      "sets": 3
+     },
+     {
+      "name": "Ex 25",
+      "sets": 3
+     },
+     {
+      "name": "Ex 26",
+      "sets": 3
+     },
+     {
+      "name": "Ex 27",
+      "sets": 3
+     },
+     {
+      "name": "Ex 28",
+      "sets": 3
+     },
+     {
+      "name": "Ex 29",
+      "sets": 3
+     },
+     {
+      "name": "Ex 30",
+      "sets": 3
+     },
+     {
+      "name": "Ex 31",
+      "sets": 3
+     },
+     {
+      "name": "Ex 32",
+      "sets": 3
+     },
+     {
+      "name": "Ex 33",
+      "sets": 3
+     },
+     {
+      "name": "Ex 34",
+      "sets": 3
+     },
+     {
+      "name": "Ex 35",
+      "sets": 3
+     },
+     {
+      "name": "Ex 36",
+      "sets": 3
+     },
+     {
+      "name": "Ex 37",
+      "sets": 3
+     },
+     {
+      "name": "Ex 38",
+      "sets": 3
+     },
+     {
+      "name": "Ex 39",
+      "sets": 3
+     },
+     {
+      "name": "Ex 40",
+      "sets": 3
+     },
+     {
+      "name": "Ex 41",
+      "sets": 3
+     },
+     {
+      "name": "Ex 42",
+      "sets": 3
+     },
+     {
+      "name": "Ex 43",
+      "sets": 3
+     },
+     {
+      "name": "Ex 44",
+      "sets": 3
+     },
+     {
+      "name": "Ex 45",
+      "sets": 3
+     },
+     {
+      "name": "Ex 46",
+      "sets": 3
+     },
+     {
+      "name": "Ex 47",
+      "sets": 3
+     },
+     {
+      "name": "Ex 48",
+      "sets": 3
+     },
+     {
+      "name": "Ex 49",
+      "sets": 3
+     },
+     {
+      "name": "Ex 50",
+      "sets": 3
+     }
+    ]
+   }
+  },
+  {
+   "note": "zero sets",
+   "field": "exercises.sets",
+   "record": {
+    "name": "R",
+    "exercises": [
+     {
+      "name": "Squat",
+      "sets": 0
+     }
+    ]
+   }
+  },
+  {
+   "note": "21 sets",
+   "field": "exercises.sets",
+   "record": {
+    "name": "R",
+    "exercises": [
+     {
+      "name": "Squat",
+      "sets": 21
+     }
+    ]
+   }
+  },
+  {
+   "note": "fractional sets",
+   "field": "exercises.sets",
+   "record": {
+    "name": "R",
+    "exercises": [
+     {
+      "name": "Squat",
+      "sets": 2.5
+     }
+    ]
+   }
+  },
+  {
+   "note": "empty exercise name",
+   "field": "exercises.name",
+   "record": {
+    "name": "R",
+    "exercises": [
+     {
+      "name": "",
+      "sets": 3
+     }
+    ]
+   }
+  },
+  {
+   "note": "61 emoji name",
+   "field": "name",
+   "record": {
+    "name": "🏋🏋🏋🏋🏋🏋🏋🏋🏋🏋🏋🏋🏋🏋🏋🏋🏋🏋🏋🏋🏋🏋🏋🏋🏋🏋🏋🏋🏋🏋🏋🏋🏋🏋🏋🏋🏋🏋🏋🏋🏋🏋🏋🏋🏋🏋🏋🏋🏋🏋🏋🏋🏋🏋🏋🏋🏋🏋🏋🏋🏋",
+    "exercises": [
+     {
+      "name": "Squat",
+      "sets": 3
+     }
+    ]
+   }
+  },
+  {
+   "note": "missing sets",
+   "field": "exercises.sets",
+   "record": {
+    "name": "R",
+    "exercises": [
+     {
+      "name": "Squat"
+     }
+    ]
+   }
+  },
+  {
+   "note": "string sets",
+   "field": "exercises.sets",
+   "record": {
+    "name": "R",
+    "exercises": [
+     {
+      "name": "Squat",
+      "sets": "3"
+     }
+    ]
+   }
+  },
+  {
+   "note": "blank exercise name",
+   "field": "exercises.name",
+   "record": {
+    "name": "R",
+    "exercises": [
+     {
+      "name": "  ",
+      "sets": 3
+     }
+    ]
+   }
+  },
+  {
+   "note": "unknown key with an object value",
+   "field": "exercises.unknown_key",
+   "record": {
+    "name": "R",
+    "exercises": [
+     {
+      "name": "Squat",
+      "sets": 3,
+      "group": {
+       "a": 1
+      }
+     }
+    ]
+   }
+  },
+  {
+   "note": "21 unknown keys",
+   "field": "exercises.unknown_key",
+   "record": {
+    "name": "R",
+    "exercises": [
+     {
+      "name": "Squat",
+      "sets": 3,
+      "k0": 1,
+      "k1": 1,
+      "k2": 1,
+      "k3": 1,
+      "k4": 1,
+      "k5": 1,
+      "k6": 1,
+      "k7": 1,
+      "k8": 1,
+      "k9": 1,
+      "k10": 1,
+      "k11": 1,
+      "k12": 1,
+      "k13": 1,
+      "k14": 1,
+      "k15": 1,
+      "k16": 1,
+      "k17": 1,
+      "k18": 1
+     }
+    ]
+   }
+  }
+ ],
+ "cap": {
+  "description": "Cap scenarios. `live` and `tombstones` are the routines stored for the account before the push; `push` lists the pushed routines in order, each `new` (unknown id), `edit` (a live one, still live), `delete` (a live one becomes a tombstone), `revive` (a stored tombstone wins and comes back live) `new_deleted` (a new id pushed with `deleted_at` set: stored as a tombstone, never live, never counts) or `lost_to_tombstone` (a new id that loses last-writer-wins to a stored tombstone: stays deleted, not revived). A push is refused only when it holds a new or revived routine and the live count after the apply is over the limit; `refused` lists the `changes.routines[<i>]` indexes, one per new or revived routine that takes the running live count past the limit, in array order. Pull-only is an empty push.",
+  "cases": [
+   {
+    "note": "100 live + 1 new",
+    "live": 100,
+    "tombstones": 0,
+    "push": [
+     "new"
+    ],
+    "refused": [
+     0
+    ]
+   },
+   {
+    "note": "99 live + 2 new",
+    "live": 99,
+    "tombstones": 0,
+    "push": [
+     "new",
+     "new"
+    ],
+    "refused": [
+     1
+    ]
+   },
+   {
+    "note": "100 live + rename",
+    "live": 100,
+    "tombstones": 0,
+    "push": [
+     "edit"
+    ],
+    "refused": []
+   },
+   {
+    "note": "100 live + 1 new + 1 delete",
+    "live": 100,
+    "tombstones": 0,
+    "push": [
+     "new",
+     "delete"
+    ],
+    "refused": []
+   },
+   {
+    "note": "100 live + delete first, then new",
+    "live": 100,
+    "tombstones": 0,
+    "push": [
+     "delete",
+     "new"
+    ],
+    "refused": []
+   },
+   {
+    "note": "revive a tombstone at 100",
+    "live": 100,
+    "tombstones": 5,
+    "push": [
+     "revive"
+    ],
+    "refused": [
+     0
+    ]
+   },
+   {
+    "note": "500 tombstones, 0 live, 100 new",
+    "live": 0,
+    "tombstones": 500,
+    "push": [
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new"
+    ],
+    "refused": []
+   },
+   {
+    "note": "500 tombstones, 0 live, 101 new",
+    "live": 0,
+    "tombstones": 500,
+    "push": [
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new",
+     "new"
+    ],
+    "refused": [
+     100
+    ]
+   },
+   {
+    "note": "already 101 live + rename",
+    "live": 101,
+    "tombstones": 0,
+    "push": [
+     "edit"
+    ],
+    "refused": []
+   },
+   {
+    "note": "already 101 live + delete",
+    "live": 101,
+    "tombstones": 0,
+    "push": [
+     "delete"
+    ],
+    "refused": []
+   },
+   {
+    "note": "already 101 live + new",
+    "live": 101,
+    "tombstones": 0,
+    "push": [
+     "new"
+    ],
+    "refused": [
+     0
+    ]
+   },
+   {
+    "note": "pull-only at 100",
+    "live": 100,
+    "tombstones": 0,
+    "push": [],
+    "refused": []
+   },
+   {
+    "note": "new id losing to a tombstone at 100",
+    "live": 100,
+    "tombstones": 3,
+    "push": [
+     "lost_to_tombstone"
+    ],
+    "refused": []
+   },
+   {
+    "note": "three over the limit are all reported",
+    "live": 98,
+    "tombstones": 0,
+    "push": [
+     "new",
+     "new",
+     "new",
+     "new",
+     "new"
+    ],
+    "refused": [
+     2,
+     3,
+     4
+    ]
+   },
+   {
+    "note": "new id pushed already deleted at 100 (a tombstone does not count)",
+    "live": 100,
+    "tombstones": 0,
+    "push": [
+     "new_deleted"
+    ],
+    "refused": []
+   }
+  ]
+ }
+}

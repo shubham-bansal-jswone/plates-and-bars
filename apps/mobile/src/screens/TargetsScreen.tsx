@@ -25,6 +25,7 @@ import { useTheme } from '../theme/useTheme';
 import { space, type } from '../theme/tokens';
 import { ToastBar } from '../workout/parts';
 import { AiSection } from '../ai/AiSection';
+import { WeightUnitSection } from '../settings/WeightUnitSection';
 import { DeviceStepsSection } from '../steps/DeviceStepsSection';
 import { RemindersSection } from '../reminders/RemindersSection';
 import { MyFoodsSection, WaterSizesSection } from '../targets/WaterAndFoods';
@@ -140,6 +141,7 @@ export function TargetsScreen({ db, now = () => new Date() }: Props) {
         </>
       ) : null}
       <Button label="Exercise library" kind="ghost" onPress={() => router.push('/library' as never)} />
+      <WeightUnitSection />
       <DeviceStepsSection />
       <RemindersSection db={db} profile={profile} />
     </>
