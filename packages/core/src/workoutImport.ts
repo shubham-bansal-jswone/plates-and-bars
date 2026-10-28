@@ -171,6 +171,7 @@ const columns = (header: string[]): Map<string, number> => {
 export function parseWorkoutCsv(text: string, source: ImportSource, strongUnit: WeightUnit = 'kg', today?: string): ImportResult {
   if (text.length > IMPORT_MAX_CHARS) return { ok: false, error: 'too_large' };
   if (text.trim() === '') return { ok: false, error: 'empty' };
+  // The cap argument is the memory guard: reading stops past the row limit (+ header, + one to detect too many) instead of building the whole table.
   const table = parseCsv(text, delimiterOf(text), IMPORT_MAX_ROWS + 2);
   if (table.length - 1 > IMPORT_MAX_ROWS) return { ok: false, error: 'too_many_rows' };
   const header = table[0];
@@ -233,7 +234,7 @@ export function parseWorkoutCsv(text: string, source: ImportSource, strongUnit: 
       skipped.invalid++;
       continue;
     }
-    // Dedupe: a set number repeated with the same weight and reps inside one block of an exercise counts once. A second block of the same exercise in a workout is kept.
+    // Dedupe (the 50-exercise cap below runs before the user's skip choices, so a skipped exercise still takes a place): a set number repeated with the same weight and reps inside one block of an exercise counts once. A second block of the same exercise in a workout is kept.
     if (last.get(row.group) !== row.exercise) blocks.set(`${row.group}|${row.exercise}`, (blocks.get(`${row.group}|${row.exercise}`) ?? 0) + 1);
     last.set(row.group, row.exercise);
     const key = `${row.group}|${row.exercise}|${blocks.get(`${row.group}|${row.exercise}`)}|${order}|${row.weight}|${row.reps}`;

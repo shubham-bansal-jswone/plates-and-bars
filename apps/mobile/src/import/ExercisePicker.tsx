@@ -30,7 +30,7 @@ export function ExercisePicker({ onPick, onClose }: { onPick: (name: string) => 
               <Chip key={x.name} label={t.pickerPick(x.name)} text={x.name} onPress={() => onPick(x.name)} />
             ))}
           </View>
-          {all.length > SHOWN ? <Hint>{`Showing ${SHOWN} of ${all.length}. Type to narrow the list.`}</Hint> : null}
+          {all.length > SHOWN ? <Hint>{t.pickerShowing(SHOWN, all.length)}</Hint> : null}
           <Button label={t.pickerClose} kind="ghost" onPress={onClose} />
         </View>
       </ScrollView>

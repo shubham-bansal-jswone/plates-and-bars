@@ -1,13 +1,11 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
-import { KG_PER_LB } from '@plate-and-bar/core';
+import { KG_PER_LB, planned } from '@plate-and-bar/core';
 import { DataScreen } from '../src/screens/DataScreen';
 import { SyncContext, type SyncState } from '../src/sync/SyncProvider';
 import { SettingsProvider } from '../src/state/SettingsProvider';
 import { IMPORT_COPY as t } from '../src/import/copy';
 import { memoryDb } from './helpers';
-import { loadSessionLog } from '../src/db/workouts';
-import { planned } from '@plate-and-bar/core';
-import { saveSet, saveWorkout } from '../src/db/workouts';
+import { loadSessionLog, saveSet, saveWorkout } from '../src/db/workouts';
 
 jest.mock('expo-router', () => ({ useRouter: () => ({ back: jest.fn(), push: jest.fn(), replace: jest.fn(), canGoBack: () => true }) }));
 jest.mock('../src/account/saveFile', () => ({ clearOldExports: () => undefined, saveTextFile: async () => 'saved' }));
@@ -241,6 +239,21 @@ describe('import workouts (#1179)', () => {
     await screen.findByText(t.imported(1, 1));
     expect(JSON.parse([...db.sets.values()][0]!.data).exercise).toBe('Barbell Back Squat');
     expect(db.rows.has('user_settings:me')).toBe(false); // no duplicate custom exercise
+  });
+
+  it('choosing Skip after a match drops the match, so that exercise is not written', async () => {
+    const db = await setup();
+    await open();
+    await chooseFile([HEAD, '2024-03-27 18:30:00,A,Bench Press (Barbell),1,60,5,0,0,,,', '2024-03-27 18:30:00,A,Squat (Barbell),1,100,5,0,0,,,'].join('\n'));
+    await screen.findByText(t.unmatchedTitle(1));
+    await fireEvent.press(screen.getByLabelText(t.matchLabel('Squat (Barbell)')));
+    await fireEvent.press(screen.getByLabelText(t.pickerPick('Barbell Back Squat')));
+    expect(screen.getByLabelText(t.matchedToLabel('Squat (Barbell)', 'Barbell Back Squat'))).toBeTruthy();
+    await fireEvent.press(screen.getByLabelText(t.skipLabel('Squat (Barbell)')));
+    await fireEvent.press(screen.getByLabelText(t.importBtn));
+    await screen.findByText(t.imported(1, 1));
+    const names = [...db.sets.values()].map((r) => JSON.parse(r.data).exercise);
+    expect(names).toEqual(['Barbell Bench Press']);
   });
 
   it('shows the question as visible text, and lists the days it will skip', async () => {

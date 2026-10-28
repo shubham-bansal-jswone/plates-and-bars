@@ -41,6 +41,7 @@ export const IMPORT_COPY = {
   pickerNone: 'No exercise matches.',
   pickerPick: (n: string) => `Use ${n}`,
   pickerClose: 'Close',
+  pickerShowing: (shown: number, total: number) => `Showing ${shown} of ${total}. Type to narrow the list.`,
   skipLabel: (name: string) => `Skip ${name}`,
   addLabel: (name: string) => `Add ${name} as my own exercise`,
   skipped: (w: number, c: number, i: number, d: number, many = 0, future = 0) => {
