@@ -94,13 +94,13 @@ export const WARMUP_RAMP_HEAVY: readonly { readonly pct: number; readonly reps: 
 /**
  * Graduated warm-up ramp (decisions 2 and 3 of #1240). Same arguments as `warmupSets`.
  *
- * Steps: below 60 kg work weight, 50% x 8 then 75% x 4 (identical to `warmupSets`); at 60 kg and above,
+ * Steps: below 60 kg work weight, 50% x 8 then 75% x 4 (the same percentages as `warmupSets`; steps that reach the work weight are dropped); at 60 kg and above,
  * 40% x 8, 60% x 5, 80% x 3. Each step snaps to the exercise step (2.5 kg when 0); a step is dropped when
  * it snaps to 0, equals the previous kept step, or is at or above the work weight.
  *
  * Shown for a loaded, non-assisted compound with no set ticked and a suggested weight above 0 that is either
  * the first compound of the session (as `warmupSets`) or a later compound none of whose primary muscles
- * (catalogue `tags[name].primary`) is a primary muscle of an earlier exercise in `exercises`. Never for
+ * (catalogue `tags[name].primary`) is a primary muscle of an earlier compound exercise in `exercises`. Never for
  * isolation, no-load or assisted exercises. Null when not shown, or when every step is dropped.
  *
  * Extends `warmupSets` (prototype `warmupHtml`); `warmupSets` is unchanged and stays the prototype port.
@@ -121,10 +121,10 @@ export function warmupRamp(
   const w = sug.w;
   if (!(typeof w === 'number' && w > 0)) return null;
   if (exercises.findIndex((e) => isCompound(e.name)) !== i) {
-    // a later compound: only when its primary muscles are not already warm from an earlier exercise
+    // a later compound: only when its primary muscles are not already warm from an earlier compound exercise
     const mine = tags[ex.name]?.primary ?? [];
     const warm = new Set<string>();
-    for (const e of exercises.slice(0, Math.max(0, i))) for (const m of tags[e.name]?.primary ?? []) warm.add(m);
+    for (const e of exercises.slice(0, Math.max(0, i))) if (isCompound(e.name)) for (const m of tags[e.name]?.primary ?? []) warm.add(m);
     if (i < 0 || mine.some((m) => warm.has(m))) return null;
   }
   const step = info.step || 2.5;

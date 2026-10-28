@@ -173,6 +173,7 @@ describe('warmupRamp', () => {
   });
   it('a step at or above w is dropped', () => {
     expect(ramp(2, ex, { ...info, step: 2.5 })).toBeNull(); // 1 -> 0, 1.5 -> 2.5 (>= 2)
+    expect(ramp(10, ex, { ...info, step: 5 })).toEqual([{ w: 5, reps: 8 }]); // 7.5 -> 10 equals w
   });
   it('null for no weight, bodyweight, assisted, isolation, ticked set', () => {
     for (const w of [0, -5, '', undefined] as const) expect(ramp(w)).toBeNull();
@@ -194,9 +195,9 @@ describe('warmupRamp', () => {
           expect(cur).toBeNull();
           continue;
         }
-        // steps that warmupSets keeps but the ramp drops (0, repeat, >= w) are outside the parity range
-        if (old[0].w <= 0 || old[0].w === old[1].w || old[1].w >= w) continue;
-        expect(cur).toEqual(old);
+        // the ramp is warmupSets with the drop rules applied (0, repeat of previous, >= w)
+        const kept = old.filter((st, k) => st.w > 0 && st.w < w && (k === 0 || st.w !== old[k - 1]?.w));
+        expect(cur).toEqual(kept.length ? kept : null);
         compared++;
       }
     }
@@ -210,11 +211,12 @@ describe('warmupRamp', () => {
     expect(warmupRamp(inc, 1, { w: 30 }, [be, inc], exInfo(incline, catalog), tags)).toBeNull();
     expect(warmupRamp(inc, 2, { w: 30 }, [sq, be, inc], exInfo(incline, catalog), tags)).toBeNull();
     expect(warmupRamp(be, 0, { w: 80 }, [be, inc], exInfo(bench, catalog), tags)).not.toBeNull();
-    // an earlier isolation exercise warms the muscle too; an unrelated one does not
+    // earlier isolation work does not warm a muscle for a later compound
     const fly = Object.keys(tags).find((n) => restFor(n, tags) !== REST_COMPOUND_SEC && tags[n]?.primary.includes('chest')) as string;
     const lat = { name: 'Lateral Raise', sets: [] };
     expect(warmupRamp(be, 1, { w: 80 }, [{ name: fly, sets: [] }, be], exInfo(bench, catalog), tags)).not.toBeNull(); // still the first compound
-    expect(warmupRamp(be, 2, { w: 80 }, [{ name: fly, sets: [] }, sq, be], exInfo(bench, catalog), tags)).toBeNull(); // chest already warm
+    expect(warmupRamp(be, 2, { w: 80 }, [{ name: fly, sets: [] }, sq, be], exInfo(bench, catalog), tags)).not.toBeNull(); // earlier isolation work does not count
+    expect(warmupRamp(be, 2, { w: 80 }, [sq, { name: fly, sets: [] }, be], exInfo(bench, catalog), tags)).toEqual([{ w: 32.5, reps: 8 }, { w: 47.5, reps: 5 }, { w: 65, reps: 3 }]);
     expect(warmupRamp(be, 1, { w: 80 }, [lat, be], exInfo(bench, catalog), tags)).not.toBeNull(); // first compound is index 1
     expect(warmupRamp(be, 2, { w: 80 }, [sq, lat, be], exInfo(bench, catalog), tags)).not.toBeNull();
     expect(warmupRamp(be, -1, { w: 80 }, [sq, be], exInfo(bench, catalog), tags)).toBeNull();
