@@ -102,7 +102,7 @@ export function WorkoutDay({ session, sessions, lifts, onBack }: { session: Hist
                 <Text style={[typeScale.small, { color: c.muted }]}>{`Volume, last ${t.points.length} sessions${t.heaviest ? `. Heaviest set ${fmt(t.heaviest)} kg.` : '.'}`}</Text>
               </View>
             ) : null}
-            <E1rmTrend points={e1} type={typeOf(e.name) ?? 'other'} span={`Last ${HISTORY_LIMIT} sessions`} note={false} />
+            <E1rmTrend points={e1} type={typeOf(e.name) ?? 'other'} span={`Last ${Math.min(sessions.length, HISTORY_LIMIT)} sessions`} note={false} />
           </Card>
         );
       })}

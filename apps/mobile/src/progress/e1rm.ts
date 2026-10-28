@@ -10,7 +10,7 @@ export interface TrendSet {
   rate: Rate | null;
 }
 
-/** Best estimate per day for one exercise, oldest first. Core decides what counts (done work sets, no `fail`, loaded types, 12 reps or fewer). One workout is one day, so the day is the session key. */
+/** Best estimate per day for one exercise, oldest first. Core decides what counts (done work sets, no `fail`, loaded types, `E1RM_MAX_REPS` reps or fewer). One workout is one day, so the day is the session key. */
 export const e1rmPoints = (sets: readonly TrendSet[], type?: ExType): E1rmPoint[] => e1rmHistory(sets, type);
 
 const DAY = 86_400_000;

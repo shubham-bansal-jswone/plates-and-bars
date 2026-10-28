@@ -1,6 +1,6 @@
 import { render, screen, fireEvent } from '@testing-library/react-native';
 import type { LiftRecord } from '@plate-and-bar/core';
-import { saveSet, saveWorkout } from '../src/db/workouts';
+import { loadExerciseSets, saveSet, saveWorkout } from '../src/db/workouts';
 import { ExerciseLibraryScreen } from '../src/library/ExerciseLibraryScreen';
 import { getLibrary } from '../src/library/exercises';
 import { durationText, e1rmSummary, elapsedLine } from '../src/progress/e1rm';
@@ -11,6 +11,7 @@ import { CompletionPanel } from '../src/workout/CompletionPanel';
 import type { ExState, Row } from '../src/workout/model';
 import type { WorkoutSet } from '../src/workout/types';
 import { memoryDb, withProfile } from './helpers';
+import { openDb } from './sync-helpers';
 
 jest.mock('expo-router', () => ({ useRouter: () => ({ push: jest.fn() }) }));
 jest.mock('expo-crypto', () => ({ randomUUID: () => globalThis.crypto.randomUUID() }));
@@ -67,7 +68,7 @@ describe('history day view', () => {
     expect(screen.getByTestId('e1rm-trend')).toBeTruthy();
     expect(screen.getByTestId('session-elapsed').props.children).toBe('Time: 1 h 10 min');
     expect(screen.getAllByText(/weight x \(1 \+ reps \/ 30\)/)).toHaveLength(1); // the note once per day
-    expect(screen.getByText('Last 20 sessions')).toBeTruthy();
+    expect(screen.getByText('Last 2 sessions')).toBeTruthy(); // the real count, below the cap
   });
 
   it('hides the time when a done set has no tick', async () => {
@@ -140,5 +141,36 @@ describe('library detail', () => {
     await open(db);
     await screen.findByText('Back to library');
     expect(screen.queryByTestId('e1rm-trend')).toBeNull();
+  });
+});
+
+describe('history span at the cap', () => {
+  it('says 20 when the session limit is reached', async () => {
+    const dates = Array.from({ length: 21 }, (_, i) => `2026-09-${String(i + 1).padStart(2, '0')}`);
+    const log = Object.fromEntries(dates.map((d) => [d, { t: 'Pull A', n: 1 }]));
+    const sets = Object.fromEntries(dates.map((d, i) => [d, [wset(`s${i}`, 'Row', 0, 60 + i, 8)]]));
+    const s = buildSessions(log, sets);
+    await render(<WorkoutDay session={s[0]!} sessions={s} lifts={{}} onBack={() => {}} />);
+    expect(screen.getByText('Last 20 sessions')).toBeTruthy();
+  });
+});
+
+describe('loadExerciseSets on the real schema', () => {
+  it('keeps only live work sets of the exercise on days with a live workout, and binds the name', async () => {
+    const db = await openDb();
+    const wk = (d: string, deleted: string | null) => saveWorkout(db, { ...meta, deleted_at: deleted, id: null, date: d, template: 'x', base: 'x', where: 'gym', cardio_min: null, mods: {}, exercises: [], ci_choice: null });
+    const NAME = "Squat' OR 1=1 --";
+    await wk('2026-10-01', null);
+    await wk('2026-10-02', '2026-10-03T00:00:00Z');
+    await saveSet(db, '2026-10-01', wset('ok', NAME, 0, 80, 5));
+    await saveSet(db, '2026-10-01', wset('other', 'Row', 1, 80, 5));
+    await saveSet(db, '2026-10-01', wset('ramp', NAME, 2, 40, 5, { kind: 'ramp' }));
+    await saveSet(db, '2026-10-01', wset('undone', NAME, 3, 80, 5, { done: false }));
+    await saveSet(db, '2026-10-01', wset('del', NAME, 4, 80, 5, { deleted_at: '2026-10-02T00:00:00Z' }));
+    await saveSet(db, '', wset('orphan', NAME, 0, 120, 5));
+    await saveSet(db, '2026-10-02', wset('deadday', NAME, 0, 100, 5));
+    await saveSet(db, '2026-10-05', wset('noday', NAME, 0, 100, 5));
+    const got = await loadExerciseSets(db, NAME);
+    expect(got.map((s) => [s.id, s.date])).toEqual([['ok', '2026-10-01']]);
   });
 });
