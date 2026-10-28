@@ -32,6 +32,9 @@ spring:
           max-nesting-depth: 1000
 
 logging:
+  pattern:
+    # requestId comes from RequestIdFilter (the X-Request-Id header or a generated UUID); never request content.
+    level: "%5p [%X{requestId:-}]"
   level:
     # These print "rejected value [...]" (user input such as an email) when validation fails.
     org.springframework.web.servlet.mvc.method.annotation.ExceptionHandlerExceptionResolver: INFO

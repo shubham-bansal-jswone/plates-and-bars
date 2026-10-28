@@ -14,8 +14,8 @@ const names = Object.keys(JSON.parse(readFileSync(`${repo}/content/exercises.jso
 const committed = readFileSync(`${repo}/content/exercise-images.json`, 'utf8');
 const html = readFileSync(`${repo}/docs/prototype/plate-and-bar.html`, 'utf8');
 
-test('the rig has the 31 prototype poses plus batches 2, 3 and 4 (12 poses each) and Dead Bug and every one is an exercise in the app', () => {
-  assert.equal(AN.names.length, 68);
+test('the rig has the 31 prototype poses plus batches 2, 3 and 4 (12 poses each) and Dead Bug and Dumbbell Fly and every one is an exercise in the app', () => {
+  assert.equal(AN.names.length, 69);
   for (const n of AN.names) assert.ok(names.includes(n), `${n} is not in exercises.json`);
   assert.deepEqual(Object.keys(buildBundle(names).images).sort(), [...AN.names].sort());
 });
@@ -42,7 +42,7 @@ test('the bundle passes the validator and every frame is well inside the size li
   const bundle = JSON.parse(committed);
   assert.deepEqual(validateExerciseImages(bundle, names), []);
   const sizes = Object.values(bundle.images).flatMap((i) => i.frames.map((f) => Buffer.byteLength(f.svg)));
-  assert.equal(sizes.length, 133); // 65 exercises with two frames, the three isometric holds with one
+  assert.equal(sizes.length, 135); // 66 exercises with two frames, the three isometric holds with one
   assert.ok(Math.max(...sizes) <= 4096, `largest frame ${Math.max(...sizes)} bytes`);
   assert.ok(Math.max(...sizes) < MAX_FRAME_BYTES);
   assert.ok(Math.min(...sizes) > 500, 'a frame this small is probably empty');
@@ -103,11 +103,20 @@ test('new poses keep every drawn segment at the rig length in both frames (no st
   for (const n of AN.names.slice(31)) for (const k of [0, 1]) {
     const j = AN.joints(n, k);
     if (!j) continue; // front-view poses use fixed lengths
-    const { J, uaS } = j;
+    const { J, uaS, faS } = j;
     const got = { ua: d(J.sh, J.el), fa: d(J.el, J.wr), th: d(J.hip, J.knee), sh: d(J.knee, J.ankle), torso: d(J.hip, J.sh) };
-    const want = { ...LEN, ua: LEN.ua * uaS };
+    const want = { ...LEN, ua: LEN.ua * uaS, fa: LEN.fa * faS };
     for (const s of Object.keys(LEN)) assert.ok(Math.abs(got[s] - want[s]) <= TOL, `${n} k=${k}: ${s} is ${got[s].toFixed(1)}, rig length ${want[s]}`);
   }
+});
+
+test('Dumbbell Fly bottom has soft elbows: clearly straighter than the press bottom (forearm scale, #1120)', () => {
+  const elbow = (n, k) => { const { J } = AN.joints(n, k); const a = (p, q) => Math.atan2(q[1] - p[1], q[0] - p[0]); const d = Math.abs(a(J.el, J.sh) - a(J.el, J.wr)) * 180 / Math.PI; return d > 180 ? 360 - d : d; };
+  const fly = elbow('Dumbbell Fly', 0), press = elbow('Dumbbell Bench Press', 0);
+  assert.ok(fly >= 140 && fly < 175, `fly bottom elbow ${fly.toFixed(0)} degrees: soft, not locked`);
+  assert.ok(fly - press >= 90, `fly ${fly.toFixed(0)} vs press ${press.toFixed(0)} degrees`);
+  assert.equal(AN.joints('Dumbbell Fly', 0).faS, 0.55);
+  assert.equal(AN.joints('Dumbbell Bench Press', 0).faS, 1); // existing poses are unchanged
 });
 
 test('rear and free legs drawn in props are reachable and keep rig length; split squats and lunges stay planted', () => {
