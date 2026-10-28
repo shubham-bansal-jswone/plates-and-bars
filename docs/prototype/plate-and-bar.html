@@ -4215,7 +4215,7 @@ function energyHtml(){
     return `<div class="banner"><span>Get calorie and macro targets worked out for you.</span><button class="primary" data-act="su-start">Start setup</button></div>`;
   }
   const b = burnToday(), lo = b.total*0.9, hi = b.total*1.1;
-  let h = `<section class="energy"><div class="en-h"><div><span class="hint">${S.date === TODAY() ? 'Estimated burn today so far' : `Estimated burn on ${shortDate(S.date)}`}</span><b>${fmt(lo)}–${fmt(hi)} kcal</b></div>
+  let h = `<section class="energy"><div class="en-h"><div><span class="hint">${S.date === TODAY() ? 'Estimated burn today so far' : `Estimated burn on ${parseYmd(S.date).toLocaleDateString('en-IN',{weekday:'long',day:'numeric',month:'short'})}`}</span><b>${fmt(lo)}–${fmt(hi)} kcal</b></div>
     <button class="ghost sm" data-act="en-toggle" aria-expanded="${enOpen}">${enOpen ? 'Hide' : 'Details'}</button></div>`;
   if(enOpen){
     h += `<ul class="brk">

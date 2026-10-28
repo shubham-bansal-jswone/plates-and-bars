@@ -6,7 +6,7 @@ const DATE = '2026-10-14';
 
 interface ProtoWeek {
   stored: Record<string, { meals: { qty: number; kcal: number; p: number; c: number; f: number }[]; workout: { exercises: { sets: { done?: boolean }[] }[] } }>;
-  render(date: string, kcal: number): Promise<string>;
+  render(date: string, kcal: number, today?: string): Promise<string>;
 }
 
 /** The prototype's own "Seven days" code, cut out of `renderProgress()` and run on a fake `S` and `Store`. */
@@ -19,8 +19,8 @@ function loadWeek(): ProtoWeek {
   if (from < 0 || first < 0 || end < 0) throw new Error('prototype: renderProgress week block not found');
   const code = [
     "const S = { date:'', day:null, tab:'progress', settings:{ kcal:0 } };",
-    // The week now ends on the real today (#1136); these tests always view today, so today is the date under test.
-    'const TODAY = () => S.date;',
+    // The week ends on the real today (#1136). Unless a test sets `today`, it views today.
+    "let today = ''; const TODAY = () => today || S.date;",
     'const stored = {}; const el = { innerHTML: "" }; const $ = q => (q === "#week" ? el : null);',
     "const Store = { get: k => Promise.resolve(stored[k.slice(4)] ? JSON.parse(JSON.stringify(stored[k.slice(4)])) : null) };",
     'const normDay = d => d || { meals: [], workout: { exercises: [] } };',
@@ -32,7 +32,7 @@ function loadWeek(): ProtoWeek {
     sliceLine(src, 'const dayName = '),
     lines.slice(lines.findIndex((l) => l.startsWith('function totals(meals = S.day.meals){')), lines.findIndex((l, i) => i > 0 && l === '}' && lines[i - 2]?.startsWith('function totals(')) + 1).join('\n'),
     `async function week(){\n${lines.slice(first, end).join('\n')}\n}`,
-    'return { stored, render: async (date, kcal) => { S.date = date; S.settings.kcal = kcal; S.day = normDay(stored[date]); el.innerHTML = ""; await week(); return el.innerHTML; } };',
+    'return { stored, render: async (date, kcal, t = "") => { today = t; S.date = date; S.settings.kcal = kcal; S.day = normDay(stored[date]); el.innerHTML = ""; await week(); return el.innerHTML; } };',
   ].join('\n');
   return new Function(code)() as ProtoWeek;
 }
@@ -85,6 +85,20 @@ describe('weekSummary', () => {
     // A day whose logs are all deleted counts as no logged day, so there is no average.
     expect(gone.avgKcal).toBeNull();
     expect(gone.avgProtein_g).toBeNull();
+  });
+  it('viewing a day before today still shows the week ending on today (#1136)', async () => {
+    const days: ProgressDay[] = [
+      { date: DATE, logs: [{ name: 'a', qty: 1, kcal: 1700, protein_g: 90, carbs_g: 0, fat_g: 0 }], trained: true },
+      { date: addDays(DATE, -2), logs: [{ name: 'b', qty: 1, kcal: 2100, protein_g: 70, carbs_g: 0, fat_g: 0 }], trained: false },
+      { date: addDays(DATE, -6), logs: [{ name: 'c', qty: 1, kcal: 1500, protein_g: 50, carbs_g: 0, fat_g: 0 }], trained: true },
+    ];
+    setDays(days);
+    const html = await proto.render(addDays(DATE, -2), 1900, DATE), w = weekSummary(days, DATE, 1900);
+    const dn = (d: string): string => new Date(Number(d.slice(0, 4)), Number(d.slice(5, 7)) - 1, Number(d.slice(8))).toLocaleDateString('en-IN', { weekday: 'short' });
+    expect(names(html)).toEqual(w.days.map((d) => [dn(d.date), d.trained]));
+    expect(html).toContain(`<b>${w.sessions}</b>sessions`);
+    expect(html).toContain(`<b>${Math.round(w.avgProtein_g ?? 0)} g</b>avg protein`);
+    expect(w.days.map((d) => d.date)).toEqual(Array.from({ length: 7 }, (_, k) => addDays(DATE, k - 6)));
   });
   it('matches the prototype over 500 random weeks', async () => {
     const r = rng(489);
