@@ -30,7 +30,7 @@ describe('setE1rm', () => {
   });
   it('excludes bodyweight, timed and assisted types, keeps loaded', () => {
     expect(setE1rm(set(), 'bodyweight')).toBeNull();
-    expect(setE1rm(set(), 'timed')).toBeNull();
+    expect(setE1rm(set(), 'time')).toBeNull();
     expect(setE1rm(set(), 'assisted')).toBeNull();
     expect(setE1rm(set(), 'barbell')).toBe(93.3);
   });

@@ -50,7 +50,7 @@ export interface E1rmSet {
 
 /**
  * Estimate for one set, or null. Counts only done `work` sets not rated `fail`, and only for loaded
- * exercise types: bodyweight, timed and assisted exercises have no external load to estimate from.
+ * exercise types: bodyweight, time and assisted exercises have no external load to estimate from.
  * An unknown `type` is treated as loaded.
  */
 export function setE1rm(s: Omit<E1rmSet, 'date'>, type?: ExType): number | null {
