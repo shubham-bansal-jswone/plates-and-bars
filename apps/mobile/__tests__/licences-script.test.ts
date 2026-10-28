@@ -57,11 +57,11 @@ describe('scripts/licences.mjs --classpath', () => {
   });
 
   it('fails on a NOTICE the build no longer finds, showing the difference', () => {
-    const r = withClasspath(committed.replace('commons-io:commons-io:1.4 META-INF/NOTICE.txt@953ed0a73373ef5e', 'commons-io:commons-io:1.4'));
+    const r = withClasspath(committed.replace('commons-io:commons-io:2.6 META-INF/NOTICE.txt@f738390135295a24', 'commons-io:commons-io:2.6'));
     expect(r.status).toBe(1);
     expect(r.stderr).toContain('differs from scripts/android-classpath.txt');
-    expect(r.stderr).toContain('+ commons-io:commons-io:1.4\n');
-    expect(r.stderr).toContain('- commons-io:commons-io:1.4 META-INF/NOTICE.txt@953ed0a73373ef5e');
+    expect(r.stderr).toContain('+ commons-io:commons-io:2.6\n');
+    expect(r.stderr).toContain('- commons-io:commons-io:2.6 META-INF/NOTICE.txt@f738390135295a24');
   });
 
   it('fails on a library the build no longer resolves', () => {
@@ -71,25 +71,25 @@ describe('scripts/licences.mjs --classpath', () => {
   });
 
   it('fails on a NOTICE file that has no copy in scripts/licence-texts', () => {
-    const r = withClasspath(committed.replace('commons-io:commons-io:1.4 META-INF/NOTICE.txt@953ed0a73373ef5e', 'commons-io:commons-io:1.4 META-INF/NOTICE.txt@0000000000000000'));
+    const r = withClasspath(committed.replace('commons-io:commons-io:2.6 META-INF/NOTICE.txt@f738390135295a24', 'commons-io:commons-io:2.6 META-INF/NOTICE.txt@0000000000000000'));
     expect(r.status).toBe(1);
-    expect(r.stderr).toContain('NOTICE not copied to scripts/licence-texts/notice-<hash>.txt: commons-io:commons-io:1.4 META-INF/NOTICE.txt');
+    expect(r.stderr).toContain('NOTICE not copied to scripts/licence-texts/notice-<hash>.txt: commons-io:commons-io:2.6 META-INF/NOTICE.txt');
   });
 
   it('fails on a NOTICE copy whose content does not match its hash', () => {
     const copy = join(app, 'scripts/licence-texts/notice-ffffffffffffffff.txt');
     writeFileSync(copy, 'edited by hand\n');
     try {
-      const r = withClasspath(committed.replace('commons-io:commons-io:1.4 META-INF/NOTICE.txt@953ed0a73373ef5e', 'commons-io:commons-io:1.4 META-INF/NOTICE.txt@ffffffffffffffff'));
+      const r = withClasspath(committed.replace('commons-io:commons-io:2.6 META-INF/NOTICE.txt@f738390135295a24', 'commons-io:commons-io:2.6 META-INF/NOTICE.txt@ffffffffffffffff'));
       expect(r.status).toBe(1);
-      expect(r.stderr).toContain('scripts/licence-texts/notice-ffffffffffffffff.txt does not match its hash (commons-io:commons-io:1.4 META-INF/NOTICE.txt)');
+      expect(r.stderr).toContain('scripts/licence-texts/notice-ffffffffffffffff.txt does not match its hash (commons-io:commons-io:2.6 META-INF/NOTICE.txt)');
     } finally {
       unlinkSync(copy);
     }
   });
 
   it('fails on a line that is not group:name:version with path@hash notices', () => {
-    for (const bad of ['androidx.core:core', 'commons-io:commons-io:1.4 META-INF/NOTICE.txt@../../x']) {
+    for (const bad of ['androidx.core:core', 'commons-io:commons-io:2.6 META-INF/NOTICE.txt@../../x']) {
       const r = withClasspath(`${committed}${bad}\n`);
       expect(r.status).toBe(1);
       expect(r.stderr).toContain(`not group:name:version [path@sha256-prefix]...: ${bad}`);
