@@ -36,7 +36,8 @@ describe('platesFor (#1176)', () => {
     const r = platesFor(101)!; // side 40.5; smallest plate 1.25 -> 40 (25+15)
     expect(r.loadedTotal).toBe(100);
     expect(r.remainder).toBe(1);
-    expect(platesFor(102.4)!.loadedTotal).toBe(102.5 - 2.5 > 0 ? 100 : 0);
+    expect(platesFor(102.4)!.loadedTotal).toBe(100);
+    expect(platesFor(102.4)!.remainder).toBe(2.4);
     expect(platesFor(102.5)!.loadedTotal).toBe(102.5);
   });
 
@@ -55,9 +56,36 @@ describe('platesFor (#1176)', () => {
     expect(r.remainder).toBe(0);
   });
 
-  it('prefers fewest plates', () => {
+  it('loads largest-first', () => {
     expect(platesFor(120)!.perSide).toEqual([{ plate: 25, count: 2 }]);
     expect(platesFor(220)!.perSide).toEqual([{ plate: 25, count: 4 }]);
+  });
+
+  it('lb loads 45s first, not fewest plates', () => {
+    expect(platesFor(lbToKg(165), lb)!.perSide).toEqual([{ plate: 45, count: 1 }, { plate: 10, count: 1 }, { plate: 5, count: 1 }]);
+    expect(platesFor(lbToKg(255), lb)!.perSide).toEqual([{ plate: 45, count: 2 }, { plate: 10, count: 1 }, { plate: 5, count: 1 }]);
+  });
+
+  it('equals greedy for the default sets wherever greedy is exact', () => {
+    const greedy = (side: number, plates: readonly number[]) => {
+      const out: number[] = [];
+      let left = Math.round(side * 100);
+      for (const p of plates) while (left >= Math.round(p * 100)) { out.push(p); left -= Math.round(p * 100); }
+      return { out, left };
+    };
+    const check = (unit: 'kg' | 'lb', bar: number, plates: readonly number[], from: number, to: number, step: number) => {
+      let compared = 0;
+      for (let total = from; total <= to; total += step) {
+        const g = greedy((total - bar) / 2, plates);
+        if (g.left !== 0) continue;
+        const r = platesFor(unit === 'kg' ? total : lbToKg(total), { unit })!;
+        expect(r.perSide.flatMap((p) => Array(p.count).fill(p.plate))).toEqual(g.out);
+        compared++;
+      }
+      expect(compared).toBeGreaterThan(50);
+    };
+    check('kg', 20, [25, 20, 15, 10, 5, 2.5, 1.25], 20, 400, 2.5);
+    check('lb', 45, [45, 35, 25, 10, 5, 2.5], 45, 800, 5);
   });
 
   it('custom plate sets, order and duplicates ignored', () => {
@@ -119,8 +147,10 @@ describe('nearestLoadable, loadableNeighbours, describePlates', () => {
   });
 
   it('screen reader line', () => {
-    expect(describePlates(platesFor(52.5)!)).toBe('Per side: 15, 1.25');
-    expect(describePlates(platesFor(120)!)).toBe('Per side: 2 x 25');
-    expect(describePlates(platesFor(20)!)).toBe('Bar only');
+    expect(describePlates(platesFor(52.5)!)).toBe('Per side: 15, 1.25 kg');
+    expect(describePlates(platesFor(120)!)).toBe('Per side: 25, 25 kg');
+    expect(describePlates(platesFor(20)!)).toBe('Bar only, 20 kg');
+    expect(describePlates(platesFor(lbToKg(225), lb)!)).toBe('Per side: 45, 45 lb');
+    expect(describePlates(platesFor(lbToKg(45), lb)!)).toBe('Bar only, 45 lb');
   });
 });

@@ -25,7 +25,7 @@ export interface PlateOptions {
   plates?: readonly number[];
   /** Weight of one collar in `unit`; two are fitted, one per side. Default 0 (no collars). */
   collar?: number;
-  /** Which way to resolve an unreachable target: `down` (default, never above), `up` (never below) or `nearest` (ties go down). */
+  /** Which way to resolve an unreachable target: `down` (default, never above except when the target is under the bar), `up` (never below) or `nearest` (ties go down). */
   round?: 'down' | 'up' | 'nearest';
 }
 
@@ -59,7 +59,7 @@ const gcd = (a: number, b: number): number => (b === 0 ? a : gcd(b, a % b));
 const milli = (n: number): number => Math.round(n * SCALE);
 
 /**
- * Solves "largest/smallest loadable per-side weight" exactly with a minimum-plate-count table, so it is right
+ * Solves "largest/smallest loadable per-side weight" exactly with a reachability table, so it is right
  * for any plate set, not only canonical ones where greedy works. Returns plates in thousandths or null.
  */
 function solveSide(side: number, plates: number[], round: 'down' | 'up' | 'nearest'): { total: number; counts: number[] } | null {
@@ -70,14 +70,12 @@ function solveSide(side: number, plates: number[], round: 'down' | 'up' | 'neare
   if (reach > MAX_CELLS) return null;
   const w = plates.map((p) => p / g);
   const best = new Array<number>(reach + 1).fill(Infinity);
-  const from = new Array<number>(reach + 1).fill(-1);
   best[0] = 0;
   for (let i = 1; i <= reach; i++) {
     for (let k = 0; k < w.length; k++) {
       const prev = i - w[k]!;
       if (prev >= 0 && best[prev]! + 1 < best[i]!) {
         best[i] = best[prev]! + 1;
-        from[i] = k; // plates are sorted largest first, so ties keep the larger plate
       }
     }
   }
@@ -89,8 +87,16 @@ function solveSide(side: number, plates: number[], round: 'down' | 'up' | 'neare
   let pick = down;
   if (round === 'up') pick = hasUp ? up : down;
   else if (round === 'nearest' && hasUp && up * g - side < side - down * g) pick = up;
+  // Largest-first: take the biggest plate whose remainder is still loadable (the table says so). Equals greedy
+  // wherever greedy is exact, and still solves sets where greedy is not.
   const counts = new Array<number>(plates.length).fill(0);
-  for (let i = pick; i > 0; i -= w[from[i]!]!) counts[from[i]!]!++;
+  let left = pick;
+  for (let k = 0; k < w.length; k++) {
+    while (left >= w[k]! && best[left - w[k]!]! !== Infinity) {
+      counts[k]!++;
+      left -= w[k]!;
+    }
+  }
   return { total: pick * g, counts };
 }
 
@@ -100,7 +106,7 @@ const valid = (n: unknown): n is number => typeof n === 'number' && Number.isFin
  * The plates for one side of a barbell, or null for invalid input (non-finite or negative target, bar or
  * collar; no usable plates; a plate that is not positive and finite; a target beyond 2000 per side).
  * `targetKg` is the total bar weight in kg. By default an unreachable target loads the nearest weight at or
- * below it and reports the `remainder`; it never goes above unless `round` says so.
+ * below it and reports the `remainder`; it never goes above unless `round` says so (or the target is under the bar, where the bar alone is returned).
  */
 export function platesFor(targetKg: number, opts: PlateOptions = {}): PlateLoad | null {
   const unit = opts.unit ?? 'kg';
@@ -150,8 +156,12 @@ export function loadableNeighbours(targetKg: number, opts: PlateOptions = {}): {
   return below && above ? { below, above } : null;
 }
 
-/** Plain-text line for screen readers, e.g. "Per side: 20, 10, 2.5" (a plate repeated shows `2 x 20`). */
+/**
+ * Plain-text line for screen readers: each plate repeated, then the unit, e.g. "Per side: 25, 25, 2.5 kg" or
+ * "Bar only, 20 kg" (the bar's weight; collars are not announced).
+ */
 export function describePlates(load: PlateLoad): string {
-  if (load.perSide.length === 0) return 'Bar only';
-  return `Per side: ${load.perSide.map((p) => (p.count > 1 ? `${p.count} x ${p.plate}` : String(p.plate))).join(', ')}`;
+  if (load.perSide.length === 0) return `Bar only, ${load.loadedTotal} ${load.unit}`;
+  const list = load.perSide.flatMap((p) => Array<string>(p.count).fill(String(p.plate)));
+  return `Per side: ${list.join(', ')} ${load.unit}`;
 }
