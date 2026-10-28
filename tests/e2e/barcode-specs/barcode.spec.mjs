@@ -58,8 +58,8 @@ test('with no native BarcodeDetector it reads the code with zxing-wasm from our 
   // the chunk and the .wasm came from our origin, and the wasm was served as application/wasm
   expect(chunks(seen).length).toBeGreaterThan(0);
   const w = wasm(seen);
-  expect(w.map((r) => r.url.pathname)).toContain('/zxing/3.1.3/zxing_reader.wasm');
-  expect(w.find((r) => r.url.pathname === '/zxing/3.1.3/zxing_reader.wasm').type).toContain('application/wasm');
+  expect(w.map((r) => r.url.pathname)).toContain('/zxing/3.1.6/zxing_reader.wasm');
+  expect(w.find((r) => r.url.pathname === '/zxing/3.1.6/zxing_reader.wasm').type).toContain('application/wasm');
   expectOwnOriginOnly(seen, page);
   // nothing of the reader is in the service worker cache (on demand only)
   const cached = await page.evaluate(async () => {
