@@ -1,4 +1,4 @@
-import { DEFICIT_CAP_KCAL, needsClearance, setupSummary, type SetupNote, type TargetsResult } from '@plate-and-bar/core';
+import { DEFICIT_CAP_KCAL, formatWeight, needsClearance, setupSummary, type SetupNote, type TargetsResult, type WeightUnit } from '@plate-and-bar/core';
 import { fmt } from '../format';
 import { ACTIVITY } from './copy';
 import type { Profile } from './types';
@@ -26,14 +26,15 @@ export interface WhyLine {
   after?: string;
 }
 
-export function buildResults(p: Profile): Results {
+export function buildResults(p: Profile, unit: WeightUnit = 'kg'): Results {
   const s = setupSummary(p);
   const r = s.targets;
+  const pace1 = (kg: number | null): string => (unit === 'kg' || kg === null ? String(kg) : formatWeight(kg, unit)); // kg as core gives it
   const pace =
     s.pace === 'loss'
-      ? `That’s ${s.deficitPct}% below your burn, about ${s.paceKg} kg of weight loss a week on average.`
+      ? `That’s ${s.deficitPct}% below your burn, about ${pace1(s.paceKg)} ${unit} of weight loss a week on average.`
       : s.pace === 'gain'
-        ? `That’s a small surplus, about ${s.paceKg} kg of gain a week.`
+        ? `That’s a small surplus, about ${pace1(s.paceKg)} ${unit} of gain a week.`
         : 'That matches your burn, so your weight should hold steady.';
   const copy: Record<SetupNote, string> = {
     special: 'During pregnancy or breastfeeding the app doesn’t set a calorie deficit. Please check these targets with your doctor.',
@@ -75,7 +76,7 @@ export function buildResults(p: Profile): Results {
     },
     {
       head: `Protein, ${r.protein} g.`,
-      text: `${r.perKg} g per kg of ${r.refW === r.w ? 'your bodyweight' : `a reference weight of ${r.refW} kg (used when BMI is above 30, so protein isn’t set unrealistically high)`}.`,
+      text: `${r.perKg} g per kg of ${r.refW === r.w ? 'your bodyweight' : `a reference weight of ${formatWeight(r.refW, unit)} ${unit} (used when BMI is above 30, so protein isn’t set unrealistically high)`}.`,
       ev: 'Strong',
       after: 'Muscle-building benefits level off around 1.6 g per kg; the extra margin helps keep muscle during a deficit.',
     },

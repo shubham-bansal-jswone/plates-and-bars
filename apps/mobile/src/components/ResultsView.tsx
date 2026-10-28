@@ -4,6 +4,7 @@ import { WhyLink } from '../why/WhyLink';
 import { Text } from './Text';
 import { fmt } from '../format';
 import { buildResults } from '../setup/results';
+import { useWeightUnit } from '../settings/weightUnit';
 import type { Profile } from '../setup/types';
 import { radius, space, tabular, type } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
@@ -20,7 +21,8 @@ const NOTE_WHY: Record<string, string> = { home_dumbbells: 'home', home_bodyweig
 export function ResultsView({ profile, onCleared, hideTargets, hideHeadline, showWhy, columns }: { profile: Profile; onCleared?: () => void; hideTargets?: boolean; hideHeadline?: boolean; /** Two columns on a screen >= 900px (the page must be `wide`). */ columns?: boolean; /** Setup results: the expandable "Why these numbers?" block. */ showWhy?: boolean }) {
   const c = useTheme();
   const [whyOpen, setWhyOpen] = useState(false);
-  const v = buildResults(profile);
+  const { unit } = useWeightUnit();
+  const v = buildResults(profile, unit);
   const t = v.r;
   const wide = useWide();
   const two = !!columns && wide;

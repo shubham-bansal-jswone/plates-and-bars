@@ -42,3 +42,10 @@ export function weightWithUnit(kg: number, unit: WeightUnit): string {
 export function weightNumber(kg: number, unit: WeightUnit): number {
   return Number(formatWeight(kg, unit));
 }
+
+/** Typed weight text re-expressed when the unit is switched while a box holds it ("180" lb becomes "81.6" kg). Text that is not one number stays as it is. */
+export function convertWeightText(text: string, from: WeightUnit, to: WeightUnit): string {
+  if (from === to) return text;
+  const kg = weightFromField(text, from);
+  return kg === null || kg === '' ? text : formatWeight(Number(kg), to);
+}
