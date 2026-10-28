@@ -1,4 +1,4 @@
-import { AccessibilityInfo, Platform, StyleSheet, Vibration } from 'react-native';
+import { AccessibilityInfo, Platform, StyleSheet, TextInput, Vibration } from 'react-native';
 import { expand, press, pressDay, reveal, tickFirstSets } from './disclosure-helpers';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { WorkoutScreen } from '../src/screens/WorkoutScreen';
@@ -428,7 +428,7 @@ describe('Workout tab: logging sets', () => {
     expect(placeholder('Barbell Bench Press set 1 kg')).toBe('62.5');
     expect(placeholder('Barbell Bench Press set 1 reps')).toBe('6');
     expect(screen.getByLabelText('Warm up first: 8 reps at 25 kg, then 5 at 37.5 kg, then 3 at 50 kg. Not logged.')).toBeTruthy(); // 62.5 kg is at least 60: the graduated ramp (#1240)
-    expect(screen.getByLabelText('Why? Why warm up before the first big lift?, Barbell Bench Press')).toBeTruthy();
+    expect(screen.getByLabelText('Why? Why warm up before a big lift?, Barbell Bench Press')).toBeTruthy();
     await openGuide('Barbell Bench Press'); // the rest line is reference material
     expect(screen.getByLabelText('Why? Why rest 2–3 minutes on big lifts?, Barbell Bench Press')).toBeTruthy();
     await fireEvent.press(screen.getByLabelText('Why these exercises? How your sessions are built'));
@@ -713,7 +713,7 @@ describe('Workout tab: logging sets', () => {
     await screen.findByText('Enter the weight and reps first.');
     const w = screen.getByLabelText('Barbell Bench Press set 1 kg');
     expect(w.props['aria-invalid']).toBe(true);
-    expect(StyleSheet.flatten(w.props.style)).toMatchObject({ borderColor: expect.any(String), borderWidth: 2, outlineStyle: 'solid', outlineWidth: 2 }); // the focus outline is drawn in danger, not the browser's blue
+    expect(StyleSheet.flatten(w.props.style)).toMatchObject({ borderColor: expect.any(String), borderWidth: 2 }); // a 2px danger border; the focus-colour outline is covered in input-web-outline.test.tsx
     expect(screen.getByLabelText('Barbell Bench Press set 1 reps').props['aria-invalid']).toBeUndefined();
     await fireEvent.changeText(w, '40');
     expect(screen.getByLabelText('Barbell Bench Press set 1 kg').props['aria-invalid']).toBeUndefined();
@@ -965,6 +965,35 @@ describe('Workout tab: first-time ramp', () => {
     await expand('Machine Shoulder Press');
     expect(screen.getByLabelText('Start the ramp for Machine Shoulder Press')).toBeTruthy();
     expect(screen.getByLabelText('I know my weight for Machine Shoulder Press')).toBeTruthy();
+  });
+
+  it('moves focus to the first working set weight field after "I know my weight", not leaving it on the removed button (#1144)', async () => {
+    await setup();
+    await press('Start Push B');
+    await screen.findByText('Push B');
+    await expand('Machine Shoulder Press');
+    // react-native's jest mock puts one shared jest.fn `focus` on TextInput's prototype.
+    const focus = (TextInput as unknown as { prototype: { focus: jest.Mock } }).prototype.focus;
+    focus.mockClear();
+    expect(focus).not.toHaveBeenCalled(); // expanding alone does not focus
+    await press('I know my weight for Machine Shoulder Press');
+    await waitFor(() => expect(focus).toHaveBeenCalledTimes(1));
+    expect((focus.mock.contexts[0] as { props: { accessibilityLabel: string } }).props.accessibilityLabel).toBe('Machine Shoulder Press set 1 kg');
+  });
+
+  it('focuses only once: expanding the exercise again after "I know my weight" does not refocus (#1144)', async () => {
+    await setup();
+    await press('Start Push B');
+    await screen.findByText('Push B');
+    await expand('Machine Shoulder Press');
+    const focus = (TextInput as unknown as { prototype: { focus: jest.Mock } }).prototype.focus;
+    focus.mockClear();
+    await press('I know my weight for Machine Shoulder Press');
+    await waitFor(() => expect(focus).toHaveBeenCalledTimes(1));
+    await expand('Barbell Bench Press');
+    await expand('Machine Shoulder Press');
+    expect(screen.getByLabelText('Machine Shoulder Press set 1 kg')).toBeTruthy();
+    expect(focus).toHaveBeenCalledTimes(1);
   });
 
   it('starts a ramp, stores its sets as kind ramp, and the rated weight becomes the working target', async () => {

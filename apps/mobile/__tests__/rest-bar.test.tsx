@@ -28,6 +28,20 @@ describe('RestBar live region', () => {
     expect(StyleSheet.flatten(ring.parent?.props.style)).toMatchObject({ width: 100, height: 100 });
   });
 
+  it('shows "Rest done, go!" small enough to sit inside the 100px ring, clear of the stroke (#1144)', async () => {
+    await render(<RestBar rest={{ id: 1, end: Date.now() - 1000, total: 2, label: 'Next: set 2' }} onAdd={() => {}} onSkip={() => {}} />);
+    const style = StyleSheet.flatten(screen.getByTestId('rest-title').props.style);
+    expect(style.fontSize).toBeLessThanOrEqual(14);
+    expect(style.paddingHorizontal).toBeGreaterThanOrEqual(14);
+    // At large system text the label must still fit as three short lines, so the scale is capped.
+    expect(screen.getByTestId('rest-title').props.maxFontSizeMultiplier).toBe(1.5);
+  });
+
+  it('caps text scaling on the countdown too, so it stays in the ring (#1144)', async () => {
+    await render(<RestBar rest={{ id: 1, end: Date.now() + 5000, total: 5, label: 'Next: set 2' }} onAdd={() => {}} onSkip={() => {}} />);
+    expect(screen.getByTestId('rest-title').props.maxFontSizeMultiplier).toBe(1.5);
+  });
+
   it('hides the live region visually only: 1x1, negative margin, transparent, not touchable, and never display none', async () => {
     await render(<RestBar rest={{ id: 1, end: Date.now() + 2000, total: 2, label: 'Next: set 2' }} onAdd={() => {}} onSkip={() => {}} />);
     const live = screen.getByTestId('rest-announce');

@@ -158,6 +158,7 @@ const warmLine = (warm: readonly WarmupSet[], info: ExInfo): string => `Warm up 
 
 /** One exercise: suggestion, warm-up line, ramp or working sets, ratings and the form question. */
 export function ExerciseCard({ ex, info, sug, focus, warm, act, cards, learning, lifts, infoOf, prior, notify, expanded = true, onToggle }: Props) {
+  const [skipped, setSkipped] = useState(false); // "I know my weight" was pressed: the first working set's weight field takes focus
   const [armed, setArmed] = useState(false); // removing an exercise takes a second tap: its logged sets go with it
   useEffect(() => {
     if (!armed) return;
@@ -269,7 +270,7 @@ export function ExerciseCard({ ex, info, sug, focus, warm, act, cards, learning,
               </Text>
               <View style={styles.wrap}>
                 <Button label="Start the ramp" a11yLabel={`Start the ramp for ${ex.name}`} onPress={act.rampStart} />
-                <Button label="I know my weight" a11yLabel={`I know my weight for ${ex.name}`} kind="ghost" onPress={act.rampSkip} />
+                <Button label="I know my weight" a11yLabel={`I know my weight for ${ex.name}`} kind="ghost" onPress={() => { setSkipped(true); act.rampSkip(); }} />
               </View>
             </>
           ) : (
@@ -306,7 +307,7 @@ export function ExerciseCard({ ex, info, sug, focus, warm, act, cards, learning,
           const label = `${ex.name} set ${j + 1}`;
           return (
             <View key={s.id} style={{ gap: 6 }}>
-              <SetRow n={String(j + 1)} label={label} row={s} wHead={wHead} repsHead={rw} ph={{ w: t.w !== '' && t.w !== undefined ? String(r1(t.w)) : nl ? 'BW' : '–', r: t.r ? String(t.r) : '–' }} onEdit={(f, v) => act.edit('work', j, f, v)} onTick={() => act.tick(j)} current={!s.done && ex.sets.findIndex((x) => !x.done) === j} />
+              <SetRow n={String(j + 1)} label={label} focusWeight={skipped && j === 0} onFocused={() => setSkipped(false)} row={s} wHead={wHead} repsHead={rw} ph={{ w: t.w !== '' && t.w !== undefined ? String(r1(t.w)) : nl ? 'BW' : '–', r: t.r ? String(t.r) : '–' }} onEdit={(f, v) => act.edit('work', j, f, v)} onTick={() => act.tick(j)} current={!s.done && ex.sets.findIndex((x) => !x.done) === j} />
               <RateRow row={s} label={label} onRate={(v) => act.rate(j, v)} />
             </View>
           );
