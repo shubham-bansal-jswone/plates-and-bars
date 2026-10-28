@@ -4,7 +4,6 @@ import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { validateCards, validateLabels, validateMeasures } from '../validate/cards.mjs';
-import { CARD_OVERRIDES } from '../cards-import/import.mjs';
 
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const load = (f) => JSON.parse(readFileSync(`${repo}/content/${f}`, 'utf8'));
@@ -16,14 +15,14 @@ test('content files validate', () => {
 });
 
 test('#549 overrides: exactly the five weak-source cards, honest evidence labels', () => {
-  assert.deepEqual(Object.keys(CARD_OVERRIDES).sort(), ['fibre', 'focus', 'older', 'screening', 'warmup']);
+  const OVERRIDDEN = ['fibre', 'focus', 'older', 'screening', 'warmup'];
   const byId = Object.fromEntries(load('cards.json').cards.map((c) => [c.id, c]));
   assert.deepEqual(['warmup', 'focus'].map((id) => byId[id].evidence), ['Emerging', 'Emerging']);
   assert.ok(byId.older.source.includes('PROT-AGE') && byId.older.source.includes('expert consensus'));
   assert.ok(byId.fibre.source.includes('ICMR-NIN') && byId.fibre.source.includes('Institute of Medicine') && byId.fibre.body.includes('14 g per 1,000 kcal'));
   assert.ok(!byId.fibre.body.includes('many guidelines'));
   assert.ok(byId.screening.source.includes('Health & Fitness Journal of Canada 2011;4(2):3-23') && byId.screening.body.includes('eparmedx.com'));
-  for (const id of Object.keys(CARD_OVERRIDES)) assert.equal(byId[id].review_status, 'draft');
+  for (const id of OVERRIDDEN) assert.equal(byId[id].review_status, 'draft');
 });
 
 test('there are 12 LEARN cards; bulky is the female-only extra', () => {

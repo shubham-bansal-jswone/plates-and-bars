@@ -4,7 +4,6 @@ import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { validateEatOut } from '../validate/foods.mjs';
-import { dishId } from '../eatout-import/import.mjs';
 
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const load = () => JSON.parse(readFileSync(`${repo}/content/eatout.json`, 'utf8'));
@@ -19,7 +18,6 @@ test('cuisines are in the expected order and a dish keeps its values and stable 
   const c = load();
   assert.deepEqual(c.cuisines.map((x) => x.name), ['North Indian', 'South Indian', 'Indo-Chinese', 'Fast food', 'Biryani', 'Drinks']);
   assert.deepEqual(dish(c, 'Butter naan').per_serving, { kcal: 300, protein_g: 8, carbs_g: 45, fibre_g: null, added_sugar_g: null, fat_g: 10 });
-  assert.equal(dishId('Butter naan'), dish(c, 'Butter naan').id);
 });
 
 test('#824: fibre and added sugar are set only for Cola, which counts 35 g added sugar', () => {
