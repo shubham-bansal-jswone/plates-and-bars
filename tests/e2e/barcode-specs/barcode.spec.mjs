@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { answerSetup, expect, label, test } from '../support/app.mjs';
 import { BARCODE } from '../support/ean13-video.mjs';
 
@@ -6,6 +7,10 @@ import { BARCODE } from '../support/ean13-video.mjs';
 // digits and shows them; nothing is looked up, saved or sent. The shared test fixture already fails a test on any Content-Security-Policy
 // console message, any uncaught page error and any request to a host other than 127.0.0.1; the tests below also record every request
 // themselves, so "no third party" is asserted here and not only left to the fixture.
+
+// The self-hosted wasm path carries the zxing-wasm version the app depends on, so a bump needs no edit here.
+const ZXING_VERSION = JSON.parse(readFileSync(new URL('../../../apps/mobile/package.json', import.meta.url), 'utf8')).dependencies['zxing-wasm'];
+const WASM_PATH = `/zxing/${ZXING_VERSION}/zxing_reader.wasm`;
 
 const READ = `${BARCODE} (EAN-13, EAN_13)`;
 
@@ -58,8 +63,8 @@ test('with no native BarcodeDetector it reads the code with zxing-wasm from our 
   // the chunk and the .wasm came from our origin, and the wasm was served as application/wasm
   expect(chunks(seen).length).toBeGreaterThan(0);
   const w = wasm(seen);
-  expect(w.map((r) => r.url.pathname)).toContain('/zxing/3.1.6/zxing_reader.wasm');
-  expect(w.find((r) => r.url.pathname === '/zxing/3.1.6/zxing_reader.wasm').type).toContain('application/wasm');
+  expect(w.map((r) => r.url.pathname)).toContain(WASM_PATH);
+  expect(w.find((r) => r.url.pathname === WASM_PATH).type).toContain('application/wasm');
   expectOwnOriginOnly(seen, page);
   // nothing of the reader is in the service worker cache (on demand only)
   const cached = await page.evaluate(async () => {
