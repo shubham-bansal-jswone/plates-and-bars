@@ -43,6 +43,19 @@ for s in saves:
           and "github.ref == 'refs/heads/design-overhaul'" in cond,
           "the ccache save must be limited to non-PR runs on main or design-overhaul")
 
+# design-overhaul pushes must run unsigned: no environment (it allows only main and v* tags) and no secret or variable.
+DO = "github.ref != 'refs/heads/design-overhaul'"
+build = wf["jobs"]["build"]
+check(DO in str(build.get("environment", "")), "build environment: must exclude design-overhaul")
+# the website origin is public and already reaches PR runs unguarded; everything else is a secret or an environment variable
+PUBLIC = {"SITE_URL_CHECK", "EXPO_PUBLIC_SITE_URL"}
+guarded = [(k, v) for st in steps for k, v in (st.get("env") or {}).items() if ("secrets." in str(v) or "vars." in str(v)) and k not in PUBLIC]
+check(len(guarded) > 0, "no secret/variable guards found")
+for k, v in guarded:
+    check(DO in str(v), f"{k}: secret/variable guard must exclude design-overhaul")
+check(any("GITHUB_REF\" = refs/heads/design-overhaul" in st.get("run", "") for st in steps),
+      "the Gradle step must build arm64 only on design-overhaul")
+
 if prune:
     cond = prune.get("if", "")
     norm = " ".join(str(cond).replace("${{", "").replace("}}", "").split())
@@ -55,6 +68,7 @@ if prune:
     check("--sort created_at --order desc" in run, "ccache-prune must sort newest first")
     check(all(st.get("shell") == "bash" for st in prune["steps"] if "gh cache list" in st.get("run", "")),
           "the step running gh cache list must set shell: bash (pipefail)")
+    check('gh cache list --ref "$GITHUB_REF"' in run, "ccache-prune must list only the running branch's entries")
     check("gh cache delete" in run, "ccache-prune must delete with gh cache delete")
     check(not any(str(s.get("uses", "")).startswith("actions/checkout") for s in prune["steps"]),
           "ccache-prune needs no checkout")
