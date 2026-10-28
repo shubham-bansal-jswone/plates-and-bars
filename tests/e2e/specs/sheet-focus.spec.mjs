@@ -13,7 +13,10 @@ test('a sheet opens with focus on its title and returns focus to the opener on E
   await page.keyboard.press('Enter');
   const dialog = page.locator(`[role="dialog"][aria-label=${JSON.stringify(title)}]`);
   await expect(dialog).toBeVisible();
-  await expect(dialog.locator('[role="heading"]').first()).toBeFocused();
+  const heading = dialog.locator('[role="heading"]').first();
+  await expect(heading).toBeFocused();
+  // The app's focus ring (theme colour, 2px, 2px offset) on a keyboard open (#1302).
+  expect(await heading.evaluate((h) => getComputedStyle(h).outline)).toBe('rgb(183, 255, 0) solid 2px');
   await page.keyboard.press('Escape');
   await expect(dialog).toHaveCount(0);
   await expect(opener).toBeFocused();
