@@ -11,7 +11,7 @@ import { Text } from '../components/Text';
 import { Heading, Button, Caption, Card, Field, H1, Hint, Page } from '../components/ui';
 import type { WorkoutDb } from '../db/workouts';
 import { fmt, shortDate } from '../format';
-import { BF_HINT, BF_MISSING, BF_NO_PROFILE, HOW_TO_MEASURE, getMeasures, SCALE_JUMP_BODY, SCALE_JUMP_TITLE, TREND_NONE, WEIGHT_HINT } from '../progress/copy';
+import { BF_HINT, BF_MISSING, BF_NO_PROFILE, HOW_TO_MEASURE, HOW_TO_MEASURE_HIPS, getMeasures, SCALE_JUMP_BODY, SCALE_JUMP_TITLE, TREND_NONE, WEIGHT_HINT } from '../progress/copy';
 import { CheckinCard, RapidLossCard } from '../progress/CheckinCard';
 import { RecentWorkouts, WorkoutDay } from '../progress/history/History';
 import { useHistory } from '../progress/history/useHistory';
@@ -96,7 +96,7 @@ export function ProgressScreen({ db, now = () => new Date() }: Props) {
             <CycleSection key={`cycle-${v.date}`} cycle={cycle} date={v.date} today={v.today} weights={p.weights} female={profile?.sex === 'female'} notify={notify} />
             <LabsSection labs={labs} today={v.today} />
             <StepsSleepSection key={`steps-${p.date}`} p={p} />
-            <WeekCard date={v.today} days={ci.weekDays} kcalTarget={profile?.targets.kcal ?? DEFAULT_KCAL_TARGET} />
+            <WeekCard date={v.today} pastDay={!v.isToday} days={ci.weekDays} kcalTarget={profile?.targets.kcal ?? DEFAULT_KCAL_TARGET} />
           </>
         ) : (
           <Hint>Loading…</Hint>
@@ -123,7 +123,7 @@ function WeightSection({ p }: { p: Progress }) {
       <Heading level={2} style={[typeScale.heading, { color: c.ink }]}>Body weight</Heading>
       <View style={styles.inline}>
         <Field label="Weight in kg" inputMode="decimal" placeholder="kg" value={text} onChangeText={setText} />
-        <Button label="Save weight" onPress={() => p.saveWeightText(text)} />
+        <Button kind="ghost" label="Save weight" onPress={() => p.saveWeightText(text)} />
       </View>
       {latest !== null ? <Text style={{ color: c.ink }} accessibilityLabel={`Latest weigh-in ${r1(latest)} kg`}>{`Latest: ${r1(latest)} kg`}</Text> : <Hint>Log a few weigh-ins to see them here.</Hint>}
       {series.length >= 2 ? (
@@ -135,8 +135,8 @@ function WeightSection({ p }: { p: Progress }) {
         <Hint>{TREND_NONE}</Hint>
       )}
       {recent.map((w) => (
-        <Card key={w.date} style={[styles.row, { backgroundColor: c.surfaceSoft }]} accessible accessibilityLabel={`${w.date}, ${r1(w.weight_kg)} kg`}>
-          <Text style={{ color: c.muted }}>{w.date}</Text>
+        <Card key={w.date} style={[styles.row, { backgroundColor: c.surfaceSoft }]} accessible accessibilityLabel={`${shortDate(w.date)}, ${r1(w.weight_kg)} kg`}>
+          <Text style={{ color: c.muted }}>{shortDate(w.date)}</Text>
           <Text style={{ color: c.ink, fontWeight: '700' }}>{`${r1(w.weight_kg)} kg`}</Text>
         </Card>
       ))}
@@ -176,7 +176,7 @@ function MeasureSection({ p, isToday }: { p: Progress; isToday: boolean }) {
           <Field label={`${m.label} in cm`} inputMode="decimal" placeholder="cm" value={text[m.key] ?? ''} onChangeText={(v) => setText({ ...text, [m.key]: v })} />
         </View>
       ))}
-      <Button label={isToday ? 'Save for today' : `Save for ${shortDate(p.date)}`} onPress={() => p.saveTape(text)} />
+      <Button kind="ghost" disabled={!Object.values(text).some((t) => t?.trim())} label={isToday ? 'Save for today' : `Save for ${shortDate(p.date)}`} onPress={() => p.saveTape(text)} />
       {waist.length >= 2 ? (
         <>
           <Heading level={3} style={[typeScale.label, { color: c.ink }]}>Waist</Heading>
@@ -192,7 +192,7 @@ function MeasureSection({ p, isToday }: { p: Progress; isToday: boolean }) {
       ) : (
         <Hint>{profile ? BF_MISSING(female) : BF_NO_PROFILE}</Hint>
       )}
-      <Hint>{`How to measure. ${HOW_TO_MEASURE}`}</Hint>
+      <Hint>{`How to measure. ${HOW_TO_MEASURE}${shown.some((m) => m.key === 'hips_cm') ? ` ${HOW_TO_MEASURE_HIPS}` : ''}`}</Hint>
     </Card>
   );
 }
@@ -211,7 +211,7 @@ function StepsSleepSection({ p }: { p: Progress }) {
       <Field label="Hours slept last night" inputMode="decimal" placeholder="Hours" value={sleep} onChangeText={setSleep} />
       <Hint>hours slept last night (aim for 7–9)</Hint>
       <WhyLink id="sleep" />
-      <Button label="Save steps and sleep" onPress={() => p.saveStepsSleep(steps, sleep)} />
+      <Button kind="ghost" label="Save steps and sleep" onPress={() => p.saveStepsSleep(steps, sleep)} />
     </Card>
   );
 }

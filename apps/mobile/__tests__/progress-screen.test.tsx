@@ -145,6 +145,33 @@ describe('Progress screen', () => {
     expect(screen.getByText('Add waist and neck and hips for a body-fat estimate.')).toBeTruthy();
   });
 
+  it('disables the measurement save until a box has text', async () => {
+    await setup();
+    expect(screen.getByLabelText('Save for today').props.accessibilityState).toMatchObject({ disabled: true });
+    await fireEvent.changeText(screen.getByLabelText('Neck in cm'), '38');
+    expect(screen.getByLabelText('Save for today').props.accessibilityState).toMatchObject({ disabled: false });
+  });
+
+  it('dates weigh-in rows like everything else, and names Hips in the how-to only where the field shows', async () => {
+    const db = memoryDb();
+    await saveWeight(db, weigh(DATE, 81.4));
+    await setup({ db });
+    expect(screen.getByLabelText('8 Oct, 81.4 kg')).toBeTruthy();
+    expect(screen.queryByText(DATE)).toBeNull();
+    expect(screen.getByText(/How to measure\./).props.children).not.toMatch(/Hips/);
+  });
+
+  it('shows the Hips how-to for women', async () => {
+    await setup({ sex: 'female' });
+    expect(screen.getByText(/How to measure\./).props.children).toMatch(/Hips: the widest point/);
+  });
+
+  it('keeps one filled primary button for the data saves: they are outline buttons', async () => {
+    await setup();
+    const bg = (label: string) => StyleSheet.flatten(screen.getByLabelText(label).props.style)?.backgroundColor;
+    for (const l of ['Save weight', 'Save for today', 'Save steps and sleep']) expect(bg(l)).toBe('transparent');
+  });
+
   it('saves steps and sleep on the day note and keeps its other fields', async () => {
     const db = memoryDb();
     await saveDayNote(db, { id: null, version: 2, deleted_at: null, updated_at: '2026-10-08T01:00:00Z', date: DATE, complete: true, steps: null, sleep: null, fast: true });
@@ -846,7 +873,8 @@ describe('Progress screen, seven days', () => {
   const food = (date: string, kcal: number, p: number, id: string) => ({ id, version: 0, updated_at: `${date}T00:00:00Z`, deleted_at: null, date, meal: 'Lunch', name: 'dal', qty: 2, kcal: kcal / 2, protein_g: p / 2, carbs_g: 1, fat_g: 1 });
   /** The style the day's bar was drawn with: the fill (width) and the target line (left), found by the bar's label. */
   const weekBar = (label: string) => {
-    const [fill, tgt] = screen.getByLabelText(label).children;
+    // Draw order: fill, label row, then the target line last so it draws over a chip edge (#1204).
+    const [fill, , tgt] = screen.getByLabelText(label).children;
     const flat = (el: unknown) => StyleSheet.flatten((el as { props: { style?: unknown } }).props.style as never) as Record<string, unknown>;
     return { fill: flat(fill), tgt: flat(tgt) };
   };
