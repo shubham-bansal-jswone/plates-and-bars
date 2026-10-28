@@ -152,7 +152,7 @@ All from the web export of the current branch, served by `tests/e2e/support/serv
 ### 2.4 Repo vs `LLD.md` discrepancies
 - `LLD.md` section 3.2 lists routes correctly, but does not say that the **Exercise library is reachable only from Targets** and that **no history or finish UI exists**. These are code facts, recorded here.
 - `tokens.ts`, `ui.tsx`, `fonts.tsx` and the tab layout cite `docs/design/DESIGN.md`, deleted in `19ec4dee`; the LLD does not mention it.
-- The app is dark by default and follows the system colour scheme only in a build with `EXPO_PUBLIC_THEME=system` (`apps/mobile/src/theme/useTheme.ts`); there is **no in-app theme setting**. The owner has decided production should follow the system scheme; a PR for that is in progress.
+- Production builds follow the system colour scheme since #1188 (`apps/mobile/src/theme/useTheme.ts`); there is **no in-app theme setting**.
 
 ---
 
@@ -300,7 +300,7 @@ Keep four destinations; rename and reorder only if validated: **Today** (new lan
 - **Acceptance:** `setup-flow.test.tsx` Jest suite (28 `it` blocks) and e2e `setup.spec.mjs` unchanged in outcome; no extra mandatory fields.
 
 ### 5.9 Exercise library and detail
-- **Proposed:** list rows with figure thumbnail (68/71 have drawings after #1114, 67/71 today; show a neutral placeholder for the rest), filter chips as one collapsible row, detail with figure pair, muscle map, written card, "Add to today's session".
+- **Proposed:** list rows with figure thumbnail (69/71 have drawings after #1114 and #1120; show a neutral placeholder for the rest), filter chips as one collapsible row, detail with figure pair, muscle map, written card, "Add to today's session".
 - **Acceptance:** works offline; filter logic untouched (`filterLibrary`); `exercise-library.test.tsx` passes.
 
 ### 5.10 Cross-cutting
@@ -317,7 +317,7 @@ Skeleton loading for Workout and Progress; reusable `EmptyState`; consistent off
 | Suitable for the redesign? | Yes for static start/end frames: tiny (1-2 KB), themeable via CSS variables, offline, CSP-safe. Not a substitute for motion demos. |
 | Gaps | (1) Figures not shown in how-to sheet, library or session header. (2) 2 exercises without drawings (Prone Y-T-W Raise, Archer Push-ups; they need a front or top view, #1120). (3) Motion bundle empty; flagged off. (4) "Targeted muscle highlighting" exists (`BodyMap`) but uses amber/teal and sits above every session. |
 | Do not recommend yet | New animation systems, Lottie, 3D engines, or third-party clips: no clips exist, the pipeline was never run end to end, and any third party asset needs an ADR. |
-| Most practical next step | Surface existing figures and muscle map consistently (how-to, library detail, session guide, start thumbnails) using the lime-themed `themedSvg` mapping; then add the 3 missing drawings through `tools/exercise-figures`. Re-evaluate motion only after real clips and coach sign-off (#1069). |
+| Most practical next step | Surface existing figures and muscle map consistently (how-to, library detail, session guide, start thumbnails) using the lime-themed `themedSvg` mapping; then add the 2 missing drawings through `tools/exercise-figures` (they need a front or top view, #1120). Re-evaluate motion only after real clips and coach sign-off (#1069). |
 
 ---
 
@@ -328,7 +328,7 @@ Skeleton loading for Workout and Progress; reusable `EmptyState`; consistent off
 | 0 | Decisions in section 8; remove stale `DESIGN.md` comments; add this brief as `ui-designer` input | `tokens.ts`, `ui.tsx`, `fonts.tsx`, tab layout comments | owner answers | none |
 | 1 | Tokens, fonts, base components, tab bar, sheets (identity lands everywhere at once because colours are token-only) | `theme/tokens.ts`, `theme/fonts.tsx`, `components/ui.tsx`, `Input.tsx`, `Sheet.tsx`, `app/(tabs)/_layout.tsx` | phase 0 | Jest for `Button`/`Choice`/`Field`; axe light+dark Playwright (`a11y.spec.mjs`); `ui-qa` pass at 375/768/1280 |
 | 2 | Workout start + active session redesign; unify `Chip`; `SetRow`, `GuideDisclosure`, sticky Start, rest dock | `screens/WorkoutScreen.tsx`, `workout/ExerciseCard.tsx`, `workout/parts.tsx`, new small components | phase 1 | existing `workout-*`, `exercise-card-*` Jest; `workout-*.spec.mjs`; Maestro `03-workout.yaml`; new tests for sticky Start and first-set-visible layout |
-| 3 | Exercise media surfacing; 3 missing drawings | `workout/ExerciseFigure.tsx`, `HowToSheet`, `library/*`, `tools/exercise-figures`, `content/exercise-images.json` | phase 1 | `exercise-figure.test.tsx`, validator CLIs, library tests |
+| 3 | Exercise media surfacing; 2 missing drawings | `workout/ExerciseFigure.tsx`, `HowToSheet`, `library/*`, `tools/exercise-figures`, `content/exercise-images.json` | phase 1 | `exercise-figure.test.tsx`, validator CLIs, library tests |
 | 4 | Completion summary and workout history | new `workout/Summary`, `progress/History`, core selectors if needed (`packages/core`) | phase 2 | core unit tests with fixtures; screen tests; verify against stored records |
 | 5 | Navigation/Today and library entry; Targets split | `app/(tabs)/*`, `TargetsScreen.tsx`, `FoodScreen.tsx` | owner decision on IA | `screens.spec.mjs`, `setup.spec.mjs`, Maestro |
 | 6 | Progress and Food restyle, setup polish (inline errors, chips), empty/loading/offline states, responsive wide layout | `ProgressScreen`, `FoodScreen`, `SetupScreen`, `progress/*`, shell | phases 1-2 | specs for each; `ui-qa` checklist |
@@ -340,8 +340,8 @@ Process: each phase is its own PR into `design-overhaul`, preceded by a `ui-desi
 
 ## 8. Open questions
 
-1. **Theme:** is the redesign dark-only (retire `light` or leave unmaintained), or must a light theme remain? Today both ship and both are axe-tested.
-2. **Saved custom workouts / programs:** is a saved, named routine (and guided multi-week programs) in scope? It needs a synced record and so a contract/backend change (the 16 sync tables are fixed; additive `Settings` field is the lightest route). The repository cannot decide this.
+1. **Theme:** is the redesign dark-only (retire `light` or leave unmaintained), or must a light theme remain? Today both ship and both are axe-tested. **Decided 2026-10-28:** production follows the system scheme (#1188).
+2. **Saved custom workouts / programs:** is a saved, named routine (and guided multi-week programs) in scope? It needs a synced record and so a contract/backend change (the 16 sync tables are fixed; additive `Settings` field is the lightest route). The repository cannot decide this. **Decided 2026-10-28:** saved routines yes (#1184).
 3. **Display font:** stay with bundled Inter 800/900 (no new dependency), or add a condensed athletic face (new bundled font, CSP-safe but a dependency and size change)?
 4. **Habit streak copy:** `progress/copy.ts:76` ("N weeks in a row with G+ sessions") is a weekly, non-expiring message. Keep, soften or remove given the "no expiring streak" principle?
 5. **Landing tab:** keep Food first, or introduce Today? (Affects Gate redirect and e2e specs.)
