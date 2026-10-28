@@ -33,7 +33,7 @@ CI runs exactly these commands from the folder. Match them; do not expect other 
 | Folder | Detected by | Commands | Also runs when |
 | --- | --- | --- | --- |
 | `packages/api` | `package.json` | `npm ci`, `npm run check` (lint, generate, stale diff, typecheck), untracked-files check on `client/`; plus `npm audit --audit-level=high --omit=dev` as the separate `npm audit (api)` job | |
-| `packages/core` | `package.json` | `npm ci`, `npm run lint`, `npm run typecheck`, `npm test` | `packages/api`, `content/` (drift test), `docs/spec/golden/` or `packages/core/test/fixtures/` changes |
+| `packages/core` | `package.json` | `npm ci`, `npm run lint`, `npm run typecheck`, `npm test` | `packages/api`, `content/` (drift test) or `docs/spec/golden/` changes |
 | `apps/mobile` | `package.json` | `npm ci`, `npm run lint`, `npm run typecheck`, `npm test`, `npx expo export --platform web` (catches Metro resolution breaks) | `packages/core`, `packages/api` or `content/` changes (the app imports the content files) |
 | `tools` | `package.json` | `npm ci`, `npm run lint`, `npm test`, `node validate/cli.mjs` (Node 22; whatever those scripts and validator CLIs cover) | `content/`, `docs/spec/golden/` changes |
 | `backend` | `build.gradle` or `build.gradle.kts` | `./gradlew build --no-daemon` (JDK 21 Temurin; Docker is available for Testcontainers) | `packages/api/openapi.yaml`, `packages/api/test-vectors/` or any `content/` change (the build bundles every `content/*.json`; `backend/scripts` is inside `backend/`) |
