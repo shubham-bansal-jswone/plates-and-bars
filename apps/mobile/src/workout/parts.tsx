@@ -86,9 +86,10 @@ function RunningRest({ rest, onAdd, onSkip }: { rest: RestState; onAdd: () => vo
               skipped, so the visible text stays readable there. While counting, the text stays readable everywhere. */}
           <Text
             testID="rest-title"
+            maxFontSizeMultiplier={1.5}
             accessibilityLabel={left ? `Rest ${time}` : REST_DONE}
             aria-hidden={ended && Platform.OS !== 'ios' ? true : undefined}
-            style={[left ? (time.length > 4 ? type.metricSm : [type.metric, styles.count]) : type.label, tabular, { color: c.ink, textAlign: 'center' }]}
+            style={[left ? (time.length > 4 ? type.metricSm : [type.metric, styles.count]) : styles.done, tabular, { color: c.ink, textAlign: 'center' }]}
           >
             {left ? time : REST_DONE}
           </Text>
@@ -198,6 +199,8 @@ const styles = StyleSheet.create({
   restSide: { flex: 1, gap: 4 },
   // The 56 px metric size is wider than the ring holds for "2:30"; 34 sits inside the 100 px ring.
   count: { fontSize: 34, lineHeight: 38 },
+  // 'Rest done, go!' wraps in short lines well inside the 100px ring (17px touched the stroke).
+  done: { fontSize: 13, lineHeight: 17, fontWeight: '700', paddingHorizontal: 16 },
   restBtns: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
   sheet: { padding: 16, alignItems: 'center', flexGrow: 1 },
   sheetBody: { width: '100%', maxWidth: 560, gap: 8 },
