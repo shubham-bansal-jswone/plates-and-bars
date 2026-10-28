@@ -1,6 +1,7 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 import { Modal, Platform } from 'react-native';
 import { PaddedWindow } from './bottomInset';
+import { useSheetAnimation } from './reducedMotion';
 
 /** The element that has focus now (what opened a sheet), where there is a DOM. */
 const activeElement = (): HTMLElement | null => (typeof document !== 'undefined' && document.activeElement instanceof HTMLElement ? document.activeElement : null);
@@ -61,7 +62,7 @@ export function SheetModal({ title, onClose, children }: { title: string; onClos
   // modal labelled like the button that opened it would only be a second match for that label).
   const named = (Platform.OS === 'web' ? { 'aria-label': title } : {}) as object;
   return (
-    <Modal visible animationType="slide" onRequestClose={onClose} onShow={onShow} {...named}>
+    <Modal visible animationType={useSheetAnimation()} onRequestClose={onClose} onShow={onShow} {...named}>
       <PaddedWindow>{children}</PaddedWindow>
     </Modal>
   );

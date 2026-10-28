@@ -3,6 +3,7 @@ import { ActivityIndicator, Linking, Modal, View } from 'react-native';
 import { parseNutritionLabel, type LabelDraft, type UserFoodFields } from '@plate-and-bar/core';
 import { OcrError, recognize, type OcrCrop, type OcrErrorCode } from '../../modules/plate-label-scanner';
 import { PaddedWindow } from '../components/bottomInset';
+import { useSheetAnimation } from '../components/reducedMotion';
 import { Text } from '../components/Text';
 import { Button, ErrorText, H1, Hint, Page } from '../components/ui';
 import type { NewLog } from '../food/useFoodDay';
@@ -108,7 +109,7 @@ export function LabelScanFlow({ meal, onAdd, onSaveMine, onCustom, onClose, onDo
   };
 
   return (
-    <Modal visible animationType="slide" onRequestClose={close}>
+    <Modal visible animationType={useSheetAnimation()} onRequestClose={close}>
       <PaddedWindow>
         {step.k === 'capture' ? <CaptureView onTake={(s) => void capture(s)} onCustom={onCustom} onClose={close} /> : null}
         {step.k === 'crop' ? <CropStep photo={step.photo} onRead={(c) => void read(c)} onRetake={again} onClose={close} /> : null}

@@ -4,6 +4,7 @@ import { createClient, type ApiClient } from '@plate-and-bar/api';
 import { scannedFood, servingUnitTooLong, type OffMissingField, type ScannedMissingField, type OffUserFoodDraft, type UserFoodFields } from '@plate-and-bar/core';
 import { CUSTOM_MESSAGE, UNIT_TOO_LONG } from '../food/copy';
 import { PaddedWindow } from '../components/bottomInset';
+import { useSheetAnimation } from '../components/reducedMotion';
 import { Button, Caption, ErrorText, Field, H1, Hint, Label, Note, Page, Switch } from '../components/ui';
 import { Text } from '../components/Text';
 import type { NewLog } from '../food/useFoodDay';
@@ -90,7 +91,7 @@ export function ScanFlow({ meal, mine, onAdd, onSaveMine, onCustom, onClose, onD
   };
 
   return (
-    <Modal visible animationType="slide" onRequestClose={onClose}>
+    <Modal visible animationType={useSheetAnimation()} onRequestClose={onClose}>
       <PaddedWindow>
         {step.k === 'scan' ? <BarcodeScanScreen key={step.round} onCode={onCode} onClose={onClose} /> : null}
         {step.k === 'looking' ? (
