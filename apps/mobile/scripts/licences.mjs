@@ -190,8 +190,8 @@ const ANDROID_LICENCES = [
   ['io.github.expo', 'MIT', 'expo-modules-v2-android.txt', 'expo-modules-v2-react@0.2.5'],
   ['io.github.expo.kolibri', 'MIT', 'expo.txt', 'kolibri-android@0.2.3 runtime@0.2.3'],
   ['io.github.expo.pika', 'MIT', 'expo-pika.txt', 'pika-api@1.1.0'],
-  ['io.sentry', 'MIT', 'sentry-java.txt', 'sentry@8.57.0 sentry-android@8.57.0 sentry-android-core@8.57.0 sentry-android-ndk@8.57.0 sentry-android-replay@8.57.0'],
-  ['io.sentry', 'MIT', 'sentry-native.txt', 'sentry-native-ndk@0.16.6'],
+  ['io.sentry', 'MIT', 'sentry-java.txt', 'sentry@8.61.0 sentry-android@8.61.0 sentry-android-core@8.61.0 sentry-android-ndk@8.61.0 sentry-android-replay@8.61.0'],
+  ['io.sentry', 'MIT', 'sentry-native.txt', 'sentry-native-ndk@0.17.3'],
   ['javax.inject', 'Apache-2.0', null, 'javax.inject@1'],
   ['org.brotli', 'MIT', 'brotli.txt', 'dec@0.1.2'],
   ['org.jetbrains', 'Apache-2.0', null, 'annotations@23.0.0'],
@@ -294,7 +294,7 @@ const NATIVE = [
   ['sqlite', 'SQLite', '3.53.3', 'Public domain', 'https://sqlite.org', ['sqlite.txt']],
   ['libunwindstack', 'libunwindstack-ndk (Android Open Source Project)', '284202fb1e42', 'Apache-2.0', 'https://github.com/getsentry/libunwindstack-ndk', ['libunwindstack.txt']],
   ['mpack', 'MPack', '1.0', 'MIT', 'https://github.com/ludocode/mpack', ['mpack.txt']],
-  ['jsmn', 'jsmn', 'vendored in sentry-native 0.16.6', 'MIT', 'https://github.com/zserge/jsmn', ['jsmn.txt']],
+  ['jsmn', 'jsmn', 'vendored in sentry-native 0.17.3', 'MIT', 'https://github.com/zserge/jsmn', ['jsmn.txt']],
   ['worklets-queue', 'ThreadSafeQueue (Juan Palacios)', 'in react-native-worklets 0.13.0', 'BSD-2-Clause', 'https://opensource.org/license/bsd-2-clause', ['worklets-queue.txt']],
 ];
 // Every .so name the release build can ship, with the NATIVE ids linked into it ([] = only code listed elsewhere on this screen:
