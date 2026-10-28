@@ -22,7 +22,7 @@ import { TargetsEditor } from '../targets/TargetsEditor';
 import { RulesSection } from '../targets/RulesSection';
 import { CoverageSection, FocusSection } from '../targets/sections';
 import { useTheme } from '../theme/useTheme';
-import { type } from '../theme/tokens';
+import { space, type } from '../theme/tokens';
 import { ToastBar } from '../workout/parts';
 import { AiSection } from '../ai/AiSection';
 import { DeviceStepsSection } from '../steps/DeviceStepsSection';
@@ -88,8 +88,9 @@ export function TargetsScreen({ db, now = () => new Date() }: Props) {
   const summary = setupText(profile);
   const drift = weightDrift(weights, profile.weight_kg);
   const whyValues = profileWhyValues(profile, { date: localDate(now()), flex: settings.flex, labHold: labHold === true });
-  const section = (title: string) => (
-    <Heading level={2} style={[type.heading, { color: c.ink, marginTop: 16 }]}>
+  // The first heading of a column sits at the same top as the H1 (its own marginTop), so the two columns start level.
+  const section = (title: string, first = false) => (
+    <Heading level={2} style={[type.heading, { color: c.ink, marginTop: first ? space.sm : 16 }]}>
       {title}
     </Heading>
   );
@@ -118,7 +119,7 @@ export function TargetsScreen({ db, now = () => new Date() }: Props) {
   );
   const rules = (
     <>
-      {section('Training rules')}
+      {section('Training rules', wide)}
       {ready ? (
         <>
           <RulesSection db={db} today={localDate(now())} now={now} notify={notify} profile={profile} weekPlan={settings.adjustments.weekPlan as WeekPlan | undefined} />
