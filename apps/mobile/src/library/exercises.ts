@@ -3,7 +3,23 @@ import type { ExType } from '@plate-and-bar/core';
 import { EQUIPMENT_CODES, getCatalog, type ExerciseCard } from '../workout/catalog';
 import { getLabels, muscleName, TYPE_LABEL } from '../workout/copy';
 import { ownOr } from '../content/own';
-import { perLoad } from '../content/reader';
+import { contentGeneration } from '../content/loader';
+
+/** Like `perLoad`, but also rebuilds when the exercise catalog changes (a custom exercise added or removed returns a new catalog). */
+function perCatalog<T>(compute: () => T): () => T {
+  let at = -1;
+  let from: unknown;
+  let value: T;
+  return () => {
+    const catalog = getCatalog();
+    if (at !== contentGeneration() || from !== catalog) {
+      value = compute();
+      at = contentGeneration();
+      from = catalog;
+    }
+    return value;
+  };
+}
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
@@ -31,8 +47,8 @@ export interface LibraryExercise {
   card: ExerciseCard | null;
 }
 
-/** Every exercise in the content, A to Z. Built once per content load; call it where it is used, not at module level. */
-export const getLibrary: () => readonly LibraryExercise[] = perLoad(() => {
+/** Every exercise in the content, A to Z. Built once per content load and custom exercise change; call it where it is used, not at module level. */
+export const getLibrary: () => readonly LibraryExercise[] = perCatalog(() => {
   const catalog = getCatalog();
   const L = getLabels();
   return Object.keys(catalog.tags)
@@ -59,9 +75,9 @@ export const getLibrary: () => readonly LibraryExercise[] = perLoad(() => {
 
 /** Chip lists come from the data, in a fixed display order, so a chip never matches nothing. */
 const used = <T extends string>(order: readonly T[], seen: Set<string>): T[] => order.filter((v) => seen.has(v));
-export const getEquipment: () => readonly string[] = perLoad(() => used(EQUIPMENT_CODES, new Set(getLibrary().map((e) => e.equipment))));
-export const getMuscles: () => readonly Muscle[] = perLoad(() => used(Object.keys(getLabels().muscles) as Muscle[], new Set<string>(getLibrary().flatMap((e) => e.primary))));
-export const getTypes: () => readonly ExType[] = perLoad(() => used(Object.keys(TYPE_LABEL) as ExType[], new Set(getLibrary().map((e) => e.type))));
+export const getEquipment: () => readonly string[] = perCatalog(() => used(EQUIPMENT_CODES, new Set(getLibrary().map((e) => e.equipment))));
+export const getMuscles: () => readonly Muscle[] = perCatalog(() => used(Object.keys(getLabels().muscles) as Muscle[], new Set<string>(getLibrary().flatMap((e) => e.primary))));
+export const getTypes: () => readonly ExType[] = perCatalog(() => used(Object.keys(TYPE_LABEL) as ExType[], new Set(getLibrary().map((e) => e.type))));
 
 export interface LibraryFilter {
   query: string;
