@@ -126,7 +126,7 @@ function FeelStep({ ex, act }: { ex: ExState; act: Actions }) {
 }
 
 /** The Learn mode block (prototype `learnHtml`): the tag, the Setup steps (open on the very first session) and the cue for the set about to be done. The start and end drawing shows before the first set, when the exercise has one (#653). */
-function LearnBlock({ ex, first, done }: { ex: ExState; first: boolean; done: number }) {
+function LearnBlock({ ex, first, done, compact }: { ex: ExState; first: boolean; done: number; compact?: boolean }) {
   const c = useTheme();
   const [shown, setShown] = useState<boolean | null>(null); // null until the user toggles it
   const card = getCatalog().cards[ex.name];
@@ -136,7 +136,7 @@ function LearnBlock({ ex, first, done }: { ex: ExState; first: boolean; done: nu
   return (
     <View style={[styles.learn, { borderColor: c.outline }]}>
       <Text style={{ color: c.ink, fontSize: 12, fontWeight: '700', letterSpacing: 0.7, textTransform: 'uppercase' }}>Learn mode</Text>
-      {done === 0 ? <ExerciseFigure name={ex.name} /> : null}
+      {done === 0 && !compact ? <ExerciseFigure name={ex.name} /> : null}
       {card.setup.length ? (
         <Disclosure label="Setup" a11yLabel={`Setup steps for ${ex.name}`} open={open} onOpenChange={setShown}>
           <View style={{ gap: 3 }}>
@@ -208,7 +208,7 @@ export function ExerciseCard({ ex, info, sug, focus, warm, act, cards, learning,
   );
 
   // What to do next, shown for every exercise (collapsed rows too, so a returning user sees it without opening each row): the suggestion and why, the warm-up, Learn mode, and the stall and ladder cards.
-  const suggested = !showRamp && sug.text ? <Text style={[type.bodyStrong, { color: c.ink }]}>Suggested: {sug.text}</Text> : null;
+  const suggested = !showRamp && !allDone && sug.text ? <Text style={[type.bodyStrong, { color: c.ink }]}>Suggested: {sug.text}</Text> : null;
   const followUp = (
     <>
       {!showRamp && sug.reason ? (
@@ -225,7 +225,7 @@ export function ExerciseCard({ ex, info, sug, focus, warm, act, cards, learning,
           <WhyLink id="warmup" subject={ex.name} />
         </View>
       ) : null}
-      {learning && doneCount < ex.sets.length ? <LearnBlock ex={ex} first={prior === 0 && doneCount === 0} done={doneCount} /> : null}
+      {learning && doneCount < ex.sets.length ? <LearnBlock ex={ex} first={prior === 0 && doneCount === 0} done={doneCount} compact={!expanded} /> : null}
       {cards}
     </>
   );

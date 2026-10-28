@@ -123,3 +123,23 @@ describe('what to do next shows without opening anything', () => {
     expect(screen.getByText('No progress in 3 sessions')).toBeTruthy();
   });
 });
+
+describe('collapsed and finished rows (#1144)', () => {
+  const draw = async (done: number, expanded: boolean) => {
+    const sets = Array.from({ length: 3 }, (_, j) => ({ ...blankRow(), w: '40', r: '8', done: j < done }));
+    const ex: ExState = { name: NAME, part: 1, bridge: false, form: null, found: null, skipRamp: true, feel: null, ramp: [], sets };
+    await render(<ExerciseCard ex={ex} info={exInfo(NAME, getCatalog())} sug={SUG} focus={[]} warm={null} act={act} infoOf={(n) => exInfo(n, getCatalog())} learning prior={1} expanded={expanded} cards={<></>} />);
+  };
+  it('a finished exercise no longer says Suggested', async () => {
+    await draw(3, true);
+    expect(screen.queryByText(/^Suggested:/)).toBeNull();
+  });
+  it('an open card shows the drawing, a collapsed row keeps the cue without it', async () => {
+    await draw(0, true);
+    expect(screen.getByTestId('figure-row')).toBeTruthy();
+    await screen.unmount();
+    await draw(0, false);
+    expect(screen.getByText('Learn mode')).toBeTruthy();
+    expect(screen.queryByTestId('figure-row')).toBeNull();
+  });
+});
