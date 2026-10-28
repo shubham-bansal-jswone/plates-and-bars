@@ -12,14 +12,14 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * Recounts {@code sync_state.records} from the 16 tables (#667), so the per-account cap (#349) starts from true numbers.
+ * Recounts {@code sync_state.records} from the sync tables (#667), so the per-account cap (#349) starts from true numbers.
  * Runs in the background once at start whenever the cap is on (so also after the limit is changed, which needs a restart),
  * and is idempotent: a counter that is already right is not written.
  * <p>
  * Safe beside live pushes: users are taken in batches by key, and each user is its own short transaction that first takes
  * the same {@code FOR UPDATE} lock on the user's {@code sync_state} row that a sync holds, then counts, then writes. A push
  * of that user either finished before (its rows are counted) or waits for the recount (its increment lands on the new
- * number), so none is lost, and no lock is held for more than one user's 16 indexed counts.
+ * number), so none is lost, and no lock is held for more than one user's one indexed count per table.
  * <p>
  * Never logs user data: only the numbers of users checked and corrected.
  */

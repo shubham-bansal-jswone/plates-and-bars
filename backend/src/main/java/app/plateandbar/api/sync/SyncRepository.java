@@ -87,6 +87,13 @@ class SyncRepository {
         return found;
     }
 
+    /** Rows of the table that are not tombstones, for this user only. */
+    long countLive(SyncTable table, String userId) {
+        Long n = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM " + table.sqlName() + " WHERE user_id = ? AND deleted_at IS NULL", Long.class, userId);
+        return n == null ? 0 : n;
+    }
+
     void insert(SyncTable table, String userId, Stored r) {
         jdbc.update(
                 "INSERT INTO " + table.sqlName()

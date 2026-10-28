@@ -27,7 +27,8 @@ enum SyncTable {
     kitchen_tests(null),
     exclusions(null),
     swaps(field("from")),
-    settings(constant("me"));
+    settings(constant("me")),
+    routines(null);
 
     private final Function<JsonNode, String> naturalKey;
 

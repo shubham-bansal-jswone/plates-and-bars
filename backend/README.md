@@ -42,7 +42,7 @@ keyword is registered with the schema library as a non-validation keyword so it 
   `Authorization`, `Content-Type`, `Accept` and `If-None-Match` request headers, `Retry-After` and `ETag` exposed to the page, and no credentials (auth is a bearer header, not a cookie).
   The one exception is `/api/v1/auth/**` for a cookie-mode origin, which gets credentials (below).
   Empty means every cross-origin call is refused.
-- Flyway: `V1__baseline.sql` (`users`, `auth_identities`, `refresh_tokens`), `V2__email_sign_in_codes.sql`, `V3__email_verify_failures.sql`, `V4__sync_tables.sql` (the 16 sync tables, `sync_state`, `sync_conflicts`), `V5__ai_usage.sql`, `V6__ai_spend_monthly.sql`, `V7__refresh_token_replaces.sql`, `V8__sync_state_records.sql` (the per-account record counter). `V9__ai_spend_alert.sql` (`ai_spend_monthly.alert_sent`), `V10__barcode_cache.sql` (the barcode lookup cache, no user data).
+- Flyway: `V1__baseline.sql` (`users`, `auth_identities`, `refresh_tokens`), `V2__email_sign_in_codes.sql`, `V3__email_verify_failures.sql`, `V4__sync_tables.sql` (the 16 sync tables, `sync_state`, `sync_conflicts`), `V5__ai_usage.sql`, `V6__ai_spend_monthly.sql`, `V7__refresh_token_replaces.sql`, `V8__sync_state_records.sql` (the per-account record counter). `V9__ai_spend_alert.sql` (`ai_spend_monthly.alert_sent`), `V10__barcode_cache.sql` (the barcode lookup cache, no user data), `V11__routines.sql` (the 17th sync table, saved routines, #1184).
 - Request id: `common/RequestIdFilter` (outermost, before auth) keeps an incoming `X-Request-Id` of 1 to 64 characters `[A-Za-z0-9._-]` or generates a UUID, puts it in the MDC key `requestId` (printed by `logging.pattern.level`), echoes it as the `X-Request-Id` response header (401, 429 and error answers too) and clears the MDC afterwards. It logs nothing else. Not in the OpenAPI contract (a transport header, no schema impact).
 - All errors use the contract's `Error` schema (`common/ApiExceptionHandler`).
 - Contract tests (#834): a test checks a real response with `ContractSchemas.assertResponse("METHOD /path", status, body)`, which validates it against the schema `openapi.yaml` gives that status. `ContractCoverageTest` runs last and fails when, in an unfiltered `./gradlew test`, an operation in the contract (only `GET /foods` is allowlisted, #200 decision 2) or an `/auth/*` or `/content/*` status never passed a validation. It checks what actually ran, so a skipped, disabled or commented-out test is caught; a `--tests` run does not enforce it.
@@ -89,7 +89,7 @@ keyword is registered with the schema library as a non-validation keyword so it 
 - Sync (#28, ADR 001): `POST /api/v1/sync`, the whole offline-first round trip in one transaction. See "Sync" below.
 - Account rights (#192), package `account`:
   - `GET /me/export`: one JSON document (`format_version` 1, `exported_at`, `user`, `tables` with an array for each of
-    the 16 sync tables, tombstones included, and `conflict_log`, oldest first, with `loser` and `winner_version`).
+    the 17 sync tables, tombstones included, and `conflict_log`, oldest first, with `loser` and `winner_version`).
     Streamed (#349): the body is written with a Jackson `JsonGenerator` from a `StreamingResponseBody`, reading each
     table in keyset pages of `app.export.page-size` rows (default 500, ordered by `(seq, id)`), so memory is bounded
     by one page whatever the account holds. All pages come from one read-only transaction (InnoDB repeatable read),
@@ -283,8 +283,17 @@ Package `app.plateandbar.api.sync`. The user is always the token's principal; no
   conflict: then entries older than the retention and all but the newest ones are deleted. An account that stops
   conflicting is not pruned, and its expired entries stay until then. So `GET /me/export`'s `conflict_log` holds at most
   the cap. Schema `maxLength`/`maxItems` limits are not enforced yet (#353). Deletes are soft (`deleted_at`).
+- **Routines and the routine cap** (#1184, ADR 011, contract 0.1.27). `routines` is the 17th table, same shape as the others
+  (`data` holds `name`, `exercises`, `created_at`), random UUIDv4 ids, no natural key. An account keeps at most 100 live
+  routines; the number is `x-max-live-records` on the contract's `Routine`, read from `openapi.yaml`, never typed in code.
+  Inside the per-account transaction, after last-writer-wins is resolved (predicted with the same rule the apply uses) and
+  before the account record cap, a push is refused with 400 `invalid_request` only when it holds a new or revived live
+  routine and the live count after the apply is over 100: one `details` entry per such routine that takes the running
+  count past 100, in array order, `field` `changes.routines[<i>]`, issue `too_many_routines`. Edits, renames, deletes and
+  pull-only requests are never refused, tombstones do not count. Tests drive the scenarios from
+  `packages/api/test-vectors/routines.json` (`SyncRoutinesIT`, `RoutineValidationTest`).
 - **Account record cap** (#349, contract 0.1.16). `SYNC_MAX_RECORDS_PER_ACCOUNT` (`app.sync.max-records-per-account`) is
-  the most records one account may store across the 16 tables, tombstones included (the conflict log does not count).
+  the most records one account may store across the 17 tables, tombstones included (the conflict log does not count).
   **Unset, empty or 0 means no cap, and that is the default** until the app's `account_full` handling has merged (today's
   app reads any 413 as a too-large body and splits the batch); then set it (the contract suggests 200000). A negative or
   non-numeric value stops the app at start. A push is refused with 413 `account_full` and `record_cap`
@@ -293,7 +302,7 @@ Package `app.plateandbar.api.sync`. The user is always the token's principal; no
   record whose key is already stored and pull-only requests are never refused, even when `stored` is over a lowered
   limit. A refused request applies nothing, pulls nothing, leaves the cursor and the conflict log alone (the transaction
   rolls back). Checks run in the contract's order: body size, token, rate limit, validation including `natural_key_id`
-  (400), then the cap. `stored` is `sync_state.records`, a per-user counter (V8, backfilled from the 16 tables) that
+  (400), then the cap. `stored` is `sync_state.records`, a per-user counter (V8, backfilled from the 16 tables that existed then) that
   the sync transaction raises by the number of new ids under the same `FOR UPDATE` lock that serialises the account's
   syncs, so two devices cannot overrun the cap and no push counts 16 tables. It is kept even while the cap is off, so
   the counter should already be right; as a safety net (#667) the app recounts it from the 16 tables in the background at
