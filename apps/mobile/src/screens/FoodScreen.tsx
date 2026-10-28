@@ -320,7 +320,7 @@ const styles = StyleSheet.create({
   snap: { gap: 6, marginTop: 14 },
   banner: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 14, padding: 12, borderRadius: radius.md },
   gap: { gap: 4, marginTop: 8 },
-  wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, alignItems: 'center' },
   between: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
   b: { fontWeight: '700' },
   track: { height: 10, borderRadius: radius.full, overflow: 'hidden' },

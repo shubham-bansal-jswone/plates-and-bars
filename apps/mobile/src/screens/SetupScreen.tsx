@@ -281,7 +281,7 @@ function SetupFlow({ recalc, weight }: { recalc: boolean; weight: number | null 
   };
   const profile = useMemo(() => (step === STEPS ? buildProfile(recalc && stored ? keepStoredHeight(d, stored) : d, new Date(), stored) : null), [step, d, stored, recalc]);
 
-  const save = async (p: Profile, toast: string) => {
+  const save = async (p: Profile, toast: string | null) => {
     setSetupLeaving(true);
     try {
       await saveSetup(p);
@@ -290,7 +290,7 @@ function SetupFlow({ recalc, weight }: { recalc: boolean; weight: number | null 
       setErr(SAVE_ERROR);
       return;
     }
-    postToast(toast);
+    if (toast) postToast(toast); // first setup updates nothing, so it says nothing (#1194)
     router.replace('/' as never);
   };
 
@@ -347,7 +347,7 @@ function SetupFlow({ recalc, weight }: { recalc: boolean; weight: number | null 
           <ResultsView profile={profile} showWhy columns />
           <View style={{ width: '100%', maxWidth: 560, alignSelf: 'center', gap: 8 }}>
             {err ? <ErrorText>{err}</ErrorText> : null}
-            <Button label="Use these targets" onPress={() => save(profile, 'Targets updated')} />
+            <Button label="Use these targets" onPress={() => save(profile, stored ? 'Targets updated' : null)} />
             {stored ? <Button kind="ghost" label="Keep my current targets" onPress={() => save({ ...profile, targets: stored.targets }, 'Setup saved, targets unchanged')} /> : null}
           </View>
         </>

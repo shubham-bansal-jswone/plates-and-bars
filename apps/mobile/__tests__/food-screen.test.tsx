@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react-native';
+import { StyleSheet } from 'react-native';
 import { FoodScreen } from '../src/screens/FoodScreen';
 import { saveProfile } from '../src/db/records';
 import { loadSettings, saveSettings } from '../src/db/settings';
@@ -917,5 +918,25 @@ describe('toast posted by setup', () => {
     await screen.unmount();
     await setup();
     expect(screen.queryByText('Targets updated')).toBeNull();
+  });
+});
+
+describe('add sheet frame (#1194)', () => {
+  it('has a title heading and a Close control outside the scrolling list; Close and Done both close it', async () => {
+    await setup();
+    await open();
+    expect(screen.getByRole('header', { name: 'Add to breakfast' })).toBeTruthy();
+    await fireEvent.press(screen.getByLabelText('Close add to breakfast'));
+    expect(screen.queryByLabelText('Search foods')).toBeNull();
+    await open();
+    await fireEvent.press(screen.getByLabelText('Done'));
+    expect(screen.queryByLabelText('Search foods')).toBeNull();
+  });
+
+  it('the title is not light weight', async () => {
+    await setup();
+    await open();
+    const style = StyleSheet.flatten(screen.getByRole('header', { name: 'Add to breakfast' }).props.style);
+    expect(Number(style.fontWeight)).toBeGreaterThanOrEqual(600);
   });
 });
