@@ -32,3 +32,13 @@ export function weightFromField(typed: string, unit: WeightUnit): string | null 
 export function displayRow<T extends { w: string }>(row: T, unit: WeightUnit): T {
   return unit === 'kg' ? row : { ...row, w: weightFieldText(row.w, unit) };
 }
+
+/** A stored kg weight as shown text with its unit label: "80 kg", "176.4 lb". For a total that is not a set's own weight (a body weight, a change). */
+export function weightWithUnit(kg: number, unit: WeightUnit): string {
+  return `${formatWeight(kg, unit)} ${unit}`;
+}
+
+/** A kg number as a plain number in `unit`, one decimal (chart points). */
+export function weightNumber(kg: number, unit: WeightUnit): number {
+  return Number(formatWeight(kg, unit));
+}

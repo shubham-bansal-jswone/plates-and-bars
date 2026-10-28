@@ -76,3 +76,23 @@ export function memoryDb(): WorkoutDb & PullDb & { rows: Map<string, string>; se
 export const withProfile = (db: WorkoutDb & PullDb, ui: ReactNode) => <ProfileProvider db={db}>
     <SettingsProvider db={db}>{ui}</SettingsProvider>
   </ProfileProvider>;
+
+/**
+ * Lines of source text that hard-code kg as user-visible text (#1185): kg inside a string literal or as JSX text. Comments, `${...}` parts,
+ * the unit value `'kg'` (defaults and comparisons), a "g per kg" nutrition ratio, and the kg-only `BURN_HOW` note and its lb twin are allowed.
+ */
+export function hardCodedKg(text: string): string[] {
+  return text
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .split('\n')
+    .filter((l) => !l.trim().startsWith('//') && !l.startsWith('export const BURN_HOW'))
+    .map((l) =>
+      l
+        .replace(/\s\/\/.*$/, '')
+        .replace(/\$\{[^}]*\}/g, '')
+        .replace(/(unit(?:: WeightUnit)?\s*(?:=|!==|===)\s*)'kg'/g, '$1UNIT')
+        .replace(/\bg per kg\b/g, 'g per UNIT')
+        .replace(/weightError\('kg'\)/g, ''),
+    )
+    .filter((l) => (l.match(/(['"`])(?:(?!\1).)*\1/g) ?? []).some((q) => /\bkg\b/i.test(q)) || /(\}\s*kg\b)|(>\s*kg\b)/i.test(l));
+}

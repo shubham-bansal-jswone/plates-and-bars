@@ -1,5 +1,6 @@
-import { HAND_PICKED, sessionVolume, type ExType, type LiftRecord, type SessionLog } from '@plate-and-bar/core';
+import { HAND_PICKED, sessionVolume, type ExType, type LiftRecord, type SessionLog, type WeightUnit } from '@plate-and-bar/core';
 import type { WorkoutSet } from '../../workout/types';
+import { weightFieldText } from '../../workout/unitText';
 import { e1rmPoints, sessionTimeLine } from '../e1rm';
 
 export interface HistorySet {
@@ -73,10 +74,11 @@ export function exerciseTrend(sessions: readonly HistorySession[], name: string,
 export const exerciseE1rm = (sessions: readonly HistorySession[], name: string, type?: ExType) =>
   e1rmPoints(sessions.flatMap((s) => (s.exercises.find((x) => x.name === name)?.sets ?? []).map((x) => ({ date: s.date, kind: 'work' as const, weight_kg: x.w, reps: x.r, done: true, rate: x.rate ?? null }))), type);
 
-/** "60 kg x 8", "12 reps" for a bodyweight set, "done" when neither was typed. */
-export function setText(s: HistorySet): string {
-  if (s.w && s.r) return `${s.w} kg x ${s.r}`;
+/** "60 kg x 8" ("132.3 lb x 8" for an lb user), "12 reps" for a bodyweight set, "done" when neither was typed. The stored kg shows as stored in kg. */
+export function setText(s: HistorySet, unit: WeightUnit = 'kg'): string {
+  const w = s.w ? `${weightFieldText(String(s.w), unit)} ${unit}` : '';
+  if (s.w && s.r) return `${w} x ${s.r}`;
   if (s.r) return `${s.r} reps`;
-  if (s.w) return `${s.w} kg`;
+  if (s.w) return w;
   return 'done';
 }
