@@ -71,4 +71,40 @@ class MdcTaskDecoratorTest {
         pool.submit(() -> ctx.set(MDC.getCopyOfContextMap())).get();
         assertThat(ctx.get()).isNullOrEmpty();
     }
+
+    @Test
+    void theCallersOwnContextComesBackAfterANormalTask() {
+        MDC.put("outer", "o1");
+        Runnable decorated;
+        try {
+            MDC.put(RequestIdFilter.MDC_KEY, "inner");
+            decorated = new MdcTaskDecorator().decorate(() -> MDC.put("extra", "x"));
+        } finally {
+            MDC.clear();
+        }
+        MDC.put("outer", "o1"); // the thread that runs the task has its own context
+        decorated.run();
+        assertThat(MDC.getCopyOfContextMap()).containsExactly(java.util.Map.entry("outer", "o1"));
+    }
+
+    @Test
+    void theCallersOwnContextComesBackAfterAThrowingTask() {
+        MDC.put(RequestIdFilter.MDC_KEY, "inner");
+        Runnable decorated = new MdcTaskDecorator().decorate(() -> {
+            throw new IllegalStateException("boom");
+        });
+        MDC.clear();
+        MDC.put("outer", "o1");
+        org.assertj.core.api.Assertions.assertThatThrownBy(decorated::run).isInstanceOf(IllegalStateException.class);
+        assertThat(MDC.getCopyOfContextMap()).containsExactly(java.util.Map.entry("outer", "o1"));
+    }
+
+    @Test
+    void anEmptyOuterContextIsEmptyAgainAfterTheTask() {
+        MDC.put(RequestIdFilter.MDC_KEY, "inner");
+        Runnable decorated = new MdcTaskDecorator().decorate(() -> assertThat(MDC.get(RequestIdFilter.MDC_KEY)).isEqualTo("inner"));
+        MDC.clear();
+        decorated.run();
+        assertThat(MDC.getCopyOfContextMap()).isNullOrEmpty();
+    }
 }
