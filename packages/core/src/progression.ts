@@ -1,5 +1,6 @@
 import { daysBetween } from './dates';
 import { num } from './num';
+import { formatWeight, fromKg, lbStepFor, lbToKg, type WeightUnit } from './weightUnit';
 import { older, type PlanProfile, type Where } from './plan';
 import type { components } from '../../api/client/schema';
 import type { ExerciseCatalog, ExerciseTag } from './session';
@@ -204,9 +205,32 @@ export function easier(w: number, info: ExInfo, pct: number): number {
   return Math.max(0, w - d);
 }
 
-/** Mirrors prototype `kgLabel(w, info)`. */
-export function kgLabel(w: number, info: ExInfo): string {
-  return info.type === 'assisted' ? `${r1(w)} kg assist` : info.type === 'dumbbell' ? `${r1(w)} kg each` : `${r1(w)} kg`;
+/**
+ * Mirrors prototype `kgLabel(w, info)`. `w` is kg; `unit` (default kg, output unchanged) shows it in lb
+ * (`22.7 kg each` becomes `50 lb each`).
+ */
+export function kgLabel(w: number, info: ExInfo, unit: WeightUnit = 'kg'): string {
+  const v = `${formatWeight(w, unit)} ${unit}`;
+  return info.type === 'assisted' ? `${v} assist` : info.type === 'dumbbell' ? `${v} each` : v;
+}
+
+/**
+ * The exercise info with its step set for `unit`: kg unchanged; lb swaps the kg step for the lb step
+ * (`LB_STEP`: barbell 5, dumbbell 2.5, machine 5 ...) expressed in kg, so `snap`, `harder` and `easier`
+ * move in whole lb. Weights stay kg. New, no prototype counterpart.
+ */
+export function infoForUnit(info: ExInfo, unit: WeightUnit = 'kg'): ExInfo {
+  return unit === 'lb' ? { ...info, step: lbToKg(lbStepFor(info.type, info.step, DEFAULT_STEP[info.type])) } : info;
+}
+
+/**
+ * A kg weight rounded to the unit's step: kg is `snap(kg, info.step)` unchanged; lb rounds in lb to the lb
+ * step and returns kg (100 kg barbell: 220 lb, 99.79 kg). No rounding for step 0. New, no prototype counterpart.
+ */
+export function snapForUnit(kg: number, info: ExInfo, unit: WeightUnit = 'kg'): number {
+  if (unit === 'kg') return snap(kg, info.step);
+  const step = lbStepFor(info.type, info.step, DEFAULT_STEP[info.type]);
+  return lbToKg(snap(fromKg(kg, 'lb'), step));
 }
 
 function kgLabelShort(w: number, info: ExInfo): string {

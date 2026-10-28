@@ -183,6 +183,8 @@ export {
   harder,
   easier,
   kgLabel,
+  infoForUnit,
+  snapForUnit,
   noLoad,
   repWord,
   DEFAULT_STEP,
@@ -737,3 +739,24 @@ export type { Marker, MarkerKey, TipSide, TipKind, LabFlag, UnitStatus, LabResul
  */
 export { parseNutritionLabel, labelToScannedInput, labelFood } from './labelScan';
 export type { LabelOcrInput, LabelOcrLine, LabelOcrWord, LabelKey, LabelLevel, LabelNote, LabelField, LabelWarning, LabelAlternate, LabelValues, LabelDraft } from './labelScan';
+
+/**
+ * Weight unit (#1185; new, no prototype counterpart): a device-local kg or lb setting; storage stays kg.
+ * `kgToLb`, `lbToKg`, `fromKg`, `toKg` convert exactly (0.45359237); `formatWeight` and `kgLabel(w, info, unit)`
+ * display one decimal; `parseWeightInput` reads a typed value to kg; `LB_STEP`, `lbStepFor`, `infoForUnit` and
+ * `snapForUnit` round load suggestions to lb steps.
+ */
+export {
+  DEFAULT_WEIGHT_UNIT,
+  KG_PER_LB,
+  LB_STEP,
+  kgToLb,
+  lbToKg,
+  fromKg,
+  toKg,
+  unitLabel,
+  formatWeight,
+  parseWeightInput,
+  lbStepFor,
+} from './weightUnit';
+export type { WeightUnit } from './weightUnit';
