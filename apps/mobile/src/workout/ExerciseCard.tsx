@@ -50,8 +50,8 @@ interface Props {
   info: ExInfo;
   sug: Suggestion;
   focus: readonly string[];
-  /** Core's warm-up sets for this exercise, or null when no warm-up line shows. */
-  warm: [WarmupSet, WarmupSet] | null;
+  /** Core's warm-up ramp (`warmupRamp`) for this exercise, or null when no warm-up line shows. Never logged. */
+  warm: readonly WarmupSet[] | null;
   act: Actions;
   /** Stall and ladder cards, shown under the warm-up line. */
   cards?: ReactNode;
@@ -150,6 +150,12 @@ function LearnBlock({ ex, first, done }: { ex: ExState; first: boolean; done: nu
   );
 }
 
+/** "8 reps at 24 kg, then 5 at 36 kg": the first step spells out "reps", later ones give the count only. */
+const warmSteps = (warm: readonly WarmupSet[], info: ExInfo): string =>
+  warm.map((s, k) => `${s.reps}${k === 0 ? ' reps' : ''} at ${kgLabel(s.w, info)}`).join(', then ');
+/** The whole warm-up line as one sentence, for screen readers. */
+const warmLine = (warm: readonly WarmupSet[], info: ExInfo): string => `Warm up first: ${warmSteps(warm, info)}. Not logged.`;
+
 /** One exercise: suggestion, warm-up line, ramp or working sets, ratings and the form question. */
 export function ExerciseCard({ ex, info, sug, focus, warm, act, cards, learning, lifts, infoOf, prior, notify, expanded = true, onToggle }: Props) {
   const [skipped, setSkipped] = useState(false); // "I know my weight" was pressed: the first working set's weight field takes focus
@@ -197,10 +203,10 @@ export function ExerciseCard({ ex, info, sug, focus, warm, act, cards, learning,
           <WhyLink id="progression" />
         </View>
       ) : null}
-      {warm ? (
+      {warm && warm.length ? (
         <View>
-          <Text style={{ color: c.muted, fontSize: 14, lineHeight: 20 }}>
-            <Text style={{ fontWeight: '700', color: c.ink }}>Warm up first: </Text>{warm[0].reps} reps at {kgLabel(warm[0].w, info)}, then {warm[1].reps} at {kgLabel(warm[1].w, info)}. Not logged.
+          <Text accessibilityLabel={warmLine(warm, info)} style={{ color: c.muted, fontSize: 14, lineHeight: 20 }}>
+            <Text style={{ fontWeight: '700', color: c.ink }}>Warm up first: </Text>{warmSteps(warm, info)}. Not logged.
           </Text>
           <WhyLink id="warmup" subject={ex.name} />
         </View>

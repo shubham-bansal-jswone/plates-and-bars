@@ -26,6 +26,8 @@ function Consent({ onContinue }: { onContinue: () => Promise<void> }) {
   const c = useTheme();
   const [ok, setOk] = useState(false);
   const [err, setErr] = useState('');
+  // Web drops accessibilityHint, so the error text gets an id and the switch points at it with aria-describedby.
+  const errId = `${useId().replace(/:/g, '')}-consent-error`;
   return (
     <Page>
       <H1>{CONSENT.title}</H1>
@@ -43,17 +45,23 @@ function Consent({ onContinue }: { onContinue: () => Promise<void> }) {
       <View style={[layout.row, { marginTop: 8 }]}>
         <Switch
           accessibilityLabel={CONSENT.checkbox}
+          accessibilityHint={err || undefined}
+          invalid={!!err}
+          describedBy={err ? errId : undefined}
           value={ok}
           onValueChange={(v) => {
             setOk(v);
             setErr('');
           }}
         />
-        <Press tabIndex={-1} focusable={false} accessibilityElementsHidden importantForAccessibility="no" onPress={() => setOk(!ok)} style={{ flex: 1, minHeight: 44, justifyContent: 'center' }}>
+        <Press tabIndex={-1} focusable={false} accessibilityElementsHidden importantForAccessibility="no" onPress={() => {
+            setOk(!ok);
+            setErr('');
+          }} style={{ flex: 1, minHeight: 44, justifyContent: 'center' }}>
           <Text style={{ color: c.ink }}>{CONSENT.checkbox}</Text>
         </Press>
       </View>
-      {err ? <ErrorText>{err}</ErrorText> : null}
+      {err ? <ErrorText id={errId}>{err}</ErrorText> : null}
       <Button
         label="Continue"
         onPress={() => {
@@ -70,7 +78,7 @@ type Focusable = { focus?: () => void } | null;
 type Focus = (f: SetupField) => (el: never) => void; // `never`: a TextInput and a View ref both fit
 
 /** Each message in `errs` shown under the field it names, and nowhere else. `focus` registers the element Continue focuses for the first invalid field. */
-function StepBody({ step, d, set, errs, focus }: { step: number; d: Draft; set: Pick; errs: Errs; focus: Focus }) {
+function StepBody({ step, d, set, answer, errs, focus }: { step: number; d: Draft; set: Pick; answer: (i: number, a: 'no' | 'yes') => void; errs: Errs; focus: Focus }) {
   const c = useTheme();
   const bad = (f: SetupField) => !!errs[f];
   // The inline error is also the invalid field's hint, so focusing the field again reads why it is wrong.
@@ -230,7 +238,7 @@ function StepBody({ step, d, set, errs, focus }: { step: number; d: Draft; set: 
                     chip
                     label={a === 'no' ? 'No' : 'Yes'}
                     selected={d.screen[i] === a}
-                    onPress={() => set('screen', d.screen.map((x, j) => (j === i ? a : x)))}
+                    onPress={() => answer(i, a)}
                   />
                 ))}
               </View>
@@ -294,6 +302,12 @@ function SetupFlow({ recalc, weight }: { recalc: boolean; weight: number | null 
     setErr('');
     setErrs({});
     setD((prev) => ({ ...prev, [k]: v }));
+  };
+  // A functional update, so two answers in one tick both land instead of the later one rebuilding from a stale render (#1232).
+  const answer = (i: number, a: 'no' | 'yes') => {
+    setErr('');
+    setErrs({});
+    setD((prev) => ({ ...prev, screen: prev.screen.map((x, j) => (j === i ? a : x)) }));
   };
   const profile = useMemo(() => (step === STEPS ? buildProfile(stored ? keepStoredHeight(d, stored) : d, new Date(), stored) : null), [step, d, stored]);
 
@@ -371,7 +385,7 @@ function SetupFlow({ recalc, weight }: { recalc: boolean; weight: number | null 
         </>
       ) : (
         <>
-          <StepBody step={step} d={d} set={set} errs={errs} focus={focus} />
+          <StepBody step={step} d={d} set={set} answer={answer} errs={errs} focus={focus} />
           {err ? <ErrorText>{err}</ErrorText> : null}
           <Button label={step === STEPS - 1 ? 'See my targets' : 'Continue'} onPress={next} />
         </>

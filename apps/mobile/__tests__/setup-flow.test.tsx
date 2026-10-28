@@ -373,6 +373,45 @@ describe('redo and recalculate setup', () => {
     expect(mockBack).not.toHaveBeenCalled();
     expect(mockReplace).toHaveBeenCalledWith('/targets');
   });
+  it('two health check answers in the same tick are both recorded (#1232)', async () => {
+    await render(withProfile(memoryDb(), <SetupScreen />));
+    await consent();
+    await screen.findByText('Let’s work out your targets');
+    await press('Continue');
+    await press('Male');
+    await fireEvent.changeText(screen.getByLabelText('Age'), '30');
+    await press('Use cm');
+    await fireEvent.changeText(screen.getByLabelText('Height in cm'), '165');
+    await fireEvent.changeText(screen.getByLabelText('Weight in kg'), '82');
+    await press('Continue');
+    await press('Continue');
+    await press('Mostly sitting. Desk job, little walking (under ~5,000 steps)');
+    await press('Continue');
+    await press('Continue');
+    await press('6');
+    await press('Continue');
+    await press('At a gym. Machines, cables, barbells and dumbbells');
+    await press('Continue');
+    await press('Some experience. 6 months to 2 years of regular training');
+    await press('Continue');
+    await press('60 min');
+    await press('Continue');
+    await press('Lose fat. Steady fat loss while keeping muscle');
+    // Both presses run before React re-renders, as a synthetic same-tick click does.
+    const no = (q: string) => within(screen.getByLabelText(q)).getByLabelText('No');
+    // fireEvent wraps each press in its own act and so flushes a render between them; click both inside one act instead.
+    const onPressOf = (el: ReturnType<typeof no>) => () => {
+      const target = {};
+      el.props.onClick({ currentTarget: target, target, stopPropagation: () => undefined });
+    };
+    const [first, second] = [no(SCREEN_Q[0]!), no(SCREEN_Q[1]!)];
+    await act(async () => {
+      onPressOf(first)();
+      onPressOf(second)();
+    });
+    expect(no(SCREEN_Q[0]!)).toBeChecked();
+    expect(no(SCREEN_Q[1]!)).toBeChecked();
+  });
 });
 
 // A stand-in for the mounted Food tab: shows what the Food tab would toast.

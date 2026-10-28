@@ -427,8 +427,8 @@ describe('Workout tab: logging sets', () => {
     expect(screen.getAllByLabelText('Why? How the suggested weight is chosen').length).toBeGreaterThan(0);
     expect(placeholder('Barbell Bench Press set 1 kg')).toBe('62.5');
     expect(placeholder('Barbell Bench Press set 1 reps')).toBe('6');
-    expect(screen.getByText(/8 reps at 32.5 kg, then 4 at 47.5 kg/)).toBeTruthy();
-    expect(screen.getByLabelText('Why? Why warm up before the first big lift?, Barbell Bench Press')).toBeTruthy();
+    expect(screen.getByLabelText('Warm up first: 8 reps at 25 kg, then 5 at 37.5 kg, then 3 at 50 kg. Not logged.')).toBeTruthy(); // 62.5 kg is at least 60: the graduated ramp (#1240)
+    expect(screen.getByLabelText('Why? Why warm up before a big lift?, Barbell Bench Press')).toBeTruthy();
     await openGuide('Barbell Bench Press'); // the rest line is reference material
     expect(screen.getByLabelText('Why? Why rest 2–3 minutes on big lifts?, Barbell Bench Press')).toBeTruthy();
     await fireEvent.press(screen.getByLabelText('Why these exercises? How your sessions are built'));
