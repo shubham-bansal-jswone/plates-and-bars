@@ -95,7 +95,7 @@ export async function completeSetup(page) {
   await tab(page, 'Targets');
   await expect(label(page, 'Redo setup')).toBeVisible(); // only Targets has it
   // Targets shows the editable "Daily targets" fields, not the read-only tiles (#483), so read the field's value.
-  await expect(label(page, 'Calories (kcal)')).toHaveValue('1990');
+  await expect(label(page, 'Calories (kcal)')).toHaveValue('1,990');
 }
 
 /** Switches to a bottom tab (Food, Workout, Progress, Targets). */

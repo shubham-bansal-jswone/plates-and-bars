@@ -8,6 +8,11 @@ import type { Profile } from '../setup/types';
 const stamp = (d: Date): string => d.toISOString().replace(/\.\d{3}Z$/, 'Z');
 
 type Key = keyof TargetSet;
+
+/** Calories show grouped ("2,240", as everywhere else); other fields stay plain. */
+const show = (k: Key, n: number): string => (k === 'kcal' ? fmt(n) : String(n));
+/** `cleanTarget` reads a comma as a decimal point, so the grouped "2,240" `fmt` shows would be 2: for calories only, drop commas in exactly that shape ("1,990", "1,00,000"). */
+const clean = (k: Key, v: string): number => cleanTarget(k === 'kcal' && /^\d{1,3}(,\d{2})*,\d{3}(\.\d+)?$/.test(v.trim()) ? v.replace(/,/g, '') : v);
 const FIELDS: [Key, string][] = [
   ['kcal', 'Calories (kcal)'],
   ['protein_g', 'Protein (g)'],
@@ -30,7 +35,7 @@ interface Props {
  */
 export function TargetsEditor({ profile, setProfile, now, notify }: Props) {
   const t = profile.targets;
-  const [text, setText] = useState<Record<Key, string>>(() => ({ kcal: String(t.kcal), protein_g: String(t.protein_g), carbs_g: String(t.carbs_g), fat_g: String(t.fat_g) }));
+  const [text, setText] = useState<Record<Key, string>>(() => ({ kcal: show('kcal', t.kcal), protein_g: String(t.protein_g), carbs_g: String(t.carbs_g), fat_g: String(t.fat_g) }));
   // Targets changed elsewhere (check-in, sync, Adjust carbs): show them. Typing "12." keeps its text while the number is the same.
   // The newest values, so two quick edits both land; `pending` counts saves in flight, while which no pulled-in value overrides what is typed.
   const latest = useRef<TargetSet>(t);
@@ -40,7 +45,7 @@ export function TargetsEditor({ profile, setProfile, now, notify }: Props) {
     latest.current = t;
     setText((cur) => {
       const next = { ...cur };
-      for (const [k] of FIELDS) if (cleanTarget(cur[k]) !== t[k]) next[k] = String(t[k]);
+      for (const [k] of FIELDS) if (clean(k, cur[k]) !== t[k]) next[k] = show(k, t[k]);
       return next;
     });
   }, [t.kcal, t.protein_g, t.carbs_g, t.fat_g]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -53,7 +58,7 @@ export function TargetsEditor({ profile, setProfile, now, notify }: Props) {
   };
   const change = (k: Key, v: string) => {
     setText({ ...text, [k]: v });
-    save({ ...latest.current, [k]: cleanTarget(v) });
+    save({ ...latest.current, [k]: clean(k, v) });
   };
   const off = macrosOff(t);
   return (
@@ -61,7 +66,7 @@ export function TargetsEditor({ profile, setProfile, now, notify }: Props) {
       {FIELDS.map(([k, label]) => (
         <View key={k} style={{ gap: 4 }}>
           <Caption>{label}</Caption>
-          <Field label={label} inputMode="numeric" value={text[k]} onChangeText={(v) => change(k, v)} />
+          <Field label={label} inputMode="numeric" value={text[k]} onChangeText={(v) => change(k, v)} onBlur={() => setText((cur) => ({ ...cur, [k]: show(k, clean(k, cur[k])) }))} />
         </View>
       ))}
       <Hint>{`Your macros add up to ${fmt(macroKcal(t))} kcal.${off ? ' That doesn’t match your calorie target.' : ''}`}</Hint>
