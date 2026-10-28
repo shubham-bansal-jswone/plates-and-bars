@@ -5,7 +5,7 @@ import { light } from '../src/theme/tokens';
 
 interface Node {
   type?: string;
-  props?: { d?: string; fill?: { payload: number } };
+  props?: { d?: string; fill?: { payload: number }; stroke?: { payload: number } };
   children?: Node[] | null;
 }
 const argb = (hex: string) => (0xff000000 + parseInt(hex.slice(1), 16)) >>> 0;
@@ -30,7 +30,7 @@ function drawn(): Map<string, Set<number>> {
 const regionsWith = (fill: string) => [...drawn()].filter(([, f]) => f.has(argb(fill))).map(([r]) => r).sort();
 
 describe('BodyMap', () => {
-  it('draws main muscles in the brand colour, also-working in the stronger tint and the rest in the off colour', async () => {
+  it('draws main muscles in the brand colour, also-working in the stronger tint and the rest in the soft surface colour', async () => {
     await render(<BodyMap primary={['chest']} secondary={['triceps']} />);
     const d = drawn();
     expect(d.get('CHEST')).toEqual(new Set([argb(light.brand)]));
@@ -38,6 +38,23 @@ describe('BodyMap', () => {
     expect(d.get('ABS')).toEqual(new Set([argb(light.surfaceSoft)]));
     expect(regionsWith(light.brand)).toEqual(['CHEST']);
     expect(regionsWith(also)).toEqual(['TRICEPS']);
+  });
+
+  it('strokes every polygon with the muscleOff colour so the silhouette shows', async () => {
+    await render(<BodyMap primary={['chest']} secondary={['triceps']} />);
+    const strokes = new Set<number | undefined>();
+    let paths = 0;
+    const walk = (n: Node | null | undefined) => {
+      if (!n) return;
+      if (n.type === 'RNSVGPath' && n.props?.d) {
+        paths += 1;
+        strokes.add(n.props.stroke?.payload);
+      }
+      n.children?.forEach(walk);
+    };
+    walk(screen.toJSON() as Node);
+    expect(paths).toBeGreaterThan(0);
+    expect(strokes).toEqual(new Set([argb(light.muscleOff)]));
   });
 
   it.each([
