@@ -19,6 +19,10 @@ function withNoJitpack(config) {
   config = withProjectBuildGradle(config, (c) => {
     if (c.modResults.language !== 'groovy') throw new Error('with-no-jitpack: expected a Groovy android/build.gradle.');
     c.modResults.contents = removeJitpack(c.modResults.contents);
+    // A template change we do not recognise must fail prebuild, not bring JitPack back silently.
+    if (/jitpack/i.test(c.modResults.contents)) {
+      throw new Error('with-no-jitpack: android/build.gradle still mentions JitPack after removal; the Expo template changed, update the plugin.');
+    }
     return c;
   });
   return withGradleProperties(config, (c) => {

@@ -15,7 +15,7 @@ const withNoJitpack = require('../plugins/with-no-jitpack') as ((c: unknown) => 
   removeJitpack(s: string): string;
 };
 
-// The allprojects block as Expo SDK 55 generates it.
+// The allprojects block as Expo SDK 58 generates it.
 const TEMPLATE = `allprojects {
   repositories {
     google()
@@ -44,6 +44,13 @@ describe('no unfiltered JitPack repository', () => {
   ])('removes the variant %s', (line) => {
     expect(withNoJitpack.removeJitpack(`repositories {\n    ${line}\n}\n`)).toBe('repositories {\n}\n');
   });
+  it.each([`allprojects {\n  repositories {\n    maven { setUrl("https://www.jitpack.io") }\n  }\n}\n`, `allprojects { repositories { maven { url 'https://www.jitpack.io' } } }\n`])(
+    'fails prebuild when JitPack is in a form the plugin cannot remove: %s',
+    (contents) => {
+      withNoJitpack({});
+      expect(() => mods.buildGradle?.({ modResults: { language: 'groovy', contents } })).toThrow(/still mentions JitPack/);
+    },
+  );
   it('is idempotent and leaves a build.gradle without JitPack unchanged', () => {
     const once = withNoJitpack.removeJitpack(TEMPLATE);
     expect(withNoJitpack.removeJitpack(once)).toBe(once);
