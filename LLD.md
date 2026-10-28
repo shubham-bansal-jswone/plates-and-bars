@@ -378,7 +378,7 @@ sequenceDiagram
   Svc->>Q: recordTokens (usage + monthly ledger, 80% alert)
   Svc-->>App: reply + quota
 ```
-Billing/quota semantics (code comments + control flow): a unit is reserved before the provider call; provider exception or null result releases it (503 `unavailable`); once a response was received it is billed, so any later failure (no text, unparsable reply) is `BilledFailure` (also 503 `unavailable`) and the unit stays used. The four text calls are cached per `(user, feature, SHA-256 of normalised request)` in a Caffeine cache (10,000 entries, 12 h); the three image calls are never cached (ADR 008). Images are re-encoded to new JPEGs in memory (EXIF/GPS/XMP dropped): per-kind limits PHOTO 1,200,000 decoded bytes / 4096 px, FRAME 350,000 / 640 px, max 16,000,000 pixels, long side scaled to 1600; at most 2 concurrent decodes (fair `Semaphore`); a request waits up to 2 s (`PERMIT_WAIT_MS`) for a permit, then gets 503 + `Retry-After: 2`.
+Billing/quota semantics (code comments + control flow): a unit is reserved before the provider call; provider exception or null result releases it (503 `unavailable`); once a response was received it is billed, so a later failure (no text, unparsable reply) is `BilledFailure` (also 503 `unavailable`): its tokens stay in the monthly ledger but the daily unit is released (like a provider error). If the tokens themselves cannot be recorded the unit stays used. The four text calls are cached per `(user, feature, SHA-256 of normalised request)` in a Caffeine cache (10,000 entries, 12 h); the three image calls are never cached (ADR 008). Images are re-encoded to new JPEGs in memory (EXIF/GPS/XMP dropped): per-kind limits PHOTO 1,200,000 decoded bytes / 4096 px, FRAME 350,000 / 640 px, max 16,000,000 pixels, long side scaled to 1600; at most 2 concurrent decodes (fair `Semaphore`); a request waits up to 2 s (`PERMIT_WAIT_MS`) for a permit, then gets 503 + `Retry-After: 2`.
 
 ---
 
@@ -597,7 +597,7 @@ Potential concerns (not measured):
 | Erasure ledger unwritable | `ErasureLedger.record` | Delete fails closed (500) | Account not deleted | Retry after fixing volume |
 | OFF down / slow | `OffClient` | 503 `upstream_unavailable`; cache miss on cache failure | Barcode lookup fails | Retry; cached products still served |
 | AI provider error | `AiProvider.complete` | 503, quota unit released | Feature unavailable | Retry |
-| AI reply unparsable | `AiReplies` | 503, unit **kept** (billed) | One unit lost | Next day |
+| AI reply unparsable | `AiReplies` | 503, daily unit released, tokens stay in the monthly ledger | None for the user | Retry |
 | API restart | process | Rate-limit/AI caches reset; refresh families and failure caps persist in MySQL | Brief loosened limits | None |
 | Deploy of a bad image | `deploy.sh` | Rolls back on failed `compose up` or health check (not to images built before #887) | Brief outage | See `infra/RUNBOOK.md` |
 
@@ -634,7 +634,8 @@ Observed in code or recorded in ADRs (`docs/adr/`), with inferred reasoning mark
 
 ```mermaid
 flowchart TD
-  R[Request] --> SG[RequestSizeGuardFilter]
+  R[Request] --> RID[RequestIdFilter]
+  RID --> SG[RequestSizeGuardFilter]
   SG --> CORS[CORS]
   CORS --> SS[SecuritySignalFilter]
   SS --> JWT[JwtAuthFilter]

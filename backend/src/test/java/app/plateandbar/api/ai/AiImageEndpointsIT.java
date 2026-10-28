@@ -363,7 +363,7 @@ class AiImageEndpointsIT extends AiITBase {
     }
 
     @Test
-    void aProviderFailureIs503UnavailableAndReleasesTheUnitABilledUnusableReplyKeepsIt() throws Exception {
+    void aProviderFailureIs503UnavailableAndReleasesTheUnitAndSoDoesABilledUnusableReply() throws Exception {
         String u = newUser();
         when(provider.complete(any(), any(), any(), anyList())).thenThrow(new RuntimeException("boom"));
         for (String[] c : new String[][] {{"POST /ai/meal-photo", PHOTO, MEAL_BODY}, {"POST /ai/import-recipe", RECIPE, "{\"text\":\"dal\"}"},
@@ -379,7 +379,7 @@ class AiImageEndpointsIT extends AiITBase {
         for (String[] c : new String[][] {{PHOTO, MEAL_BODY}, {RECIPE, "{\"text\":\"dal\"}"}, {FORM, FORM_BODY}}) {
             assertThat(post(u, c[0], c[1]).getStatusCode().value()).as(c[0]).isEqualTo(503);
         }
-        assertThat(calls(u)).isEqualTo(3);
+        assertThat(calls(u)).isZero();
     }
 
     @Test

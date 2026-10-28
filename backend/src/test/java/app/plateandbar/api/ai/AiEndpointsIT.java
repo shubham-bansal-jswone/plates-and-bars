@@ -77,6 +77,10 @@ class AiEndpointsIT extends AiITBase {
                 "SELECT COALESCE(SUM(input_tokens + output_tokens), 0) FROM ai_usage WHERE user_id = ?", Long.class, user);
     }
 
+    private long ledger() {
+        return jdbc.queryForObject("SELECT COALESCE(SUM(tokens), 0) FROM ai_spend_monthly", Long.class);
+    }
+
     private JsonNode body(ResponseEntity<String> r) throws Exception {
         return json.readTree(r.getBody());
     }
@@ -175,7 +179,7 @@ class AiEndpointsIT extends AiITBase {
     }
 
     @Test
-    void aBilledReplyThatCannotBeUsedIs503ButKeepsTheUnitAndItsTokens() throws Exception {
+    void aBilledReplyThatCannotBeUsedIs503RefundsTheUnitButKeepsItsTokens() throws Exception {
         String u = newUser();
         List<String> bad = new ArrayList<>(List.of("not json", "[]", "{}", "{\"items\":\"x\"}",
                 "{\"items\":[{\"name\":\"" + "n".repeat(101) + "\",\"qty\":\"\",\"kcal\":1,\"protein_g\":1,\"carbs_g\":1,\"fat_g\":1}]}"));
@@ -184,28 +188,54 @@ class AiEndpointsIT extends AiITBase {
             many.append(i == 0 ? "" : ",").append("{\"name\":\"a\",\"qty\":\"\",\"kcal\":1,\"protein_g\":1,\"carbs_g\":1,\"fat_g\":1}");
         }
         bad.add(many.append("]}").toString());
-        int n = 0;
         for (String r : bad) {
             reply(r);
             var res = post(u, DESCRIBE, "{\"text\":\"x\"}");
             assertThat(res.getStatusCode().value()).as(r.substring(0, Math.min(30, r.length()))).isEqualTo(503);
             assertThat(body(res).path("code").asString()).isEqualTo("unavailable");
-            // The provider answered and was billed: the unit stays used (security review M1).
-            assertThat(calls(u)).isEqualTo(++n);
+            // The provider answered and was billed: tokens stay charged, the daily unit goes back.
+            assertThat(calls(u)).isZero();
         }
+        assertThat(ledger()).isEqualTo(150L * bad.size());
         assertThat(tokens(u)).isEqualTo(150L * bad.size());
     }
 
     @Test
-    void aBilledResponseWithNoTextKeepsTheUnitButNoResponseAtAllReleasesIt() {
+    void concurrentUnparsableRepliesEachRefundOneUnitAndNeverGoBelowZero() throws Exception {
+        String u = newUser();
+        reply("not json");
+        var pool = java.util.concurrent.Executors.newFixedThreadPool(8);
+        try {
+            List<java.util.concurrent.Future<Integer>> fs = new ArrayList<>();
+            for (int i = 0; i < 16; i++) {
+                fs.add(pool.submit(() -> post(u, DESCRIBE, "{\"text\":\"x\"}").getStatusCode().value()));
+            }
+            for (var f : fs) {
+                assertThat(f.get()).isEqualTo(503);
+            }
+        } finally {
+            pool.shutdownNow();
+        }
+        assertThat(calls(u)).isZero();
+        assertThat(ledger()).as("all 16 billed").isEqualTo(150L * 16);
+        // a good call afterwards still counts one, and a bad one then takes back only its own unit
+        reply(MEAL);
+        assertThat(post(u, DESCRIBE, "{\"text\":\"y\"}").getStatusCode().value()).isEqualTo(200);
+        reply("not json");
+        assertThat(post(u, DESCRIBE, "{\"text\":\"z\"}").getStatusCode().value()).isEqualTo(503);
+        assertThat(calls(u)).isEqualTo(1);
+    }
+
+    @Test
+    void aBilledResponseWithNoTextAndNoResponseAtAllBothReleaseTheUnit() {
         String u = newUser();
         when(provider.complete(any(), any(), any())).thenReturn(new AiProvider.Completion(null, 100, 50));
         assertThat(post(u, DESCRIBE, "{\"text\":\"x\"}").getStatusCode().value()).isEqualTo(503);
-        assertThat(calls(u)).isEqualTo(1);
+        assertThat(calls(u)).isZero();
         assertThat(tokens(u)).isEqualTo(150L);
         when(provider.complete(any(), any(), any())).thenReturn(null);
         assertThat(post(u, DESCRIBE, "{\"text\":\"y\"}").getStatusCode().value()).isEqualTo(503);
-        assertThat(calls(u)).as("nothing came back, nothing billed").isEqualTo(1);
+        assertThat(calls(u)).as("nothing came back, nothing billed").isZero();
         assertThat(tokens(u)).isEqualTo(150L);
     }
 
@@ -301,7 +331,7 @@ class AiEndpointsIT extends AiITBase {
             reply(r);
             assertThat(post(u, ASK, "{\"card_id\":\"protein\",\"question\":\"why?\"}").getStatusCode().value()).as(r).isEqualTo(503);
         }
-        assertThat(calls(u)).as("billed replies keep their units").isEqualTo(5);
+        assertThat(calls(u)).as("unusable replies give their units back").isZero();
     }
 
     @Test
@@ -496,14 +526,14 @@ class AiEndpointsIT extends AiITBase {
     }
 
     @Test
-    void suggestTagsUnparseableReplyIs503AndStillCountsButAProviderFailureDoesNot() {
+    void suggestTagsUnparseableReplyIs503AndAProviderFailureIs503BothReleaseTheUnit() {
         String u = newUser();
         reply("not json");
         assertThat(post(u, TAGS, "{\"name\":\"Thing\"}").getStatusCode().value()).isEqualTo(503);
-        assertThat(calls(u)).isEqualTo(1);
+        assertThat(calls(u)).isZero();
         when(provider.complete(any(), any(), any())).thenThrow(new RuntimeException("down"));
         assertThat(post(u, TAGS, "{\"name\":\"Other\"}").getStatusCode().value()).isEqualTo(503);
-        assertThat(calls(u)).isEqualTo(1);
+        assertThat(calls(u)).isZero();
     }
 
     @Test

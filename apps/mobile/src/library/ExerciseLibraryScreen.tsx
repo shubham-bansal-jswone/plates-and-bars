@@ -6,7 +6,7 @@ import { a11yState, Button, Chip, Field, H1, Hint, Label, layout, Press } from '
 import { radius, space, type } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { ExerciseFigure, hasFigure } from '../workout/ExerciseFigure';
-import { ExerciseDetail } from './ExerciseDetail';
+import { ExerciseDetail, type SessionTarget } from './ExerciseDetail';
 import { equipmentLabel, filterLibrary, getEquipment, getLibrary, getMuscles, getTypes, isFiltered, muscleLabel, NO_FILTER, typeLabel, type LibraryExercise, type LibraryFilter } from './exercises';
 
 /** An outlined rounded tile with a bold label: one filter value. Radio semantics, lime only when selected. */
@@ -65,7 +65,7 @@ function Row({ e, onOpen }: { e: LibraryExercise; onOpen: () => void }) {
 }
 
 /** Browse the exercise content: search by name, filter by equipment, main muscle and type, open one for its drawing and notes. Works offline. */
-export function ExerciseLibraryScreen({ onBack, list = getLibrary() }: { onBack: () => void; list?: readonly LibraryExercise[] }) {
+export function ExerciseLibraryScreen({ onBack, list = getLibrary(), session }: { onBack: () => void; list?: readonly LibraryExercise[]; session?: SessionTarget }) {
   const c = useTheme();
   const bottom = useBottomInset();
   const [f, setF] = useState<LibraryFilter>(NO_FILTER);
@@ -86,7 +86,7 @@ export function ExerciseLibraryScreen({ onBack, list = getLibrary() }: { onBack:
   if (f.equipment) active.push(['equipment', equipmentLabel(f.equipment)]);
   if (f.muscle) active.push(['muscle', muscleLabel(f.muscle)]);
   if (f.type) active.push(['type', typeLabel(f.type)]);
-  if (picked) return <ExerciseDetail exercise={picked} onBack={() => setOpen(null)} />;
+  if (picked) return <ExerciseDetail exercise={picked} onBack={() => setOpen(null)} {...(session ? { session } : {})} />;
   return (
     <FlatList
       role="main"
