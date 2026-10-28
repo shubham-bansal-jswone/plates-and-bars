@@ -3,6 +3,8 @@ import { JSDOM } from 'jsdom';
 import { Platform, Text } from 'react-native';
 import { render, screen } from '@testing-library/react-native';
 import { focusSheetTitle, refuseScrollerFocus, SheetModal } from '../src/components/Sheet';
+import * as themeHook from '../src/theme/useTheme';
+import { dark } from '../src/theme/tokens';
 import { AddExerciseSheet } from '../src/workout/AddExerciseSheet';
 
 /** Sheets are named dialogs with initial focus on the title on the web, and give focus back on close (#661). */
@@ -41,7 +43,7 @@ describe('SheetModal', () => {
       <div role="dialog" aria-label="Other"><h2 role="heading">Other</h2></div>
       <div role="dialog" aria-label="Add exercise"><button id="first">Close</button><h2 role="heading" id="title">Add exercise</h2></div>`;
     document.getElementById('first')?.focus(); // what the web focus trap does first
-    focusSheetTitle('Add exercise');
+    focusSheetTitle('Add exercise', '#000');
     expect(document.activeElement?.id).toBe('title');
     expect(document.getElementById('title')?.getAttribute('tabindex')).toBe('-1');
     jest.useFakeTimers();
@@ -59,7 +61,7 @@ describe('SheetModal', () => {
     } finally {
       jest.useRealTimers();
     }
-    expect(() => focusSheetTitle('No such sheet')).not.toThrow();
+    expect(() => focusSheetTitle('No such sheet', '#000')).not.toThrow();
   });
 
   it('each open sheet keeps its own focus guard when a sheet above it closes', async () => {
@@ -126,6 +128,55 @@ describe('SheetModal', () => {
       await view.unmount();
       expect(document.activeElement?.id).toBe('opener');
     } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('the title it focuses shows the app focus ring on a keyboard open, and none on a mouse open (#1302)', () => {
+    jest.useFakeTimers();
+    try {
+      document.body.innerHTML = '<div role="dialog" aria-label="T"><button id="first">x</button><h2 role="heading" id="title">T</h2></div>';
+      const title = document.getElementById('title') as HTMLElement;
+      const visible = jest.spyOn(title, 'matches').mockReturnValue(true);
+      (document.getElementById('first') as HTMLElement).focus();
+      expect(focusSheetTitle('T', '#abcdef')).toBe(true);
+      expect(title.style.getPropertyValue('outline')).toBe('2px solid #abcdef');
+      expect(title.style.getPropertyValue('outline-offset')).toBe('2px');
+      title.blur();
+      expect(title.style.getPropertyValue('outline')).toBe('');
+      expect(title.style.getPropertyValue('outline-offset')).toBe('');
+      visible.mockReturnValue(false);
+      (document.getElementById('first') as HTMLElement).focus();
+      expect(focusSheetTitle('T', '#abcdef')).toBe(true);
+      expect(title.style.getPropertyValue('outline')).toBe('');
+    } finally {
+      jest.runOnlyPendingTimers(); // the blur's removal timer must not fire after the document is gone
+      jest.useRealTimers();
+    }
+  });
+
+  it('SheetModal passes the theme focus colour to the ring (#1302)', async () => {
+    jest.useFakeTimers();
+    let view: Awaited<ReturnType<typeof render>> | undefined;
+    try {
+      jest.spyOn(themeHook, 'useTheme').mockReturnValue({ ...dark, focus: '#123456' });
+      document.body.innerHTML = '<button id="opener">Open</button>';
+      (document.getElementById('opener') as HTMLElement).focus();
+      view = await render(
+        <SheetModal title="Ring" onClose={() => {}}>
+          <Text>body</Text>
+        </SheetModal>,
+      );
+      screen.getByLabelText('Ring', { hidden: true }).props.onShow();
+      document.body.insertAdjacentHTML('beforeend', '<div role="dialog" aria-label="Ring"><button id="first">x</button><h2 role="heading" id="title">Ring</h2></div>');
+      const title = document.getElementById('title') as HTMLElement;
+      jest.spyOn(title, 'matches').mockReturnValue(true);
+      (document.getElementById('first') as HTMLElement).focus();
+      jest.advanceTimersByTime(32);
+      expect(title.style.getPropertyValue('outline')).toBe('2px solid #123456');
+    } finally {
+      await view?.unmount(); // refocuses the opener, which blurs the title and starts the removal timer
+      jest.runOnlyPendingTimers(); // even when an assertion failed: a stray real timer would fire after the document is gone
       jest.useRealTimers();
     }
   });
