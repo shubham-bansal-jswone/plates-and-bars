@@ -19,6 +19,8 @@ function loadWeek(): ProtoWeek {
   if (from < 0 || first < 0 || end < 0) throw new Error('prototype: renderProgress week block not found');
   const code = [
     "const S = { date:'', day:null, tab:'progress', settings:{ kcal:0 } };",
+    // The week now ends on the real today (#1136); these tests always view today, so today is the date under test.
+    'const TODAY = () => S.date;',
     'const stored = {}; const el = { innerHTML: "" }; const $ = q => (q === "#week" ? el : null);',
     "const Store = { get: k => Promise.resolve(stored[k.slice(4)] ? JSON.parse(JSON.stringify(stored[k.slice(4)])) : null) };",
     'const normDay = d => d || { meals: [], workout: { exercises: [] } };',

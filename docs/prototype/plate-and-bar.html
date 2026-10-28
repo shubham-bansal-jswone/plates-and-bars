@@ -4095,11 +4095,11 @@ async function renderProgress(){
       ${weightChart()}
       <p class="hint">Weigh in each morning before eating. Day-to-day swings of a kilo are normal; the weekly direction is what counts. ${whyLink('scale')}</p>${scaleJumpHtml()}</section>
     ${measuresHtml()}${photosShellHtml()}${cycleHtml()}${labsShellHtml()}
-    <section class="block"><h2>Seven days to ${shortDate(S.date)}</h2><div id="week"><p class="hint">Loading…</p></div></section>`;
+    <section class="block"><h2>Seven days to ${shortDate(TODAY())}</h2>${S.date < TODAY() ? '<p class="hint">The last 7 days up to today, whichever day you are viewing.</p>' : ''}<div id="week"><p class="hint">Loading…</p></div></section>`;
   renderPhotos(); renderCheckin(); renderLabs();
   consistencyHtml().then(x => { const el = $('#habitSlot'); if(el) el.innerHTML = x; });
   const lc = $('#learnSlot'); if(lc) lc.innerHTML = learnCardHtml();
-  const keys = Array.from({length:7}, (_,k) => addDays(S.date, k-6));
+  const keys = Array.from({length:7}, (_,k) => addDays(TODAY(), k-6));
   const forDate = S.date;
   const days = await Promise.all(keys.map(k => k === S.date ? S.day : Store.get('day-' + k).then(normDay)));
   if(S.tab !== 'progress' || S.date !== forDate || !$('#week')) return;
@@ -4215,7 +4215,7 @@ function energyHtml(){
     return `<div class="banner"><span>Get calorie and macro targets worked out for you.</span><button class="primary" data-act="su-start">Start setup</button></div>`;
   }
   const b = burnToday(), lo = b.total*0.9, hi = b.total*1.1;
-  let h = `<section class="energy"><div class="en-h"><div><span class="hint">Estimated burn today so far</span><b>${fmt(lo)}–${fmt(hi)} kcal</b></div>
+  let h = `<section class="energy"><div class="en-h"><div><span class="hint">${S.date === TODAY() ? 'Estimated burn today so far' : `Estimated burn on ${shortDate(S.date)}`}</span><b>${fmt(lo)}–${fmt(hi)} kcal</b></div>
     <button class="ghost sm" data-act="en-toggle" aria-expanded="${enOpen}">${enOpen ? 'Hide' : 'Details'}</button></div>`;
   if(enOpen){
     h += `<ul class="brk">
