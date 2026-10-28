@@ -346,7 +346,7 @@ export function ExerciseCard({ ex, info, sug, focus, warm, act, cards, learning,
         <WhyLink id="rest" subject={ex.name} />
         {tag ? (
           <Text style={{ color: c.ink, fontSize: 14 }}>
-            {isFocus(ex.name, focus, getCatalog().tags) ? <Text accessibilityLabel="Focus muscle exercise" style={{ color: c.link, fontWeight: '700' }}>Focus </Text> : null}
+            {isFocus(ex.name, focus, getCatalog().tags) ? <Text accessibilityLabel="Focus muscle exercise" style={{ color: c.ink, fontWeight: '700' }}>Focus </Text> : null}
             <Text style={{ fontWeight: '700' }}>Works: </Text>
             {listJoin(tag.primary.map((m) => muscleName(m)))}
             {tag.secondary.length ? <Text style={{ color: c.muted }}>, plus {listJoin(tag.secondary.map((m) => muscleName(m)))}</Text> : null}

@@ -24,7 +24,7 @@ function Entry({ e, text, open, onToggle }: { e: LicenceEntry; text: string | nu
       </Press>
       {open ? (
         <View style={{ paddingBottom: 10 }}>
-          {e.url ? <Text selectable style={[type.caption, { color: c.link }]}>{e.url}</Text> : null}
+          {e.url ? <Text selectable style={[type.caption, { color: c.ink }]}>{e.url}</Text> : null}
           {e.in ? <Text style={[type.caption, { color: c.body }]}>{t.linkedInto(e.in)}</Text> : null}
           <Text selectable style={[type.caption, { color: c.body }]}>{text ?? t.noNotice}</Text>
         </View>

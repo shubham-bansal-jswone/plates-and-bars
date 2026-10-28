@@ -336,7 +336,7 @@ function StartView({ now, w, labHold, profile, focus, rules, notify, tune }: { n
           <Text accessibilityLabel={`Exercise ${i + 1}: ${n}`} style={{ flex: 1 }}>
             <Text style={[type.bodyStrong, { color: c.ink }]}>{n}</Text>
             <Text style={[type.caption, { color: c.muted }]}>{'\n'}{listJoin((getCatalog().tags[n]?.primary ?? []).map((m) => muscleName(m)))}</Text>
-            {isFocus(n, focus, getCatalog().tags) ? <Text style={[type.bodyStrong, { color: c.link }]}> Focus</Text> : null}
+            {isFocus(n, focus, getCatalog().tags) ? <Text style={[type.bodyStrong, { color: c.ink }]}> Focus</Text> : null}
           </Text>
           {picked.length ? (
             <Chip label={`Remove ${n} from your exercises`} text="Remove" onPress={() => {

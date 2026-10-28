@@ -166,10 +166,10 @@ export const type = {
 } as const satisfies Record<string, TextStyleToken>;
 
 /** Digits of equal width, so a ticking timer or a column of weights does not jitter. */
+export const tabular = { fontVariant: ['tabular-nums'] } as const;
+
 /** Underline for a link: the neutral ink needs more than colour to read as a link. Spread it into the link's Text style. */
 export const linkText = { textDecorationLine: 'underline' } as const;
-
-export const tabular = { fontVariant: ['tabular-nums'] } as const;
 
 /** The glow of a primary action: lime, low opacity, no offset. Dark theme only in effect (light's `glow` is #FFFFFF). */
 export const glowShadow = { shadowOffset: { width: 0, height: 0 }, shadowRadius: 16, shadowOpacity: 0.3 } as const;

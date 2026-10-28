@@ -30,7 +30,7 @@ const COLOUR_KEYS = ['color', 'backgroundColor', 'borderColor'] as const;
 type Node = ReturnType<typeof screen.getAllByRole>[number];
 const subtree = (n: Node): Node[] => [n, ...n.children.flatMap((c) => (typeof c === 'string' ? [] : subtree(c as Node)))];
 /** Labels of pressable controls (buttons, links) drawn in the accent: its colour on the control or anything inside it. Selected or checked controls are state, not actions. */
-function accentActions(accent: string): string[] {
+function accentActions(accents: string[]): string[] {
   const out: string[] = [];
   for (const role of ['button', 'link'] as const) {
     for (const el of screen.queryAllByRole(role, { hidden: true }) as Node[]) {
@@ -38,7 +38,7 @@ function accentActions(accent: string): string[] {
       if (state.selected || state.checked) continue;
       const hit = subtree(el).some((n) => {
         const s = StyleSheet.flatten(n.props.style) as Record<string, unknown> | undefined;
-        return !!s && COLOUR_KEYS.some((k) => String(s[k]).toUpperCase() === accent.toUpperCase());
+        return !!s && COLOUR_KEYS.some((k) => accents.includes(String(s[k]).toUpperCase()));
       });
       if (hit) out.push(String(el.props.accessibilityLabel ?? el.props['aria-label'] ?? ''));
     }
@@ -49,6 +49,8 @@ function accentActions(accent: string): string[] {
 afterEach(() => jest.restoreAllMocks());
 
 describe.each([['light', light], ['dark', dark]] as const)('%s theme', (_m, p) => {
+  // Every accent shade: the old light `link` was brandPressed, not brand.
+  const accent = [p.brand, p.brandPressed, p.brandActive].map((x) => x.toUpperCase());
   beforeEach(() => jest.spyOn(useThemeModule, 'useTheme').mockReturnValue(p));
 
   it('the shared link kind is the neutral ink, underlined; ghost is neutral too; only primary is the accent', async () => {
@@ -56,17 +58,17 @@ describe.each([['light', light], ['dark', dark]] as const)('%s theme', (_m, p) =
     const text = (l: string) => StyleSheet.flatten(screen.getByText(l).props.style);
     expect(text('L')).toMatchObject({ color: p.ink, ...linkText });
     expect(text('G').color).toBe(p.ink);
-    expect(accentActions(p.brand)).toEqual(['P']);
+    expect(accentActions(accent)).toEqual(['P']);
   });
 
-  it('Food: the page has no accent action (the key number is text, not an action)', async () => {
+  it('Food: no accent action (the key number is text, not an action)', async () => {
     const db = memoryDb();
     await saveProfile(db, profile());
     await render(withProfile(db, <FoodScreen db={db} now={NOW} />));
     await screen.findByRole('header', { name: 'Food' });
     expect(screen.getByLabelText('+ Add to breakfast')).toBeTruthy();
     expect(screen.getAllByText('Recipes').length).toBeGreaterThan(0);
-    expect(accentActions(p.brand).length).toBeLessThanOrEqual(1);
+    expect(accentActions(accent)).toEqual([]);
   });
 
   it('Workout session: at most one accent action', async () => {
@@ -76,7 +78,7 @@ describe.each([['light', light], ['dark', dark]] as const)('%s theme', (_m, p) =
     await fireEvent.press(await screen.findByLabelText('Start Push B'));
     await screen.findByText('Why these exercises?');
     expect(screen.getAllByText('Start the ramp').length).toBeGreaterThan(0);
-    expect(accentActions(p.brand).length).toBeLessThanOrEqual(1);
+    expect(accentActions(accent).length).toBeLessThanOrEqual(1);
   });
 
   it('Progress: at most one accent action, and "Use a 4-day plan next week" is not it', async () => {
@@ -84,7 +86,7 @@ describe.each([['light', light], ['dark', dark]] as const)('%s theme', (_m, p) =
     await saveProfile(db, profile());
     await render(withProfile(db, <ProgressScreen db={db} now={NOW} />));
     await screen.findByRole('header', { name: 'Progress' });
-    expect(accentActions(p.brand).length).toBeLessThanOrEqual(1);
+    expect(accentActions(accent).length).toBeLessThanOrEqual(1);
   });
 
   it('Targets: at most one accent action', async () => {
@@ -92,7 +94,7 @@ describe.each([['light', light], ['dark', dark]] as const)('%s theme', (_m, p) =
     await saveProfile(db, profile());
     await render(withProfile(db, <TargetsScreen db={db} now={NOW} />));
     await screen.findByRole('header', { name: 'Your setup' });
-    expect(accentActions(p.brand).length).toBeLessThanOrEqual(1);
+    expect(accentActions(accent).length).toBeLessThanOrEqual(1);
   });
 
   it('Library detail: Back to library and the drawing credit are neutral', async () => {
@@ -100,13 +102,13 @@ describe.each([['light', light], ['dark', dark]] as const)('%s theme', (_m, p) =
     await render(<ExerciseLibraryScreen onBack={() => {}} />);
     await fireEvent.press(screen.getByText(e.name));
     expect(screen.getByLabelText('Back to library')).toBeTruthy();
-    expect(accentActions(p.brand)).toEqual([]);
+    expect(accentActions(accent)).toEqual([]);
   });
 
   it('How-to sheet: the drawing credit is neutral', async () => {
     await render(<HowToSheet name="Barbell Bench Press" onClose={() => {}} />);
     // The sheet's own Close is its one primary action; the credit under the drawing must not add a second.
-    expect(accentActions(p.brand).filter((l) => l !== 'Close')).toEqual([]);
+    expect(accentActions(accent).filter((l) => l !== 'Close')).toEqual([]);
   });
 });
 
