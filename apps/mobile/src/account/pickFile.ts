@@ -8,7 +8,7 @@ function pickWeb(): Promise<string | null> {
   return new Promise((resolve, reject) => {
     const input = document.createElement('input');
     input.type = 'file';
-    input.accept = 'application/json,.json';
+    input.accept = 'application/json,.json,text/plain';
     input.onchange = () => {
       const f = input.files?.[0];
       if (!f) return resolve(null);
@@ -20,13 +20,14 @@ function pickWeb(): Promise<string | null> {
   });
 }
 
+// Android file providers often label a .json file application/octet-stream, so the picker allows any type; the content is validated.
 /**
  * The text of the export file the user picks, or null on cancel. The size is checked before the file is read. On a phone the
  * picker copies the file to the cache; that copy is deleted as soon as it is read.
  */
 export async function pickExportText(): Promise<string | null> {
   if (Platform.OS === 'web') return pickWeb();
-  const r = await DocumentPicker.getDocumentAsync({ type: ['application/json', 'text/plain'], copyToCacheDirectory: true, multiple: false });
+  const r = await DocumentPicker.getDocumentAsync({ type: '*/*', copyToCacheDirectory: true, multiple: false });
   const asset = r.canceled ? null : r.assets[0];
   if (!asset) return null;
   const file = new File(asset.uri);

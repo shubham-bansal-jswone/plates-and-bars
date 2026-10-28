@@ -26,7 +26,7 @@ jest.mock('../src/account/restoreLocal', () => {
   };
 });
 
-const state = { configured: true, signedIn: false, linked: false, wipePending: false, lastDeletion: null, clearLastDeletion: () => undefined, pending: 0, syncing: false, last: null, epoch: 0, dataVersion: 0, quarantined: 0, accountFull: false, signInUnavailable: false, syncNow: async () => null } as unknown as SyncState;
+const state = { configured: true, signedIn: false, linked: false, wipePending: false, lastDeletion: null, clearLastDeletion: () => undefined, pending: 0, syncing: false, last: null, epoch: 0, dataVersion: 0, quarantined: 0, accountFull: false, signInUnavailable: false, syncNow: async () => null, dataChanged: () => undefined } as unknown as SyncState;
 const show = () => render(<SyncContext.Provider value={state}><DataScreen db={memoryDb()} /></SyncContext.Provider>);
 
 beforeEach(() => {
@@ -42,7 +42,7 @@ describe('restore from a file on the data screen (#1177)', () => {
     await show();
     await fireEvent.press(screen.getByLabelText(rc.action));
     expect(await screen.findByText(rc.title)).toBeTruthy();
-    expect(screen.getByText(/food_logs: 2 new, 1 newer/)).toBeTruthy();
+    expect(screen.getByText(/Food log: 2 new, 1 newer/)).toBeTruthy();
     await fireEvent.press(screen.getByLabelText(rc.cancel));
     expect(mockApply).not.toHaveBeenCalled();
     expect(screen.getByLabelText(rc.action)).toBeTruthy();

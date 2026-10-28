@@ -1,12 +1,17 @@
 /** Copy for the data screen (#27). No message holds any user data. */
+const rc_name = (n: string): string => RESTORE_COPY.tables[n] ?? n;
+
 export const RESTORE_COPY = {
   action: 'Restore from a file',
   hint: 'Choose a file exported from this app. It is merged with what is here: newer records win, nothing newer is overwritten.',
   picking: 'Reading the file...',
   title: 'Restore this file?',
-  differentAccount: 'This file was exported from a different account. Its records are added to this device.',
-  table: (name: string, c: { added: number; newer: number; older: number; conflicts: number }) =>
-    `${name}: ${c.added} new, ${c.newer} newer than here, ${c.older} older (kept as is), ${c.conflicts} changed here and not synced yet (kept)`,
+  differentAccount: 'This file was exported from a different account. Only records this device does not have are added; nothing here is overwritten.',
+  tables: {
+    profiles: 'Profile', consents: 'Consents', food_logs: 'Food log', water_logs: 'Water log', day_notes: 'Day notes', workouts: 'Workouts', workout_sets: 'Workout sets', lift_stats: 'Lift progress', weights: 'Weights', measurements: 'Measurements', user_foods: 'Your foods', recipes: 'Recipes', kitchen_tests: 'Kitchen tests', exclusions: 'Exclusions', swaps: 'Swaps', settings: 'Settings',
+  } as Record<string, string>,
+  table: (name: string, c: { added: number; newer: number; older: number; conflicts: number; from?: string; to?: string }) =>
+    `${rc_name(name)}: ${c.added} new, ${c.newer} newer than here, ${c.older} older (kept as is), ${c.conflicts} changed here and not synced yet (kept)${c.from && c.to ? `. Dates ${c.from} to ${c.to}` : ''}`,
   deviceOnly: (cycle: boolean, reports: number, hold: boolean) =>
     `Kept on this device only: ${[cycle ? 'cycle log' : '', reports ? `${reports} lab report${reports === 1 ? '' : 's'}` : '', hold ? 'lab hold' : ''].filter(Boolean).join(', ')}.`,
   nothing: 'Nothing in this file is newer than what is on this device.',

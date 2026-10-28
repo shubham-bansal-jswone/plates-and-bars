@@ -7,11 +7,14 @@ import { NO_USER, type LocalExport } from './exportLocal';
 import { InvalidRecord, normalizeTimestamps, storeRecord, type Doc } from '../sync/records';
 import { naturalId } from '../sync/ids';
 import { getLiftVersion } from '../sync/store';
+import { deleteKitchenPhoto } from '../photos/vault';
 
 // Restore from a device export file (#1177). It merges by record id using the record version and tombstones, the rule sync
 // uses, so it is safe on a device that already has data. Rows it writes are queued by the table triggers like any edit.
 // The file is untrusted: nothing here logs or interpolates its content.
 
+/** The server's version is a 32-bit integer. */
+const MAX_VERSION = 2_147_483_647;
 export const MAX_RESTORE_BYTES = 25 * 1024 * 1024;
 const MAX_ROWS = 200_000;
 const MAX_ROW_BYTES = 256 * 1024;
@@ -76,6 +79,21 @@ function keyOf(tbl: SyncTableName, rec: Doc): string {
   return typeof v === 'string' && v.length <= 200 ? v : '';
 }
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const DATE_KEYED: ReadonlySet<SyncTableName> = new Set<SyncTableName>(['workouts', 'day_notes', 'weights', 'measurements']);
+const isYmd = (v: unknown): boolean => typeof v === 'string' && YMD.test(v) && !Number.isNaN(Date.parse(`${v}T00:00:00Z`)) && new Date(`${v}T00:00:00Z`).toISOString().startsWith(v);
+
+/** The shape of a record: the key and the fields the local store indexes or the screens read must have their types. */
+function shapeOk(tbl: SyncTableName, key: string, rec: Doc): boolean {
+  if (DATE_KEYED.has(tbl)) return isYmd(key);
+  if (tbl === 'food_logs') return UUID.test(key) && isYmd(rec.date) && typeof rec.qty === 'number';
+  if (tbl === 'water_logs') return UUID.test(key) && isYmd(rec.date) && typeof rec.ml === 'number';
+  if (tbl === 'workout_sets') return UUID.test(key) && typeof rec.kind === 'string' && typeof rec.done === 'boolean';
+  if (tbl === 'lift_stats' || tbl === 'swaps') return key.length > 0;
+  if (tbl === 'profiles' || tbl === 'settings') return true;
+  return UUID.test(key);
+}
+
 /** Validates the text of an export file strictly. Throws `RestoreError`; touches nothing. */
 export async function parseRestore(text: string): Promise<ParsedRestore> {
   if (text.length > MAX_RESTORE_BYTES) throw new RestoreError('too_large');
@@ -90,7 +108,7 @@ export async function parseRestore(text: string): Promise<ParsedRestore> {
   if (json.format_version !== 1) throw new RestoreError('bad_version');
   if (typeof json.exported_at !== 'string' || (json.user_id !== null && typeof json.user_id !== 'string')) throw new RestoreError('bad_format');
   const tables = json.tables;
-  if (Object.keys(tables).some((t) => !(t in SYNC_TABLES))) throw new RestoreError('bad_format');
+  if (Object.keys(tables).some((t) => !Object.hasOwn(SYNC_TABLES, t))) throw new RestoreError('bad_format');
   checkDeviceOnly(json.device_only);
   const rows: ParsedRestore['rows'] = [];
   const ns = (json.user_id as string | null) ?? NO_USER;
@@ -112,8 +130,8 @@ export async function parseRestore(text: string): Promise<ParsedRestore> {
         throw e;
       }
       const key = keyOf(tbl, rec);
-      const sync = typeof rec.version === 'number' && Number.isInteger(rec.version) && rec.version >= 0 && (tbl === 'lift_stats' || typeof rec.updated_at === 'string');
-      if (!key || !sync || (rec.deleted_at != null && typeof rec.deleted_at !== 'string')) throw new RestoreError('bad_rows');
+      const sync = typeof rec.version === 'number' && Number.isInteger(rec.version) && rec.version >= 0 && rec.version <= MAX_VERSION && (tbl === 'lift_stats' || typeof rec.updated_at === 'string');
+      if (!key || !sync || !shapeOk(tbl, key, rec) || (rec.deleted_at != null && typeof rec.deleted_at !== 'string')) throw new RestoreError('bad_rows');
       if (tbl === 'workouts') dates.set(await naturalId(ns, 'workouts', key), key);
       let setDate: string | null = null;
       if (tbl === 'workout_sets') {
@@ -137,6 +155,9 @@ export interface TableCounts {
   conflicts: number;
   /** Same version and time: nothing to do. */
   same: number;
+  /** First and last day among the file's rows of this table that have a date. */
+  from?: string;
+  to?: string;
 }
 export interface RestoreSummary {
   tables: Partial<Record<SyncTableName, TableCounts>>;
@@ -148,31 +169,48 @@ export interface RestoreSummary {
 const stamp = (d: Doc): string => String(d.updated_at ?? d.deleted_at ?? '');
 
 /** The sync rule: a higher version wins; the same version falls to the later `updated_at`. */
-function compare(file: Doc, local: { version: number; at: string }): 'newer' | 'older' | 'same' {
+function compare(file: Doc, local: { version: number; at: string | null }): 'newer' | 'older' | 'same' {
   const v = file.version as number;
   if (v !== local.version) return v > local.version ? 'newer' : 'older';
+  if (local.at === null) return 'same'; // lift stats keep no time locally: the same version is the same record
   const a = stamp(file);
   return a === local.at ? 'same' : a > local.at ? 'newer' : 'older';
 }
 
 const zero = (): TableCounts => ({ added: 0, newer: 0, older: 0, conflicts: 0, same: 0 });
 
-async function merge(db: WorkoutDb, parsed: ParsedRestore, apply: boolean): Promise<Omit<RestoreSummary, 'differentAccount'>> {
+interface Merged extends Omit<RestoreSummary, 'differentAccount'> {
+  /** Local keys of kitchen tests the restore deleted (their photos go after the commit). */
+  deletedKitchen: string[];
+}
+
+async function merge(db: WorkoutDb, parsed: ParsedRestore, apply: boolean, addOnly: boolean): Promise<Merged> {
+  const deletedKitchen: string[] = [];
   const tables: RestoreSummary['tables'] = {};
   for (const { tbl, key, rec, setDate } of parsed.rows) {
     if (SKIPPED.has(tbl)) continue;
     const c = (tables[tbl] ??= zero());
+    if (typeof rec.date === 'string') {
+      if (!c.from || rec.date < c.from) c.from = rec.date;
+      if (!c.to || rec.date > c.to) c.to = rec.date;
+    }
     const row = await db.getFirstAsync<{ data: string }>(`SELECT data FROM ${SYNC_TABLES[tbl]} WHERE key = ?`, key);
     let outcome: keyof TableCounts;
     if (!row) outcome = 'added';
+    else if (addOnly) outcome = 'older'; // another account's version counters mean nothing here: what exists is kept
     else if (await isQueued(db, tbl, key)) outcome = 'conflicts';
     else {
       const doc = JSON.parse(row.data) as Doc;
-      outcome = compare(rec, { version: tbl === 'lift_stats' ? await getLiftVersion(db, key) : Number(doc.version ?? 0), at: stamp(doc) });
+      outcome = compare(rec, { version: tbl === 'lift_stats' ? await getLiftVersion(db, key) : Number(doc.version ?? 0), at: tbl === 'lift_stats' ? null : stamp(doc) });
     }
     c[outcome]++;
     // The table triggers queue the write, so it syncs up like any edit made here.
-    if (apply && (outcome === 'added' || outcome === 'newer')) await storeRecord(db, tbl, rec, setDate);
+    if (apply && (outcome === 'added' || outcome === 'newer')) {
+      await storeRecord(db, tbl, rec, setDate);
+      // A lift stat is pushed with its queued time as `updated_at`: keep the file's own, so a restore never wins by timestamp.
+      if (tbl === 'lift_stats') await db.runAsync("UPDATE sync_outbox SET queued_at = ? WHERE tbl = 'lift_stats' AND key = ?", stamp(rec), key);
+      if (tbl === 'kitchen_tests' && rec.deleted_at) deletedKitchen.push(key);
+    }
   }
   const d = parsed.file.device_only;
   const mine = await loadCycle(db);
@@ -185,22 +223,26 @@ async function merge(db: WorkoutDb, parsed: ParsedRestore, apply: boolean): Prom
     for (const r of reports as LabReport[]) await saveReport(db, r);
     if (hold) await saveHold(db, d.labs?.hold as LabHold);
   }
-  return { tables, deviceOnly: { cycle, labReports: reports.length, hold } };
+  return { tables, deviceOnly: { cycle, labReports: reports.length, hold }, deletedKitchen };
 }
 
-const otherAccount = (parsed: ParsedRestore, localUser: string | null) => !!parsed.file.user_id && !!localUser && parsed.file.user_id !== localUser;
+export const otherAccount = (parsed: ParsedRestore, localUser: string | null) => !!parsed.file.user_id && !!localUser && parsed.file.user_id !== localUser;
 
 /** What restoring would do. Reads only. */
 export async function previewRestore(db: WorkoutDb, parsed: ParsedRestore, localUser: string | null): Promise<RestoreSummary> {
-  return { ...(await merge(db, parsed, false)), differentAccount: otherAccount(parsed, localUser) };
+  const { deletedKitchen: _k, ...m } = await merge(db, parsed, false, otherAccount(parsed, localUser));
+  return { ...m, differentAccount: otherAccount(parsed, localUser) };
 }
 
 /** Applies the merge in one transaction: any failure rolls everything back. */
 export async function applyRestore(db: WorkoutDb & PullDb, parsed: ParsedRestore, localUser: string | null): Promise<RestoreSummary> {
-  let out: Omit<RestoreSummary, 'differentAccount'> | null = null;
+  let out: Merged | null = null;
   // The transaction object is the same database connection; it only lacks the read type the helpers declare.
   await inTransaction(db, async (txn) => {
-    out = await merge(txn as WorkoutDb, parsed, true);
+    out = await merge(txn as WorkoutDb, parsed, true, otherAccount(parsed, localUser));
   });
-  return { ...(out as unknown as Omit<RestoreSummary, 'differentAccount'>), differentAccount: otherAccount(parsed, localUser) };
+  const { deletedKitchen, ...m } = out as unknown as Merged;
+  // As a pulled tombstone does: after the commit, the serving photo of a deleted kitchen test goes too.
+  for (const id of deletedKitchen) await deleteKitchenPhoto(id).catch(() => undefined);
+  return { ...m, differentAccount: otherAccount(parsed, localUser) };
 }

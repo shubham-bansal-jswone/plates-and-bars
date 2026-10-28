@@ -5,6 +5,7 @@ import { buildLocalExport } from '../account/exportLocal';
 import { DATA_COPY as t, RESTORE_COPY as rc } from '../account/copy';
 import { pickExportText } from '../account/pickFile';
 import { RestoreError, applyRestore, parseRestore, previewRestore, type ParsedRestore, type RestoreSummary } from '../account/restoreLocal';
+import { notifyLabsChanged } from '../db/labs';
 import { getUserId } from '../sync/store';
 import { clearOldExports, saveTextFile, type SaveResult } from '../account/saveFile';
 import type { DeleteResult, ServerExportResult } from '../account/server';
@@ -103,6 +104,8 @@ export function DataScreen({ db, now = () => new Date() }: { db: WorkoutDb & Pul
       if (!restoring) return;
       try {
         await applyRestore(db, restoring.parsed, await getUserId(db));
+        s.dataChanged(); // the profile and settings stores read SQLite again, so a later save cannot overwrite the restored rows
+        notifyLabsChanged(); // a restored lab hold takes effect without a remount
         setMessage(rc.done);
         void s.syncNow();
       } catch {
