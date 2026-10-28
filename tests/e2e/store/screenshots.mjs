@@ -83,7 +83,7 @@ try {
     deviceScaleFactor: 3, // 360x640 css px at 3x is 1080x1920
     isMobile: true,
     hasTouch: true,
-    colorScheme: 'light',
+    colorScheme: 'dark', // the app follows the system scheme; store shots stay on the dark identity
     locale: 'en-US',
     timezoneId: 'Asia/Kolkata',
   });
