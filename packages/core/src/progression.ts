@@ -334,11 +334,11 @@ export function suggestBase(ex: { name: string }, c: ProgressionContext): Sugges
     if (last.form === 'no') return { mode: 'hold', w: hold(top), reps: info.hi, text: `${kgLabel(hold(top), info, unit)} × ${range}`, reason: `${summary} You hit the top of the range, but form slipped, so stay here until it feels solid.` };
     if (early && !allEasy) return { mode: 'hold', w: hold(top), reps: info.hi, text: `${kgLabel(hold(top), info, unit)} × ${range}`, reason: `${summary} First 2 weeks on this exercise: keep the weight and own the movement before adding more.` };
     const nw = grid(harder(top, info));
-    const gtop = grid(top);
-    const jump = gtop > 0 ? Math.abs(nw - gtop) / gtop : 0;
+    const back = hold(top);
+    const jump = back > 0 ? Math.abs(nw - back) / back : 0;
     // In lb, history off the grid (logged in kg) gets the target, not a step that would not add up.
-    const offGrid = formatWeight(gtop, unit) !== formatWeight(top, unit);
-    const big = jump > (older(c.profile) ? 0.05 : 0.1) ? ` That’s a ${Math.round(jump * 100)}% jump. If you can’t reach ${info.lo} ${rw}, go back to ${formatWeight(gtop, unit)} ${unit} and add reps instead.` : '';
+    const offGrid = formatWeight(back, unit) !== formatWeight(top, unit);
+    const big = jump > (older(c.profile) ? 0.05 : 0.1) ? ` That’s a ${Math.round(jump * 100)}% jump. If you can’t reach ${info.lo} ${rw}, go back to ${formatWeight(back, unit)} ${unit} and add reps instead.` : '';
     return { mode: 'up', w: nw, reps: info.lo, text: `${kgLabel(nw, info, unit)} × ${range}`, reason: `${summary} Top of the range on every set, so ${offGrid ? `move to ${formatWeight(nw, unit)} ${unit}` : info.type === 'assisted' ? 'use less assistance' : `add ${formatWeight(info.step, unit)} ${unit}`} and aim for ${info.lo}+ ${rw}.${big}` };
   }
   const target = Math.min(info.hi, Math.max(info.lo, Math.round(avg) + 1));

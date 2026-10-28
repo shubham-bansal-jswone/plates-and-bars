@@ -201,7 +201,7 @@ describe('suggestions in lb (ProgressionContext.unit)', () => {
     expect(suggestBase(ex, ctx(100, 'lb')).text).toBe('225 lb × 8–12 reps');
     const r20 = suggestBase(ex, ctx(20, 'lb'));
     expect(r20.text).toBe('50 lb × 8–12 reps');
-    expect(r20.reason).toContain('go back to 45 lb');
+    expect(r20.reason).toContain('go back to 40 lb');
     expect(r20.reason).not.toContain('49.1');
   });
   it('lb drop lands on the grid', () => {
@@ -338,7 +338,7 @@ describe('applyMods and reason text in lb from kg history', () => {
     expect(s.reason).not.toContain('add 5 lb');
     expect(s.reason).not.toContain('go back to');
     const old = run('Barbell Row', 62.5, 'lb', { profile: { age: 65 } });
-    expect(old.reason).not.toContain('go back to');
+    expect(old.reason).toContain('go back to 135 lb'); // 137.8 lb lifted: back to the grid weight at or below it
     expect(run('Barbell Row', 62.5, 'kg', { profile: { age: 65 } }).reason).not.toContain('go back to');
   });
   it('on-grid history keeps "add 5 lb"', () => {
@@ -398,5 +398,37 @@ describe('holds and light days round toward easier in lb', () => {
     expect(Math.abs(lb / 5 - Math.round(lb / 5))).toBeLessThan(1e-9);
     const k = { ...c, unit: 'kg' } as typeof c;
     expect(suggestBase({ name: 'Barbell Row' }, k).w).toBe(60);
+  });
+});
+
+describe('"go back to" is never heavier or less assisted than last time (lb)', () => {
+  const lastOf = (name: string, kg: number, extra: Record<string, unknown> = {}) =>
+    ({
+      date: '2026-03-01',
+      lifts: { [name]: { date: '2026-02-20', sets: [1, 2, 3].map(() => ({ w: kg, r: 40, rate: 'easy' })), first: '2026-01-01' } },
+      catalog,
+      unit: 'lb',
+      ...extra,
+    }) as unknown as Parameters<typeof suggestBase>[1];
+  it('Assisted Dips 17 kg goes back to 40 lb assist', () => {
+    const s = suggestBase({ name: 'Assisted Dips' }, lastOf('Assisted Dips', 17, { profile: { age: 65 } }));
+    expect(s.reason).toContain('go back to 40 lb');
+    expect(s.reason).not.toContain('go back to 35 lb');
+  });
+  it('sweep over exercises, weights and profiles', () => {
+    const names = ['Barbell Row', 'Incline Dumbbell Press', 'Machine Chest Press', 'Assisted Dips', 'Cable Crossover', 'Lateral Raise'];
+    let seen = 0;
+    for (const name of names)
+      for (let kg = 5; kg <= 150; kg += 0.7)
+        for (const profile of [null, { age: 65 }]) {
+          const s = suggestBase({ name }, lastOf(name, kg, { profile }));
+          const m = /go back to ([\d.]+) lb/.exec(s.reason);
+          if (!m) continue;
+          seen++;
+          const back = lbToKg(Number(m[1]));
+          if (name === 'Assisted Dips') expect(back).toBeGreaterThanOrEqual(kg - 0.03);
+          else expect(back).toBeLessThanOrEqual(kg + 0.03);
+        }
+    expect(seen).toBeGreaterThan(20);
   });
 });
