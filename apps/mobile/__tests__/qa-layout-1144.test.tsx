@@ -6,6 +6,7 @@ import { SettingsProvider, useSettings } from '../src/state/SettingsProvider';
 import { setCustomTags } from '../src/workout/catalog';
 import { HowToSheet } from '../src/workout/parts';
 import { AddExerciseSheet } from '../src/workout/AddExerciseSheet';
+import { CustomTagsSheet } from '../src/workout/CustomTagsSheet';
 import { TargetsScreen } from '../src/screens/TargetsScreen';
 import { saveProfile } from '../src/db/records';
 import { buildProfile, emptyDraft } from '../src/setup/logic';
@@ -19,7 +20,7 @@ jest.mock('expo-router', () => ({
 }));
 
 const tag = { pattern: 'h-press', family: 'custom', equipment: 'machine', difficulty: 2, primary: ['chest'], secondary: [], joints: [] };
-const style = (node: { props: { style?: unknown } }) => StyleSheet.flatten(node.props.style as object) as Record<string, number | string | undefined>;
+const style = (node: { props: { style?: unknown } }) => (StyleSheet.flatten(node.props.style as object) ?? {}) as Record<string, number | string | undefined>;
 
 afterEach(() => {
   setCustomTags({});
@@ -98,6 +99,17 @@ describe('#1144 add exercise sheet', () => {
     let n = h.parent;
     while (n && style(n).maxWidth !== COLUMN_MAX) n = n.parent;
     expect(n).toBeTruthy();
+  });
+});
+
+describe('#1144 custom exercise sheet', () => {
+  it('is held to the shared column width', async () => {
+    await render(<CustomTagsSheet name="Zercher carry" onSave={() => {}} onClose={() => {}} />);
+    const h = screen.getByRole('header', { name: 'Zercher carry' });
+    let n = h.parent;
+    while (n && !n.props.contentContainerStyle) n = n.parent;
+    const content = StyleSheet.flatten(n!.props.contentContainerStyle) as { maxWidth: number; padding: number };
+    expect(content.maxWidth - 2 * content.padding).toBe(COLUMN_MAX);
   });
 });
 

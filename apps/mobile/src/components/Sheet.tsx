@@ -19,11 +19,6 @@ export function focusSheetTitle(title: string): boolean {
   if (!dialog || !heading || !dialog.contains(document.activeElement)) return false;
   heading.setAttribute('tabindex', '-1'); // focusable by script, not in the tab order
   heading.focus();
-  // react-native-web brackets the dialog with two empty tab stops (role none) for its focus trap. They are not controls, so
-  // they leave the tab order: Tab goes from the title to the first control, and the trap still catches focus that escapes.
-  for (const stop of Array.from(document.querySelectorAll('[role=none][tabindex="0"]'))) {
-    if (!stop.hasChildNodes() && stop.parentElement !== document.body && stop.parentElement?.contains(dialog)) stop.setAttribute('tabindex', '-1');
-  }
   return true;
 }
 
