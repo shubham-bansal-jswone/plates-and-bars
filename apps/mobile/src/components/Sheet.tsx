@@ -25,6 +25,7 @@ export function focusSheetTitle(title: string, ring: string): boolean {
   // Kept until the removal happens: if focus is back on the title when the timer fires, the next blur tries again.
   const onBlur = () => {
     heading.style.removeProperty('outline');
+    heading.style.removeProperty('outline-offset');
     setTimeout(() => {
       if (document.activeElement === heading) return;
       heading.removeAttribute('tabindex');
