@@ -232,6 +232,23 @@ describe('Kitchen test screen', () => {
     expect(stored(db, 'kitchen_tests')).toHaveLength(0);
   });
 
+  it('a bad date marks the Date field invalid and points at its error, only while it shows', async () => {
+    const db = memoryDb();
+    await setup(db);
+    await start();
+    expect(screen.getByLabelText('Date').props['aria-invalid']).toBeUndefined();
+    await fireEvent.changeText(screen.getByLabelText('Date'), '2026-13-40');
+    const err = 'Use a date like 2026-10-08.';
+    const date = screen.getByLabelText('Date');
+    expect(date.props['aria-invalid']).toBe(true);
+    expect(date.props.accessibilityHint).toBe(err);
+    expect(screen.getByText(err).props.nativeID).toMatch(/\S/);
+    expect(date.props['aria-describedby']).toBe(screen.getByText(err).props.nativeID);
+    await fireEvent.changeText(screen.getByLabelText('Date'), '2026-10-08');
+    expect(screen.getByLabelText('Date').props['aria-describedby']).toBeUndefined();
+    expect(screen.getByLabelText('Date').props['aria-invalid']).toBeUndefined();
+  });
+
   it('asks to shorten a note over 2000 characters and saves nothing', async () => {
     const db = memoryDb();
     await setup(db);

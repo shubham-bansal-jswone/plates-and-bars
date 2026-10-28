@@ -10,6 +10,11 @@ When this spec, the fixtures and the prototype disagree, the prototype wins; fil
 
 ## 0. Changes since the Development Plan was written
 
+**2026-10-28 — graduated warm-up ramp and warm-ups on later compounds (deliberate differences; prototype and golden fixtures unchanged).**
+- #1240 (decision), #1241 (core, PR #1246), #1242 (app). The prototype's `warmupHtml` (`docs/prototype/plate-and-bar.html:3497-3505`) stays the spec below 60 kg on the first loaded, non-assisted compound: "Warm up first: 8 reps at 50%, then 4 at 75%. Not logged.", weights snapped to the exercise step. `warmupSets` stays the prototype port.
+- Deliberate differences, from `warmupRamp` in `packages/core/src/workout.ts`: (1) at a work weight of 60 kg or more the line is a three-step ramp, 40% x 8, 60% x 5, 80% x 3, e.g. "Warm up first: 8 reps at 24 kg, then 5 at 36 kg, then 3 at 48 kg. Not logged."; (2) a later compound shows a line too when none of its primary muscles is a primary muscle of an earlier compound exercise in today's session (bench after squat yes, a second chest press no; earlier isolation work does not count), also on collapsed rows; (3) a step is dropped when it snaps to 0, equals the previous step, or reaches the work weight.
+- Unchanged: the line shows only before any set of that exercise is ticked, never for isolation, bodyweight or assisted exercises, keeps the `warmup` Why link, and is never logged. It has no effect on volume, set counts, progression, PRs, e1RM or the history view; there is no `kind: warmup` and no sync change. Regenerating the app from the prototype must not revert this.
+
 **2026-10-28 — Progress "Seven days" target-line hint wording (deliberate difference; prototype and golden fixtures unchanged).**
 - #1190 (wording shipped in PR #1201), #1204 (recorded here). The prototype's hint says "The dark line on each bar is your calorie target." (`docs/prototype/plate-and-bar.html:4119`); the app says "The thin vertical line on each bar is your calorie target." because the line is `ink` at half opacity, so it is light in dark mode and "dark line" would be wrong there. The prototype is not edited. Regenerating the app from the prototype must not revert this.
 
