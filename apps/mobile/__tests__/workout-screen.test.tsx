@@ -713,7 +713,7 @@ describe('Workout tab: logging sets', () => {
     await screen.findByText('Enter the weight and reps first.');
     const w = screen.getByLabelText('Barbell Bench Press set 1 kg');
     expect(w.props['aria-invalid']).toBe(true);
-    expect(StyleSheet.flatten(w.props.style)).toMatchObject({ borderColor: expect.any(String), borderWidth: 2, outlineWidth: 0 }); // the browser's blue focus outline must not cover the danger border
+    expect(StyleSheet.flatten(w.props.style)).toMatchObject({ borderColor: expect.any(String), borderWidth: 2, outlineStyle: 'solid', outlineWidth: 2 }); // the focus outline is drawn in danger, not the browser's blue
     expect(screen.getByLabelText('Barbell Bench Press set 1 reps').props['aria-invalid']).toBeUndefined();
     await fireEvent.changeText(w, '40');
     expect(screen.getByLabelText('Barbell Bench Press set 1 kg').props['aria-invalid']).toBeUndefined();

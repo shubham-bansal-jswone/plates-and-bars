@@ -26,7 +26,7 @@ export function SetRow({ n, label, row, wHead, repsHead, ph, onEdit, onTick, cur
     setBad(empty ?? null);
     if (empty) (empty === 'w' ? wRef : rRef).current?.focus();
   };
-  const invalid = (f: 'w' | 'r') => (bad === f ? { 'aria-invalid': true as const, style: [...num, { borderColor: c.danger, borderWidth: 2, paddingHorizontal: 13, outlineWidth: 0 }] } : { style: num });
+  const invalid = (f: 'w' | 'r') => (bad === f ? { 'aria-invalid': true as const, style: [...num, { borderColor: c.danger, borderWidth: 2, paddingHorizontal: 13, outlineStyle: 'solid' as const, outlineWidth: 2, outlineColor: c.danger }] } : { style: num });
   return (
     <View style={styles.set}>
       <Text style={[type.metricSm, tabular, { color: c.muted, width: 28 }]}>{n}</Text>
