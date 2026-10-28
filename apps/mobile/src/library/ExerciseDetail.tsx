@@ -1,9 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
+import type { E1rmPoint } from '@plate-and-bar/core';
 import { View } from 'react-native';
 import { Text } from '../components/Text';
 import { Button, Card, H1, Heading, Hint, Page } from '../components/ui';
 import type { PullDb } from '../db/outbox';
-import type { WorkoutDb } from '../db/workouts';
+import { loadExerciseSets, type WorkoutDb } from '../db/workouts';
+import { e1rmPoints } from '../progress/e1rm';
+import { E1rmTrend } from '../progress/E1rmTrend';
 import { type } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { BodyMap } from '../workout/BodyMap';
@@ -107,6 +110,26 @@ function AddToSession({ name, session }: { name: string; session: SessionTarget 
   );
 }
 
+/** Estimated 1-rep max over the user's own sessions of this exercise (read on the device); nothing until 2 sessions count. */
+function History({ name, kind, db }: { name: string; kind: LibraryExercise['type']; db: WorkoutDb }) {
+  const c = useTheme();
+  const [points, setPoints] = useState<E1rmPoint[]>([]);
+  useEffect(() => {
+    let live = true;
+    loadExerciseSets(db, name).then((sets) => live && setPoints(e1rmPoints(sets.map((s) => ({ date: s.date, kind: s.kind, weight_kg: s.weight_kg, reps: s.reps, done: s.done, rate: s.rate })), kind)), () => undefined);
+    return () => {
+      live = false;
+    };
+  }, [db, name, kind]);
+  if (points.length < 2) return null;
+  return (
+    <Card>
+      <Heading level={2} style={[type.heading, { color: c.ink }]}>Your estimated max</Heading>
+      <E1rmTrend points={points} type={kind} />
+    </Card>
+  );
+}
+
 /** One exercise: name, its start and end drawing, muscle map, tags and the how-to notes. */
 export function ExerciseDetail({ exercise: e, onBack, session }: { exercise: LibraryExercise; onBack: () => void; session?: SessionTarget }) {
   const c = useTheme();
@@ -123,6 +146,7 @@ export function ExerciseDetail({ exercise: e, onBack, session }: { exercise: Lib
       <H1>{e.name}</H1>
       {session ? <AddToSession name={e.name} session={session} /> : null}
       {hasDrawing(e.name) ? <ExerciseFigure name={e.name} /> : <NoDrawing />}
+      {session ? <History name={e.name} kind={e.type} db={session.db} /> : null}
       {e.primary.length ? <BodyMap primary={e.primary} secondary={e.secondary} /> : null}
       <Card accessibilityLabel="Tags">
         {row('Equipment', equipmentLabel(e.equipment))}

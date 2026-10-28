@@ -18,6 +18,7 @@ export function memoryDb(): WorkoutDb & PullDb & { rows: Map<string, string>; se
     hold: undefined as undefined | ((sql: string) => Promise<void> | undefined),
     async getAllAsync<T>(sql: string, ...p: (string | number)[]) {
       if (sql.includes('FROM workout_sets WHERE workout_date')) return [...sets.values()].filter((s) => s.date === p[0]).map((s) => ({ data: s.data })) as T[];
+      if (sql.includes('SELECT workout_date, data FROM workout_sets')) return [...sets.values()].filter((s) => s.kind === 'work' && s.done === 1 && s.deleted === 0).map((s) => ({ workout_date: s.date, data: s.data })) as T[];
       if (sql.includes('GROUP BY workout_date')) {
         const n = new Map<string, number>();
         for (const s of sets.values()) if (s.kind === 'work' && s.done === 1 && s.deleted === 0) n.set(s.date, (n.get(s.date) ?? 0) + 1);

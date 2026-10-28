@@ -22,6 +22,14 @@ export async function loadSets(db: WorkoutDb, date: string): Promise<WorkoutSet[
   return rows.map((r) => JSON.parse(r.data) as WorkoutSet);
 }
 
+/** One exercise's done, live work sets across all days (the e1RM trend). Filtered on the device, nothing leaves it. */
+export async function loadExerciseSets(db: WorkoutDb, exercise: string): Promise<(WorkoutSet & { date: string })[]> {
+  const rows = await db.getAllAsync<{ workout_date: string; data: string }>(
+    "SELECT workout_date, data FROM workout_sets WHERE kind = 'work' AND done = 1 AND deleted = 0",
+  );
+  return rows.map((r) => ({ ...(JSON.parse(r.data) as WorkoutSet), date: r.workout_date })).filter((s) => s.exercise === exercise);
+}
+
 export async function saveSet(db: StoreDb, date: string, s: WorkoutSet): Promise<void> {
   await db.runAsync(
     'INSERT OR REPLACE INTO workout_sets (key, workout_date, kind, done, deleted, data) VALUES (?, ?, ?, ?, ?, ?)',

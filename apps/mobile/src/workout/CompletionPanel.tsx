@@ -4,6 +4,7 @@ import { sessionVolume, type LiftRecord } from '@plate-and-bar/core';
 import { Text } from '../components/Text';
 import { Card, Heading, MetricRow } from '../components/ui';
 import { fmt } from '../format';
+import { sessionTimeLine } from '../progress/e1rm';
 import type { WorkoutDb } from '../db/workouts';
 import { radius, tabular, type } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
@@ -23,7 +24,7 @@ function bestSet(sets: readonly Row[]): Row | null {
 
 /**
  * "Session done": shown while every set is ticked, read from today's exercises only. Nothing is stored and nothing is locked:
- * un-tick a set and it goes. No duration (none is stored), no streak. A personal record is core's `updateLift` result (the record's `pbToast` is today).
+ * un-tick a set and it goes. The elapsed time is core's `sessionElapsed` over the ticks (`t`), shown only when every ticked set has one; no streak. A personal record is core's `updateLift` result (the record's `pbToast` is today).
  */
 export function CompletionPanel({ db, date, profileKg, exs, cardio, lifts, reloadKey, headingRef }: { headingRef?: Ref<ComponentRef<typeof RNText>>; db: WorkoutDb; date: string; profileKg: number; exs: readonly ExState[]; cardio: number | null; lifts: Readonly<Record<string, LiftRecord>>; reloadKey: number }) {
   const c = useTheme();
@@ -38,6 +39,7 @@ export function CompletionPanel({ db, date, profileKg, exs, cardio, lifts, reloa
     { label: 'Exercises', value: String(exs.length) },
     ...(cardio ? [{ label: 'Cardio (min)', value: fmt(cardio) }] : []),
   ];
+  const elapsed = sessionTimeLine(exs.flatMap((e) => [...e.ramp, ...e.sets]));
   const twoSessions = exs.some((e) => e.part === 2);
   return (
     <Card testID="completion-panel">
@@ -46,6 +48,7 @@ export function CompletionPanel({ db, date, profileKg, exs, cardio, lifts, reloa
       {/* MetricRow holds 3 cells; a 4th (cardio) goes on a second row so none truncates at 360 px. */}
       <MetricRow cells={cells.slice(0, 3)} />
       {cells.length > 3 ? <MetricRow cells={cells.slice(3)} /> : null}
+      {elapsed ? <Text testID="completion-elapsed" accessibilityLabel={`Time: ${elapsed}`} style={[type.caption, { color: c.body }]}>{`Time: ${elapsed}`}</Text> : null}
       {exs.map((e, i) => {
         const b = bestSet(e.sets);
         const rates = [...new Set(e.sets.flatMap((s) => (s.rate ? [RATE_LABEL[s.rate]] : [])))];
