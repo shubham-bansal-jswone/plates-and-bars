@@ -10,7 +10,7 @@ const PREFIX = 'plate-and-bar-';
 export const RECENT_EXPORT_MS = 10 * 60 * 1000;
 
 /** Native: deletes leftover export files from the cache. Call at app start (with `minAgeMs`), at the start of an
- * export, and on sign-out and delete-everything (no age limit, for privacy). No-op on web. */
+ * export, and on sign-out, delete-everything and "Delete all reports" (no age limit, for privacy). No-op on web. */
 export function clearOldExports(opts: { minAgeMs?: number; now?: number } = {}): void {
   if (Platform.OS === 'web') return;
   const now = opts.now ?? Date.now();
@@ -30,7 +30,7 @@ export function clearOldExports(opts: { minAgeMs?: number; now?: number } = {}):
  * Web: downloads the text as a file. Native: writes it to the cache and opens the share sheet (the user picks where it
  * goes); the call returns when the sheet closes, so two files are shared one after the other. The cached copy is
  * deleted when sharing throws, and on iOS when the sheet closes. On Android the call can resolve before the receiving
- * app has read the file, so the copy stays until `clearOldExports` (next export, app start, sign-out, delete-everything).
+ * app has read the file, so the copy stays until `clearOldExports` (next export, app start, sign-out, delete-everything, "Delete all reports").
  */
 export async function saveTextFile(name: string, mimeType: string, text: string): Promise<SaveResult> {
   if (Platform.OS === 'web') {
