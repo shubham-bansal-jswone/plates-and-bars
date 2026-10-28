@@ -6,12 +6,15 @@ import { useRouter } from 'expo-router';
 import { ResultsView } from '../components/ResultsView';
 import { Button, Caption, Card, ErrorText, Field, Choice, Group, H1, Hint, Label, Note, Page, Switch, layout, Press } from '../components/ui';
 import { ACTIVITY, CONSENT, EXPERIENCE, GOALS, PACES, SCREEN_Q, WHERE } from '../setup/copy';
-import { DAY_CHOICES, SESSION_MINUTES, SETUP_STEPS as STEPS } from '@plate-and-bar/core';
+import { DAY_CHOICES, SESSION_MINUTES, SETUP_STEPS as STEPS, type WeightUnit } from '@plate-and-bar/core';
 import { LegalLinks } from '../legal/LegalLinks';
 import { DeletionNotice } from '../account/DeletionNotice';
 import type { Profile } from '../setup/types';
-import { buildProfile, draftFromProfile, emptyDraft, keepStoredHeight, stepErrors, type Draft, type SetupField } from '../setup/logic';
+import { answersInKg, buildProfileInUnit, draftFromProfile, emptyDraft, keepStoredHeight, stepErrors, type Draft, type SetupField } from '../setup/logic';
 import { useProfile } from '../state/ProfileProvider';
+import { WeightUnitSection } from '../settings/WeightUnitSection';
+import { useWeightUnit } from '../settings/weightUnit';
+import { convertWeightText, weightFieldText } from '../workout/unitText';
 import { setSetupLeaving } from '../state/setupExit';
 import { postToast } from '../state/pendingToast';
 import { useTheme } from '../theme/useTheme';
@@ -78,7 +81,7 @@ type Focusable = { focus?: () => void } | null;
 type Focus = (f: SetupField) => (el: never) => void; // `never`: a TextInput and a View ref both fit
 
 /** Each message in `errs` shown under the field it names, and nowhere else. `focus` registers the element Continue focuses for the first invalid field. */
-function StepBody({ step, d, set, answer, errs, focus }: { step: number; d: Draft; set: Pick; answer: (i: number, a: 'no' | 'yes') => void; errs: Errs; focus: Focus }) {
+function StepBody({ step, d, set, answer, errs, focus, unit, onUnit }: { step: number; d: Draft; unit: WeightUnit; onUnit: (from: WeightUnit, to: WeightUnit) => void; set: Pick; answer: (i: number, a: 'no' | 'yes') => void; errs: Errs; focus: Focus }) {
   const c = useTheme();
   const bad = (f: SetupField) => !!errs[f];
   // The inline error is also the invalid field's hint, so focusing the field again reads why it is wrong.
@@ -143,11 +146,12 @@ function StepBody({ step, d, set, answer, errs, focus }: { step: number; d: Draf
           {showErr('height')}
         </View>
         <View style={layout.field}>
-          <Caption>Weight (kg)</Caption>
+          <Caption>{`Weight (${unit})`}</Caption>
           <View style={layout.row}>
-            <Field ref={focus('weight')} label="Weight in kg" invalid={bad('weight')} accessibilityHint={hint('weight')} describedBy={describe('weight')} inputMode="decimal" placeholder="kg" value={d.weight} onChangeText={(v) => set('weight', v)} />
+            <Field ref={focus('weight')} label={`Weight in ${unit}`} invalid={bad('weight')} accessibilityHint={hint('weight')} describedBy={describe('weight')} inputMode="decimal" placeholder={unit} value={d.weight} onChangeText={(v) => set('weight', v)} />
           </View>
           {showErr('weight')}
+          <WeightUnitSection onSwitch={onUnit} />
         </View>
       </>
     );
@@ -264,6 +268,7 @@ function StepBody({ step, d, set, answer, errs, focus }: { step: number; d: Draf
 /** Consent first, then four question steps, then the results; "Use these targets" saves the profile. */
 export function SetupScreen({ recalc = false }: { recalc?: boolean }) {
   const { status, profile, latestWeigh } = useProfile();
+  const { ready } = useWeightUnit();
   // `undefined` while reading; null when there is no weigh-in or it could not be read.
   const [weight, setWeight] = useState<number | null | undefined>(undefined);
   useEffect(() => {
@@ -277,7 +282,7 @@ export function SetupScreen({ recalc = false }: { recalc?: boolean }) {
   return (
     <>
       <DeletionNotice />
-      {status === 'ready' && (weight !== undefined || !profile) ? <SetupFlow recalc={recalc} weight={weight ?? null} /> : null}
+      {status === 'ready' && ready && (weight !== undefined || !profile) ? <SetupFlow recalc={recalc} weight={weight ?? null} /> : null}
     </>
   );
 }
@@ -290,7 +295,8 @@ function SetupFlow({ recalc, weight }: { recalc: boolean; weight: number | null 
   const { profile: stored, consent, giveConsent, saveSetup, skipSetup } = useProfile();
   const router = useRouter();
   const c = useTheme();
-  const [d, setD] = useState<Draft>(() => (stored ? { ...draftFromProfile(stored), ...(weight ? { weight: String(weight) } : {}) } : emptyDraft()));
+  const { unit } = useWeightUnit(); // the box is typed in this unit; the answers go to core in kg (`answersInKg`)
+  const [d, setD] = useState<Draft>(() => (stored ? { ...draftFromProfile(stored, unit), ...(weight ? { weight: weightFieldText(String(weight), unit) } : {}) } : emptyDraft()));
   const [step, setStep] = useState(stored && recalc ? STEPS : 0);
   const [err, setErr] = useState('');
   const [errs, setErrs] = useState<Errs>({});
@@ -309,7 +315,7 @@ function SetupFlow({ recalc, weight }: { recalc: boolean; weight: number | null 
     setErrs({});
     setD((prev) => ({ ...prev, screen: prev.screen.map((x, j) => (j === i ? a : x)) }));
   };
-  const profile = useMemo(() => (step === STEPS ? buildProfile(stored ? keepStoredHeight(d, stored) : d, new Date(), stored) : null), [step, d, stored]);
+  const profile = useMemo(() => (step === STEPS ? buildProfileInUnit(answersInKg(stored ? keepStoredHeight(d, stored) : d, unit, stored), new Date(), stored, unit) : null), [step, d, stored, unit]);
 
   const save = async (p: Profile, toast: string | null) => {
     setSetupLeaving(true);
@@ -327,7 +333,7 @@ function SetupFlow({ recalc, weight }: { recalc: boolean; weight: number | null 
   if (!consent) return <Consent onContinue={giveConsent} />;
 
   const next = () => {
-    const found = stepErrors(step, stored ? keepStoredHeight(d, stored) : d); // an unedited redo checks the stored cm, not the rounded ft/in (#1224)
+    const found = stepErrors(step, answersInKg(stored ? keepStoredHeight(d, stored) : d, unit, stored), unit); // an unedited redo checks the stored cm, not the rounded ft/in (#1224)
     setErr('');
     setErrs(Object.fromEntries(found));
     if (!found.length) setStep(step + 1);
@@ -385,7 +391,7 @@ function SetupFlow({ recalc, weight }: { recalc: boolean; weight: number | null 
         </>
       ) : (
         <>
-          <StepBody step={step} d={d} set={set} answer={answer} errs={errs} focus={focus} />
+          <StepBody step={step} d={d} set={set} answer={answer} errs={errs} focus={focus} unit={unit} onUnit={(from, to) => setD((prev) => ({ ...prev, weight: convertWeightText(prev.weight, from, to) }))} />
           {err ? <ErrorText>{err}</ErrorText> : null}
           <Button label={step === STEPS - 1 ? 'See my targets' : 'Continue'} onPress={next} />
         </>

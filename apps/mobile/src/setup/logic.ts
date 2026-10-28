@@ -8,8 +8,10 @@ import {
   type SetupError,
   type Special,
   type Pace,
+  type WeightUnit,
 } from '@plate-and-bar/core';
 import type { Profile } from './types';
+import { weightFieldText, weightFromField } from '../workout/unitText';
 
 // Form state and the mapping to storage. Validation, cleaning, targets and the choice lists all come
 // from packages/core (`validateSetupStep`, `normaliseSetup`, `DAY_CHOICES`, ...); nothing is decided here.
@@ -48,6 +50,11 @@ export const emptyDraft = (): Draft => ({
   screen: Array.from({ length: SCREEN_QUESTIONS }, () => null),
 });
 
+/** The weight message names the unit the box is typed in. */
+function weightError(unit: WeightUnit): string {
+  return `Enter your weight in ${unit}, like ${unit === 'lb' ? '160' : '72.5'}.`;
+}
+
 // One message per core error code (prototype `validateStep` texts).
 const ERROR_COPY: Record<SetupError, string> = {
   sex_missing: 'Choose male or female for the calorie formula.',
@@ -56,7 +63,7 @@ const ERROR_COPY: Record<SetupError, string> = {
   age_over_max: 'Check your age.',
   height_ft_out_of_range: 'Enter your height in feet and inches, like 5 and 7.',
   height_cm_out_of_range: 'Enter your height in cm, like 170.',
-  weight_out_of_range: 'Enter your weight in kg, like 72.5.',
+  weight_out_of_range: weightError('kg'),
   activity_missing: 'Pick the option closest to a typical weekday.',
   days_missing: 'Choose how many sessions you do a week.',
   where_missing: 'Choose where you train.',
@@ -110,12 +117,12 @@ const FIX: Record<SetupField, Partial<Draft>> = {
  * Every invalid field of a step with its message, in form order (empty when complete). Core reports one error at a time,
  * so each found field is filled with a valid stand-in on a copy and core is asked again.
  */
-export function stepErrors(step: number, d: Draft): [SetupField, string][] {
+export function stepErrors(step: number, d: Draft, unit: WeightUnit = 'kg'): [SetupField, string][] {
   const out: [SetupField, string][] = [];
   let cur = d;
   for (let e = validateSetupStep(step, cur); e; e = validateSetupStep(step, cur)) {
     if (out.some(([f]) => f === FIELD_OF[e])) break; // a stand-in core still rejects: stop, never loop
-    out.push([FIELD_OF[e], ERROR_COPY[e]]);
+    out.push([FIELD_OF[e], e === 'weight_out_of_range' ? weightError(unit) : ERROR_COPY[e]]);
     cur = { ...cur, ...FIX[FIELD_OF[e]] };
   }
   return out;
@@ -128,7 +135,7 @@ export function localDate(now: Date): string {
 }
 
 /** The form filled with a stored profile's answers (prototype `startSetup` on a redo); height shows in ft/in, as first time (`keepStoredHeight` keeps the stored cm if it is not edited). */
-export function draftFromProfile(p: Profile): Draft {
+export function draftFromProfile(p: Profile, unit: WeightUnit = 'kg'): Draft {
   const { ft, inch } = cmToFtIn(p.height_cm);
   return {
     sex: p.sex,
@@ -138,7 +145,7 @@ export function draftFromProfile(p: Profile): Draft {
     ft: String(ft),
     inch: String(inch),
     cm: String(Math.round(p.height_cm)),
-    weight: String(p.weight_kg),
+    weight: weightFieldText(String(p.weight_kg), unit),
     activity: p.activity,
     where: p.where,
     // Both came through core's validation when stored.
@@ -171,4 +178,22 @@ export function buildProfile(d: Draft, now: Date, previous?: Profile | null): Pr
     deleted_at: null,
     ...normaliseSetup(d, localDate(now), previous),
   };
+}
+
+/**
+ * The answers as core reads them: kg. The weight box holds text in the display unit, so it is converted here, at the edge. A redo whose
+ * weight box still shows what `draftFromProfile` filled in keeps the stored kg, so a weight shown in lb and left alone is never re-saved
+ * from rounded lb text. kg users' drafts pass through untouched. An unreadable lb text becomes empty, which core refuses.
+ */
+export function answersInKg(d: Draft, unit: WeightUnit, stored?: Profile | null): Draft {
+  if (unit === 'kg') return d;
+  if (stored && d.weight === draftFromProfile(stored, unit).weight) return { ...d, weight: String(stored.weight_kg) };
+  return { ...d, weight: weightFromField(d.weight, unit) ?? '' };
+}
+
+/** `buildProfile` for answers in kg from `answersInKg`; an lb user's typed weight is kept exact (core rounds to 0.1 kg, which would show 180 lb back as 179.9). */
+export function buildProfileInUnit(kgAnswers: Draft, now: Date, previous: Profile | null | undefined, unit: WeightUnit): Profile {
+  const p = buildProfile(kgAnswers, now, previous);
+  const kg = Number(kgAnswers.weight);
+  return unit === 'lb' && Number.isFinite(kg) && kgAnswers.weight.trim() !== '' && Math.abs(kg - p.weight_kg) < 0.1 ? { ...p, weight_kg: kg } : p;
 }
