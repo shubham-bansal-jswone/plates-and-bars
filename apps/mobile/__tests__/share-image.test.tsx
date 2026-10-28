@@ -1,10 +1,10 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
-import { Platform } from 'react-native';
+import { Dimensions, Platform, StyleSheet } from 'react-native';
 import { CompletionPanel } from '../src/workout/CompletionPanel';
 import { blankRow, type ExState, type Row } from '../src/workout/model';
-import { buildShareCard } from '../src/workout/shareModel';
+import { buildShareCard, CARD_H, CARD_MAX_ROWS, CARD_PAD, CARD_W, HEADER_H, MORE_H, ROW_H, STATS_H } from '../src/workout/shareModel';
 import { memoryDb } from './helpers';
 
 const mockCapture = jest.fn(async () => 'file:///cache/ReactNative-snapshot-image-1.png');
@@ -68,25 +68,77 @@ describe('share the workout summary picture', () => {
     expect(mockShare).not.toHaveBeenCalled();
   });
 
-  it('web: draws the card on a canvas and downloads the PNG instead of sharing', async () => {
+  it('web: draws the card on a canvas and downloads the PNG instead of sharing; the object URL is revoked and globals restored', async () => {
     Platform.OS = 'web';
+    jest.useFakeTimers();
     const calls: string[] = [];
-    const g = new Proxy({}, { set: () => true, get: (_t, k) => (k === 'fillText' ? (s: string) => calls.push(s) : () => undefined) });
+    const g = new Proxy({}, { set: () => true, get: (_t, k) => (k === 'fillText' ? (s: string) => calls.push(s) : k === 'measureText' ? (s: string) => ({ width: s.length * 10 }) : () => undefined) });
     const anchor = { click: jest.fn(), remove: jest.fn(), href: '', download: '' };
+    const revoke = jest.fn();
     const g0 = globalThis as unknown as Record<string, unknown>;
+    const saved = { document: g0.document, URL: g0.URL };
     g0.document = {
       createElement: (t: string) => (t === 'canvas' ? { getContext: () => g, toBlob: (cb: (b: unknown) => void) => cb({ type: 'image/png' }) } : anchor),
       body: { appendChild: jest.fn() },
     };
-    g0.URL = { createObjectURL: () => 'blob:x', revokeObjectURL: jest.fn() };
-    const { shareWorkoutImage } = jest.requireActual<typeof import('../src/workout/shareImage')>('../src/workout/shareImage.ts'); // the web file, by name (the bare path picks .native.ts)
-    expect(await shareWorkoutImage(buildShareCard({ date: '2026-10-08', exs, cardio: null, lifts: {} }))).toBe('saved');
-    expect(anchor.download).toBe('plate-and-bar-workout-summary.png');
-    expect(anchor.click).toHaveBeenCalled();
-    expect(calls).toContain('Barbell Bench Press');
-    expect(mockShare).not.toHaveBeenCalled();
-    delete g0.document;
-    delete g0.URL;
+    g0.URL = { createObjectURL: () => 'blob:x', revokeObjectURL: revoke };
+    try {
+      const { shareWorkoutImage } = jest.requireActual<typeof import('../src/workout/shareImage')>('../src/workout/shareImage.ts'); // the web file, by name (the bare path picks .native.ts)
+      expect(await shareWorkoutImage(buildShareCard({ date: '2026-10-08', exs, cardio: null, lifts: {} }))).toBe('saved');
+      expect(anchor.download).toBe('plate-and-bar-workout-summary.png');
+      expect(anchor.click).toHaveBeenCalled();
+      expect(calls).toContain('Barbell Bench Press');
+      expect(mockShare).not.toHaveBeenCalled();
+      jest.runAllTimers();
+      expect(revoke).toHaveBeenCalledWith('blob:x');
+    } finally {
+      jest.useRealTimers();
+      g0.document = saved.document;
+      g0.URL = saved.URL;
+    }
+  });
+
+  it('web canvas: a very long exercise name is cut with an ellipsis inside its box', async () => {
+    Platform.OS = 'web';
+    jest.useFakeTimers();
+    const widths: { s: string; w: number }[] = [];
+    const g = new Proxy({}, { set: () => true, get: (_t, k) => (k === 'fillText' ? (s: string) => widths.push({ s, w: s.length * 10 }) : k === 'measureText' ? (s: string) => ({ width: s.length * 10 }) : () => undefined) });
+    const g0 = globalThis as unknown as Record<string, unknown>;
+    const saved = { document: g0.document, URL: g0.URL };
+    g0.document = { createElement: (t: string) => (t === 'canvas' ? { getContext: () => g, toBlob: (cb: (b: unknown) => void) => cb({}) } : { click() {}, remove() {} }), body: { appendChild() {} } };
+    g0.URL = { createObjectURL: () => 'blob:x', revokeObjectURL() {} };
+    try {
+      const { shareWorkoutImage } = jest.requireActual<typeof import('../src/workout/shareImage')>('../src/workout/shareImage.ts');
+      const name = 'A very long custom exercise name that would run under the best set'.repeat(2);
+      await shareWorkoutImage(buildShareCard({ date: '2026-10-08', exs: [ex(name, [row('60', '8', true)])], cardio: null, lifts: {} }));
+      const drawn = widths.find((x) => x.s.endsWith('…'));
+      expect(drawn).toBeTruthy();
+      expect(drawn!.w).toBeLessThanOrEqual(1080 - 120);
+      jest.runAllTimers();
+    } finally {
+      jest.useRealTimers();
+      g0.document = saved.document;
+      g0.URL = saved.URL;
+    }
+  });
+
+  it('a second tap while a share is running does not start another capture', async () => {
+    let release: () => void = () => undefined;
+    mockShare.mockImplementationOnce(() => new Promise<undefined>((ok) => (release = () => ok(undefined))));
+    await panel();
+    fireEvent.press(screen.getByLabelText('Share workout summary picture'));
+    await waitFor(() => expect(mockShare).toHaveBeenCalledTimes(1));
+    fireEvent.press(screen.getByLabelText('Share workout summary picture'));
+    expect(mockCapture).toHaveBeenCalledTimes(1);
+    release();
+    await waitFor(() => expect(screen.getByLabelText('Share workout summary picture').props.accessibilityState?.disabled).toBeFalsy());
+  });
+
+  it('the card sits off screen even on a wide window', async () => {
+    Dimensions.set({ window: { width: 1280, height: 800, scale: 1, fontScale: 1 } });
+    await panel();
+    const left = (StyleSheet.flatten(screen.getByTestId('share-card', { includeHiddenElements: true }).props.style) as { left: number }).left;
+    expect(left).toBeLessThanOrEqual(-(1280 + CARD_W));
   });
 });
 
@@ -112,6 +164,16 @@ describe('what the card contains', () => {
     expect(m.rows).toHaveLength(7);
     expect(m.more).toBe(3);
     expect(m.stats.at(-1)).toEqual({ label: 'Cardio (min)', value: '20' });
+    // Everything the card stacks fits its height, 4:5, so nothing is clipped (rows, "+N more", header and stats).
+    expect(2 * CARD_PAD + HEADER_H + STATS_H + CARD_MAX_ROWS * ROW_H + MORE_H).toBeLessThanOrEqual(CARD_H);
+    expect(CARD_W / CARD_H).toBeCloseTo(0.8);
+  });
+
+  it('the card stats are short: a 5-digit volume is 12.4k and labels fit a narrow box', () => {
+    const heavy = [ex('Leg Press', [row('200', '60', true)])];
+    const m = buildShareCard({ date: '2026-10-08', exs: heavy, cardio: 45, lifts: {} });
+    expect(m.cardStats).toEqual([{ label: 'Sets', value: '1/1' }, { label: 'Volume kg', value: '12k' }, { label: 'Exercises', value: '1' }, { label: 'Cardio min', value: '45' }]);
+    expect(m.stats[1]).toEqual({ label: 'Volume (kg)', value: '12,000' }); // the panel keeps the full figure
   });
 });
 
