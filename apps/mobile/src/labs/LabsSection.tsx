@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { isFlagged, labHistory, labResult, tipFor, validateLabReport, type LabReport, type LabTest } from '@plate-and-bar/core';
 import { Text } from '../components/Text';
@@ -143,6 +143,8 @@ function AllResults({ rows, trend }: { rows: { t: LabTest; r: ReturnType<typeof 
 /** The "Add a lab report" sheet: a date, then a row per test. Errors show beside the row they belong to once Save has been tried. */
 function AddForm({ today, onClose, onSave }: { today: string; onClose: () => void; onSave: (r: Omit<LabReport, 'id'>) => Promise<void> }) {
   const c = useTheme();
+  // Web drops accessibilityHint, so each error text gets an id and the field(s) it names point at it with aria-describedby.
+  const uid = useId().replace(/:/g, '');
   const [date, setDate] = useState(today);
   const [tests, setTests] = useState<LabTest[]>([{ ...BLANK }]);
   const [tried, setTried] = useState(false);
@@ -157,8 +159,18 @@ function AddForm({ today, onClose, onSave }: { today: string; onClose: () => voi
         <Heading level={2} style={[typeScale.heading, { color: c.ink }]}>{LABS_SHEET_TITLE}</Heading>
         <Hint>{labs.not_medical_advice}</Hint>
         <Text style={{ color: c.ink, fontWeight: '700' }}>{labs.check_values}</Text>
-        <Field label={LABS_DATE_LABEL} placeholder={LABS_DATE_PLACEHOLDER} autoCapitalize="none" autoCorrect={false} value={date} onChangeText={setDate} />
-        {tried && dateBad ? <ErrorText>{LAB_ERRORS.bad_date}</ErrorText> : null}
+        <Field
+          label={LABS_DATE_LABEL}
+          placeholder={LABS_DATE_PLACEHOLDER}
+          autoCapitalize="none"
+          autoCorrect={false}
+          value={date}
+          onChangeText={setDate}
+          invalid={tried && dateBad}
+          accessibilityHint={tried && dateBad ? LAB_ERRORS.bad_date : undefined}
+          describedBy={tried && dateBad ? `${uid}-date-error` : undefined}
+        />
+        {tried && dateBad ? <ErrorText id={`${uid}-date-error`}>{LAB_ERRORS.bad_date}</ErrorText> : null}
         {tests.map((t, i) => {
           const err = tried ? rowError(report.tests[i] as LabTest) : null;
           return (
@@ -173,10 +185,13 @@ function AddForm({ today, onClose, onSave }: { today: string; onClose: () => voi
                   onChangeText={(v) => edit(i, k, v)}
                   autoCapitalize="none"
                   autoCorrect={false}
+                  invalid={!!err}
+                  accessibilityHint={err ? LAB_ERRORS[err] : undefined}
+                  describedBy={err ? `${uid}-test-${i}-error` : undefined}
                   {...(NUMERIC.has(k) ? { inputMode: 'decimal' as const } : {})}
                 />
               ))}
-              {err ? <ErrorText>{LAB_ERRORS[err]}</ErrorText> : null}
+              {err ? <ErrorText id={`${uid}-test-${i}-error`}>{LAB_ERRORS[err]}</ErrorText> : null}
               {tests.length > 1 ? <Button label={LABS_REMOVE_TEST(i + 1)} kind="link" onPress={() => setTests(tests.filter((_, j) => j !== i))} /> : null}
             </View>
           );

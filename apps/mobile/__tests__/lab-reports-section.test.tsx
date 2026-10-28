@@ -92,6 +92,35 @@ describe('Lab reports section (flag on)', () => {
     expect(screen.getByText('Enter the value as a number, like 5.4.')).toBeTruthy();
   });
 
+  it('the date and the row each mark their fields invalid and point at their error, only while it shows', async () => {
+    await setup();
+    await fireEvent.press(await screen.findByRole('button', { name: 'Add a report' }));
+    expect(screen.getByLabelText('Report date').props['aria-invalid']).toBeUndefined();
+    await fireEvent.changeText(screen.getByLabelText('Report date'), '8/10/2026');
+    await fireEvent.press(screen.getByRole('button', { name: 'Values are correct, save' }));
+    const idOf = (t: string) => screen.getByText(t).props.nativeID as string;
+    const dateErr = 'Enter the report date as YYYY-MM-DD.';
+    const date = screen.getByLabelText('Report date');
+    expect(date.props['aria-invalid']).toBe(true);
+    expect(date.props.accessibilityHint).toBe(dateErr);
+    expect(idOf(dateErr)).toMatch(/\S/);
+    expect(date.props['aria-describedby']).toBe(idOf(dateErr));
+    const rowErr = 'Enter the test name as printed on your report.';
+    for (const f of ['Test name', 'Value', 'Unit', 'Lab low limit', 'Lab high limit']) {
+      const el = screen.getByLabelText(`${f}, test 1`);
+      expect(el.props['aria-invalid']).toBe(true);
+      expect(el.props.accessibilityHint).toBe(rowErr);
+      expect(el.props['aria-describedby']).toBe(idOf(rowErr));
+    }
+    expect(idOf(rowErr)).not.toBe(idOf(dateErr));
+    await fireEvent.changeText(screen.getByLabelText('Report date'), '2026-10-08');
+    expect(screen.getByLabelText('Report date').props['aria-describedby']).toBeUndefined();
+    expect(screen.getByLabelText('Report date').props['aria-invalid']).toBeUndefined();
+    await fillRow(1, { name: 'Glucose', value: '5', unit: 'mmol/L' });
+    expect(screen.getByLabelText('Value, test 1').props['aria-describedby']).toBeUndefined();
+    expect(screen.getByLabelText('Value, test 1').props.accessibilityHint).toBeUndefined();
+  });
+
   it('every field has a label and a test can be added and removed', async () => {
     await setup();
     await fireEvent.press(await screen.findByRole('button', { name: 'Add a report' }));
