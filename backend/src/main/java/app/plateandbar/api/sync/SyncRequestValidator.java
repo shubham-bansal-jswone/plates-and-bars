@@ -47,7 +47,7 @@ public class SyncRequestValidator {
             SyncTable table, String id, int version, Instant updatedAt, Instant deletedAt, ObjectNode data) {}
 
     /** {@code cursor} is null on a first sync. */
-    record Parsed(String cursor, List<Incoming> records) {}
+    record Parsed(String cursor, List<Incoming> records, int maxLiveRoutines) {}
 
     private final Schema requestSchema;
     private final Map<SyncTable, Set<String>> fields = new java.util.EnumMap<>(SyncTable.class);
@@ -55,13 +55,18 @@ public class SyncRequestValidator {
     private final Map<String, Map<String, CompactJsonSizes.Limit>> byteLimits = new java.util.HashMap<>();
 
     static final String MAX_JSON_BYTES = "x-max-json-bytes";
+    static final String MAX_LIVE_RECORDS = "x-max-live-records";
+
+    /** {@code x-max-live-records} of the {@code Routine} schema: checked by SyncService inside the account transaction. */
+    private final int maxLiveRoutines;
 
     /**
      * Draft 2020-12 plus {@code x-max-json-bytes}, which CompactJsonSizes checks, not the schema library. Registered
      * as a keyword that validates nothing, so the library does not log "Unknown keyword" for it.
      */
     static final Dialect REQUEST_DIALECT =
-            Dialect.builder(Dialects.getDraft202012()).keyword(new NonValidationKeyword(MAX_JSON_BYTES)).build();
+            Dialect.builder(Dialects.getDraft202012()).keyword(new NonValidationKeyword(MAX_JSON_BYTES))
+                    .keyword(new NonValidationKeyword(MAX_LIVE_RECORDS)).build();
 
     private final ObjectMapper reader;
 
@@ -96,6 +101,10 @@ public class SyncRequestValidator {
             if (SyncTable.byName(name.asString()).isEmpty()) {
                 unimplemented.add(name.asString());
             }
+        }
+        this.maxLiveRoutines = components.path("schemas").path("Routine").path(MAX_LIVE_RECORDS).asInt(0);
+        if (maxLiveRoutines < 1) {
+            throw new IllegalStateException("openapi.yaml: Routine has no " + MAX_LIVE_RECORDS);
         }
         ObjectMapper json = new ObjectMapper();
         ObjectNode wrapper = json.createObjectNode();
@@ -177,7 +186,7 @@ public class SyncRequestValidator {
                 records.add(parse(table, list.get(i), path, namespace, seen));
             }
         }
-        return new Parsed(cursor, records);
+        return new Parsed(cursor, records, maxLiveRoutines);
     }
 
     private Incoming parse(SyncTable table, JsonNode rec, String path, UUID namespace, Set<String> seen) {
@@ -299,6 +308,7 @@ public class SyncRequestValidator {
             case exclusions -> "Exclusion";
             case swaps -> "Swap";
             case settings -> "Settings";
+            case routines -> "Routine";
         };
     }
 
