@@ -1,5 +1,6 @@
 import { readFileSync, readdirSync } from 'fs';
 import { join } from 'path';
+import { Pressable, Text } from 'react-native';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { addDays, lbToKg, type LiftRecord } from '@plate-and-bar/core';
 import { saveProfile } from '../src/db/records';
@@ -9,10 +10,12 @@ import { BURN_HOW_LB } from '../src/progress/copy';
 import { saveSettings } from '../src/db/settings';
 import { defaultSettings } from '../src/settings/types';
 import { ProgressScreen } from '../src/screens/ProgressScreen';
-import { WeightUnitProvider } from '../src/settings/weightUnit';
+import { WeightUnitProvider, useWeightUnit } from '../src/settings/weightUnit';
 import { RecentWorkouts, WorkoutDay } from '../src/progress/history/History';
 import { buildSessions, setText } from '../src/progress/history/logic';
 import { e1rmSummary } from '../src/progress/e1rm';
+import { E1rmTrend } from '../src/progress/E1rmTrend';
+import { CheckinCard } from '../src/progress/CheckinCard';
 import { buildProfile, emptyDraft } from '../src/setup/logic';
 import type { WorkoutSet } from '../src/workout/types';
 import { hardCodedKg, memoryDb, withProfile } from './helpers';
@@ -113,6 +116,69 @@ describe('Progress in pounds (#1185)', () => {
     expect(screen.getByLabelText('Weight in lb').props.value).toBe('180');
     await act(async () => { await new Promise<void>((r) => setImmediate(r)); });
     expect(weights(db)).toEqual([expect.objectContaining({ weight_kg: 81.64, version: 0 })]);
+  });
+});
+
+describe('Progress in pounds, on screen (#1185)', () => {
+  it('the weight chart, its spoken label and the change line are in lb', async () => {
+    await mount('lb', threeWeeks);
+    expect(screen.getByLabelText('Weight from 180.8 to 176.4 lb')).toBeTruthy(); // 82 kg to 80 kg
+    expect(screen.getByText(/^Down 4\.4 lb since /)).toBeTruthy();
+  });
+
+  it('the change line is the rounded true change, not the change of rounded points', async () => {
+    // 80 kg is 176.4 lb and 80.3 kg is 177 lb: rounded points differ by 0.6, the true 0.3 kg is 0.7 lb.
+    await mount('lb', async (d) => { await saveWeight(d, weigh(day(2), 80)); await saveWeight(d, weigh(day(0), 80.3)); });
+    expect(screen.getByText(/^Up 0\.7 lb since /)).toBeTruthy();
+  });
+
+  it('the scale-jump title is in lb', async () => {
+    await mount('lb', async (d) => saveWeight(d, weigh(day(1), 80)));
+    await fireEvent.changeText(screen.getByLabelText('Weight in lb'), '178.4'); // 80.92 kg, up 0.9 kg
+    await fireEvent.press(screen.getByLabelText('Save weight'));
+    expect(await screen.findByText('The scale went up 2 lb')).toBeTruthy();
+  });
+
+  it('the weigh-in box follows a unit switch and a newly pulled value while untouched', async () => {
+    const db = memoryDb();
+    await saveSettings(db, defaultSettings('2026-10-08T00:00:00Z'));
+    await saveProfile(db, profile());
+    await saveWeight(db, weigh(DATE, 80));
+    const Switch = () => { const { setUnit } = useWeightUnit(); return <Pressable accessibilityLabel="to lb" onPress={() => setUnit('lb')}><Text>lb</Text></Pressable>; };
+    await render(withProfile(db, <WeightUnitProvider db={db}><Switch /><ProgressScreen db={db} now={NOW} /></WeightUnitProvider>));
+    await screen.findByRole('header', { name: 'Progress' });
+    expect(screen.getByLabelText('Weight in kg').props.value).toBe('80');
+    await fireEvent.press(screen.getByLabelText('to lb'));
+    expect(screen.getByLabelText('Weight in lb').props.value).toBe('176.4');
+  });
+
+  it('the e1RM chart points are in lb', async () => {
+    const pts = [{ date: '2026-09-01', e1rm: 80 }, { date: '2026-10-13', e1rm: 83 }];
+    await inUnit('lb', <E1rmTrend points={pts} type="barbell" />);
+    const drawn = JSON.stringify(screen.toJSON()); // the svg axis labels are not queryable as text
+    expect(drawn).toContain('"content":"176.4"'); // axis minimum, 80 kg
+    expect(drawn).toContain('"content":"183"'); // axis maximum, 83 kg
+  });
+
+  it('the burn card slope and its How this works note are in lb', async () => {
+    const db = memoryDb();
+    db.rows.set(KEY, 'lb');
+    await saveProfile(db, profile());
+    const ci = {
+      settingsFailed: false,
+      checkin: { sessions: 2, plannedN: 4, logged: 3, avgK: 2000, avgP: 120, pDays: 2, w1: 80, weeklyChange: null, slopePerWeek: -0.5, cardioMin: 30, steps: null, sleep: null, sleepShort: false, improved: [], stalled: [], formula: null, burn: { ready: true, needDays: 0, needW: 0, logged: 12, burn: 2600 }, suggestion: null },
+      habit: { thisWeek: 2, goal: 3, logged: 3, weeks: 1, message: 'streak' },
+    } as never;
+    await render(withProfile(db, <WeightUnitProvider db={db}><CheckinCard date={DATE} c={ci} /></WeightUnitProvider>));
+    expect(await screen.findByText(/\(down 1\.1 lb a week\)/)).toBeTruthy(); // 0.5 kg
+    await fireEvent.press(screen.getByRole('button', { name: 'How this works' }));
+    expect(screen.getByText(BURN_HOW_LB)).toBeTruthy();
+  });
+
+  it('the volume chart is spoken in lb', async () => {
+    const s = sessions();
+    await inUnit('lb', <WorkoutDay session={s.find((x) => x.date === '2026-10-08')!} sessions={s} lifts={{} as Record<string, LiftRecord>} onBack={() => {}} />);
+    expect(await screen.findByLabelText('Row volume over 2 sessions, 1,058 lb, 2,161 lb')).toBeTruthy(); // 480 kg, 980 kg
   });
 });
 

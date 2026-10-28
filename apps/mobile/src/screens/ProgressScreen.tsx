@@ -120,8 +120,12 @@ function WeightSection({ p }: { p: Progress }) {
   const [text, setText] = useStoredText(mine ? formatWeight(mine.weight_kg, unit) : '');
   const latest = latestWeight(p.weights, p.date);
   const recent = p.weights.filter((w) => !w.deleted_at && w.date <= p.date).sort((a, b) => b.date.localeCompare(a.date)).slice(0, RECENT_WEIGH_INS);
-  const series = weightSeries(p.weights, p.date).map((pt) => ({ ...pt, v: weightNumber(pt.v, unit) }));
-  const change = trendChange(series);
+  const kgSeries = weightSeries(p.weights, p.date);
+  const series = kgSeries.map((pt) => ({ ...pt, v: weightNumber(pt.v, unit) }));
+  // The change is taken in exact kg and converted once, so rounding each point first cannot drift it by 0.1.
+  const kgChange = trendChange(kgSeries);
+  const amount = kgChange ? weightNumber(Math.abs(kgChange.diff), unit) : 0;
+  const change = kgChange ? { amount, direction: amount === 0 ? 'none' : kgChange.diff < 0 ? 'down' : 'up', since: kgChange.since } : null;
   return (
     <Card style={styles.section}>
       <Heading level={2} style={[typeScale.heading, { color: c.ink }]}>Body weight</Heading>
