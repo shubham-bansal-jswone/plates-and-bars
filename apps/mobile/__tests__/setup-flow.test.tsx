@@ -306,6 +306,34 @@ describe('redo and recalculate setup', () => {
     expect(after).toMatchObject({ height_cm: 165, targets: before.targets });
   });
 
+  it.each([120, 230])('an unedited redo with a stored height of %i cm can continue and keeps it (#1224)', async (cm) => {
+    const db = memoryDb();
+    const before = { ...stored(), ...buildProfile({ ...emptyDraft(), sex: 'male', age: '30', unit: 'cm', cm: String(cm), weight: '82', activity: 'sitting', where: 'gym', days: 6, exp: 'some', minutes: 60, goal: 'lose', pace: 'moderate', screen: ['no', 'no', 'no', 'no', 'no', 'no'] }, new Date(2026, 8, 1)) };
+    await saveProfile(db, before);
+    await saveConsent(db, { id: 'c1', version: 0, updated_at: '2026-09-01T00:00:00Z', deleted_at: null, kind: 'data_storage', given_at: '2026-09-01T00:00:00Z', text_version: 'x' });
+    await render(withProfile(db, <SetupScreen />));
+    await screen.findByText('Let’s work out your targets');
+    await press('Continue');
+    expect(screen.queryByText('Enter your height in feet and inches, like 5 and 7.')).toBeNull();
+    for (let i = 0; i < 3; i++) await press(i === 2 ? 'See my targets' : 'Continue');
+    await press('Use these targets');
+    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/'));
+    expect((await loadProfile(db))!.height_cm).toBe(cm);
+  });
+
+  it('a redo with a stored 120 cm and the inches edited to 10 (116.8 cm) is still rejected on step 0 (#1224)', async () => {
+    const db = memoryDb();
+    const before = { ...stored(), ...buildProfile({ ...emptyDraft(), sex: 'male', age: '30', unit: 'cm', cm: '120', weight: '82', activity: 'sitting', where: 'gym', days: 6, exp: 'some', minutes: 60, goal: 'lose', pace: 'moderate', screen: ['no', 'no', 'no', 'no', 'no', 'no'] }, new Date(2026, 8, 1)) };
+    await saveProfile(db, before);
+    await saveConsent(db, { id: 'c1', version: 0, updated_at: '2026-09-01T00:00:00Z', deleted_at: null, kind: 'data_storage', given_at: '2026-09-01T00:00:00Z', text_version: 'x' });
+    await render(withProfile(db, <SetupScreen />));
+    await screen.findByText('Let’s work out your targets');
+    expect(screen.getByLabelText('Height inches').props.value).toBe('11');
+    await fireEvent.changeText(screen.getByLabelText('Height inches'), '10');
+    await press('Continue');
+    expect(await screen.findByText('Enter your height in feet and inches, like 5 and 7.')).toBeTruthy();
+  });
+
   it('a redo with an edited height uses the edit', async () => {
     const db = memoryDb();
     await saveProfile(db, stored());
