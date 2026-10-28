@@ -56,7 +56,7 @@ dependencies {
     // In-process SMTP server for delivery tests (Apache-2.0).
     testImplementation 'com.icegreen:greenmail-junit5:2.1.14'
     // Fake Open Food Facts server for the barcode proxy tests (Apache-2.0); no live calls in CI.
-    testImplementation 'com.squareup.okhttp3:mockwebserver3:5.5.0'
+    testImplementation 'com.squareup.okhttp3:mockwebserver3:5.5.1'
     testImplementation 'org.testcontainers:testcontainers-junit-jupiter'
     testImplementation 'org.testcontainers:testcontainers-mysql'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
