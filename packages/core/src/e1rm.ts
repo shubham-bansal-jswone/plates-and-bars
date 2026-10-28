@@ -35,12 +35,15 @@ export function e1rm(weightKg: number | null | undefined, reps: number | null | 
   if (!Number.isFinite(weightKg) || weightKg <= 0) return null;
   if (!Number.isInteger(reps) || reps < 1 || reps > E1RM_MAX_REPS) return null;
   const v = reps === 1 ? weightKg : epley(weightKg, reps);
+  if (!Number.isFinite(v)) return null;
   return Math.round(v * 10) / 10;
 }
 
 /** The fields of a contract `WorkoutSet` the estimate reads, plus the session `date` (`YYYY-MM-DD`). */
 export interface E1rmSet {
   date: string;
+  /** Session (workout) id; when present, `e1rmHistory` groups by it, so two sessions on one date are two points. */
+  session?: string;
   kind: 'work' | 'ramp';
   weight_kg: number | null;
   reps: number | null;
@@ -67,63 +70,71 @@ export interface E1rmPoint {
 }
 
 /**
- * Per-exercise trend: the best `setE1rm` per `date`, oldest first. `sets` are one exercise's sets
+ * Per-exercise trend: the best `setE1rm` per session (`session` when present, else `date`), oldest first (ties by session key). `sets` are one exercise's sets
  * across sessions in any order; days with no countable set are left out.
  */
 export function e1rmHistory(sets: readonly E1rmSet[], type?: ExType): E1rmPoint[] {
-  const best = new Map<string, number>();
+  const best = new Map<string, E1rmPoint>();
   for (const s of sets) {
     const v = setE1rm(s, type);
-    if (v !== null && v > (best.get(s.date) ?? -Infinity)) best.set(s.date, v);
+    if (v === null) continue;
+    const key = s.session ?? s.date;
+    const cur = best.get(key);
+    if (!cur || v > cur.e1rm) best.set(key, { date: s.date, e1rm: v });
   }
-  return [...best.entries()].sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0)).map(([date, e1rm]) => ({ date, e1rm }));
+  return [...best.entries()]
+    .sort((a, b) => (a[1].date < b[1].date ? -1 : a[1].date > b[1].date ? 1 : a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0))
+    .map(([, p]) => p);
 }
+
+/** A contract `Timestamp`: ISO date-time ending in `Z` or a `±hh:mm` offset. */
+const TICK = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})$/;
 
 /** Elapsed session time, from set ticks. */
 export interface SessionElapsed {
-  /** Whole seconds from the first to the last tick of the longest bout. */
+  /** Whole seconds from the first to the last tick, minus gaps over `SESSION_GAP_MS`. Always above 0. */
   seconds: number;
-  /** ISO of the first and last tick counted. */
+  /** ISO of the first and last tick. */
   from: string;
   to: string;
   /** True when every done set has a usable `t`; the issue shows a duration only then. */
   complete: boolean;
-  /** True when a gap over `SESSION_GAP_MS` was cut out. */
+  /** True when a gap over `SESSION_GAP_MS` was cut out, so the app can label the duration. */
   split: boolean;
 }
 
 /**
  * Elapsed time of a session from set ticks `t` (contract `WorkoutSet.t`, UTC, so midnight needs no
- * special case). Rule: take the done sets' valid ISO timestamps (missing, null or unparseable ones are
- * skipped, never guessed), sort them (order of entry does not matter), cut at gaps over 3 hours
- * (a set ticked much later, or two sessions in one day) and measure first to last of the longest bout
- * (earliest on a tie). Null with fewer than 2 usable ticks. Time before the first tick (warm-up not
- * ticked) is not counted, as `t` is when a set was ticked done.
+ * special case). Rule: take the done sets' usable timestamps (contract style, ending in `Z` or `+-hh:mm`;
+ * missing, null, zone-less or unparseable ones are skipped, never guessed, and make `complete` false),
+ * sort them (entry order does not matter) and measure first to last minus every gap over 3 hours
+ * (the sum of the bouts). Null when the measured span is zero (under 2 usable ticks, all ticks in the
+ * same second, or every bout a single tick). Time before the first tick is not counted, as `t` is when
+ * a set was ticked done.
  */
 export function sessionElapsed(sets: readonly { done: boolean; t: string | null | undefined }[]): SessionElapsed | null {
   const done = sets.filter((s) => s.done);
   const ts: number[] = [];
   for (const s of done) {
-    const ms = typeof s.t === 'string' ? Date.parse(s.t) : NaN;
+    const ms = typeof s.t === 'string' && TICK.test(s.t) ? Date.parse(s.t) : NaN;
     if (Number.isFinite(ms)) ts.push(ms);
   }
   if (ts.length < 2) return null;
   ts.sort((a, b) => a - b);
-  const bouts: [number, number][] = [];
-  let start = ts[0] as number;
-  let prev = start;
-  for (const x of ts.slice(1)) {
-    if (x - prev > SESSION_GAP_MS) { bouts.push([start, prev]); start = x; }
-    prev = x;
+  let total = 0;
+  let split = false;
+  for (let i = 1; i < ts.length; i++) {
+    const gap = (ts[i] as number) - (ts[i - 1] as number);
+    if (gap > SESSION_GAP_MS) split = true;
+    else total += gap;
   }
-  bouts.push([start, prev]);
-  let best = bouts[0] as [number, number];
-  for (const b of bouts) if (b[1] - b[0] > best[1] - best[0]) best = b;
+  const seconds = Math.floor(total / 1000);
+  if (seconds < 1) return null;
   return {
-    seconds: Math.floor((best[1] - best[0]) / 1000),
-    from: new Date(best[0]).toISOString(),
-    to: new Date(best[1]).toISOString(),
+    seconds,
+    from: new Date(ts[0] as number).toISOString(),
+    to: new Date(ts[ts.length - 1] as number).toISOString(),
     complete: ts.length === done.length,
-    split: bouts.length > 1,
+    split,
   };
 }

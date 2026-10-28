@@ -742,8 +742,8 @@ export type { LabelOcrInput, LabelOcrLine, LabelOcrWord, LabelKey, LabelLevel, L
 /**
  * Estimated one-rep max and session time (#1178): new rules, not prototype ports. `epley` is the estimate inside prototype `sessionScore`
  * (now shared with stalls.ts). `e1rm` is Epley in kg to 0.1, one rep = the weight, null above `E1RM_MAX_REPS` (12). `setE1rm` counts only done
- * `work` sets not rated `fail` on loaded (not bodyweight, time or assisted) exercises. `e1rmHistory` is the best estimate per day, oldest first.
- * `sessionElapsed` is first to last set tick of the longest bout (gaps over `SESSION_GAP_MS` split), null under 2 usable ticks, `complete` false when a done set lacks `t`.
+ * `work` sets not rated `fail` on loaded (not bodyweight, time or assisted) exercises. `e1rmHistory` is the best estimate per session (optional `session` key, else date), oldest first.
+ * `sessionElapsed` is first to last contract-style set tick minus gaps over `SESSION_GAP_MS` (`split` flags it), null when the span is zero, `complete` false when a done set lacks `t`.
  */
 export { E1RM_MAX_REPS, SESSION_GAP_MS, epley, e1rm, setE1rm, e1rmHistory, sessionElapsed } from './e1rm';
 export type { E1rmSet, E1rmPoint, SessionElapsed } from './e1rm';

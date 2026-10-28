@@ -18,6 +18,7 @@ describe('e1rm', () => {
   it('no estimate for blank or invalid input', () => {
     for (const [w, r] of [[null, 5], [80, null], [undefined, 5], [0, 5], [-5, 5], [80, 0], [80, 2.5], [NaN, 5], [Infinity, 5]] as const) expect(e1rm(w, r)).toBeNull();
   });
+  it('no estimate when the result overflows', () => expect(e1rm(1.7e308, 5)).toBeNull());
   it('epley is unrounded and uncapped (as sessionScore)', () => expect(epley(80, 5)).toBeCloseTo(93.3333, 4));
 });
 
@@ -47,6 +48,14 @@ describe('e1rmHistory', () => {
     ]);
     expect(h).toEqual([{ date: '2026-10-01', e1rm: 99 }, { date: '2026-10-08', e1rm: 99.2 }]);
   });
+  it('groups by session key when present: two sessions on one date are two points', () => {
+    const h = e1rmHistory([
+      set({ session: 'a', weight_kg: 80, reps: 5 }),
+      set({ session: 'b', weight_kg: 90, reps: 3 }),
+      set({ session: 'a', weight_kg: 60, reps: 5 }),
+    ]);
+    expect(h).toEqual([{ date: '2026-10-01', e1rm: 93.3 }, { date: '2026-10-01', e1rm: 99 }]);
+  });
   it('is empty for no sets', () => expect(e1rmHistory([])).toEqual([]));
 });
 
@@ -70,11 +79,19 @@ describe('sessionElapsed', () => {
     expect(sessionElapsed([d('2026-10-01T10:00:00Z')])).toBeNull();
     expect(sessionElapsed([d('2026-10-01T10:00:00Z'), d(null)])).toBeNull();
   });
-  it('a gap over 3 hours splits; the longest bout wins, earliest on a tie', () => {
+  it('a gap over 3 hours is cut out and flagged', () => {
     const r = sessionElapsed([d('2026-10-01T08:00:00Z'), d('2026-10-01T08:20:00Z'), d('2026-10-01T18:00:00Z'), d('2026-10-01T18:50:00Z')]);
-    expect(r).toMatchObject({ seconds: 3000, from: '2026-10-01T18:00:00.000Z', split: true });
-    const tie = sessionElapsed([d('2026-10-01T08:00:00Z'), d('2026-10-01T08:30:00Z'), d('2026-10-01T18:00:00Z'), d('2026-10-01T18:30:00Z')]);
-    expect(tie?.from).toBe('2026-10-01T08:00:00.000Z');
+    expect(r).toMatchObject({ seconds: 4200, from: '2026-10-01T08:00:00.000Z', to: '2026-10-01T18:50:00.000Z', split: true });
+  });
+  it('null when every bout is one tick or all ticks share a second', () => {
+    expect(sessionElapsed([d('2026-10-01T08:00:00Z'), d('2026-10-01T13:00:00Z')])).toBeNull();
+    expect(sessionElapsed([d('2026-10-01T08:00:00Z'), d('2026-10-01T08:00:00Z')])).toBeNull();
+  });
+  it('accepts offsets and fractions, rejects zone-less and junk ticks', () => {
+    expect(sessionElapsed([d('2026-10-01T10:00:00+01:00'), d('2026-10-01T09:30:00.500Z')])).toMatchObject({ seconds: 1800, complete: true });
+    for (const bad of ['1', '2026-10-01T10:00:00', '2026-10-01', 'x2026-10-01T10:00:00Z']) {
+      expect(sessionElapsed([d(bad), d('2026-10-01T10:00:00Z'), d('2026-10-01T10:10:00Z')])).toMatchObject({ seconds: 600, complete: false });
+    }
   });
   it('exactly 3 hours does not split', () => expect(sessionElapsed([d('2026-10-01T08:00:00Z'), d('2026-10-01T11:00:00Z')])).toMatchObject({ seconds: 10800, split: false }));
 });
