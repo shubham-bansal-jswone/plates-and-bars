@@ -258,6 +258,50 @@ class SyncRoutinesIT extends SyncITBase {
         }
     }
 
+    private void assertRefusedAt(String user, Resp r, int liveBefore, String... fields) {
+        assertThat(r.status()).isEqualTo(400);
+        List<String> got = new ArrayList<>();
+        r.body().path("details").forEach(d -> got.add(d.path("field").asString()));
+        assertThat(got).containsExactly(fields);
+        assertThat(live(user)).isEqualTo(liveBefore);
+        assertThat(count("SELECT COUNT(*) FROM routines WHERE user_id = ? AND version > 1", user)).isZero();
+        assertThat(count("SELECT COUNT(*) FROM sync_conflicts WHERE user_id = ?", user)).isZero();
+    }
+
+    @Test
+    void aDeleteAfterTheArrivalsStillCountsFirstSoOnlyTheLastOverLimitArrivalIsRefused() {
+        String user = newUser();
+        List<String> live = ids(100);
+        seedRoutines(user, live, List.of(), 1, "2026-10-01 06:00:00.000");
+        Resp r = post(user, Req.of(null)
+                .add(SyncTable.routines, routine(id(), 0, MID, null, "New one"))
+                .add(SyncTable.routines, routine(id(), 0, MID, null, "New two"))
+                .add(SyncTable.routines, routine(live.get(0), 1, MID, MID, "R")).build());
+        assertRefusedAt(user, r, 100, "changes.routines[1]");
+    }
+
+    @Test
+    void aStaleVersionRevivalThatWinsOnTimeIsCountedAsAnArrival() {
+        String user = newUser();
+        List<String> tombs = ids(1);
+        seedRoutines(user, ids(100), tombs, 1, "2026-10-01 06:00:00.000");
+        // Stored v1, pushed v0, newer updated_at, not deleted: the client wins and the routine comes back to life.
+        Resp r = post(user, Req.of(null).add(SyncTable.routines, routine(tombs.get(0), 0, MID, null, "Back")).build());
+        assertRefusedAt(user, r, 100, "changes.routines[0]");
+    }
+
+    @Test
+    void aStaleVersionDeleteThatLosesDoesNotFreeASlot() {
+        String user = newUser();
+        List<String> live = ids(100);
+        seedRoutines(user, live, List.of(), 1, "2026-10-01 06:00:00.000");
+        // Stored v1 updated 10-01 06:00, pushed v0 with an older updated_at: the server wins, the routine stays live.
+        Resp r = post(user, Req.of(null)
+                .add(SyncTable.routines, routine(live.get(0), 0, "2026-09-30T06:00:00Z", "2026-09-30T06:00:00Z", "R"))
+                .add(SyncTable.routines, routine(id(), 0, MID, null, "New")).build());
+        assertRefusedAt(user, r, 100, "changes.routines[1]");
+    }
+
     @Test
     void aRefusedPushLeavesOtherTablesUnwrittenToo() {
         String user = newUser();

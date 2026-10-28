@@ -288,8 +288,9 @@ Package `app.plateandbar.api.sync`. The user is always the token's principal; no
   routines; the number is `x-max-live-records` on the contract's `Routine`, read from `openapi.yaml`, never typed in code.
   Inside the per-account transaction, after last-writer-wins is resolved (predicted with the same rule the apply uses) and
   before the account record cap, a push is refused with 400 `invalid_request` only when it holds a new or revived live
-  routine and the live count after the apply is over 100: one `details` entry per such routine that takes the running
-  count past 100, in array order, `field` `changes.routines[<i>]`, issue `too_many_routines`. Edits, renames, deletes and
+  routine and the live count after the apply is over 100: one `details` entry per new or revived routine that leaves the
+  count over 100, in array order, counted as the contract's reference counter does (the live count plus every record that is
+  not an arrival, deletes included wherever they sit in the push, then the arrivals one by one), `field` `changes.routines[<i>]`, issue `too_many_routines`. Edits, renames, deletes and
   pull-only requests are never refused, tombstones do not count. Tests drive the scenarios from
   `packages/api/test-vectors/routines.json` (`SyncRoutinesIT`, `RoutineValidationTest`).
 - **Account record cap** (#349, contract 0.1.16). `SYNC_MAX_RECORDS_PER_ACCOUNT` (`app.sync.max-records-per-account`) is
@@ -304,12 +305,12 @@ Package `app.plateandbar.api.sync`. The user is always the token's principal; no
   rolls back). Checks run in the contract's order: body size, token, rate limit, validation including `natural_key_id`
   (400), then the cap. `stored` is `sync_state.records`, a per-user counter (V8, backfilled from the 16 tables that existed then) that
   the sync transaction raises by the number of new ids under the same `FOR UPDATE` lock that serialises the account's
-  syncs, so two devices cannot overrun the cap and no push counts 16 tables. It is kept even while the cap is off, so
-  the counter should already be right; as a safety net (#667) the app recounts it from the 16 tables in the background at
+  syncs, so two devices cannot overrun the cap and no push counts 17 tables. It is kept even while the cap is off, so
+  the counter should already be right; as a safety net (#667) the app recounts it from the 17 tables in the background at
   every start while the cap is on (see "Record recount" below). The only log line of a refusal is the user id and the three counts.
 - **Record recount** (#667). `RecordRecount` runs in a background thread after start whenever the cap is on (a limit
   change needs a restart, so it runs then too). It walks `sync_state` in batches of 200 users by key; each user is one
-  short transaction that takes the same `FOR UPDATE` lock on its `sync_state` row that a sync holds, counts the 16 tables
+  short transaction that takes the same `FOR UPDATE` lock on its `sync_state` row that a sync holds, counts the 17 tables
   for that user, and writes only if the counter differs. A push in flight either finishes first (and is counted) or
   waits and adds to the corrected number, so no increment is lost and no lock lasts longer than one user's counts. It
   is idempotent and safe to interrupt (restart repeats it). It logs only how many accounts were checked and corrected,
@@ -377,7 +378,7 @@ cd backend
 ./gradlew test
 ```
 
-`HealthMigrationIT`, `AuthFlowIT`, `RateLimitIT` and the sync ITs (`SyncEngineIT`, `SyncIsolationIT`, `SyncContractIT`, `SyncMigrationIT`, `SyncRecordCapIT`, `SyncRecordCountIT`, `RecordRecountIT`) use Testcontainers to start MySQL 8, so Docker must be running. So do the barcode ITs (`BarcodeProxyIT`: the whole path against a fake OFF server on MockWebServer, Apache-2.0, with a settable clock for the 30 day and 24 hour cache lifetimes, the limiter order, retries, timeouts and the log check; `BarcodeDisabledIT`: the flag off; `BarcodeCacheIT`: migration V10 and the cache's lifetimes). No test calls the real Open Food Facts.
+`HealthMigrationIT`, `AuthFlowIT`, `RateLimitIT` and the sync ITs (`SyncEngineIT`, `SyncIsolationIT`, `SyncContractIT`, `SyncMigrationIT`, `SyncRecordCapIT`, `SyncRecordCountIT`, `RecordRecountIT`, `SyncRoutinesIT`) use Testcontainers to start MySQL 8, so Docker must be running. So do the barcode ITs (`BarcodeProxyIT`: the whole path against a fake OFF server on MockWebServer, Apache-2.0, with a settable clock for the 30 day and 24 hour cache lifetimes, the limiter order, retries, timeouts and the log check; `BarcodeDisabledIT`: the flag off; `BarcodeCacheIT`: migration V10 and the cache's lifetimes). No test calls the real Open Food Facts.
 `SmtpMailSenderTest` sends to an in-process GreenMail server (Apache-2.0); `CorsTest` and `CorsDefaultTest` cover preflight allowed and denied.
 `AuthCookieIT` (Testcontainers) covers the web refresh cookie end to end; `CookieModeControllerTest`, `CookieModeCorsTest` and `CookieModeRateLimitTest` cover it per rule.
 `HealthControllerTest`, `AuthControllerTest`, `SyncControllerTest`, `JwtAuthFilterTest` and `RateLimitFilterTest` are WebMvc tests;

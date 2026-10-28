@@ -256,8 +256,9 @@ public class SyncService {
     /**
      * The routine cap (ADR 011, contract 0.1.27): refuses the push only when it holds a new or revived live routine and
      * the live count after the apply (last-writer-wins resolved, predicted with the same rules the apply uses) is over
-     * the limit. The refusal lists every such routine whose arrival takes the running count past the limit, in array
-     * order. Runs inside the per-account transaction, before the account record cap. Logs counts only.
+     * the limit. The count starts at the live total plus the effect of every record that is not an arrival (deletes
+     * and the like), then steps through the arrivals in array order, adding one each; the refusal lists each arrival
+     * that leaves the count over the limit, as the contract's reference counter does. Runs inside the per-account transaction, before the account record cap. Logs counts only.
      */
     private void checkRoutineCap(String userId, int limit, List<Incoming> pushed, Map<String, Stored> stored, Instant now) {
         if (pushed == null) {
@@ -280,18 +281,24 @@ public class SyncService {
         if (!any) {
             return;
         }
-        long running = repo.countLive(SyncTable.routines, userId);
-        long total = running;
-        for (int d : delta) {
-            total += d;
+        long total = repo.countLive(SyncTable.routines, userId);
+        for (int i = 0; i < delta.length; i++) {
+            total += delta[i];
         }
         if (total <= limit) {
             return;
         }
+        // Same counter as the contract's reference (verify.mjs cap): everything that is not an arrival is applied
+        // first, then the arrivals are stepped through in array order.
+        long running = total;
+        for (int i = 0; i < delta.length; i++) {
+            if (arrives[i]) {
+                running--;
+            }
+        }
         List<ErrorResponse.Detail> over = new ArrayList<>();
         for (int i = 0; i < pushed.size(); i++) {
-            running += delta[i];
-            if (arrives[i] && running > limit) {
+            if (arrives[i] && ++running > limit) {
                 over.add(new ErrorResponse.Detail("changes.routines[" + i + "]", "too_many_routines"));
             }
         }
