@@ -13,6 +13,7 @@ export const HISTORY_EMPTY = 'No workouts logged yet. Your sessions will appear 
 const FIRST = 5;
 
 const volumeText = (kg: number): string => `${fmt(kg)} kg`;
+const count = (n: number, one: string): string => `${n} ${one}${n === 1 ? '' : 's'}`;
 const summary = (s: HistorySession): string => `${shortDate(s.date)}, ${s.name}, ${s.setsDone} ${s.setsDone === 1 ? 'set' : 'sets'}${s.volume > 0 ? `, ${volumeText(s.volume)}` : ''}`;
 
 /** "Recent workouts": one row per logged day, newest first. Tap opens that day. `focusDate`: the day just closed; focus returns to its row. */
@@ -67,9 +68,9 @@ export function WorkoutDay({ session, sessions, lifts, onBack }: { session: Hist
       <Hint>{`${weekdayLong(session.date)}, ${shortDate(session.date)}`}</Hint>
       <Card>
         <MetricRow cells={[
-          { value: String(session.setsDone), label: 'sets', lime: true },
-          ...(session.volume > 0 ? [{ value: fmt(session.volume), label: 'kg lifted' }] : []),
-          { value: String(session.exercises.length), label: 'exercises' },
+          { value: String(session.setsDone), label: 'sets', lime: true, spoken: count(session.setsDone, 'set') },
+          ...(session.volume > 0 ? [{ value: fmt(session.volume), label: 'kg lifted', spoken: `${fmt(session.volume)} kg lifted` }] : []),
+          { value: String(session.exercises.length), label: 'exercises', spoken: count(session.exercises.length, 'exercise') },
         ]} />
       </Card>
       {session.exercises.map((e) => {
