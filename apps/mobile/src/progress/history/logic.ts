@@ -1,9 +1,11 @@
-import { HAND_PICKED, sessionVolume, type LiftRecord, type SessionLog } from '@plate-and-bar/core';
+import { HAND_PICKED, sessionVolume, type ExType, type LiftRecord, type SessionLog } from '@plate-and-bar/core';
 import type { WorkoutSet } from '../../workout/types';
+import { e1rmPoints, sessionTimeLine } from '../e1rm';
 
 export interface HistorySet {
   w: number | null;
   r: number | null;
+  rate?: WorkoutSet['rate'];
 }
 export interface HistoryExercise {
   name: string;
@@ -18,6 +20,8 @@ export interface HistorySession {
   setsDone: number;
   volume: number;
   exercises: HistoryExercise[];
+  /** Elapsed training time as text (core's `sessionElapsed`), null when any done set lacks a tick or there is no span. */
+  elapsed: string | null;
 }
 
 /** How many of the latest sessions are read. */
@@ -34,10 +38,12 @@ export function buildSessions(log: SessionLog, setsByDate: Readonly<Record<strin
     const by = new Map<string, WorkoutSet[]>();
     for (const s of [...done].sort((a, b) => a.set_index - b.set_index)) by.set(s.exercise, [...(by.get(s.exercise) ?? []), s]);
     const exercises = [...by].map(([name, sets]): HistoryExercise => {
-      const mapped = sets.map((s) => ({ w: s.weight_kg, r: s.reps }));
+      const mapped = sets.map((s) => ({ w: s.weight_kg, r: s.reps, rate: s.rate }));
       return { name, sets: mapped, volume: sessionVolume([{ sets: mapped.map((s) => ({ done: true, w: s.w, r: s.r })) }]) };
     });
-    return [{ date, name: log[date]?.t ?? HAND_PICKED, setsDone: done.length, volume: exercises.reduce((n, e) => n + e.volume, 0), exercises }];
+    // Time counts every ticked set of the day, ramp sets too: one without a tick makes the duration unknown, never a guess.
+    const ticked = (setsByDate[date] ?? []).filter((s) => s.done && !s.deleted_at);
+    return [{ date, name: log[date]?.t ?? HAND_PICKED, setsDone: done.length, volume: exercises.reduce((n, e) => n + e.volume, 0), exercises, elapsed: sessionTimeLine(ticked) }];
   });
 }
 
@@ -62,6 +68,10 @@ export function exerciseTrend(sessions: readonly HistorySession[], name: string,
   const pbDate = last && lift?.pbToast === last.date ? last.date : null;
   return { points: mine.map((m) => ({ date: m.date, volume: m.ex.volume })), heaviest: weights.length ? Math.max(...weights) : null, pbDate };
 }
+
+/** Core's e1RM trend of one exercise over the read sessions, oldest first (`type` as the library knows it). */
+export const exerciseE1rm = (sessions: readonly HistorySession[], name: string, type?: ExType) =>
+  e1rmPoints(sessions.flatMap((s) => (s.exercises.find((x) => x.name === name)?.sets ?? []).map((x) => ({ date: s.date, kind: 'work' as const, weight_kg: x.w, reps: x.r, done: true, rate: x.rate ?? null }))), type);
 
 /** "60 kg x 8", "12 reps" for a bodyweight set, "done" when neither was typed. */
 export function setText(s: HistorySet): string {

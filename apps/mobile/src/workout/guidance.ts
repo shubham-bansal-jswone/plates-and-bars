@@ -1,4 +1,4 @@
-import { applyMods, exInfo, suggestBase, type ExerciseOverride, type ExInfo, type LiftRecord, type ProgressionContext, type Suggestion, type WorkoutMods } from '@plate-and-bar/core';
+import { applyMods, exInfo, suggestBase, type ExerciseOverride, type ExInfo, type LiftRecord, type ProgressionContext, type Suggestion, type WeightUnit, type WorkoutMods } from '@plate-and-bar/core';
 import type { Profile } from '../setup/types';
 import { getCatalog } from './catalog';
 import type { ExState } from './model';
@@ -12,6 +12,8 @@ export type GuidanceContext = ProgressionContext & { bodyweight: number; returni
 export interface Tuning {
   overrides?: Readonly<Record<string, ExerciseOverride>>;
   returning?: Readonly<Record<string, { until: string }>>;
+  /** The weight unit shown (#1185, device-local); suggestions and their wording follow it. Default kg. */
+  unit?: WeightUnit;
 }
 
 export function progressionContext(date: string, lifts: Readonly<Record<string, LiftRecord>>, profile: Profile, workout: Workout | null, tune: Tuning = {}): GuidanceContext {
@@ -24,6 +26,7 @@ export function progressionContext(date: string, lifts: Readonly<Record<string, 
     bodyweight: profile.weight_kg,
     overrides: tune.overrides,
     returning: tune.returning,
+    unit: tune.unit,
   };
 }
 

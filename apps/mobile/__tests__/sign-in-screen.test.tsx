@@ -18,6 +18,7 @@ const base: SyncState = {
   retryQuarantined: async () => undefined,
   discardQuarantined: async () => undefined,
   syncNow: async () => null,
+  dataChanged: () => undefined,
   startSignIn: async () => ({ ok: true, resendAfterSec: 60 }),
   verifyCode: async () => ({ kind: 'signed_in', wiped: false }),
   signOut: async () => 0,
