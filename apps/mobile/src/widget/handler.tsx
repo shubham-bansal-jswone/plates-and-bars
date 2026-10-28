@@ -1,5 +1,6 @@
 import { openDatabaseAsync } from 'expo-sqlite';
 import { registerWidgetTaskHandler, type WidgetTaskHandlerProps } from 'react-native-android-widget';
+import { loadContent, contentGeneration } from '../content/loader';
 import { DB_NAME } from '../db/migrations';
 import { loadWidgetData } from './data';
 import { renderWorkoutWidget } from './WorkoutWidget';
@@ -13,9 +14,12 @@ export async function widgetTaskHandler({ widgetAction, renderWidget }: WidgetTa
   let db: Awaited<ReturnType<typeof openDatabaseAsync>> | null = null;
   try {
     db = await openDatabaseAsync(DB_NAME);
-    renderWidget(renderWorkoutWidget(await loadWidgetData(db)));
+    // Content is loaded once per JS runtime: when the app is open its runtime has it already, and reloading would swap the catalogue under the user.
+    if (contentGeneration() === 0) await loadContent(db);
+    const data = await loadWidgetData(db);
+    if (data) renderWidget(renderWorkoutWidget(data));
   } catch {
-    // no database yet: the widget keeps what it shows
+    // the database could not be opened or read (locked, older schema): the widget keeps what it shows
   } finally {
     await db?.closeAsync().catch(() => undefined);
   }

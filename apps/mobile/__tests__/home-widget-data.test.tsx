@@ -4,6 +4,7 @@ import { loadWidgetData, widgetData, type WidgetInput } from '../src/widget/data
 import { widgetLines } from '../src/widget/WorkoutWidget';
 import { buildProfile, emptyDraft } from '../src/setup/logic';
 import type { Workout, WorkoutSet } from '../src/workout/types';
+import { contentGeneration } from '../src/content/loader';
 import { memoryDb } from './helpers';
 
 const THURSDAY = new Date(2026, 9, 8, 9, 0); // a 6-day plan trains Thursday
@@ -45,6 +46,11 @@ describe('widgetData', () => {
     const sets = [set('A', 0, true), { ...set('A', 1, false), kind: 'ramp' as const }, { ...set('A', 2, false), deleted_at: '2026-10-08T09:00:00Z' }];
     expect(widgetData({ ...base, stored, sets })).toEqual({ kind: 'workout', title: 'Push B', count: 1, next: null });
   });
+  it('titles a started session like the Workout tab heading: the template, not the base', () => {
+    const stored = workout('2026-10-08', ['A'], { template: 'Push B (dumbbells only)', base: 'Push B' });
+    expect(widgetData({ ...base, stored })).toMatchObject({ title: 'Push B (dumbbells only)' });
+    expect(widgetData({ ...base, stored: workout('2026-10-08', ['A'], { template: 'Push B + Pull A', base: 'Push B' }) })).toMatchObject({ title: 'Push B + Pull A' });
+  });
   it('a hand-picked session on a rest day shows as a workout titled Session', () => {
     const stored = workout('2026-10-11', ['A'], { template: null, base: null });
     expect(widgetData({ ...base, plan: null, planned: [], stored })).toMatchObject({ kind: 'workout', title: 'Session', count: 1, next: 'A' });
@@ -85,9 +91,16 @@ describe('loadWidgetData (SQLite only)', () => {
     await saveSet(db, '2026-10-08', set('Cable Lateral Raise', 0, false));
     expect(await loadWidgetData(db, THURSDAY)).toEqual({ kind: 'workout', title: 'Push B', count: 2, next: 'Cable Lateral Raise' });
   });
-  it('is empty when the database cannot be read', async () => {
+  it('is null (keep what is shown) when the database cannot be read', async () => {
     const db = memoryDb();
     db.getFirstAsync = () => Promise.reject(new Error('locked'));
-    expect(await loadWidgetData(db, THURSDAY)).toEqual({ kind: 'empty' });
+    expect(await loadWidgetData(db, THURSDAY)).toBeNull();
+  });
+  it('does not reload the content store (a refresh must not swap the catalogue under the user)', async () => {
+    const db = memoryDb();
+    await saveProfile(db, profile());
+    const before = contentGeneration();
+    await loadWidgetData(db, THURSDAY);
+    expect(contentGeneration()).toBe(before);
   });
 });

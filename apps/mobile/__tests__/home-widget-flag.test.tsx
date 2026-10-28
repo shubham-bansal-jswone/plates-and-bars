@@ -1,7 +1,7 @@
 import { WIDGET_NAME as PLUGIN_NAME } from '../plugins/with-home-widget';
 import { homeWidgetEnabled, WIDGET_NAME } from '../src/widget/flag';
 import { onDayWritten, enqueueDay } from '../src/workout/dayQueue';
-import { refreshHomeWidget } from '../src/widget/refresh';
+import { refreshHomeWidget } from '../src/widget/refresh.android';
 import { Platform } from 'react-native';
 import { saveProfile } from '../src/db/records';
 import { buildProfile, emptyDraft } from '../src/setup/logic';
