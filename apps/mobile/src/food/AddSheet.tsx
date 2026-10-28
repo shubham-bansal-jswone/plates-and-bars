@@ -244,7 +244,7 @@ const styles = StyleSheet.create({
   gap: { gap: 8 },
   hidden: { display: 'none' },
   // The 32px pill is the design; the Press around it is the 44px target.
-  tabHit: { minHeight: 44, minWidth: 44, justifyContent: 'center' },
+  tabHit: { minHeight: 44, minWidth: 44, borderRadius: radius.full, justifyContent: 'center' },
   tab: { borderRadius: radius.full, paddingHorizontal: 12, minHeight: 32, justifyContent: 'center' },
   step: { borderWidth: 1, borderRadius: radius.full, width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   food: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: radius.md, padding: 16, minHeight: 56 },
