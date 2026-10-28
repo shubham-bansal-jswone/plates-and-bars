@@ -8,7 +8,7 @@ import { getMotionCredits, type MotionEntry } from '../motion/data';
 import { LegalLinks } from '../legal/LegalLinks';
 import { LicencesScreen } from './LicencesScreen';
 import { LICENCES_COPY as lc, REPO_FILES } from './licences';
-import { type } from '../theme/tokens';
+import { linkText, type } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { getFigureSources, licenceLabel } from '../workout/figures';
 import { ABOUT_COPY as t, BODY_MAP_LICENCE, BODY_MAP_SOURCE, FONT_SOURCES, getFoodSources, sourceKey, type SourceInfo } from './sources';
@@ -17,7 +17,7 @@ function MotionCredit({ name, e }: { name: string; e: MotionEntry }) {
   const c = useTheme();
   const link = (label: string, text: string, url: string) => (
     <Press accessibilityRole="link" accessibilityLabel={label} onPress={() => void Linking.openURL(url)} style={{ minHeight: 44, justifyContent: 'center', alignSelf: 'flex-start' }}>
-      <Text style={[type.caption, { color: c.link }]}>{text}</Text>
+      <Text style={[type.caption, linkText, { color: c.link }]}>{text}</Text>
     </Press>
   );
   const licence = licenceLabel(e.licence);
@@ -45,7 +45,7 @@ function Source({ s }: { s: SourceInfo }) {
       <Text style={[type.caption, { color: c.body }]}>{t.licence(s.licence)}</Text>
       {s.url ? (
         <Press accessibilityRole="link" accessibilityLabel={`Open ${s.url}`} onPress={() => void Linking.openURL(s.url!)} style={{ minHeight: 44, justifyContent: 'center' }}>
-          <Text style={[type.caption, { color: c.link }]}>{s.url}</Text>
+          <Text style={[type.caption, linkText, { color: c.link }]}>{s.url}</Text>
         </Press>
       ) : null}
       {s.reference ? <Text style={[type.caption, { color: c.body }]}>{`Reference: ${s.reference}`}</Text> : null}
@@ -102,7 +102,7 @@ export function AboutScreen({ onBack }: { onBack: () => void }) {
       <View style={{ gap: 4 }}>
         {REPO_FILES.map((f) => (
           <Press key={f.url} accessibilityRole="link" accessibilityLabel={`Open ${f.label}`} onPress={() => void Linking.openURL(f.url)} style={{ minHeight: 44, justifyContent: 'center' }}>
-            <Text style={[type.caption, { color: c.link }]}>{f.label}</Text>
+            <Text style={[type.caption, linkText, { color: c.link }]}>{f.label}</Text>
           </Press>
         ))}
       </View>
