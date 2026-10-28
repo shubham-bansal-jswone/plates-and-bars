@@ -254,6 +254,16 @@ export interface SessionExercise {
 }
 
 /**
+ * The deload and light-day step of `sessionSets`: a deload keeps ~60% (at least 2, never more than `n`); a light day
+ * drops one set from a count above 2 (ignored in a deload week). Shared with `startRoutine`.
+ */
+export function adjustSets(n: number, o: { deload?: boolean | undefined; light?: boolean | undefined }): number {
+  if (o.deload) return Math.min(n, Math.max(2, Math.ceil(n * 0.6)));
+  if (o.light && n > 2) return n - 1;
+  return n;
+}
+
+/**
  * Set counts for a built session: start from last time's sets (at least 3), apply `setsFor`, +1 on
  * focus exercises, at most 5; bridges get 2. A deload keeps ~60% (at least 2); a light day drops one
  * set from exercises with more than 2. Adults 60+ get the balance exercise with 2 sets at the end.
@@ -270,10 +280,7 @@ export function sessionSets(items: readonly SessionItem[], o: SessionSetsOptions
     if (it.bridge) return { name: it.name, sets: Math.min(sets, 2), bridge: true };
     return { name: it.name, sets };
   });
-  for (const e of ex) {
-    if (o.deload) e.sets = Math.min(e.sets, Math.max(2, Math.ceil(e.sets * 0.6)));
-    else if (o.light && e.sets > 2) e.sets -= 1;
-  }
+  for (const e of ex) e.sets = adjustSets(e.sets, o);
   if (older(o.profile) && !ex.some((e) => e.name === BALANCE_EXERCISE)) ex.push({ name: BALANCE_EXERCISE, sets: 2 });
   return ex;
 }

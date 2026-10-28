@@ -697,6 +697,17 @@ export { seededSession } from './seeded';
 export type { SeededSession, SeededSessionInput } from './seeded';
 
 /**
+ * - `routineFromSession` and `startRoutine` are new (#1184, ADR 011), not prototype ports (no prototype behaviour, no golden
+ *   fixture): the exercises to store for a saved routine, and a hand-picked session from one: stored set counts kept, with
+ *   only the deload and light-day steps on top (`adjustSets`, the step `sessionSets` ends with), and no lab hold (#1088).
+ * - `isBlank` is the one blank-text rule (#421, contract 0.1.13); the app's copy should import this.
+ */
+export { isBlank } from './blank';
+export { adjustSets } from './session';
+export { routineFromSession, startRoutine, ROUTINE_EXERCISES_MAX, ROUTINE_SETS_MIN, ROUTINE_SETS_MAX, ROUTINE_NAME_MAX, ROUTINE_MAX_LIVE } from './routines';
+export type { RoutineExercise, StartRoutineInput, StartedRoutine } from './routines';
+
+/**
  * Meal photo rules (#1011). `capPhotoItems` mirrors `raw.slice(0, 12)` and `clampPhotoServings` the 0.25 to 6 clamp in prototype
  * `analysePhoto`; `photoMacros` mirrors `phMacros`; `photoLogQty` and `photoEstimateLog` the `r1` / `Math.round` amounts in `ph-add`;
  * `stepPhotoAdj` the 0.5 to 2 step 0.25 portion slider; `photoAdjLabel` its `r1(it.adj)` label.
