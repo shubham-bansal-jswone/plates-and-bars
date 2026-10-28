@@ -180,7 +180,7 @@ export function FoodScreen({ db, now = () => new Date() }: Props) {
         {checkinBannerDue({ date: f.date, today: v.today, seen: settings.checkin_seen }) ? (
           <View style={[styles.banner, { backgroundColor: c.tint }]}>
             <Text style={{ color: c.ink, flex: 1 }}>{CHECKIN_READY}</Text>
-            <Button label={CHECKIN_SEE} a11yLabel="See it: your weekly check-in" onPress={() => router.navigate('/progress' as never)} />
+            <Button label={CHECKIN_SEE} kind="ghost" a11yLabel="See it: your weekly check-in" onPress={() => router.navigate('/progress' as never)} />
           </View>
         ) : null}
         <IdeasCard
@@ -298,9 +298,7 @@ function MealSection({ meal, items, facts, prep, onLogPrep, upgrade, onUpgrade, 
           <Button label="Add" a11yLabel={`Add ${upgrade.label} to ${meal.toLowerCase()}`} kind="ghost" onPress={() => onUpgrade(upgrade)} />
         </View>
       ) : null}
-      <Press accessibilityRole="button" accessibilityLabel={`+ Add to ${meal.toLowerCase()}`} onPress={onAdd} style={[styles.add, { borderColor: c.brand }]}>
-        <Text style={[type.button, { color: c.brand }]}>{`+ Add to ${meal.toLowerCase()}`}</Text>
-      </Press>
+      <Button label={`+ Add to ${meal.toLowerCase()}`} kind="ghost" onPress={onAdd} />
       {onDescribe ? <Button label={AI_COPY.describeButton} a11yLabel={`Describe your ${meal.toLowerCase()} in words, AI estimate`} onPress={onDescribe} kind="ghost" /> : null}
       <Button label="Recipes" a11yLabel={`Recipes for ${meal.toLowerCase()}: build a recipe, the library and cooking mode`} onPress={onRecipes} kind="link" />
     </Card>
@@ -316,7 +314,6 @@ const styles = StyleSheet.create({
   heroTop: { flexDirection: 'row', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' },
   macros: { gap: 14 },
   macro: { gap: 6 },
-  add: { minHeight: 56, borderRadius: radius.full, borderWidth: 2, alignItems: 'center', justifyContent: 'center', marginTop: 4 },
   snap: { gap: 6, marginTop: 14 },
   banner: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 14, padding: 12, borderRadius: radius.md },
   gap: { gap: 4, marginTop: 8 },
