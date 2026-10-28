@@ -693,29 +693,48 @@ if (schemasAi.AiStatus.properties.features.required.some((f) => ["meal_photo", "
 const routinesVec = JSON.parse(readFileSync(new URL("./routines.json", import.meta.url), "utf8"));
 {
   const sch = parsed.components.schemas;
-  const rt = sch.Routine.allOf[1].properties, rex = sch.RoutineExercise;
+  const rt = sch.Routine.allOf[1].properties, rex = sch.RoutineExercise, we = sch.WorkoutExercise;
   const blankRe = new RegExp(blank.pattern, "u");
-  const want = { name: [1, 60], exercises: [1, 50], ex_name: [1, 200], sets: [1, 20] };
-  if (rt.name.minLength !== 1 || rt.name.maxLength !== want.name[1] || rt.name.pattern !== blank.pattern) failures.push("Routine.name: bounds or blank pattern differ from routines.json");
-  if (rt.exercises.minItems !== 1 || rt.exercises.maxItems !== want.exercises[1]) failures.push("Routine.exercises: bounds differ from routines.json");
+  const L = routinesVec.limits;
+  if (rt.name.minLength !== 1 || rt.name.maxLength !== L.name_max || rt.name.pattern !== blank.pattern) failures.push("Routine.name: bounds or blank pattern differ from routines.json");
+  if (rt.exercises.minItems !== L.exercises_min || rt.exercises.maxItems !== L.exercises_max) failures.push("Routine.exercises: bounds differ from routines.json");
   if (rt.exercises.maxItems !== sch.Workout.allOf[1].properties.exercises.maxItems) failures.push("Routine.exercises.maxItems must equal Workout.exercises.maxItems (any session can be saved)");
-  if (rex.properties.name.maxLength !== want.ex_name[1] || rex.properties.sets.minimum !== 1 || rex.properties.sets.maximum !== want.sets[1]) failures.push("RoutineExercise: bounds differ from routines.json");
-  if (rex.additionalProperties !== false) failures.push("RoutineExercise must be closed");
-  if (routinesVec.limits.max_live_routines !== 100 || !spec.includes("at most 100 routines that are not deleted")) failures.push("routines cap (100) differs between routines.json and the /sync description");
-  if (!sch.SyncTable.enum.includes("routines") || !sch.ExportTables.required.includes("routines") || !("routines" in sch.SyncChanges.properties)) failures.push("routines is missing from SyncTable, SyncChanges or ExportTables");
+  if (rex.properties.name.minLength !== 1 || rex.properties.name.maxLength !== L.exercise_name_max || rex.properties.name.pattern !== blank.pattern) failures.push("RoutineExercise.name: bounds or blank pattern differ from routines.json");
+  if (rex.properties.sets.minimum !== L.sets_min || rex.properties.sets.maximum !== L.sets_max || rex.properties.sets.type !== "integer") failures.push("RoutineExercise.sets: bounds differ from routines.json");
+  if ("part" in rex.properties) failures.push("RoutineExercise must not have part (a routine starts a fresh session)");
+  if (rex.maxProperties !== L.max_exercise_keys || rex.propertyNames?.maxLength !== we.propertyNames?.maxLength || JSON.stringify(rex.additionalProperties) !== JSON.stringify(we.additionalProperties)) failures.push("RoutineExercise must be bounded-open exactly as WorkoutExercise");
+  if (sch.Routine["x-max-live-records"] !== L.max_live_routines) failures.push("Routine.x-max-live-records differs from routines.json limits.max_live_routines");
+  if (!sch.SyncTable.enum.includes("routines") || !("routines" in sch.SyncChanges.properties) || !("routines" in sch.ExportTables.properties)) failures.push("routines is missing from SyncTable, SyncChanges or ExportTables");
+  if (sch.ExportTables.required.includes("routines")) failures.push("ExportTables.routines must stay optional (a server built against 0.1.26 omits it; missing means empty)");
+  if (!spec.includes(`\`${L.cap_issue}\``)) failures.push("/sync description does not name the too_many_routines issue");
+  const len = (x) => [...x].length;
   const check = (r) => {
-    if (typeof r.name !== "string" || r.name.length < 1 || [...r.name].length > want.name[1] || !blankRe.test(r.name)) return "name";
-    if (!Array.isArray(r.exercises) || r.exercises.length < 1 || r.exercises.length > want.exercises[1]) return "exercises";
+    if (typeof r.name !== "string" || len(r.name) < 1 || len(r.name) > L.name_max || !blankRe.test(r.name)) return "name";
+    if (!Array.isArray(r.exercises) || r.exercises.length < L.exercises_min || r.exercises.length > L.exercises_max) return "exercises";
     for (const e of r.exercises) {
-      if (typeof e.name !== "string" || e.name.length < 1 || [...e.name].length > want.ex_name[1]) return "exercises.name";
-      if (!Number.isInteger(e.sets) || e.sets < 1 || e.sets > want.sets[1]) return "exercises.sets";
-      if (Object.keys(e).some((k) => !["name", "sets", "part"].includes(k))) return "exercises.unknown_key";
-      if ("part" in e && ![1, 2].includes(e.part)) return "exercises.part";
+      if (typeof e.name !== "string" || len(e.name) < 1 || len(e.name) > L.exercise_name_max || !blankRe.test(e.name)) return "exercises.name";
+      if (!Number.isInteger(e.sets) || e.sets < L.sets_min || e.sets > L.sets_max) return "exercises.sets";
+      const keys = Object.keys(e);
+      if (keys.length > L.max_exercise_keys) return "exercises.unknown_key";
+      for (const k of keys) {
+        if (k === "name" || k === "sets") continue;
+        const x = e[k];
+        if (k.length > 50 || !(x === null || ["boolean", "number", "string"].includes(typeof x)) || (typeof x === "string" && len(x) > 200)) return "exercises.unknown_key";
+      }
     }
     return null;
   };
   for (const c of routinesVec.valid) if (check(c.record)) failures.push(`routines.json valid "${c.note}": refused at ${check(c.record)}`);
   for (const c of routinesVec.invalid) if (check(c.record) !== c.field) failures.push(`routines.json invalid "${c.note}": expected ${c.field}, got ${check(c.record)}`);
+  // Reference counter for the cap: refuse only when a new or revived routine is pushed and the live count after the apply is over the limit.
+  const cap = (c) => {
+    let live = c.live;
+    for (const op of c.push) if (op === "delete") live--;
+    const refused = [];
+    c.push.forEach((op, i) => { if (op === "new" || op === "revive") { live++; if (live > L.max_live_routines) refused.push(i); } });
+    return refused;
+  };
+  for (const c of routinesVec.cap.cases) if (JSON.stringify(cap(c)) !== JSON.stringify(c.refused)) failures.push(`routines.json cap "${c.note}": expected ${JSON.stringify(c.refused)}, got ${JSON.stringify(cap(c))}`);
 }
 
 if (failures.length) {
@@ -732,6 +751,6 @@ console.log(`openapi.yaml: ${closedCheck.closers.size} closed record objects, ea
 console.log(`openapi.yaml: ${syncExamples.length} /sync 200 examples, replaced_record only on client_won as the stored copy (${replacedSeen} shown); 3 broken conflicts caught`);
 console.log(`ai-images.json: ${imgv.cases.length} cases, limits equal the schemas, ${imageExamples} example images pass the rules`);
 console.log(`strict-json.json: ${strict.must_refuse.length} must-refuse and ${strict.must_accept.length} must-accept bodies, nesting limit ${strict.max_nesting_depth}`);
-console.log(`routines.json: ${routinesVec.valid.length} valid and ${routinesVec.invalid.length} invalid routines, bounds and the 100-routine cap equal the schemas`);
+console.log(`routines.json: ${routinesVec.valid.length} valid and ${routinesVec.invalid.length} invalid routines, ${routinesVec.cap.cases.length} cap scenarios, bounds and x-max-live-records equal the schemas`);
 console.log(`barcode-gs1.json: ${barcode.valid.length} valid and ${barcode.invalid.length} invalid codes, ${barcode.upc_e_expansion.length} UPC-E expansions, /foods/barcode examples and error codes verified`);
 console.log(`openapi.yaml: OffProduct and OffNutriments closed, ${OFF_NUTRIMENT_KEYS.length} nutriment keys pinned, strings and arrays bounded, ${offMutants.length} mutations caught`);

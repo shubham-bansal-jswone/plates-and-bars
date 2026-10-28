@@ -261,15 +261,36 @@ export interface paths {
          *     record and never conflict; the same routine edited on two devices settles by
          *     `updated_at` like any table. A routine is a named list of exercises with a target
          *     set count each; reps and weights are not stored (they come from progression when
-         *     it is started). Each account keeps at most 100 routines that are not deleted
-         *     (tombstones do not count against this, but they do count against the account
-         *     record cap). A push that would leave more than 100 live routines is refused whole
-         *     with 400 `invalid_request`, one `details` entry with `field` = `changes.routines[<i>]`
-         *     (the first new or revived record that crosses the limit) and issue `too_many_routines`;
-         *     nothing is applied. A pull-only request and edits that keep the count within 100 are
-         *     never refused for it. The check runs with request validation, before the account
-         *     record cap. The app enforces the same limit before it saves, so this is a guard
-         *     for a second device or an old client, not the normal path.
+         *     it is started).
+         *
+         *     **Routine cap.** An account keeps at most 100 live routines (`deleted_at` null;
+         *     the number is `x-max-live-records` on `Routine`). Tombstones do not count here, but
+         *     they count against the account record cap.
+         *     - A pushed routine is new when the server stores no routine with that id for this
+         *       account, and revived when it is stored as a tombstone and the push wins
+         *       last-writer-wins with `deleted_at` null. A new id that loses to a stored tombstone
+         *       does not revive.
+         *     - The server refuses a request only when it has at least one new or revived live
+         *       routine and the live routine count after applying the whole push, last-writer-wins
+         *       resolved, would be over 100. A push with no new or revived routines (edits,
+         *       renames, deletes, idempotent retries) and a pull-only request are never refused
+         *       for this, even when the account already holds more than 100.
+         *     - The refusal is 400 `invalid_request` with one `details` entry for every new or
+         *       revived routine past the limit, in array order, each with `field` =
+         *       `changes.routines[<i>]` and issue `too_many_routines`. Nothing is applied, as for
+         *       any 400. The app sets those records aside in one round.
+         *     - The count and the apply run in the one per-account serialised transaction, like
+         *       the account record cap, never in the stateless validator, so two devices pushing
+         *       at once cannot overrun it.
+         *     - The app enforces the same limit before it saves; this is a guard for a second
+         *       device or an old client.
+         *
+         *     **Tables the server does not implement.** The contract may list a table before the
+         *     backend stores it. A server that does not implement a listed table refuses each
+         *     record of it with a per-record `unsupported_table` refusal and stores nothing for it,
+         *     and the app sets those records aside and retries them later. The app therefore sends
+         *     `routines` without a capability check: until the server supports the table the
+         *     records stay on the device, and the rest of the push goes through.
          *
          *     **Derived data is not synced.** Stores the prototype keeps that can be rebuilt from
          *     synced records have no table. The app rebuilds them locally after every pull; see
@@ -301,8 +322,10 @@ export interface paths {
          *       Nothing is applied, nothing is pulled, the cursor does not move and nothing is
          *       added to the conflict log. There is no partial apply.
          *     - Checks run in this order: body size (400 `too_large`), access token (401),
-         *       rate limit (429), request validation including natural-key ids (400), then the
-         *       cap (413). A 413 `account_full` therefore means the request was otherwise valid.
+         *       rate limit (429), request validation including natural-key ids (400), then, inside
+         *       the per-account transaction after last-writer-wins resolution, the routine cap
+         *       (400 `too_many_routines`) and the account record cap (413). A 413 `account_full`
+         *       therefore means the request was otherwise valid.
          *     - The count and the apply happen in one transaction, serialised per account, so
          *       concurrent pushes from two devices cannot overrun the cap.
          *
@@ -1391,7 +1414,9 @@ export interface components {
         /**
          * @description Every synced table (one key per `SyncTable` value) with all of the user's stored
          *     rows, tombstones included. Same record schemas as `SyncChanges`, but every table
-         *     is present, as an empty array when the user has no rows.
+         *     is present, as an empty array when the user has no rows, except tables added after
+         *     contract 0.1.26 (`routines`): a server built against 0.1.26 or earlier omits them,
+         *     and a missing key means empty.
          */
         ExportTables: {
             profiles: components["schemas"]["Profile"][];
@@ -1410,7 +1435,7 @@ export interface components {
             exclusions: components["schemas"]["Exclusion"][];
             swaps: components["schemas"]["Swap"][];
             settings: components["schemas"]["Settings"][];
-            routines: components["schemas"]["Routine"][];
+            routines?: components["schemas"]["Routine"][];
         };
         ConflictLogEntry: {
             table: components["schemas"]["SyncTable"];
@@ -2163,8 +2188,9 @@ export interface components {
          *     prototype has only the generated plan and the hand-picked week plan. Reps and
          *     weights are not stored, they come from progression when the routine is started.
          *     An exercise that later leaves the catalogue keeps its name; the app flags it when
-         *     the routine is started. Closed shape: a later field (for example a superset group
-         *     on `RoutineExercise`) is added as an optional property in a new contract version.
+         *     the routine is started. A later field (for example a superset group on
+         *     `RoutineExercise`) is added as an optional property; apps keep unknown exercise keys
+         *     when they rewrite a routine.
          */
         Routine: components["schemas"]["SyncMeta"] & {
             /**
@@ -2187,9 +2213,17 @@ export interface components {
              */
             created_at: string;
         };
-        /** @description One exercise of a routine. */
+        /**
+         * @description One exercise of a routine. Open on purpose, as `WorkoutExercise`: the app keeps
+         *     keys it does not know, written by a newer client (for example a superset group,
+         *     #1182), when it rewrites the routine. At most 20 keys; an unlisted key's name is
+         *     at most 50 characters and its value is a boolean, number, string of at most 200
+         *     characters or null, so its size is bounded by these limits. A field a later
+         *     contract adds is listed here with its own shape. A routine always starts a fresh
+         *     session, so there is no `part`.
+         */
         RoutineExercise: {
-            /** @description Exercise name, as `Workout.exercises[].name` and `WorkoutSet.exercise` carry it (catalogue name or custom name, unnormalised). */
+            /** @description Exercise name, as `Workout.exercises[].name` and `WorkoutSet.exercise` carry it (catalogue name or custom name, unnormalised), not blank. */
             name: string;
             /**
              * @description Target number of work sets when the routine is started. At most 20: a guard
@@ -2197,12 +2231,8 @@ export interface components {
              *     actually shown.
              */
             sets: number;
-            /**
-             * @description Optional. 2 for an exercise saved from a second session that day, as
-             *     `WorkoutExercise.part`. Absent means 1.
-             * @enum {integer}
-             */
-            part?: 1 | 2;
+        } & {
+            [key: string]: boolean | number | string | null;
         };
         /**
          * @description Training and app preferences. One per user; id = UUIDv5(`settings:me`).
