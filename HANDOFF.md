@@ -948,3 +948,12 @@ Coordinator session resumed from the section above. Base branch is still `design
 - Flaky: `tests/e2e/specs/data.spec.mjs` "delete everything: cancel keeps the data…" timed out once on #1234 ("no SQLite write was sent and answered within 15 s"); passed on rerun. File an issue if it recurs.
 - Worktrees: `../rb-1194` (#1228), `../rb-1198` (merged #1223, local branch `app/workout-targets-polish-2`, removable), `../wt-1232` (#1235). `../wt-qa-scratch` holds three untracked e2e specs from two weeks ago: check before deleting. `stash@{0}` ("On main: GitHub_Desktop") is the owner's; leave it.
 - The local `ui-redesign` branch is one commit ahead of `origin/ui-redesign` (e447679a); its work landed through #1112-#1119. Left untouched.
+
+### Pause (2026-10-28, owner: "pause everything, will continue later")
+All agents and merge watchers stopped. On resume, in this order:
+1. **#1238** (one-line `Field` ref type fix): base `design-overhaul` fails `npm run typecheck` at `apps/mobile/src/components/ui.tsx:300` since #1208, so CI skips jest on every mobile PR. Needs an Opus review (the one launched was stopped), then merge on green. Everything mobile waits on this.
+2. After #1238: merge design-overhaul into #1228 (approved; its watcher was stopped) and #1236 (Approve with nits: drop the no-op `.replace(/:/g, '')` at `SetupScreen.tsx:79` optionally; re-run the flaky `dark mode › axe: library-exercise` e2e), then merge on green. Follow-up from #1236 filed as #1239.
+3. #1235: Opus re-review of dd6ed4bb was stopped mid-run; relaunch.
+4. Dependabot batch review was stopped part-way: verdicts already posted on some PRs (see each PR's comments and status label); relaunch for the rest.
+5. This PR (#1237) needs its review relaunched.
+Worktrees added since the section above: `../wt-tsfix` (#1238, own node_modules), `../wt-handoff` (this PR).
