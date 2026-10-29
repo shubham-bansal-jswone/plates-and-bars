@@ -20,6 +20,7 @@ import { useCheckin } from '../progress/useCheckin';
 import { RangedTrend } from '../progress/RangedTrend';
 import { MeasureTrend } from '../progress/MeasureTrend';
 import { WeeksOnTrack } from '../progress/WeeksOnTrack';
+import { VolumeSection } from '../progress/VolumeSection';
 import { useProgress } from '../progress/useProgress';
 import { useStoredText } from '../progress/useStoredText';
 import { useProfile } from '../state/ProfileProvider';
@@ -95,6 +96,7 @@ export function ProgressScreen({ db, now = () => new Date() }: Props) {
             <DailyRead sex={profile?.sex} values={profile ? profileWhyValues(profile, { date: p.date, flex: settings?.settings.flex, labHold: labs.holdOn }) : undefined} now={now} />
             <SummaryCard checkin={ci.checkin} profile={profile} />
             <WeightSection p={p} />
+            <VolumeSection db={db} date={v.date} today={v.today} profile={profile} settings={settings?.settings ?? null} />
             <MeasureSection p={p} isToday={v.isToday} />
             <PhotosSection db={db} date={v.today} weights={p.weights} tapes={p.tapes} notify={notify} />
             <CycleSection key={`cycle-${v.date}`} cycle={cycle} date={v.date} today={v.today} weights={p.weights} female={profile?.sex === 'female'} notify={notify} />
