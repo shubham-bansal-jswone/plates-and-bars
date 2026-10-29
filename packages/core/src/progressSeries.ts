@@ -1,5 +1,6 @@
 import { addDays, mondayOf } from './dates';
-import type { TrendPoint } from './progress';
+import { live, weekOnTrack, weeklySessionGoal, type ProgressDay, type TrendPoint } from './progress';
+import type { PlanProfile, SessionLog } from './plan';
 
 /**
  * Progress chart series helpers (#1351 C1). New rules, not prototype ports. Pure; dates are `YYYY-MM-DD`.
@@ -48,4 +49,95 @@ export function downsampleWeekly(points: readonly TrendPoint[], mode: Downsample
     if (!cur || mode === 'last' || p.v > cur.v) weeks.set(wk, p);
   }
   return [...weeks.values()];
+}
+
+/** A Monday-week with fewer than this many logged days is `partial`: its average rests on too few days (#1351 C4). */
+export const WEEKLY_INTAKE_MIN_DAYS = 4;
+
+/** Current targets, per day (the same numbers the Targets screen shows). */
+export interface IntakeTargets {
+  kcal: number;
+  protein_g: number;
+}
+
+/** One Monday-week of `weeklyIntake`. */
+export interface WeeklyIntake {
+  /** The week's Monday. */
+  weekStart: string;
+  /** Days of the week (up to `end`) with at least one live food log. */
+  loggedDays: number;
+  /** Average over the logged days, unrounded; null when no day is logged (never 0). */
+  avgKcal: number | null;
+  avgProtein_g: number | null;
+  /** 1 to `WEEKLY_INTAKE_MIN_DAYS - 1` logged days: show the values as a thin average. */
+  partial: boolean;
+  /** The current targets, the same for every week. */
+  target: IntakeTargets;
+}
+
+/**
+ * Average kcal and protein per Monday-week for the `weeks` weeks ending with the week that holds `end`, oldest first.
+ * A day counts as logged when it has a live (not deleted) food log: the rule of `weekSummary` and `habits`; the
+ * `complete` flag is not used. Days after `end` are ignored, so the current week averages its days so far. A week with
+ * no logged day has null averages, not 0 (as the Seven-days bar says "not logged", #503). Every week carries the current `targets`.
+ * `weeks` below 1 or NaN gives none.
+ *
+ * New rule (#1351 C4).
+ */
+export function weeklyIntake(days: readonly ProgressDay[], end: string, weeks: number, targets: IntakeTargets): WeeklyIntake[] {
+  const n = weeks >= 1 ? Math.floor(weeks) : 0, last = mondayOf(end);
+  const out: WeeklyIntake[] = [];
+  for (let k = n - 1; k >= 0; k--) {
+    const ws = addDays(last, -7 * k), we = addDays(ws, 7);
+    let logged = 0, sk = 0, sp = 0;
+    const seen = new Set<string>();
+    for (const d of days) {
+      if (d.date < ws || d.date >= we || d.date > end || seen.has(d.date)) continue;
+      seen.add(d.date); // first copy of a date wins, as `weekSummary` (`daysEnding`, `find`) takes it
+      const meals = live(d.logs);
+      if (!meals.length) continue;
+      logged++;
+      for (const m of meals) {
+        sk += m.kcal * m.qty;
+        sp += m.protein_g * m.qty;
+      }
+    }
+    out.push({
+      weekStart: ws,
+      loggedDays: logged,
+      avgKcal: logged ? sk / logged : null,
+      avgProtein_g: logged ? sp / logged : null,
+      partial: logged > 0 && logged < WEEKLY_INTAKE_MIN_DAYS,
+      target: { kcal: targets.kcal, protein_g: targets.protein_g },
+    });
+  }
+  return out;
+}
+
+/** One Monday-week of `weeksOnTrackSeries`. */
+export interface WeekOnTrack {
+  /** The week's Monday. */
+  weekStart: string;
+  /** Sessions logged in the week. */
+  sessions: number;
+  /** Sessions a week to be on track (`habits().goal`). */
+  goal: number;
+  onTrack: boolean;
+}
+
+/**
+ * Whether each of the last `weeks` COMPLETED Monday-weeks (the weeks before the one holding `end`, oldest first) was on
+ * track, by the goal rule of `habits()` (plan days minus 1, at least 2). The week of `end` is left out, as in `habits`,
+ * so the trailing run of `onTrack` equals `habits().weeks` (which stops counting at 26). `weeks` below 1 or NaN gives none.
+ *
+ * New rule (#1351 C5); the goal and the per-week test are shared with `habits`.
+ */
+export function weeksOnTrackSeries(sessions: SessionLog, profile: PlanProfile | null | undefined, end: string, weeks: number): WeekOnTrack[] {
+  const n = weeks >= 1 ? Math.floor(weeks) : 0, goal = weeklySessionGoal(profile), dates = Object.keys(sessions), monday = mondayOf(end);
+  const out: WeekOnTrack[] = [];
+  for (let k = n; k >= 1; k--) {
+    const ws = addDays(monday, -7 * k), we = addDays(ws, 7);
+    out.push({ weekStart: ws, sessions: dates.filter((d) => d >= ws && d < we).length, goal, onTrack: weekOnTrack(dates, ws, goal) });
+  }
+  return out;
 }
