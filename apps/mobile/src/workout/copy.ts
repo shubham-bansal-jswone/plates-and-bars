@@ -154,6 +154,7 @@ export const MY_ROUTINES = {
   delete: 'Delete routine',
   close: 'Close',
   deleted: (name: string) => `Deleted “${name}”.`,
+  deletedAnnounce: (name: string) => `Deleted “${name}”. Undo available.`,
   undo: 'Undo',
   undoLabel: (name: string) => `Undo delete of ${name}`,
   restored: (name: string) => `Restored “${name}”`,

@@ -9,7 +9,10 @@ import { saveSettings } from '../src/db/settings';
 import { defaultSettings } from '../src/settings/types';
 import { buildProfile, emptyDraft } from '../src/setup/logic';
 import { MY_ROUTINES as T, ROUTINE_COPY } from '../src/workout/copy';
-import { press, tickFirstSets } from './disclosure-helpers';
+import { press, pressDay, tickFirstSets } from './disclosure-helpers';
+import { SyncContext, type SyncState } from '../src/sync/SyncProvider';
+import { focusNode } from '../src/labelscan/focus';
+import { renameRoutine, undoDeleteRoutine } from '../src/db/routines';
 import { withProfile } from './helpers';
 import { openDb } from './sync-helpers';
 
@@ -17,6 +20,14 @@ import { openDb } from './sync-helpers';
 jest.mock('expo-router', () => ({ useRouter: () => ({ replace: jest.fn(), push: jest.fn() }), useFocusEffect: (cb: () => void) => jest.requireActual('react').useEffect(cb, []) }));
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 jest.mock('expo-crypto', () => require('./sync-crypto-mock'));
+
+jest.mock('../src/db/routines', () => {
+  const actual = jest.requireActual('../src/db/routines');
+  return { ...actual, undoDeleteRoutine: jest.fn(actual.undoDeleteRoutine) };
+});
+jest.mock('../src/labelscan/focus', () => ({ ...jest.requireActual('../src/labelscan/focus'), focusNode: jest.fn() }));
+const focused = () => jest.mocked(focusNode).mock.calls.at(-1)?.[0] as { props?: { accessibilityLabel?: string; accessibilityRole?: string } } | undefined;
+beforeEach(() => (jest.mocked(focusNode).mockClear(), jest.mocked(undoDeleteRoutine).mockClear()));
 
 const THURSDAY = () => new Date(2026, 9, 8, 10, 0, 0);
 const DATE = '2026-10-08';
@@ -201,7 +212,169 @@ describe('Rename and delete', () => {
     await screen.findByText(T.deleted('Upper'));
     for (let i = 0; i < ROUTINE_MAX_LIVE; i++) await createRoutine(db as never, `R${i}`, UPPER);
     await press(T.undoLabel('Upper'));
-    expect(await screen.findByText(ROUTINE_COPY.tooMany(ROUTINE_MAX_LIVE))).toBeTruthy();
+    expect((await screen.findAllByText(ROUTINE_COPY.tooMany(ROUTINE_MAX_LIVE))).length).toBeGreaterThan(0);
     expect((await loadRoutines(db as never)).some((r) => r.name === 'Upper')).toBe(false);
+  });
+});
+
+const TWO = (d: Db) => createRoutine(d as never, 'Alpha', UPPER).then(() => createRoutine(d as never, 'Beta', UPPER)).then(() => undefined);
+
+describe('Undo survives the section being hidden', () => {
+  const del = async (name: string) => {
+    await press(T.moreLabel(name));
+    await press(T.delete);
+    await screen.findByText(T.deleted(name));
+  };
+
+  it('delete A, open Pick exercises, add one, Back to workouts: the Undo row is still there and restores A', async () => {
+    const db = await mount(TWO);
+    await screen.findByLabelText('Start Beta');
+    await del('Alpha');
+    await pressDay('Pick exercises');
+    await press('Add Lat Pulldown from Pull A');
+    expect(screen.queryByText(T.title)).toBeNull(); // hidden while the pick list is open
+    await press('Back to workouts');
+    expect(await screen.findByLabelText('Start Beta')).toBeTruthy();
+    expect(screen.getByText(T.deleted('Alpha'))).toBeTruthy();
+    await press(T.undoLabel('Alpha'));
+    expect(await screen.findByLabelText('Start Alpha')).toBeTruthy();
+    expect(screen.queryByText(T.deleted('Alpha'))).toBeNull();
+    expect((await loadRoutines(db as never)).map((r) => r.name).sort()).toEqual(['Alpha', 'Beta']);
+  });
+
+  it('is hidden while a workout preview is open and back after', async () => {
+    await mount(TWO);
+    await screen.findByLabelText('Start Beta');
+    await pressDay('Choose Pull A');
+    expect(screen.queryByText(T.title)).toBeNull();
+    expect(screen.queryByLabelText('Start Beta')).toBeNull();
+    await press('Back to workouts');
+    expect(await screen.findByLabelText('Start Beta')).toBeTruthy();
+  });
+
+  it('a second delete replaces the pending Undo; a routine revived on another device clears it', async () => {
+    const db = await openDb();
+    await saveSettings(db as never, defaultSettings('2026-10-08T00:00:00Z'));
+    await saveProfile(db as never, { ...profile, where: 'gym' });
+    await TWO(db);
+    const beta = (await loadRoutines(db as never)).find((r) => r.name === 'Beta')!;
+    const at = (dataVersion: number) => <SyncContext.Provider value={{ dataVersion } as SyncState}>{withProfile(db as never, <WorkoutScreen db={db as never} now={THURSDAY} />)}</SyncContext.Provider>;
+    const view = await render(at(0));
+    await screen.findByLabelText('Start Beta');
+    await del('Alpha');
+    await del('Beta');
+    expect(screen.queryByText(T.deleted('Alpha'))).toBeNull();
+    expect(screen.getByText(T.deleted('Beta'))).toBeTruthy();
+    await undoDeleteRoutine(db as never, beta.id as string); // another device brought it back
+    await view.rerender(at(1));
+    expect(await screen.findByLabelText('Start Beta')).toBeTruthy();
+    expect(screen.queryByText(T.deleted('Beta'))).toBeNull();
+  });
+});
+
+describe('Delete and Undo: announcement, focus, double tap', () => {
+  it('announces the delete with Undo available, through the app announcer', async () => {
+    await mount(TWO);
+    await press(T.moreLabel('Alpha'));
+    await press(T.delete);
+    expect(await screen.findByText(T.deletedAnnounce('Alpha'))).toBeTruthy();
+    expect(T.deletedAnnounce('Alpha')).toBe('Deleted “Alpha”. Undo available.');
+  });
+
+  it('after Delete moves focus to the next row’s Edit; after the last one, to the section heading', async () => {
+    await mount(TWO);
+    await press(T.moreLabel('Alpha'));
+    await press(T.delete);
+    await screen.findByText(T.deleted('Alpha'));
+    await waitFor(() => expect(focused()?.props?.accessibilityLabel).toBe(T.moreLabel('Beta')));
+    jest.mocked(focusNode).mockClear();
+    await press(T.moreLabel('Beta'));
+    await press(T.delete);
+    await screen.findByText(T.deleted('Beta'));
+    await waitFor(() => expect(focused()?.props?.accessibilityRole).toBe('header'));
+  });
+
+  it('after Undo moves focus to the restored row’s Edit, and announces Restored once even on a double tap', async () => {
+    const db = await mount(TWO);
+    await press(T.moreLabel('Alpha'));
+    await press(T.delete);
+    await screen.findByText(T.deleted('Alpha'));
+    jest.mocked(focusNode).mockClear();
+    const undo = screen.getByLabelText(T.undoLabel('Alpha'));
+    let release!: () => void;
+    const real = jest.requireActual('../src/db/routines').undoDeleteRoutine;
+    jest.mocked(undoDeleteRoutine).mockImplementationOnce((...a) => new Promise<void>((r) => (release = r)).then(() => real(...a)));
+    await fireEvent.press(undo);
+    await fireEvent.press(undo); // the first revive is still running
+    expect(undoDeleteRoutine).toHaveBeenCalledTimes(1);
+    release();
+    expect(await screen.findAllByText(T.restored('Alpha'))).toHaveLength(1);
+    await waitFor(() => expect(focused()?.props?.accessibilityLabel).toBe(T.moreLabel('Alpha')));
+    expect((await loadRoutines(db as never)).filter((r) => r.name === 'Alpha')).toHaveLength(1);
+  });
+});
+
+describe('Reload after a sync pull, rename field wiring', () => {
+  it('re-reads the list when sync bumps the data version (a rename done straight in the database)', async () => {
+    const db = await openDb();
+    await saveSettings(db as never, defaultSettings('2026-10-08T00:00:00Z'));
+    await saveProfile(db as never, { ...profile, where: 'gym' });
+    const r = await createRoutine(db as never, 'Upper', UPPER);
+    const at = (dataVersion: number) => <SyncContext.Provider value={{ dataVersion } as SyncState}>{withProfile(db as never, <WorkoutScreen db={db as never} now={THURSDAY} />)}</SyncContext.Provider>;
+    const view = await render(at(0));
+    expect(await screen.findByLabelText('Start Upper')).toBeTruthy();
+    await renameRoutine(db as never, r.id as string, 'Pulled name');
+    expect(screen.queryByLabelText('Start Pulled name')).toBeNull();
+    await view.rerender(at(1));
+    expect(await screen.findByLabelText('Start Pulled name')).toBeTruthy();
+  });
+
+  it('ties the rename field to its error message', async () => {
+    await mount((d) => createRoutine(d as never, 'Upper', UPPER).then(() => undefined));
+    await press(T.moreLabel('Upper'));
+    await fireEvent.changeText(screen.getByLabelText(T.renameLabel), '   ');
+    await press(T.rename);
+    const msg = await screen.findByText(ROUTINE_COPY.nameError(60));
+    expect(screen.getByLabelText(T.renameLabel).props['aria-describedby']).toBe(msg.props.nativeID);
+    expect(msg.props.nativeID).toBeTruthy();
+  });
+});
+
+describe('Hand-picked sessions flag missing and excluded exercises', () => {
+  const rule: ExclusionRecord = { id: 'r1', version: 0, updated_at: '2026-10-01T00:00:00Z', deleted_at: null, name: 'Lat Pulldown', scope: 'exercise', key: 'Lat Pulldown', reason: 'dislike', created: '2026-10-01', until: null, to: { 'Lat Pulldown': null }, done: false };
+
+  it('flags an excluded exercise on a session made with Pick exercises, not only from a routine', async () => {
+    const db = await mount();
+    await pressDay('Pick exercises');
+    await press('Add Lat Pulldown from Pull A');
+    await press('Start this exercise');
+    await screen.findByText(HAND_PICKED);
+    expect(screen.queryByText(T.excluded('Lat Pulldown'))).toBeNull();
+    await saveExclusion(db as never, rule);
+    await screen.unmount();
+    await render(withProfile(db as never, <WorkoutScreen db={db as never} now={THURSDAY} />));
+    expect(await screen.findByText(T.excluded('Lat Pulldown'))).toBeTruthy();
+  });
+
+  it('flags nothing on a planned session even when a rule is added for one of its exercises afterwards', async () => {
+    const db = await mount();
+    await press('Start Push B');
+    await screen.findByText('Push B');
+    await saveExclusion(db as never, { ...rule, name: 'Barbell Bench Press', key: 'Barbell Bench Press', to: { 'Barbell Bench Press': null } });
+    await screen.unmount();
+    await render(withProfile(db as never, <WorkoutScreen db={db as never} now={THURSDAY} />));
+    await screen.findByText('Push B');
+    expect(screen.queryByText(/excluded by your exercise rules|no longer in the exercise library/)).toBeNull();
+  });
+});
+
+describe('Starting a routine keeps the hand-picked start’s choices', () => {
+  it('stores today’s “training away from your gym” choice on the session, as Start this exercise does', async () => {
+    const db = await mount((d) => createRoutine(d as never, 'Upper', UPPER).then(() => undefined));
+    await press('Training away from your gym?');
+    await press('Dumbbells only');
+    await press('Start Upper');
+    await screen.findByText(HAND_PICKED);
+    expect((await loadWorkout(db as never, DATE))!.where).toBe('dumbbells');
   });
 });

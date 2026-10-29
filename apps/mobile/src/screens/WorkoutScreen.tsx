@@ -5,7 +5,7 @@ import { useFocusEffect } from 'expo-router';
 import { AccessibilityInfo, Platform, StyleSheet, Text as RNText, useWindowDimensions, View } from 'react-native';
 import { useDataVersion } from '../sync/useDataVersion';
 import { Text } from '../components/Text';
-import { HAND_PICKED, ROUTINE_EXERCISES_MAX, routineFromSession, modsNote, overridesFromSettings, isExcluded, plannedCoverage, type WeekPlan, secondSessionChoices, sessionVolume, beginnerRamp, checkinFlags, isFocus, nextInList, coverageTemplates, mondayOf, planned, restFor, warmupRamp, type Checkin, isLearning, exInfo, fromKg, infoForUnit, priorSessions, REST_EXTEND_SEC, type ExclusionReason } from '@plate-and-bar/core';
+import { HAND_PICKED, ROUTINE_EXERCISES_MAX, routineFromSession, modsNote, overridesFromSettings, missingExercises, plannedCoverage, type WeekPlan, secondSessionChoices, sessionVolume, beginnerRamp, checkinFlags, isFocus, nextInList, coverageTemplates, mondayOf, planned, restFor, warmupRamp, type Checkin, isLearning, exInfo, fromKg, infoForUnit, priorSessions, REST_EXTEND_SEC, type ExclusionReason } from '@plate-and-bar/core';
 import { fmt } from '../format';
 import { ClearanceCard } from '../components/ClearanceCard';
 import { Button, Card, Chip, Disclosure, H1, Hint, MetricRow, Note, Page, useScrollToTopOn } from '../components/ui';
@@ -32,7 +32,7 @@ import { ModeNote, WeekTools } from '../workout/ScheduleTools';
 import { CantSheet } from '../workout/CantSheet';
 import { CompletionPanel } from '../workout/CompletionPanel';
 import { SaveRoutineSheet } from '../workout/SaveRoutineSheet';
-import { RoutinesSection } from '../workout/RoutinesSection';
+import { RoutinesSection, type PendingUndo } from '../workout/RoutinesSection';
 import { FinishWorkout } from '../workout/FinishWorkout';
 import { focusNode } from '../labelscan/focus';
 import { LibraryEntryButton } from '../library/LibraryEntryButton';
@@ -205,6 +205,8 @@ function StartView({ now, db, w, labHold, profile, focus, rules, notify, tune }:
   // Choosing a workout only previews it (#1005): nothing is stored until Start. `previewT` is the workout being previewed, `picked` the hand-picked exercises (from any workout) waiting for Start.
   const [previewT, setPreviewT] = useState<string | null>(null);
   const [picked, setPicked] = useState<string[]>([]);
+  // A routine just deleted, waiting for Undo. Kept here: the section unmounts while a preview or pick list is open.
+  const [undo, setUndo] = useState<PendingUndo | null>(null);
   useScrollToTopOn(previewT);
   // The previewed workout the picks were seeded from (#1020); null for picks made from scratch. Start passes it only while a seeded exercise is still picked. While it is set the where override is fixed (the list was built for it).
   const [seed, setSeed] = useState<PickSeed | null>(null);
@@ -310,8 +312,8 @@ function StartView({ now, db, w, labHold, profile, focus, rules, notify, tune }:
     </>
   ) : null;
 
-  // Saved routines sit beside the plan, not in place of it; they are hidden while a preview or a pick list is open.
-  const routinesView = previewT || picked.length ? null : <RoutinesSection db={db} notify={notify} onStart={(r) => void w.startFromRoutine(r.exercises, override, choice)} />;
+  // Saved routines sit beside the plan, not in place of it; they are hidden while a preview or a pick list is open (the pending Undo is kept).
+  const routinesView = previewT || picked.length ? null : <RoutinesSection db={db} notify={notify} undo={undo} setUndo={setUndo} onStart={(r) => void w.startFromRoutine(r.exercises, override, choice)} />;
 
   const cards = (
     <>
@@ -530,7 +532,7 @@ function SessionView({ now, db, reloadKey, w, profile, focus, rules, notify, tun
     }
   const notes = modsNote(wk.mods).map(modsNoteText);
   // A routine session (or any hand-picked one) can hold a name the library no longer has, or one the user's rules exclude: flagged, kept until removed.
-  const flagged = wk.template === HAND_PICKED ? day.exs.flatMap((e): [string, 'unknown' | 'excluded'][] => (!getCatalog().tags[e.name] ? [[e.name, 'unknown']] : isExcluded(e.name, rules.rules.exclusions, getCatalog().tags) ? [[e.name, 'excluded']] : [])) : [];
+  const flagged = wk.template === HAND_PICKED ? missingExercises(day.exs.map((e) => e.name), { catalogue: Object.keys(getCatalog().tags), exclusions: rules.rules.exclusions, tags: getCatalog().tags }) : [];
   const choices = secondSessionChoices({ exercises: day.exs, template: wk.template, base: wk.base }, profile);
   const vol = sessionVolume(day.exs);
   const { primary: mainMuscles, secondary: alsoMuscles } = musclesOf(day.exs.map((e) => e.name));
@@ -640,7 +642,7 @@ function SessionView({ now, db, reloadKey, w, profile, focus, rules, notify, tun
       {/* Once every set is ticked the completion panel shows the burn estimate; showing it here too would repeat it. */}
       {complete ? null : <BurnLine db={db} date={date} profileKg={profile.weight_kg} exs={day.exs} cardio={wk.cardio_min} reloadKey={reloadKey} />}
       {notes.length ? <Note>Today: {notes.join('; ')}.</Note> : null}
-      {flagged.map(([n, reason]) => (
+      {flagged.map(({ name: n, reason }) => (
         <View key={n} style={styles.wrap}>
           <View style={styles.fill}>
             <Note>{reason === 'unknown' ? MY_ROUTINES.unknown(n) : MY_ROUTINES.excluded(n)}</Note>

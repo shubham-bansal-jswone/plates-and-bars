@@ -61,6 +61,23 @@ export interface StartedRoutine {
 }
 
 /**
+ * Names the catalogue lacks (`unknown`) or an active exclusion covers (`excluded`), in input order, for the app to flag. One rule for
+ * `startRoutine` and for the Workout screen, which flags them on every hand-picked session.
+ */
+export function missingExercises(
+  names: readonly string[],
+  o: { catalogue: ReadonlySet<string> | readonly string[]; exclusions?: readonly Exclusion[] | undefined; tags: ExerciseCatalog['tags'] },
+): StartedRoutine['missing'] {
+  const known = o.catalogue instanceof Set ? o.catalogue : new Set(o.catalogue);
+  const missing: StartedRoutine['missing'] = [];
+  for (const name of names) {
+    if (!known.has(name)) missing.push({ name, reason: 'unknown' });
+    else if (isExcluded(name, o.exclusions ?? [], o.tags)) missing.push({ name, reason: 'excluded' });
+  }
+  return missing;
+}
+
+/**
  * A session from a saved routine. Each stored set count is the starting number, kept as saved (no 3 floor, no 5 cap,
  * no beginner ramp, no calf bump, no balance override); only the deload and light-day steps (`adjustSets`, shared with
  * `sessionSets`) apply on top. The check-in, re-entry and `needsClearance` come from `sessionMods`; no lab hold (#1088:
@@ -72,11 +89,6 @@ export function startRoutine(i: StartRoutineInput): StartedRoutine {
   const { labHold: _ignored, ...rest } = i as StartRoutineInput & { labHold?: boolean };
   const { setsLight, mods } = sessionMods(rest);
   const exercises = i.routine.map((r) => ({ name: r.name, sets: adjustSets(r.sets, { deload: mods.deload, light: setsLight }), bridge: false }));
-  const names = i.catalogue instanceof Set ? i.catalogue : new Set(i.catalogue);
-  const missing: StartedRoutine['missing'] = [];
-  for (const { name } of i.routine) {
-    if (!names.has(name)) missing.push({ name, reason: 'unknown' });
-    else if (isExcluded(name, i.exclusions ?? [], i.tags)) missing.push({ name, reason: 'excluded' });
-  }
+  const missing = missingExercises(i.routine.map((r) => r.name), { catalogue: i.catalogue, exclusions: i.exclusions, tags: i.tags });
   return { exercises, mods, missing };
 }
