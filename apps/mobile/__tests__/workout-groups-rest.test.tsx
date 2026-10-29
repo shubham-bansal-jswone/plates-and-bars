@@ -209,9 +209,5 @@ describe('a grouped rest follows the session by position', () => {
   });
 });
 
-// The ungrouped dock is the code from before groups (WorkoutScreen's relabel loop and onPick rename are untouched), so these stay open until #1340 gives each copy of a name its own sets.
-describe('two exercises with one name in an ungrouped session (#1329, blocked on #1340)', () => {
-  test.todo('finishing the last of two same-named exercises closes the dock instead of naming the earlier open copy');
-  test.todo('a pull inserting before the head, or a can\'t-do swap after an earlier exercise, keeps the dock on the open copy');
-  test.todo('removing the head together with an earlier copy keeps the exercise after the ticked one next');
-});
+// Two exercises with one name can no longer arise (#1340, owner decision), so the three #1329 cases have nothing to guard: they became real
+// tests in no-duplicate-exercises.test.tsx ('the rest dock cannot confuse copies').

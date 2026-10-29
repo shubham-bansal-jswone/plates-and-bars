@@ -213,7 +213,13 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
   /** Writes the rows with these ids of exercise `name`, looked up when the write runs; gone rows are skipped. */
   const writeSets = async (name: string, kind: 'work' | 'ramp', ids: readonly string[], h: WorkoutDb = db, shown?: readonly ExState[]) => {
     const stored = new Map((await loadSets(h, date)).map((s) => [s.id, s]));
-    for (const id of ids) {
+    // Rows of one name from before #1335 can share a set number (two copies each numbered from 0). Load orders them by (number, id) and writes
+    // nothing; the first write for the name renumbers every live row of it to its shown position, so a ticked set stays put after a reload.
+    const rows = (shown ?? ref.current.exs).find((e) => e.name === name);
+    const live = [...stored.values()].filter((s) => s.exercise === name && s.kind === kind && !s.deleted_at);
+    const clash = new Set(live.map((s) => s.set_index)).size < live.length;
+    const moved = clash && rows ? (kind === 'work' ? rows.sets : rows.ramp).filter((r, k) => { const s = stored.get(r.id); return !!s && !s.deleted_at && s.set_index !== k; }).map((r) => r.id) : [];
+    for (const id of [...ids, ...moved.filter((m) => !ids.includes(m))]) {
       const ex = (shown ?? ref.current.exs).find((e) => e.name === name);
       const j = ex ? (kind === 'work' ? ex.sets : ex.ramp).findIndex((r) => r.id === id) : -1;
       if (!ex || j < 0) continue;
@@ -1042,6 +1048,11 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
    * An exercise with ticked sets keeps them and the replacement follows it, as in the prototype.
    */
   const cant = (i: number | null, draft: CantDraft, choice: string | null) => {
+    // A session never holds one name twice (#1340): the sheet never offers a name already in it, and core refuses it too. Nothing is saved or changed.
+    if (choice && ref.current.exs.some((e) => e.name === choice)) {
+      notify(`${choice} is already in today’s session.`);
+      return;
+    }
     const rule = cantRule(draft, choice, date);
     const gone = removalNote(ref.current.exs, draft.name).toast; // said before the exercises change: a member of a superset leaves it
     const today = draft.dur === 'today';

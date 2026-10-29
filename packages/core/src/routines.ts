@@ -18,6 +18,32 @@ export const ROUTINE_MAX_LIVE = 100;
 export type RoutineExercise = { name: string; sets: number; group?: string };
 
 /**
+ * A session never holds one exercise name twice (#1340, owner decision; sets are stored by exercise name, so two copies would share
+ * their set rows after a reload). The first occurrence of a name keeps its place and its fields; each later copy is dropped and its
+ * set count is added to the first, capped at `ROUTINE_SETS_MAX` (the per-exercise set limit; a first copy already above it is not cut).
+ * Then `normalizeGroups` repairs any group the removal broke (ADR 012). Returns a new array, never mutates; a list with no repeat
+ * comes back as `normalizeGroups` leaves it. A set count that is not a finite number counts as 0.
+ *
+ * New (#1340), not a prototype port: no prototype behaviour. Vectors in docs/spec/golden/dedupe.json.
+ */
+export function dedupeExercises<E extends { name: string; sets: number; group?: string | null }>(exs: readonly E[]): E[] {
+  const at = new Map<string, number>();
+  const out: E[] = [];
+  const n = (x: number): number => (Number.isFinite(x) ? x : 0);
+  for (const e of exs) {
+    const i = at.get(e.name);
+    if (i === undefined) {
+      at.set(e.name, out.length);
+      out.push(e);
+    } else {
+      const first = out[i] as E;
+      out[i] = { ...first, sets: Math.max(n(first.sets), Math.min(ROUTINE_SETS_MAX, n(first.sets) + n(e.sets))) };
+    }
+  }
+  return normalizeGroups(out);
+}
+
+/**
  * Valid-run group ids of `exs` (after `normalizeGroups`) replaced by `make(n)` for the n-th group in order of first appearance.
  * Ungrouped (and dissolved) exercises get no `group` key. Shared by `routineFromSession` and `startRoutine`.
  */
@@ -122,11 +148,13 @@ export function missingExercises(
 export function startRoutine(i: StartRoutineInput): StartedRoutine {
   const { labHold: _ignored, ...rest } = i as StartRoutineInput & { labHold?: boolean };
   const { setsLight, mods } = sessionMods(rest);
-  const gs = i.newId ? regroup(i.routine, i.newId) : [];
-  const exercises = i.routine.map((r, k) => {
+  // A stored routine may repeat a name (older data, another device): the session keeps one, sets merged (#1340).
+  const routine = dedupeExercises(i.routine);
+  const gs = i.newId ? regroup(routine, i.newId) : [];
+  const exercises = routine.map((r, k) => {
     const e = { name: r.name, sets: adjustSets(r.sets, { deload: mods.deload, light: setsLight }), bridge: false };
     return gs[k] === undefined ? e : { ...e, group: gs[k] as string };
   });
-  const missing = missingExercises(i.routine.map((r) => r.name), { catalogue: i.catalogue, exclusions: i.exclusions, tags: i.tags });
+  const missing = missingExercises(routine.map((r) => r.name), { catalogue: i.catalogue, exclusions: i.exclusions, tags: i.tags });
   return { exercises, mods, missing };
 }
