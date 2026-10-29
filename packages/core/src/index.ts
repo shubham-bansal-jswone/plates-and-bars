@@ -486,6 +486,7 @@ export {
   weeklyCheckin,
   habits,
   KCAL_PER_KG,
+  KCAL_PER_LB,
   RAPID_LOSS_KCAL,
   CHECKIN_KCAL_STEP,
   CARDIO_WEEK_MIN,
