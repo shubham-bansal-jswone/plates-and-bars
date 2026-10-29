@@ -353,6 +353,27 @@ describe('an untick in a superset while a rest runs', () => {
   });
 });
 
+describe('an untick after a rest that came from outside the superset', () => {
+  it('[X, (A, B)]: tick A1, finish X (rest: Next B1), untick A1: marker and dock on A1', async () => {
+    const { names } = await mount([null, 'g', 'g'], { restOff: false });
+    const [x, a, b] = [names[0]!, names[1]!, names[2]!];
+    await press(`${a}, 0/3 sets, A, up next. Show sets`);
+    await tick(a, 0, 'A1');
+    await press(`${x}, 0/3 sets. Show sets`);
+    for (let j = 1; j <= 3; j++) {
+      const [w, r] = screen.getAllByLabelText(new RegExp(`^${x} set ${j} `));
+      await fireEvent.changeText(w!, '40');
+      await fireEvent.changeText(r!, '10');
+      await press(`Mark ${x} set ${j} done`);
+    }
+    expect(screen.getByText(`Next: B1 ${b}`)).toBeTruthy();
+    await press(`${a}, 1/3 sets, A. Show sets`);
+    await press(new RegExp(`^Mark ${a} set 1, A1 done`));
+    expect(upNextOf([a, b])).toEqual([a]);
+    expect(screen.getByText(`Next: A1 ${a}`)).toBeTruthy();
+  });
+});
+
 describe('ringUntilBlur', () => {
   it('draws the ring and removes it on blur', () => {
     let blur = () => {};
