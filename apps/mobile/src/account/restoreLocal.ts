@@ -92,7 +92,6 @@ function shapeOk(tbl: SyncTableName, key: string, rec: Doc): boolean {
   if (DATE_KEYED.has(tbl)) return isYmd(key);
   if (tbl === 'food_logs') return UUID.test(key) && isYmd(rec.date) && typeof rec.qty === 'number';
   if (tbl === 'water_logs') return UUID.test(key) && isYmd(rec.date) && typeof rec.ml === 'number';
-  if (tbl === 'workout_sets') return UUID.test(key) && typeof rec.kind === 'string' && typeof rec.done === 'boolean';
   // A live lift stat is core's record shape: its day and its sets. A tombstone carries neither.
   if (tbl === 'lift_stats') return !!key && (rec.deleted_at != null || (isYmd(rec.date) && Array.isArray(rec.sets)));
   if (tbl === 'swaps') return key.length > 0;
@@ -187,6 +186,38 @@ function repairWorkout(rec: Doc): Fixed | null {
   return { rec: out, repaired: !same(out, rec) };
 }
 
+export const SET_KIND = ['work', 'ramp']; // WorkoutSet.kind
+export const SET_RATE = ['easy', 'right', 'hard', 'fail']; // WorkoutSet.rate, besides null
+export const SET_EXERCISE_MAX = 200; // WorkoutSet.exercise
+
+/**
+ * A workout set (live or tombstone) as the contract `WorkoutSet` wants it. Structurally unrepairable is null, and the set is
+ * skipped: `exercise` not a string of 1..SET_EXERCISE_MAX code points, `kind` not work or ramp, `done` not a boolean (a guess drops or invents a ticked set), `set_index` not an integer from 0 (it
+ * is the set's place, so a guess could collide with another set). Repaired and kept, and counted as repaired: `weight_kg` missing or
+ * not a number or negative becomes null; `reps` missing, not a number or negative becomes null and a fraction is rounded; `rate` missing or not easy, right, hard or fail becomes null; `t` missing or not a string becomes null; `deleted_at`
+ * missing becomes null. An invalid `t` or `updated_at` string never gets here: `normalizeTimestamps` refuses the file for it.
+ */
+function repairSet(rec: Doc): Fixed | null {
+  const { exercise, kind, set_index: idx } = rec;
+  // The contract has no minLength on `exercise`, but an empty name matches no exercise in the workout, so the set could not be read.
+  if (typeof exercise !== 'string' || exercise.length === 0 || len(exercise) > SET_EXERCISE_MAX) return null;
+  if (typeof kind !== 'string' || !SET_KIND.includes(kind)) return null;
+  if (typeof rec.done !== 'boolean') return null; // a guess would drop a ticked set or invent one
+  if (typeof idx !== 'number' || !Number.isInteger(idx) || idx < 0) return null;
+  const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+  const w = num(rec.weight_kg);
+  const r = num(rec.reps);
+  const out: Doc = {
+    ...rec,
+    weight_kg: w === null || w < 0 ? null : w,
+    reps: r === null || r < 0 ? null : Math.round(r),
+    rate: typeof rec.rate === 'string' && SET_RATE.includes(rec.rate) ? rec.rate : null,
+    t: typeof rec.t === 'string' ? rec.t : null,
+    deleted_at: rec.deleted_at ?? null,
+  };
+  return { rec: out, repaired: !same(out, rec) };
+}
+
 /** Validates the text of an export file strictly. Throws `RestoreError`; touches nothing. */
 export async function parseRestore(text: string): Promise<ParsedRestore> {
   if (text.length > MAX_RESTORE_BYTES) throw new RestoreError('too_large');
@@ -246,6 +277,12 @@ export async function parseRestore(text: string): Promise<ParsedRestore> {
         }
         setDate = dates.get(String(rec.workout_id)) ?? null;
         if (!setDate) throw new RestoreError('bad_rows'); // a set whose workout is not in the file
+        const fixed = repairSet(rec);
+        if (!fixed) {
+          skipped[tbl] = (skipped[tbl] ?? 0) + 1;
+          continue;
+        }
+        ({ rec, repaired } = fixed);
       }
       rows.push({ tbl, key, rec, setDate, repaired });
     }
@@ -268,7 +305,7 @@ export interface TableCounts {
   overCap?: number;
   /** Routines, workouts and their sets: rows in the file that are not valid (the server would refuse them). Skipped, never stored. */
   invalid?: number;
-  /** Routines and workouts: stored rows that were changed to fit the contract (a set count clamped, a group, part or flag corrected). */
+  /** Routines, workouts and sets: stored rows that were changed to fit the contract (a set count clamped, a group, part or flag corrected). */
   repaired?: number;
   /** First and last day among the file's rows of this table that have a date. */
   from?: string;

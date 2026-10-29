@@ -30,7 +30,7 @@ async function seed(db: Db) {
   await putFood(db, food('33333333-3333-4333-8333-333333333333', { deleted_at: '2026-10-09T01:00:00.000Z', name: 'gone' }));
   await db.runAsync('INSERT INTO weights (key, data) VALUES (?, ?)', '2026-10-08', JSON.stringify({ ...meta, id: null, date: '2026-10-08', weight_kg: 80 }));
   await db.runAsync('INSERT INTO workouts (key, data) VALUES (?, ?)', '2026-10-08', JSON.stringify({ ...meta, id: null, date: '2026-10-08', template: null, base: null, where: null, cardio_min: null, mods: {}, ci_choice: null, exercises: [] }));
-  await db.runAsync('INSERT INTO workout_sets (key, workout_date, kind, done, deleted, data) VALUES (?, ?, ?, ?, ?, ?)', '55555555-5555-4555-8555-555555555555', '2026-10-08', 'work', 0, 0, JSON.stringify({ ...meta, id: '55555555-5555-4555-8555-555555555555', workout_id: null, kind: 'work', done: false }));
+  await db.runAsync('INSERT INTO workout_sets (key, workout_date, kind, done, deleted, data) VALUES (?, ?, ?, ?, ?, ?)', '55555555-5555-4555-8555-555555555555', '2026-10-08', 'work', 0, 0, JSON.stringify({ ...meta, id: '55555555-5555-4555-8555-555555555555', workout_id: null, exercise: 'Squat', kind: 'work', set_index: 0, weight_kg: null, reps: null, done: false, rate: null, t: null }));
   await db.runAsync('INSERT INTO lift_stats (key, data) VALUES (?, ?)', 'Squat', JSON.stringify({ deleted_at: '2026-10-09T02:00:00.000Z' }));
   await db.runAsync('INSERT INTO lift_stats (key, data) VALUES (?, ?)', 'Bench', JSON.stringify({ date: '2026-10-05', sets: [{ w: 60, r: 5 }], form: null, n: 1, first: 60, prev: null, hist: [{ date: '2026-10-05', e: 70 }], pbToast: null }));
   await setLiftVersion(db, 'Bench', 2);
@@ -191,7 +191,6 @@ describe('restore from an export file (#1177)', () => {
       ['a workout key that is not a date', (t: Tables) => ({ ...t, workouts: [{ ...t.workouts?.[0], date: 'not-a-date' }] })],
       ['a food log without a date or a numeric qty', (t: Tables) => ({ ...t, food_logs: [{ ...t.food_logs?.[0], date: undefined, qty: 'lots' }] })],
       ['a food log id that is not a uuid', (t: Tables) => ({ ...t, food_logs: [{ ...t.food_logs?.[0], id: 'nope' }] })],
-      ['a set without a boolean done', (t: Tables) => ({ ...t, workout_sets: [{ ...t.workout_sets?.[0], done: 'yes' }] })],
       ['a version past the server range', (t: Tables) => ({ ...t, food_logs: [{ ...t.food_logs?.[0], version: 2 ** 31 }] })],
       ['a lift stat without updated_at', (t: Tables) => ({ ...t, lift_stats: [{ ...t.lift_stats?.find((r) => r.exercise === 'Bench'), updated_at: undefined }] })],
       ['a live lift stat with sets that are not a list', (t: Tables) => ({ ...t, lift_stats: [{ ...t.lift_stats?.find((r) => r.exercise === 'Bench'), sets: 'x' }] })],
@@ -200,6 +199,14 @@ describe('restore from an export file (#1177)', () => {
     ])('%s', async (_n, bad) => {
       const g = await good();
       expect((await code(JSON.stringify({ ...g, tables: bad(g.tables) })))?.code).toBe('bad_rows'.replace('bad_rows', _n === 'an inherited table name' ? 'bad_format' : 'bad_rows'));
+    });
+
+    it.each([['a done that is not a boolean', { done: 'yes' }], ['a kind that is not a string', { kind: 3 }]])('a set with %s is skipped and counted, not a refused file', async (_n, over) => {
+      const g = await good();
+      const tables = { ...g.tables, workout_sets: [{ ...g.tables.workout_sets?.[0], ...over }] };
+      const parsed = await parseRestore(JSON.stringify({ ...g, tables }));
+      const summary = await applyRestore(await openDb(), parsed, null);
+      expect(summary.tables.workout_sets).toMatchObject({ added: 0, invalid: 1 });
     });
 
     it('a failure part way rolls the whole restore back', async () => {
