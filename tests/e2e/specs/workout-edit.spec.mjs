@@ -1,4 +1,4 @@
-import { completeSetup, expect, label, reloadTo, saved, tab, test } from '../support/app.mjs';
+import { completeSetup, dialog, expect, label, openSheet, reloadTo, saved, tab, test } from '../support/app.mjs';
 
 // Editing today's session: Add exercise, a typed exercise with muscle tags, Remove exercise and the "Can't do" sheet.
 // Offline like logging.spec.mjs; every edit is checked again after a reload online (what comes back was read from SQLite).
@@ -23,15 +23,6 @@ async function expandEx(page, name) {
   const row = page.locator(`[aria-label^=${JSON.stringify(`${name}, `)}][aria-label$="Show sets"]`);
   await expect(row.or(page.locator(`[aria-label=${JSON.stringify(`Mark ${name} set 1 done`)}]`))).toBeVisible();
   if (await row.isVisible()) await row.click();
-}
-const dialog = (page, name) => page.locator(`[role="dialog"][aria-label=${JSON.stringify(name)}]`);
-/** Presses the opener, waits for the dialog with this name and for focus to land on its title; returns the dialog. */
-async function openSheet(page, opener, name) {
-  await opener.click();
-  const sheet = dialog(page, name);
-  await expect(sheet).toBeVisible();
-  await expect(sheet.locator('[role=heading]').first()).toBeFocused();
-  return sheet;
 }
 // The Workout screen has its own "Add exercise" button; the sheet is a dialog with the same name, so the opener is found by role.
 const addExercise = (page) => page.getByRole('button', { name: 'Add exercise', exact: true });

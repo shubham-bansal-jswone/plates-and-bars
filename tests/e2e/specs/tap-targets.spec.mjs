@@ -1,4 +1,4 @@
-import { completeSetup, expect, label, openApp, tab, test } from '../support/app.mjs';
+import { completeSetup, expect, label, openApp, openSheet, settled, tab, test } from '../support/app.mjs';
 
 // Switches and chips (#1192): one named tab stop per switch with the lime 2px ring, and every visible interactive control at
 // least 44x44 (the 40x20 switch track and the 32px Add-sheet pills stay as designed; their hit areas are 44).
@@ -73,9 +73,8 @@ for (const scheme of ['light', 'dark']) {
       expect(await tooSmall(page, '[aria-label="Start a rest timer after each set"]')).toEqual([]);
 
       await tab(page, 'Food');
-      await label(page, '+ Add to breakfast').click();
-      const dialog = page.locator('[role="dialog"][aria-label="Add to breakfast"]');
-      await expect(dialog).toBeVisible();
+      await settled(label(page, '+ Add to breakfast'));
+      await openSheet(page, label(page, '+ Add to breakfast'), 'Add to breakfast');
       expect(await tooSmall(page, '[role="dialog"]')).toEqual([]);
       await label(page, 'Custom').click();
       expect(await tooSmall(page, '[role="dialog"]')).toEqual([]);

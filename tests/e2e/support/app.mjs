@@ -137,6 +137,35 @@ export async function settled(locator) {
     .finally(() => clearTimeout(timer));
 }
 
+/** The dialog with this accessible name (a sheet). */
+export const dialog = (page, name) => page.locator(`[role="dialog"][aria-label=${JSON.stringify(name)}]`);
+
+/**
+ * Presses the opener, waits for the dialog with this name and for focus to land on its title; returns the dialog.
+ * The title takes focus only when the slide-in animation ends (react-native-web), so a stalled runner cannot fake it:
+ * a tap inside the sheet after this lands on a still sheet (a tap while it moves is dropped, #1315, #1411).
+ */
+export async function openSheet(page, opener, name) {
+  await opener.click();
+  const sheet = dialog(page, name);
+  await expect(sheet).toBeVisible();
+  await expect(sheet.locator('[role=heading]').first()).toBeFocused();
+  return sheet;
+}
+
+/**
+ * Logs one serving of a food in a meal from the Food tab: opens the add sheet, taps the food, waits until the write is
+ * stored (`saved`), then presses Done. `meal` is lower case ('breakfast'). Leaves the caller on the Food screen.
+ */
+export async function addFood(page, meal, name) {
+  await tab(page, 'Food');
+  const opener = label(page, `+ Add to ${meal}`);
+  await settled(opener); // the tab pane may still be mounting
+  const sheet = await openSheet(page, opener, `Add to ${meal}`);
+  await saved(page, () => sheet.locator(`[aria-label^=${JSON.stringify(name)}]`).first().click());
+  await label(page, 'Done').click();
+}
+
 /** Switches to a bottom tab (Food, Workout, Progress, Targets). */
 export const tab = (page, name) => label(page, name).click();
 
