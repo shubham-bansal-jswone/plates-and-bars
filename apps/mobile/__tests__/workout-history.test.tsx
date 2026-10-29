@@ -112,7 +112,7 @@ describe('Progress: recent workouts', () => {
     await saveWorkout(db, workout('2026-10-07', 'Pull A')); // a later day is a record; it must not badge 6 Oct
     await saveSet(db, '2026-10-07', wset('c', 'Row', 0, 100, 8));
     await setup(db);
-    await fireEvent.press(await screen.findByLabelText('6 Oct, Pull A, 1 set, 480 kg'));
+    await fireEvent.press(await screen.findByLabelText('Pull A, 6 Oct, 1 set, 480 kg'));
     await screen.findByRole('header', { name: 'Pull A' });
     expect(screen.queryByText('Personal best')).toBeNull();
   });
@@ -124,7 +124,7 @@ describe('Progress: recent workouts', () => {
     await saveWorkout(db, workout('2026-10-06', 'Pull A'));
     await saveSet(db, '2026-10-06', wset('a', 'Assisted Pull-up', 0, 20, 8)); // 8 x (82 - 20): a record; as a loaded lift it would not be
     await setup(db);
-    await fireEvent.press(await screen.findByLabelText('6 Oct, Pull A, 1 set, 160 kg'));
+    await fireEvent.press(await screen.findByLabelText('Pull A, 6 Oct, 1 set, 160 kg'));
     await screen.findByRole('header', { name: 'Pull A' });
     expect(await screen.findByText('Personal best')).toBeTruthy();
   });
