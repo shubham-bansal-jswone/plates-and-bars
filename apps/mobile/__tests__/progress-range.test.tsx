@@ -226,6 +226,19 @@ describe('TrendChart additions', () => {
     await render(<TrendChart points={pts} box={box} label="Weight" unit="kg" target={78} />);
     expect(cx()).toEqual(without);
     expect(without.length).toBe(2);
+    await screen.unmount();
+    // A target far above the data pushes the points to the bottom edge: y comes from the layout that includes the target.
+    await render(<TrendChart points={pts} box={box} label="Weight" unit="kg" target={200} />);
+    const cys = walk('RNSVGCircle').map((n) => Number(JSON.stringify(n.props).match(/"cy":([\d.]+)/)?.[1]));
+    expect(cys).toHaveLength(2);
+    for (const cy of cys) expect(Math.abs(cy - (box.H - box.py))).toBeLessThan(4);
+  });
+
+  it('the dates row is hidden from assistive tech, as the label carries them', async () => {
+    await render(<TrendChart points={pts} box={box} label="Weight" unit="kg" />);
+    const first = screen.getByText(shortDate('2026-09-01'), { includeHiddenElements: true });
+    expect(first.parent?.props['aria-hidden']).toBe(true);
+    expect(first.parent?.props.accessibilityElementsHidden).toBe(true);
   });
 
   it('is capped at CHART_MAX_WIDTH', async () => {
