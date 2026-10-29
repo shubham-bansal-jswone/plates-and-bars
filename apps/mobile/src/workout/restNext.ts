@@ -24,27 +24,33 @@ export function restTarget(exs: Exs, i: number, n: { ex: number; set: number }):
 }
 
 const open = (e: Exs[number]) => e.sets.some((x) => !x.done);
-/** The index of the exercise named `name` nearest to `near` (the lower one on a tie), or -1. */
-const nearest = (exs: Exs, name: string, near: number) =>
-  exs.reduce((b, e, k) => (e.name === name && (b < 0 || Math.abs(k - near) < Math.abs(b - near)) ? k : b), -1);
 
 /**
  * The ungrouped dock, exactly as before groups: the first name in `from` with an undone set becomes the label ('Next: Name') and the list is cut to start
- * there; none left closes it; while the first is still open nothing changes. Names are only looked for from the first one's position onward (`at.i`,
- * kept up to date here), so an earlier exercise with the same name cannot stand in for a finished one (#1329).
+ * there; none left closes it; while the first is still open nothing changes. The names are matched in order, each one searched after the exercise the
+ * previous one matched, starting at the first one's place (`at.i`, kept up to date here). So an earlier exercise with the same name cannot stand in for a
+ * finished one (#1329), a finished one is not stood in for by a later copy, and `at` never moves past an exercise still in `from`.
  */
 function retargetNames(exs: Exs, r: RestNext): RestNext | null {
   const from = r.from!;
   const head = from[0] ?? '';
   const at = r.at?.i ?? 0;
-  const k = exs[at]?.name === head ? at : nearest(exs, head, at); // ponytail: a removal before an equal-named head can mislead this (sync-made duplicates only)
-  const lo = k >= 0 ? k : at; // the first one is gone: its followers are at its place now
-  const pos = (n: string) => exs.findIndex((e, m) => m >= lo && e.name === n && open(e));
-  const first = from.find((n) => pos(n) >= 0);
-  if (first === undefined) return null;
-  const p = pos(first);
-  if (first === head) return p === r.at?.i ? r : { ...r, at: { i: p, name: head } };
-  return { ...r, from: from.slice(from.indexOf(first)), at: { i: p, name: first }, to: { ex: p, set: exs[p]!.sets.findIndex((x) => !x.done), name: first }, label: `Next: ${first}` };
+  // The first one's place: the last copy of its name at or before `at`, else the first after it (a pull inserted one before it). Removing an exercise
+  // removes every copy of its name, so with none left the exercises that followed it have moved up by an unknown count: look from the start (the old rule).
+  const copies = exs.flatMap((e, m) => (e.name === head ? [m] : []));
+  const lo = copies.length === 0 ? 0 : (copies.filter((m) => m <= at).pop() ?? copies[0]!);
+  let prev = lo - 1;
+  const pos = from.map((n) => {
+    const m = exs.findIndex((e, k) => k > prev && e.name === n);
+    if (m >= 0) prev = m;
+    return m;
+  });
+  const j = pos.findIndex((m) => m >= 0 && open(exs[m]!));
+  if (j < 0) return null;
+  const p = pos[j]!;
+  const first = from[j]!;
+  if (j === 0) return p === r.at?.i ? r : { ...r, at: { i: p, name: head } };
+  return { ...r, from: from.slice(j), at: { i: p, name: first }, to: { ex: p, set: exs[p]!.sets.findIndex((x) => !x.done), name: first }, label: `Next: ${first}` };
 }
 
 /**

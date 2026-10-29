@@ -290,6 +290,36 @@ describe('the dock follows the session by position (#1329)', () => {
     expect(restRetarget(exs, at(2, 'Bench', { ex: 2, set: 0, name: 'Bench' }, 'Next: set 1 of Bench', ['Bench']))).toBeNull();
   });
 
+  it('ungrouped, a finished first one is not stood in for by a later copy of its name: the exercises between stay next', () => {
+    // [Lateral Raise 1 set, Assisted Dips 1 set, Lateral Raise 2 sets]: both Lateral Raises done, Dips open. The base keeps "Next: Assisted Dips".
+    const exs = [ex('Lateral Raise', true), ex('Assisted Dips', false), ex('Lateral Raise', true, true)];
+    const r = at(0, 'Lateral Raise', { ex: 1, set: 0, name: 'Assisted Dips' }, 'Next: Assisted Dips', ['Lateral Raise', 'Assisted Dips', 'Lateral Raise']);
+    expect(restRetarget(exs, r)).toMatchObject({ label: 'Next: Assisted Dips', at: { i: 1, name: 'Assisted Dips' }, from: ['Assisted Dips', 'Lateral Raise'] });
+    // The later copy still open: Dips stays first, the later copy is only after it.
+    expect(restRetarget([ex('Lateral Raise', true), ex('Assisted Dips', false), ex('Lateral Raise', false)], r)).toMatchObject({ label: 'Next: Assisted Dips' });
+  });
+
+  it('ungrouped, the first one removed together with an earlier copy of its name: its followers are looked for from the start', () => {
+    // [Bench, Bench, Machine Shoulder Press, Pec Deck Fly]: the second Bench ticked (at 1), then every Bench removed. The base shows the press, not the fly.
+    const exs = [ex('Machine Shoulder Press', false), ex('Pec Deck Fly', false)];
+    const r = at(1, 'Bench', { ex: 1, set: 1, name: 'Bench' }, 'Next: set 2 of Bench', ['Bench', 'Machine Shoulder Press', 'Pec Deck Fly']);
+    expect(restRetarget(exs, r)).toMatchObject({ label: 'Next: Machine Shoulder Press', at: { i: 0, name: 'Machine Shoulder Press' } });
+  });
+
+  it('ungrouped, the first one is found at its own place, or the nearest copy after it when a pull put a new exercise before it', () => {
+    const r = at(0, 'B', { ex: 0, set: 1, name: 'B' }, 'Next: set 2 of B', ['B', 'C']);
+    expect(restRetarget([ex('X', false), ex('B', true), ex('C', false)], r)).toMatchObject({ label: 'Next: C', at: { i: 2, name: 'C' } });
+    expect(restRetarget([ex('X', false), ex('B', false, false), ex('C', false)], r)).toMatchObject({ at: { i: 1, name: 'B' }, label: 'Next: set 2 of B' });
+    // An earlier copy of the first one's name is not used when `at` points at a later one.
+    const r2 = at(2, 'B', { ex: 2, set: 1, name: 'B' }, 'Next: set 2 of B', ['B', 'C']);
+    expect(restRetarget([ex('B', false), ex('Y', true), ex('B', true), ex('C', false)], r2)).toMatchObject({ label: 'Next: C', at: { i: 3, name: 'C' } });
+  });
+
+  it('ungrouped, a name listed twice matches two different exercises in order', () => {
+    const r = at(0, 'B', { ex: 0, set: 1, name: 'B' }, 'Next: set 2 of B', ['B', 'B']);
+    expect(restRetarget([ex('B', true), ex('B', false)], r)).toMatchObject({ at: { i: 1, name: 'B' }, from: ['B'] });
+  });
+
   it('grouped: two exercises with one name cannot stand in for each other either', () => {
     const exs = [ex('Bench', false), ex('Squat', true), ex('Row', true), ex('Bench', true)];
     expect(restRetarget(exs, at(1, 'Squat', { ex: 3, set: 0, name: 'Bench' }))).toBeNull();
