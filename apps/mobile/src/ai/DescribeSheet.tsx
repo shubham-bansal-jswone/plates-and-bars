@@ -1,14 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { SheetModal } from '../components/Sheet';
 import { ScrollView, StyleSheet, View } from 'react-native';
-import { customFood } from '@plate-and-bar/core';
+import { customFood, isBlank } from '@plate-and-bar/core';
 import { Heading, Button, Card, ErrorText, Field, Hint, Label } from '../components/ui';
 import { CUSTOM_MESSAGE } from '../food/copy';
 import type { NewLog } from '../food/useFoodDay';
 import { useTheme } from '../theme/useTheme';
 import { useAi } from './AiProvider';
 import { AI_COPY, failureMessage } from './copy';
-import { isBlank } from '../text/blank';
 
 interface Row {
   key: number;

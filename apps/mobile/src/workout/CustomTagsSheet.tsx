@@ -10,7 +10,7 @@ import { BodyMap } from './BodyMap';
 import { MUSCLE_CODES, muscleName } from './copy';
 import { FALLBACK_TAGS, tagsFromSuggestion } from './suggestTags';
 import { type } from '../theme/tokens';
-import { isBlank } from '../text/blank';
+import { isBlank } from '@plate-and-bar/core';
 
 /**
  * Tags for an exercise the user typed (prototype `tagSheet`): the muscles it trains, so it gets coverage, swaps and weight

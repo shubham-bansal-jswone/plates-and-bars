@@ -3,7 +3,7 @@ import exercises from '../../../../content/exercises.json';
 import { has, isProtoName } from '../content/own';
 import { contentReader, isArrOf, isNum, isNumIn, isObj, isStr, isText, perLoad } from '../content/reader';
 import { MUSCLE_CODES, TYPE_LABEL } from './copy';
-import { isBlank } from '../text/blank';
+import { isBlank } from '@plate-and-bar/core';
 
 /** One exercise's how-to card (content/exercises.json `cards`, long keys). */
 export interface ExerciseCard {
