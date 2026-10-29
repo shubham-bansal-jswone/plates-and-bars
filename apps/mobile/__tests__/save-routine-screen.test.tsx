@@ -1,6 +1,9 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { WorkoutScreen } from '../src/screens/WorkoutScreen';
 import { CompletionPanel } from '../src/workout/CompletionPanel';
+import { SyncContext, type SyncState } from '../src/sync/SyncProvider';
+import { getCatalog } from '../src/workout/catalog';
+import { loadWorkout, saveSet, saveWorkout } from '../src/db/workouts';
 import { loadRoutines } from '../src/db/routines';
 import { saveProfile } from '../src/db/records';
 import { saveSettings } from '../src/db/settings';
@@ -112,6 +115,111 @@ describe('Save as routine on the Workout screen', () => {
       await waitFor(() => expect(screen.queryByLabelText(T.nameLabel)).toBeNull());
     }
     expect(await loadRoutines(db)).toHaveLength(2);
+  });
+});
+
+describe('Save as routine after Complete workout keeps the planned session only while the list is unchanged', () => {
+  const PUSH_B = ['Barbell Bench Press', 'Machine Shoulder Press', 'Pec Deck Fly', 'Cable Lateral Raise', 'Overhead Cable Extension'];
+  async function tick(name: string, n = 1) {
+    await expand(name);
+    for (let i = 1; i <= n; i++) {
+      await fireEvent.changeText(screen.queryByLabelText(`${name} set ${i} kg`) ?? screen.getByLabelText(`${name} set ${i} kg each`), '10');
+      await fireEvent.changeText(screen.getByLabelText(`${name} set ${i} reps`), '10');
+      await press(`Mark ${name} set ${i} done`);
+    }
+  }
+  async function completeEarly() {
+    await fireEvent.press(await screen.findByLabelText('Start Push B'));
+    await screen.findByText('Push B');
+    await tick('Barbell Bench Press');
+    await press('Complete workout');
+    await press('Confirm');
+    await screen.findByText('Session done');
+  }
+  async function saved(db: Awaited<ReturnType<typeof openDb>>) {
+    await press(T.save);
+    await waitFor(async () => expect(await loadRoutines(db)).toHaveLength(1));
+    return (await loadRoutines(db))[0]!.exercises.map((e) => [e.name, e.sets]);
+  }
+
+  it('saves the full planned session when nothing changed after Complete (unticked sets included)', async () => {
+    const db = await mount();
+    await completeEarly();
+    await press(T.action);
+    expect(await saved(db)).toEqual(PUSH_B.map((n) => [n, 3]));
+  });
+
+  it('an exercise added and done after Complete is saved with the current session, not the old plan', async () => {
+    const db = await mount();
+    await completeEarly();
+    await press('Add exercise');
+    await press('Add Goblet Squat');
+    await screen.findByText('Goblet Squat added');
+    await tick('Goblet Squat', 3);
+    await screen.findByText('Session done');
+    await press(T.action);
+    expect(await saved(db)).toEqual([['Barbell Bench Press', 1], ['Goblet Squat', 3]]);
+  });
+
+  it('a second session added after an early finish is saved with the current session', async () => {
+    const db = await mount();
+    await completeEarly();
+    await press('Training again later today?');
+    await press('Add Pull A');
+    await waitFor(() => expect(screen.queryByText('Session done')).toBeNull());
+    // Tick every open set, one exercise at a time, until the session is done again.
+    const ticked = new Set<string>();
+    for (let guard = 0; guard < 60 && !screen.queryByText('Session done'); guard++) {
+      const mark = screen.queryAllByLabelText(/^Mark .* set \d+ done$/).find((m) => !ticked.has(m.props.accessibilityLabel) && !m.props.accessibilityLabel.includes('Barbell'));
+      if (!mark) {
+        const open = screen.queryAllByRole('button', { name: /\d+\/\d+ sets\. Show sets/ }).find((b) => /(\d+)\/(\d+)/.test(b.props.accessibilityLabel) && RegExp.$1 !== RegExp.$2);
+        await fireEvent.press(open!);
+        continue;
+      }
+      const [, n, i] = /^Mark (.*) set (\d+) done$/.exec(mark.props.accessibilityLabel as string)!;
+      await fireEvent.changeText(screen.queryByLabelText(`${n} set ${i} kg`) ?? screen.getByLabelText(`${n} set ${i} kg each`), '10');
+      await fireEvent.changeText(screen.getByLabelText(`${n} set ${i} reps`), '10');
+      await fireEvent.press(mark);
+      ticked.add(mark.props.accessibilityLabel);
+    }
+    await screen.findByText('Session done');
+    await press(T.action);
+    const rows = await saved(db);
+    expect(rows[0]).toEqual(['Barbell Bench Press', 1]);
+    expect(rows.length).toBeGreaterThan(1);
+    expect(rows.map((r) => r[0])).not.toContain('Machine Shoulder Press');
+  });
+
+  it('a sync pull that changes the day while the panel shows discards the plan', async () => {
+    const db = await openDb();
+    await saveSettings(db as never, defaultSettings('2026-10-08T00:00:00Z'));
+    await saveProfile(db as never, { ...profile, where: 'gym' });
+    const ui = (dataVersion: number) => <SyncContext.Provider value={{ dataVersion } as SyncState}>{withProfile(db as never, <WorkoutScreen db={db as never} now={THURSDAY} />)}</SyncContext.Provider>;
+    const view = await render(ui(0));
+    await completeEarly();
+    const wk = (await loadWorkout(db as never, '2026-10-08'))!;
+    await saveWorkout(db as never, { ...wk, exercises: [...wk.exercises, { name: 'Goblet Squat', part: 1, bridge: false, form: null, found_kg: null, skip_ramp: false }] });
+    for (let i = 0; i < 3; i++) await saveSet(db as never, '2026-10-08', { id: `pulled-${i}`, version: 0, updated_at: '2026-10-08T06:00:00Z', deleted_at: null, workout_id: null, exercise: 'Goblet Squat', kind: 'work', set_index: i, weight_kg: 10, reps: 10, done: true, rate: null, t: null });
+    await view.rerender(ui(1));
+    await waitFor(() => expect(screen.getByLabelText(T.action)).toBeTruthy());
+    await press(T.action);
+    expect(await saved(db)).toEqual([['Barbell Bench Press', 1], ['Goblet Squat', 3]]);
+  });
+
+  it('a 51-exercise day shows the first-50 notice and saves 50', async () => {
+    const db = await openDb();
+    await saveSettings(db as never, defaultSettings('2026-10-08T00:00:00Z'));
+    await saveProfile(db as never, { ...profile, where: 'gym' });
+    const names = Object.keys(getCatalog().meta).slice(0, 51);
+    expect(names).toHaveLength(51);
+    await saveWorkout(db as never, { id: null, version: 0, updated_at: '2026-10-08T05:00:00Z', deleted_at: null, date: '2026-10-08', template: 'Big', base: 'Big', where: 'gym', cardio_min: null, mods: {}, ci_choice: null, exercises: names.map((name) => ({ name, part: 1, bridge: false, form: null, found_kg: null, skip_ramp: false })) });
+    for (const [i, name] of names.entries()) await saveSet(db as never, '2026-10-08', { id: `s-${i}`, version: 0, updated_at: '2026-10-08T05:00:00Z', deleted_at: null, workout_id: null, exercise: name, kind: 'work', set_index: 0, weight_kg: null, reps: null, done: false, rate: null, t: null });
+    await render(withProfile(db as never, <WorkoutScreen db={db as never} now={THURSDAY} />));
+    await press(T.action);
+    expect(screen.getByText(T.capped(50))).toBeTruthy();
+    await press(T.save);
+    await waitFor(async () => expect(await loadRoutines(db)).toHaveLength(1));
+    expect((await loadRoutines(db))[0]!.exercises).toHaveLength(50);
   });
 });
 

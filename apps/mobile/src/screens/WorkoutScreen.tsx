@@ -529,8 +529,16 @@ function SessionView({ now, db, reloadKey, w, profile, focus, rules, notify, tun
   const mapShown = mapOpen ?? done === 0;
   const complete = all > 0 && done === all;
   // "Complete workout" drops the unticked sets and exercises, so the planned session is kept from the moment it is pressed.
-  const [finished, setFinished] = useState<{ routine: ReturnType<typeof routineFromSession>; total: number } | null>(null);
-  const { routine, total } = complete && finished ? finished : { routine: routineFromSession(day.exs.map((e) => ({ name: e.name, sets: e.sets.length }))), total: day.exs.length };
+  // It stays valid only while the exercise list (names and set counts) is the one Complete left behind (`sig`, taken once the drop has landed);
+  // any later change (add, swap, remove, second session, sync reload) discards it and the live session is saved.
+  // v1 limit: the snapshot is component state, so after a remount (another day and back, app reload) the post-drop session is what gets saved.
+  const sig = JSON.stringify(day.exs.map((e) => [e.name, e.sets.length]));
+  const [finished, setFinished] = useState<{ routine: ReturnType<typeof routineFromSession>; total: number; sig: string | null } | null>(null);
+  const live = { routine: routineFromSession(day.exs.map((e) => ({ name: e.name, sets: e.sets.length }))), total: day.exs.length };
+  const { routine, total } = complete && finished && (finished.sig === null || finished.sig === sig) ? finished : live;
+  // Adjusting state during render (React's pattern for state derived from props): take the signature once the drop has landed, drop the snapshot when the list moves on.
+  if (finished && finished.sig === null && complete) setFinished({ ...finished, sig });
+  else if (finished && finished.sig !== null && finished.sig !== sig) setFinished(null);
   useEffect(() => {
     if (!focusPanel.current || !complete) return;
     focusPanel.current = false;
@@ -605,7 +613,7 @@ function SessionView({ now, db, reloadKey, w, profile, focus, rules, notify, tun
         </Card>
       ) : null}
       <CardioBlock value={wk.cardio_min} onSave={w.setCardio} />
-      {done > 0 && !complete ? <FinishWorkout done={done} all={all} onFinish={() => (setFinished({ routine, total }), (focusPanel.current = w.finishEarly()))} /> : null}
+      {done > 0 && !complete ? <FinishWorkout done={done} all={all} onFinish={() => (setFinished({ routine, total, sig: null }), (focusPanel.current = w.finishEarly()))} /> : null}
     </>
   );
 
