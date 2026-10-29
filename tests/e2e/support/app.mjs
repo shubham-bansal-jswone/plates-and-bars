@@ -106,22 +106,35 @@ export async function completeSetup(page) {
  */
 export async function settled(locator) {
   await locator.waitFor({ state: 'visible' });
-  await locator.evaluate(
-    (el) =>
-      new Promise((resolve) => {
-        let last = '';
-        let same = 0;
-        const tick = () => {
-          const r = el.getBoundingClientRect();
-          const now = `${r.x},${r.y},${r.width},${r.height}`;
-          same = now === last ? same + 1 : 0;
-          last = now;
-          if (same >= 10) resolve();
-          else requestAnimationFrame(tick);
-        };
-        tick();
-      }),
-  );
+  const handle = await locator.elementHandle();
+  let timer;
+  await Promise.race([
+    handle.evaluate(
+      (el) =>
+        new Promise((resolve, reject) => {
+          let last = '';
+          let same = 0;
+          const tick = () => {
+            // A node React replaced reads 0,0,0,0 for ever: it must not count as still.
+            if (!el.isConnected) return reject(new Error('detached'));
+            const r = el.getBoundingClientRect();
+            const now = `${r.x},${r.y},${r.width},${r.height}`;
+            same = now === last ? same + 1 : 0;
+            last = now;
+            if (same >= 10) resolve();
+            else requestAnimationFrame(tick);
+          };
+          tick();
+        }),
+    ),
+    new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error('timeout')), 15_000);
+    }),
+  ])
+    .catch((e) => {
+      throw new Error(`settled(): ${e.message.includes('detached') ? 'the element was replaced while waiting' : 'the element did not hold still for 10 frames within 15 s'}: ${locator}`);
+    })
+    .finally(() => clearTimeout(timer));
 }
 
 /** Switches to a bottom tab (Food, Workout, Progress, Targets). */

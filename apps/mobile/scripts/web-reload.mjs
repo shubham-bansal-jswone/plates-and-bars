@@ -119,7 +119,7 @@ try {
   }
   await click('See my targets');
   await click('Use these targets');
-  // Setup ends on the Food tab with a toast (since the design overhaul), so open Targets from the tab bar.
+  // Setup ends on the Food tab (since the design overhaul), so open Targets from the tab bar.
   await click('Targets');
   await page.waitForSelector(sel('Redo setup'), { timeout: 20000 }); // only Targets has it (the setup results also show 1,990 kcal)
   await kcalIs('1,990');

@@ -113,7 +113,6 @@ const screens = {
     // The sheet slides in; a tap while it moves is dropped on a slow runner (#1315), so wait until the row and Done are still.
     const roti = page.locator('[aria-label^="Roti / chapati"]').first();
     await settled(roti);
-    await settled(label(page, 'Done'));
     await roti.click();
     await label(page, 'Done').click();
     await expect(label(page, '102 of 1,990 kcal eaten')).toBeVisible();
@@ -136,7 +135,7 @@ const screens = {
     const table = page.locator('[role=table][aria-label="Weight values by date"] >> visible=true');
     await expect(table).toHaveCount(1);
     await expect(table.locator('[role=columnheader]')).toHaveCount(2);
-    // A header row plus the two weigh-ins saved above (completeSetup stores none), two cells each.
+    // A header row plus the two weigh-ins saved above (setup stores today's 82 kg weigh-in, but saving 81.6 for the same day replaces it, so today and yesterday are the only rows), two cells each.
     await expect(table.locator('[role=row]')).toHaveCount(3);
     await expect(table.locator('[role=cell]')).toHaveCount(4);
   },
@@ -151,6 +150,7 @@ const screens = {
   },
   library: async (page) => {
     await tab(page, 'Targets');
+    await settled(label(page, 'Exercise library'));
     await label(page, 'Exercise library').click();
     await expect(label(page, 'Search exercises')).toBeVisible();
   },
