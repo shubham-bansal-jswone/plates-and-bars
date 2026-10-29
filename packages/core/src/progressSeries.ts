@@ -18,14 +18,15 @@ export const DOWNSAMPLE_THRESHOLD = 120;
 export type DownsampleMode = 'last' | 'max';
 
 /**
- * Points dated on or after `today` minus 28 days ('4w') or 84 days ('12w'); the boundary day is kept.
+ * Points dated on or after `end` minus 28 days ('4w') or 84 days ('12w'); the boundary day is kept. `end` is the
+ * series end date: the date being viewed (today when viewing today), the same `upTo` the series were built with.
  * 'all' keeps every point. Order is unchanged and the input is not modified.
  *
  * New rule (#1351 C1).
  */
-export function rangeSeries(points: readonly TrendPoint[], today: string, range: SeriesRange): TrendPoint[] {
+export function rangeSeries(points: readonly TrendPoint[], end: string, range: SeriesRange): TrendPoint[] {
   if (range === 'all') return [...points];
-  const cut = addDays(today, -RANGE_DAYS[range]);
+  const cut = addDays(end, -RANGE_DAYS[range]);
   return points.filter((p) => p.date >= cut);
 }
 
@@ -33,7 +34,7 @@ export function rangeSeries(points: readonly TrendPoint[], today: string, range:
  * With more than `DOWNSAMPLE_THRESHOLD` points, one point per Monday-week (`mondayOf`, calendar days so a DST
  * change does not matter), oldest week first: for 'last' the week's latest point, for 'max' its highest value
  * (the earliest such point on a tie). The kept point keeps its own date and value. A series at or under the
- * threshold is returned unchanged. Input need not be sorted.
+ * threshold is returned as a copy, values unchanged. Input need not be sorted.
  *
  * New rule (#1351 C1).
  */
@@ -46,5 +47,5 @@ export function downsampleWeekly(points: readonly TrendPoint[], mode: Downsample
     const cur = weeks.get(wk);
     if (!cur || mode === 'last' || p.v > cur.v) weeks.set(wk, p);
   }
-  return [...weeks.entries()].sort((a, b) => (a[0] < b[0] ? -1 : 1)).map(([, p]) => p);
+  return [...weeks.values()];
 }

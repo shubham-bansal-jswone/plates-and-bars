@@ -658,6 +658,12 @@ export const WEIGHT_CHART_POINTS = 30;
 /** Measurements on the waist chart (prototype `measuresHtml`'s `slice(-20)`). */
 export const WAIST_CHART_POINTS = 20;
 
+/** The last `limit` of `pts`: all for `Infinity`, none unless `limit > 0` (so 0, negatives and NaN give `[]`). */
+function lastN<T>(pts: T[], limit: number): T[] {
+  if (!(limit > 0)) return [];
+  return limit >= pts.length ? pts : pts.slice(-limit);
+}
+
 const byDate = <T extends readonly [string, unknown]>(a: T, b: T): number => (a[0] < b[0] ? -1 : 1);
 
 /**
@@ -665,14 +671,17 @@ const byDate = <T extends readonly [string, unknown]>(a: T, b: T): number => (a[
  * `trendChange`, need 2 or more; with fewer the prototype shows "Log a few weigh-ins to see your trend
  * line here."
  *
+ * `limit` (default 30) is the most points kept: `Infinity` keeps all, and 0, a negative or NaN gives none (new, #1351 C1,
+ * for the 12w and All ranges; the default leaves the output as the prototype's).
+ *
  * Mirrors the series in prototype `weightChart()`.
  */
-export function weightSeries(weighIns: readonly WeighIn[], upTo: string): TrendPoint[] {
-  return [...entries(weighIns)]
+export function weightSeries(weighIns: readonly WeighIn[], upTo: string, limit: number = WEIGHT_CHART_POINTS): TrendPoint[] {
+  const pts = [...entries(weighIns)]
     .filter(([d]) => d <= upTo)
     .sort(byDate)
-    .slice(-WEIGHT_CHART_POINTS)
     .map(([date, v]) => ({ date, v }));
+  return lastN(pts, limit);
 }
 
 /**
@@ -687,7 +696,7 @@ export function waistSeries(measurements: readonly MeasurementFacts[], upTo: str
 
 /**
  * The points for any tape part: the last `limit` (default 20, `WAIST_CHART_POINTS`) days with a nonzero value for
- * `key` on or before `date`, oldest first. Pass `Infinity` for no cap. Deleted rows are ignored.
+ * `key` on or before `date`, oldest first. Pass `Infinity` for no cap; `limit` 0, a negative or NaN gives `[]`. Deleted rows are ignored.
  *
  * New rule (#1351 C1), the general form of `waistSeries`; `waistSeries` calls it with `'waist_cm'`.
  */
@@ -702,7 +711,7 @@ export function measureSeries(
     .map((m) => [m.date, m[key] as number] as const)
     .sort(byDate)
     .map(([d, v]) => ({ date: d, v }));
-  return limit >= pts.length ? pts : pts.slice(-limit);
+  return lastN(pts, limit);
 }
 
 /**
