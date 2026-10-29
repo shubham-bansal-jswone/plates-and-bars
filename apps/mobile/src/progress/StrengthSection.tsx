@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from 'react';
 import { StyleSheet, View, useWindowDimensions } from 'react-native';
-import { latestWeight, milestones as milestonesOf, personalRecords, WEIGHT_CHART_BOX, type SessionLog } from '@plate-and-bar/core';
+import { bodyweightOn, latestWeight, milestones as milestonesOf, personalRecords, WEIGHT_CHART_BOX, type SessionLog } from '@plate-and-bar/core';
 import { Text } from '../components/Text';
 import { Card, Heading, Hint, Press, a11yState } from '../components/ui';
 import { dateWithYear, shortDate } from '../format';
@@ -10,7 +10,6 @@ import { radius, space, type as typeScale } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { PR_LABEL, prText } from '../workout/copy';
 import { weightNumber } from '../workout/unitText';
-import { bodyweightOn } from './bodyweight';
 import { Milestones } from './Milestones';
 import { E1RM_NOTE } from './E1rmTrend';
 import { RangedTrend } from './RangedTrend';

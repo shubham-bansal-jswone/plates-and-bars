@@ -1,5 +1,5 @@
 import { addDays, mondayOf } from './dates';
-import { habits, latestWeight, type WeighIn } from './progress';
+import { bodyweightOn, habits, type WeighIn } from './progress';
 import { sessionDates, type PlanProfile, type SessionLog } from './plan';
 import type { ExType } from './progression';
 import type { PrSet } from './records';
@@ -136,13 +136,12 @@ export function milestones(
   });
 
   // 2 and 3. Bodyweight multiples, against the bodyweight of the day of the set.
-  const bodyweightOn = (date: string): number | null => latestWeight(weights, date) ?? (profile?.weight_kg || null);
   const times = (names: readonly string[], x: number): Hit | null =>
     earliest(
       live
         .filter((s) => names.includes(s.exercise))
         .filter((s) => {
-          const bw = bodyweightOn(s.date);
+          const bw = bodyweightOn(weights, s.date, profile?.weight_kg);
           return bw !== null && (s.weight_kg as number) >= bw * x - KG_EPSILON;
         })
         .map((s) => ({ date: s.date, lift: s.exercise, w: s.weight_kg as number })),

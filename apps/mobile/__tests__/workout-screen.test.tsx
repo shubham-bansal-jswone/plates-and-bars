@@ -13,6 +13,8 @@ import { getCatalog } from '../src/workout/catalog';
 import { HAND_PICKED } from '@plate-and-bar/core';
 import type { ExType, LiftRecord } from '@plate-and-bar/core';
 import type { Workout, WorkoutSet } from '../src/workout/types';
+import { focusNode } from '../src/labelscan/focus';
+import { SyncContext, type SyncState } from '../src/sync/SyncProvider';
 import { memoryDb, withProfile } from './helpers';
 
 jest.mock('expo-router', () => ({ useRouter: () => ({ replace: jest.fn(), push: jest.fn() }), useFocusEffect: (cb: () => void) => jest.requireActual('react').useEffect(cb, []) }));
@@ -114,6 +116,8 @@ afterEach(() => {
   fake = false;
   jest.useRealTimers();
 });
+
+jest.mock('../src/labelscan/focus', () => ({ ...jest.requireActual('../src/labelscan/focus'), focusNode: jest.fn() }));
 
 describe('Workout tab: preview and Start', () => {
   it('shows today’s planned session from core with a Start button', async () => {
@@ -826,6 +830,71 @@ describe('Workout tab: logging sets', () => {
     expect(placeholder('Barbell Bench Press set 2 kg')).toBe('65');
     await press('Barbell Bench Press set 1 rated Easy. Change rating');
     await waitFor(() => expect(storedSets(db).every((s) => s.rate === null)).toBe(true));
+  });
+
+  describe('focus follows the rating control (#1408)', () => {
+    const CHANGE = 'Barbell Bench Press set 1 rated Hard. Change rating';
+    // focusNode is the shared helper (native: setAccessibilityFocus, web: element.focus()); what it was given says which control took focus.
+    const spy = () => jest.mocked(focusNode).mockClear();
+    const target = (focus: jest.Mock, n: number) => (focus.mock.calls[n]?.[0] as { props?: { accessibilityLabel?: string } } | undefined)?.props?.accessibilityLabel;
+
+    it('rating a set moves focus to its "Change rating" button', async () => {
+      const focus = jest.mocked(focusNode); spy();
+      await started();
+      await press('Mark Barbell Bench Press set 1 done');
+      focus.mockClear();
+      await press('Barbell Bench Press set 1: Hard');
+      await screen.findByLabelText(CHANGE);
+      await waitFor(() => expect(focus).toHaveBeenCalledTimes(1));
+      expect(target(focus, 0)).toBe(CHANGE);
+    });
+
+    it('pressing "Change rating" moves focus to the first rating chip', async () => {
+      const focus = jest.mocked(focusNode); spy();
+      await started();
+      await press('Mark Barbell Bench Press set 1 done');
+      await press('Barbell Bench Press set 1: Hard');
+      await screen.findByLabelText(CHANGE);
+      await waitFor(() => expect(focus).toHaveBeenCalledTimes(1));
+      focus.mockClear();
+      await press(CHANGE);
+      await screen.findByLabelText('Barbell Bench Press set 1: Easy');
+      await waitFor(() => expect(focus).toHaveBeenCalledTimes(1));
+      expect(target(focus, 0)).toBe('Barbell Bench Press set 1: Easy');
+    });
+
+    it('takes no focus when a rated set is shown again after a remount', async () => {
+      const focus = jest.mocked(focusNode); spy();
+      const db = await started();
+      await press('Mark Barbell Bench Press set 1 done');
+      await press('Barbell Bench Press set 1: Hard');
+      await screen.findByLabelText(CHANGE);
+      await waitFor(() => expect(storedSets(db).find((x) => x.rate)?.rate).toBe('hard'));
+      await screen.unmount();
+      focus.mockClear();
+      await mount(db);
+      await screen.findByLabelText(CHANGE);
+      expect(focus).not.toHaveBeenCalled();
+    });
+
+    it('takes no focus when a sync pull rates the set', async () => {
+      const focus = jest.mocked(focusNode); spy();
+      const db = await setup({ lifts });
+      await screen.unmount();
+      const ui = (v: number) => withProfile(db, <SyncContext.Provider value={{ dataVersion: v } as SyncState}><WorkoutScreen db={db} now={THURSDAY} /></SyncContext.Provider>);
+      const { rerender } = await render(ui(0));
+      await press('Start Push B');
+      await screen.findByText('Push B');
+      await press('Mark Barbell Bench Press set 1 done');
+      await screen.findByLabelText('Barbell Bench Press set 1: Hard');
+      await waitFor(() => expect(storedSets(db).some((x) => x.exercise === 'Barbell Bench Press' && x.done)).toBe(true));
+      const row = storedSets(db).find((x) => x.exercise === 'Barbell Bench Press' && x.done)!;
+      await saveSet(db, '2026-10-08', { ...row, rate: 'hard' });
+      focus.mockClear();
+      await rerender(ui(1));
+      await screen.findByLabelText(CHANGE);
+      expect(focus).not.toHaveBeenCalled();
+    });
   });
 
   it('asks about form after the last set and stores the answer on the exercise', async () => {
