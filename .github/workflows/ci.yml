@@ -150,7 +150,11 @@ jobs:
           node-version: 22
       - run: node .opencode/generate-agents.mjs
       - name: Generated agents match the committed ones
-        run: git diff --exit-code .opencode/agents
+        # intent-to-add on untracked files only, so a newly generated file shows up in the diff
+        # (a plain `git add -N <dir>` would also stage deletions and hide them)
+        run: |
+          git ls-files --others --exclude-standard -z .opencode/agents | xargs -0 -r git add --intent-to-add --
+          git diff --exit-code .opencode/agents
 
   content-meta:
     name: content-meta (bundled.json)
