@@ -23,6 +23,8 @@ import { MeasureTrend } from '../progress/MeasureTrend';
 import { EatingByWeek } from '../progress/EatingByWeek';
 import { useWeeklyIntake } from '../progress/useWeeklyIntake';
 import { WeeksOnTrack } from '../progress/WeeksOnTrack';
+import { VolumeSection } from '../progress/VolumeSection';
+import { useProgressSets } from '../progress/useProgressSets';
 import { useProgress } from '../progress/useProgress';
 import { useStoredText } from '../progress/useStoredText';
 import { useProfile } from '../state/ProfileProvider';
@@ -68,6 +70,8 @@ export function ProgressScreen({ db, now = () => new Date() }: Props) {
   const labs = useLabs({ db, today: v.today, notify, reloadKey: dataVersion });
   const ci = useCheckin({ db, date: p.date, weights: p.weights, now, notify, reloadKey: dataVersion });
 
+  // All done sets, read once and shared by Strength and Training volume (not the steps version: a step reading must not re-read every set).
+  const sets = useProgressSets(db, useDataVersion(), settings?.settings.exercise_overrides);
   const eating = useWeeklyIntake({ db, date: p.date, reloadKey: dataVersion });
   const hist = useHistory(db, dataVersion);
   const [openDay, setOpenDay] = useState<string | null>(null);
@@ -98,8 +102,9 @@ export function ProgressScreen({ db, now = () => new Date() }: Props) {
             <RapidLossCard c={ci} />
             <DailyRead sex={profile?.sex} values={profile ? profileWhyValues(profile, { date: p.date, flex: settings?.settings.flex, labHold: labs.holdOn }) : undefined} now={now} />
             <SummaryCard checkin={ci.checkin} profile={profile} />
-            <StrengthSection db={db} date={v.date} weights={p.weights} />
+            <StrengthSection sets={sets} date={v.date} weights={p.weights} />
             <WeightSection p={p} />
+            <VolumeSection db={db} sets={sets} date={v.date} today={v.today} profile={profile} settings={settings?.settings ?? null} />
             <MeasureSection p={p} isToday={v.isToday} />
             <PhotosSection db={db} date={v.today} weights={p.weights} tapes={p.tapes} notify={notify} />
             <CycleSection key={`cycle-${v.date}`} cycle={cycle} date={v.date} today={v.today} weights={p.weights} female={profile?.sex === 'female'} notify={notify} />
