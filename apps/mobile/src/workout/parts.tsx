@@ -38,6 +38,8 @@ export interface RestState {
   end: number;
   total: number;
   label: string;
+  /** Ungrouped sessions: exercise names from the ticked one onward; the dock names the first still having an undone set (never an earlier exercise) and closes when none has. */
+  from?: string[];
   /** The exercise whose set was ticked (position and name at that time). With `to`, the dock follows the session by position (#1329); older stored rests have neither and keep their label. */
   at?: { i: number; name: string };
   /** The set the label names (position and exercise name at that time). */
@@ -47,7 +49,7 @@ export interface RestState {
 }
 
 /** A rest's target as `restTarget` returns it. */
-export type RestNext = Required<Pick<RestState, 'at' | 'to' | 'label'>>;
+export type RestNext = Required<Pick<RestState, 'at' | 'to' | 'label'>> & Pick<RestState, 'from'>;
 
 const REST_DONE = 'Rest done, go!';
 const mmss = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;

@@ -96,7 +96,7 @@ export function WorkoutScreen({ db, now = () => new Date() }: Props) {
   useRestNotification({ db, rest, setRest, sessionActive: day.exs.length > 0 });
   // The dock never names an exercise that is gone or finished: it moves on to the next undone set (by position, #1329), or closes when none is left.
   // Only on the day it started on (the rest keeps running while another day is read). Adjusting state while rendering, as React documents.
-  if (rest?.at && rest.to && rest.date === v.date && day.ready) {
+  if ((rest?.from || (rest?.at && rest.to)) && rest.date === v.date && day.ready) {
     const t = restRetarget(day.exs, rest as RestNext);
     if (!t) setRest(null);
     else if (t !== (rest as RestNext)) setRest({ ...rest, ...t });
@@ -145,6 +145,8 @@ export function WorkoutScreen({ db, now = () => new Date() }: Props) {
           lifts={day.lifts}
           setsFor={(m) => planned()[m] ?? 0}
           onPick={(draft, choice) => {
+            // Renames the swapped exercise in the rest dock's list (it tracks names). The label changes only when it named that exercise: the replacement starts at set 1.
+            if (cantName && choice) setRest((r) => (r?.from?.includes(cantName.name) && r.date === v.date ? { ...r, ...(r.from[0] === cantName.name ? { label: `Next: ${choice}` } : {}), from: r.from.map((n) => (n === cantName.name ? choice : n)) } : r));
             w.cant(cantName ? cantName.i : null, draft, choice);
             setCantName(null);
           }}

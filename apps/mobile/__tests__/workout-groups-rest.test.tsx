@@ -1,11 +1,11 @@
 import { act, renderHook, waitFor } from '@testing-library/react-native';
-import { restFor } from '@plate-and-bar/core';
+import { restAfterTick, restFor } from '@plate-and-bar/core';
 import { loadWorkout, saveWorkout } from '../src/db/workouts';
 import { getCatalog } from '../src/workout/catalog';
 import { dayQueue } from '../src/workout/dayQueue';
 import type { RestNext } from '../src/workout/parts';
 import { parseRest } from '../src/workout/restStore';
-import { restRetarget } from '../src/workout/restNext';
+import { restRetarget, restTarget } from '../src/workout/restNext';
 import { useWorkoutDay } from '../src/workout/useWorkoutDay';
 import { buildProfile, emptyDraft } from '../src/setup/logic';
 import { openDb } from './sync-helpers';
@@ -167,30 +167,159 @@ describe('ungrouped sessions: the core path equals the old branch logic', () => 
   });
 });
 
-describe('the dock follows the session by position (#1329)', () => {
-  const ex = (name: string, ...done: boolean[]) => ({ name, sets: done.map((d) => ({ done: d })) }) as never;
-  const at = (i: number, name: string, to: { ex: number; set: number; name: string }, label = ''): RestNext => ({ at: { i, name }, to, label });
 
-  it('two exercises with one name: a finished one does not keep the earlier open one looking next', () => {
-    // Squat is ticked (its last set); the next undone set is Bench #3. Bench #1 (before Squat) is skipped and open; Bench #3 then gets finished.
-    const exs = [ex('Bench', false), ex('Squat', true), ex('Row', true), ex('Bench', true)];
-    expect(restRetarget(exs, at(1, 'Squat', { ex: 3, set: 0, name: 'Bench' }))).toBeNull(); // by name, the old dock said "Next: Bench" (the skipped one)
+/** Verbatim from WorkoutScreen.tsx before #1182 S4 (git 01c11242): the dock's relabel/advance rule, on the names list. */
+type Old = { label: string; from: string[] } | null;
+function oldDock(rest: Old, exs: { name: string; sets: { done: boolean }[] }[]): Old {
+  if (!rest) return rest;
+  const open = new Set(exs.filter((e) => e.sets.some((x) => !x.done)).map((e) => e.name));
+  const first = rest.from.find((n) => open.has(n));
+  if (first !== rest.from[0] || !first) return first ? { ...rest, label: `Next: ${first}`, from: rest.from.slice(rest.from.indexOf(first)) } : null;
+  return rest;
+}
+/** Verbatim from onPick before S4: the swapped exercise is renamed in the list. */
+const swapRename = (r: { label: string; from?: string[] } | null, from: string, to: string) =>
+  r?.from?.includes(from) ? { ...r, ...(r.from[0] === from ? { label: `Next: ${to}` } : {}), from: r.from.map((n) => (n === from ? to : n)) } : r;
+
+type Ex = { name: string; sets: { done: boolean }[] };
+type Act = { k: 'tick'; i: number; j: number } | { k: 'rmex'; i: number } | { k: 'rmset'; i: number } | { k: 'addset'; i: number } | { k: 'swap'; i: number; to: string } | { k: 'add'; name: string };
+
+/** Runs the actions on a session with a rest dock, the old logic and the new side by side; returns what each dock shows after every action. */
+function dockRun(start: Ex[], acts: Act[]) {
+  const exs: Ex[] = structuredClone(start);
+  let o: Old = null;
+  let n: ReturnType<typeof restTarget> | null = null;
+  const trace: { old: string | null; now: string | null; act: Act }[] = [];
+  for (const a of acts) {
+    if (a.k === 'tick') {
+      const s = exs[a.i]?.sets[a.j];
+      if (!s) continue;
+      s.done = !s.done;
+      if (s.done) {
+        const nj = exs[a.i]!.sets.findIndex((x) => !x.done);
+        const nx = exs.slice(a.i + 1).find((e) => e.sets.some((x) => !x.done));
+        const from = exs.slice(a.i).map((e) => e.name);
+        if (nj >= 0) o = { label: `Next: set ${nj + 1} of ${exs[a.i]!.name}`, from };
+        else if (nx) o = { label: `Next: ${nx.name}`, from };
+        const r = restAfterTick(exs.map((e) => ({ name: e.name, sets: e.sets.length })), a.i, a.j, (k, m) => !!exs[k]?.sets[m]?.done, { restOff: false, tags: getCatalog().tags });
+        if (r.kind !== 'none' && r.next) n = restTarget(exs as never, a.i, r.next);
+      }
+    } else if (a.k === 'rmex') {
+      if (exs.length > 1) exs.splice(a.i, 1);
+    } else if (a.k === 'rmset') {
+      if (exs[a.i]!.sets.length > 1) exs[a.i]!.sets.pop();
+    } else if (a.k === 'addset') {
+      exs[a.i]!.sets.push({ done: false });
+    } else if (a.k === 'swap') {
+      const was = exs[a.i]!.name;
+      exs[a.i] = { name: a.to, sets: [{ done: false }, { done: false }, { done: false }] };
+      o = swapRename(o, was, a.to) as Old;
+      n = swapRename(n, was, a.to) as typeof n;
+    } else {
+      exs.push({ name: a.name, sets: [{ done: false }, { done: false }, { done: false }] });
+    }
+    o = oldDock(o, exs);
+    if (n) n = restRetarget(exs as never, n);
+    trace.push({ old: o && o.label, now: n && n.label, act: a });
+  }
+  return trace;
+}
+const exs0 = (...sets: number[]): Ex[] => sets.map((c, i) => ({ name: `E${i}`, sets: Array.from({ length: c }, () => ({ done: false })) }));
+
+describe('ungrouped sessions: the dock while a rest runs equals the old logic', () => {
+  const same = (t: ReturnType<typeof dockRun>) => expect(t.map((x) => x.now)).toEqual(t.map((x) => x.old));
+
+  it('over 300 random runs of tick, untick, remove exercise, remove set, add set, swap and add', () => {
+    let seed = 1329;
+    const rnd = (n: number) => ((seed = (seed * 1664525 + 1013904223) >>> 0), (seed >>> 8) % n);
+    let docks = 0;
+    for (let run = 0; run < 300; run++) {
+      const start = exs0(...Array.from({ length: 3 + rnd(4) }, () => 1 + rnd(3)));
+      const acts: Act[] = [];
+      let fresh = 100;
+      const names = start.map((e) => e.name);
+      const len = () => names.length;
+      for (let k = 0; k < 25; k++) {
+        const i = rnd(len());
+        const r = rnd(20);
+        if (r < 9) acts.push({ k: 'tick', i, j: rnd(4) });
+        else if (r < 11) { acts.push({ k: 'rmex', i }); if (len() > 1) names.splice(i, 1); }
+        else if (r < 13) acts.push({ k: 'rmset', i });
+        else if (r < 15) acts.push({ k: 'addset', i });
+        else if (r < 17) { const to = `S${fresh++}`; acts.push({ k: 'swap', i, to }); names[i] = to; }
+        else { const name = rnd(2) ? `S${fresh++}` : `E${rnd(7)}`; if (!names.includes(name)) { acts.push({ k: 'add', name }); names.push(name); } }
+      }
+      const t = dockRun(start, acts);
+      docks += t.filter((x) => x.old).length;
+      expect(t.map((x) => x.now)).toEqual(t.map((x) => x.old));
+    }
+    expect(docks).toBeGreaterThan(500);
   });
 
-  it('the stored target is kept while its set is open, and moves on to the first undone set after it otherwise', () => {
+  // The reviewer's three screen reproductions (Push B: E0 is the bench, E1 the shoulder press, E2 the fly).
+  it('removing the exercise just finished while resting keeps "Next: <Name>"', () => {
+    const t = dockRun(exs0(1, 1, 1), [{ k: 'tick', i: 0, j: 0 }, { k: 'rmex', i: 0 }]);
+    same(t);
+    expect(t[1]!.now).toBe('Next: E1');
+  });
+
+  it('untick a set of the finished exercise, then remove the target: Next: <the one after>, not "set 3 of" the finished one', () => {
+    const t = dockRun(exs0(3, 1, 1), [{ k: 'tick', i: 0, j: 0 }, { k: 'tick', i: 0, j: 1 }, { k: 'tick', i: 0, j: 2 }, { k: 'tick', i: 0, j: 2 }, { k: 'rmex', i: 1 }]);
+    same(t);
+    expect(t.at(-1)!.now).toBe('Next: E2');
+  });
+
+  it('the target set is the last one and nothing is after it: the dock closes, and Remove last set does not relabel', () => {
+    const t = dockRun(exs0(1, 2), [{ k: 'tick', i: 0, j: 0 }, { k: 'tick', i: 1, j: 0 }, { k: 'rmset', i: 1 }, { k: 'tick', i: 1, j: 0 }, { k: 'tick', i: 1, j: 0 }]);
+    same(t);
+    const u = dockRun(exs0(1, 1, 1), [{ k: 'tick', i: 0, j: 0 }, { k: 'tick', i: 1, j: 0 }, { k: 'tick', i: 0, j: 0 }, { k: 'rmex', i: 2 }, { k: 'tick', i: 2 - 1, j: 0 }]);
+    same(u);
+    const v = dockRun(exs0(2, 1), [{ k: 'tick', i: 0, j: 0 }, { k: 'rmset', i: 0 }]);
+    same(v);
+    expect(v[1]!.now).toBe('Next: E1');
+  });
+});
+
+describe('the dock follows the session by position (#1329)', () => {
+  const ex = (name: string, ...done: boolean[]) => ({ name, sets: done.map((d) => ({ done: d })) }) as never;
+  const at = (i: number, name: string, to: { ex: number; set: number; name: string }, label = '', from?: string[]): RestNext => ({ at: { i, name }, to, label, ...(from ? { from } : {}) });
+
+  it('ungrouped, two exercises with one name: a finished one does not keep the earlier open one looking next', () => {
+    // [Bench open, Squat done, Bench done]: the dock for the last Bench closes; by name the open first Bench would stay as "Next: Bench".
+    const exs = [ex('Bench', false), ex('Squat', true), ex('Bench', true)];
+    expect(restRetarget(exs, at(2, 'Bench', { ex: 2, set: 0, name: 'Bench' }, 'Next: set 1 of Bench', ['Bench']))).toBeNull();
+  });
+
+  it('grouped: two exercises with one name cannot stand in for each other either', () => {
+    const exs = [ex('Bench', false), ex('Squat', true), ex('Row', true), ex('Bench', true)];
+    expect(restRetarget(exs, at(1, 'Squat', { ex: 3, set: 0, name: 'Bench' }))).toBeNull();
+  });
+
+  it('grouped: the stored target is kept while its set is open, and moves on to the first undone set after it otherwise', () => {
     const r = at(0, 'A', { ex: 1, set: 0, name: 'B' }, 'Next: B');
     expect(restRetarget([ex('A', true), ex('B', false), ex('C', false)], r)).toBe(r);
     expect(restRetarget([ex('A', true), ex('B', true), ex('C', false)], r)).toMatchObject({ label: 'Next: C', to: { ex: 2, set: 0, name: 'C' } });
   });
 
-  it('a removal that shifts positions re-finds the target by name at its position', () => {
-    const r = at(1, 'B', { ex: 2, set: 0, name: 'C' }, 'Next: C');
-    expect(restRetarget([ex('B', true), ex('C', false)], r)).toMatchObject({ to: { ex: 1, name: 'C' } });
+  it('grouped: an earlier exercise removed shifts the ticked one; it is found again by name, not taken from its old place', () => {
+    // [X, A1 A2, B1 B2] in one group A+B; A1 ticked, B1 the target. X removed: A is at 0 (stored at.i 1 is now B).
+    const grp = (name: string, ...done: boolean[]) => ({ name, group: 'g', sets: done.map((d) => ({ done: d })) }) as never;
+    const r = at(1, 'A', { ex: 2, set: 0, name: 'B' }, 'Next: B1 B');
+    const t = restRetarget([grp('A', true, false), grp('B', true, false)], r);
+    expect(t).toMatchObject({ at: { i: 0, name: 'A' }, label: 'Next: A2 A', to: { ex: 0, set: 1 } });
   });
 
-  it('a stored rest from before this change (names list, no position) still parses, and so does the new shape', () => {
+  it('grouped: a removed ticked exercise does not bring back the "set N of" wording on the exercise now in its place', () => {
+    const grp = (name: string, ...done: boolean[]) => ({ name, group: 'g', sets: done.map((d) => ({ done: d })) }) as never;
+    const r = at(2, 'Gone', { ex: 3, set: 0, name: 'Z' }, 'Next: Z');
+    expect(restRetarget([grp('A', false), grp('B', false), ex('C', true, false)], r)?.label).not.toMatch(/set \d of/);
+  });
+
+  it('a stored rest from before this change (names list, no position) still parses and follows the old rule', () => {
     const old = JSON.stringify({ id: 1, end: 5000, total: 90, label: 'Next: B', from: ['B', 'C'], date: DATE });
-    expect(parseRest(old, DATE, 1000)).toMatchObject({ label: 'Next: B' });
+    expect(parseRest(old, DATE, 1000)).toMatchObject({ label: 'Next: B', from: ['B', 'C'] });
+    const r = parseRest(old, DATE, 1000) as unknown as RestNext;
+    expect(restRetarget([ex('A', true), ex('B', true), ex('C', false)], r)).toMatchObject({ label: 'Next: C' });
     const now = JSON.stringify({ id: 1, end: 5000, total: 90, label: 'Next: B', at: { i: 0, name: 'A' }, to: { ex: 1, set: 0, name: 'B' }, date: DATE });
     expect(parseRest(now, DATE, 1000)?.to).toEqual({ ex: 1, set: 0, name: 'B' });
     expect(parseRest(JSON.stringify({ ...JSON.parse(now), to: { ex: 'x' } }), DATE, 1000)).toBeNull();
