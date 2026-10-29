@@ -1,4 +1,4 @@
-import { cantChange, keepGroups } from '../src/workout/cantApply';
+import { cantChange } from '../src/workout/cantApply';
 import { carryOnto, exerciseRecord, exercisesFrom, mergeWorkout, unionWorkout, type ExState } from '../src/workout/model';
 import type { Workout, WorkoutExercise, WorkoutSet } from '../src/workout/types';
 
@@ -118,15 +118,15 @@ describe('can\'t-do swap keeps the group', () => {
     const out = swap(w, [set('Barbell Bench Press', { done: true })], 'Barbell Bench Press', 'Dumbbell Bench Press');
     expect(groups(out)).toEqual([['Barbell Bench Press', 'x'], ['Dumbbell Bench Press', 'x'], ['Barbell Row', 'x'], ['Barbell Curl', null]]);
   });
-  it('two replacements for two removed exercises are paired in order', () => {
-    const before = [ex('Barbell Bench Press', { group: 'x' }), ex('Barbell Row', { group: 'y' }), ex('Barbell Curl', { group: 'y' })];
-    const out = keepGroups(before, [ex('Dumbbell Bench Press'), ex('Cable Row'), ex('Barbell Curl', { group: 'y' })]);
-    expect(out.map((e) => [e.name, e.group ?? null])).toEqual([['Dumbbell Bench Press', 'x'], ['Cable Row', 'y'], ['Barbell Curl', 'y']]);
+  it('a ticked swap in a full group of 6: the original stays grouped, the new exercise is the ungrouped one, after the group (core, #1331)', () => {
+    const names6 = ['Barbell Bench Press', 'Barbell Row', 'Barbell Curl', 'Cable Row', 'Leg Press', 'Leg Curl'];
+    const w = row(names6.map((n) => g(n, 'x')));
+    const out = swap(w, [set('Barbell Row', { done: true })], 'Barbell Row', 'Dumbbell Row');
+    expect(groups(out)).toEqual([...names6.map((n) => [n, 'x']), ['Dumbbell Row', null]]);
   });
-  it('one removed exercise, two new ones: the pairing is unknown, so neither takes the group', () => {
-    const before = [ex('Barbell Bench Press', { group: 'x' }), ex('Barbell Row', { group: 'x' })];
-    const out = keepGroups(before, [ex('Dumbbell Bench Press'), ex('Cable Row'), ex('Barbell Row', { group: 'x' })]);
-    expect(out.map((e) => [e.name, e.group ?? null])).toEqual([['Dumbbell Bench Press', null], ['Cable Row', null], ['Barbell Row', 'x']]);
+  it('an unticked swap in the middle of a group keeps the group at the exact index (core, #1331)', () => {
+    const w = row([g('Barbell Bench Press', 'x'), g('Barbell Row', 'x'), g('Barbell Curl', 'x')]);
+    expect(groups(swap(w, [], 'Barbell Row', 'Cable Row'))).toEqual([['Barbell Bench Press', 'x'], ['Cable Row', 'x'], ['Barbell Curl', 'x']]);
   });
 });
 

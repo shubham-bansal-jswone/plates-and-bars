@@ -20,21 +20,6 @@ export interface CantChange {
 }
 
 /**
- * A swap keeps the group: a new exercise takes the group of the one it replaced (paired in order when as many left as came in), or, when
- * the old one stayed because it had ticked sets, of the exercise before it. Groups that no longer hold are dissolved by `fixGroups`.
- */
-export function keepGroups(before: Workout['exercises'], after: Workout['exercises']): Workout['exercises'] {
-  const was = new Set(before.map((e) => e.name));
-  const left = before.filter((e) => !after.some((x) => x.name === e.name));
-  const fresh = after.filter((e) => !was.has(e.name));
-  return after.map((e, p) => {
-    if (was.has(e.name)) return e;
-    const from = left.length ? (left.length === fresh.length ? left[fresh.indexOf(e)] : undefined) : after[p - 1];
-    return from?.group ? { ...e, group: from.group } : e;
-  });
-}
-
-/**
  * Runs core's `cantSession` on a stored workout and turns its result into records: new blank sets get an id and sync
  * fields, renumbered sets are stamped, removed ones become tombstones (`deleted_at`), never hard deletes.
  */
@@ -60,7 +45,7 @@ export function cantChange(
     return rec;
   });
   return {
-    exercises: fixGroups(keepGroups(workout.exercises, res.exercises as Workout['exercises'])),
+    exercises: fixGroups(res.exercises as Workout['exercises']),
     sets: all.filter((s) => !s.deleted_at),
     changed: res.changed.map((s) => ({ ...s, updated_at: at })),
     removed: res.removed.map((s) => ({ ...s, updated_at: at, deleted_at: at })),
@@ -82,8 +67,8 @@ export async function persistCant(db: WorkoutDb & PullDb, date: string, base: Wo
   const version = new Map(storedSets.map((s) => [s.id, s.version]));
   const mine = { ...base, exercises: ch.exercises };
   const elsewhere = !!synced && !!stored && !stored.deleted_at && unversioned(stored) !== unversioned(synced);
-  // After a merge the replacement keeps the merge's order (stored list first, this device's new exercises appended), so it
-  // can end up last rather than in the swapped exercise's place. Nothing is lost or brought back; only the order differs.
+  // After a merge the stored list's order wins and this device's new exercises are inserted after their predecessor, so an
+  // unticked swap stays in the replaced exercise's place. Nothing is lost or brought back.
   const row = { ...(elsewhere ? mergeWorkout(synced, mine, stored) : mine), version: stored?.version ?? base.version, updated_at: at };
   // A pick another device already added (same name) keeps that device's sets: this change's blank rows for it would sit
   // beside them and double the exercise (#446). By name alone: its sets may not have been pulled yet (#459). Trade-off: if
