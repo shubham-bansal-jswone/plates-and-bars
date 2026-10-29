@@ -1,10 +1,23 @@
-import { renderHook, waitFor } from '@testing-library/react-native';
+import { act, renderHook, waitFor } from '@testing-library/react-native';
 import { addDays, mainLifts, personalRecords, priorBestOf } from '@plate-and-bar/core';
-import { loadDoneSets, saveSet, saveWorkout } from '../src/db/workouts';
+import { DONE_SETS_SQL, loadDoneSets, saveSet, saveWorkout } from '../src/db/workouts';
 import { useProgressSets } from '../src/progress/useProgressSets';
 import { setsBefore, setsInRange } from '../src/progress/setsView';
 import type { Workout, WorkoutSet } from '../src/workout/types';
 import { openDb } from './sync-helpers';
+
+const focusFns: (() => void)[] = [];
+jest.mock('expo-router', () => ({
+  useFocusEffect: (cb: () => void) => {
+    const { useEffect } = jest.requireActual<typeof import('react')>('react');
+    useEffect(() => {
+      focusFns.push(cb);
+      cb();
+      return () => void focusFns.splice(focusFns.indexOf(cb), 1);
+    }, [cb]);
+  },
+}));
+const focus = () => act(async () => { focusFns.forEach((f) => f()); });
 
 const meta = { version: 0, updated_at: '', deleted_at: null };
 const wset = (id: string, exercise: string, w: number | null, r: number | null, o: Partial<WorkoutSet> = {}): WorkoutSet => ({ ...meta, id, workout_id: null, exercise, kind: 'work', set_index: 0, weight_kg: w, reps: r, done: true, rate: null, t: null, ...o });
@@ -35,7 +48,7 @@ describe('loadDoneSets', () => {
 
   it('uses the date index, not a table scan', async () => {
     const db = await openDb();
-    const plan = await db.getAllAsync<{ detail: string }>("EXPLAIN QUERY PLAN SELECT workout_date, data FROM workout_sets WHERE kind = 'work' AND done = 1 AND deleted = 0 AND workout_date >= ? AND workout_date <= ?", '2026-01-01', '2026-02-01');
+    const plan = await db.getAllAsync<{ detail: string }>(`EXPLAIN QUERY PLAN ${DONE_SETS_SQL}`, '2026-01-01', '2026-02-01');
     expect(plan.map((p) => p.detail).join(' ')).toContain('workout_sets_by_date');
   });
 });
@@ -104,6 +117,19 @@ describe('useProgressSets', () => {
     expect(personalRecords(inWin, types).some((r) => r.date === '2026-10-01')).toBe(false);
     expect(personalRecords(result.current.all, types).some((r) => r.date === '2026-10-01')).toBe(false);
     expect(priorBestOf(result.current.before('2026-10-01'), 'barbell', '2026-10-01').best).toBeGreaterThan(170);
+  });
+
+  it('reloads on focus, so a set ticked on Workout shows, and also without a sync version (dataVersion stays 0)', async () => {
+    const db = await openDb();
+    await day(db, '2026-10-01', [wset('a', 'Row', 60, 8)]);
+    const spy = jest.spyOn(db, 'getAllAsync');
+    const { result } = await renderHook(() => useProgressSets(db, 0));
+    await waitFor(() => expect(result.current.all).toHaveLength(1));
+    expect(spy).toHaveBeenCalledTimes(1); // the focus on mount does not read twice
+    await saveSet(db, '2026-10-01', wset('b', 'Row', 62, 8));
+    await focus();
+    await waitFor(() => expect(result.current.all).toHaveLength(2));
+    expect(spy).toHaveBeenCalledTimes(2);
   });
 
   it('reports a failed read as error and keeps the last sets', async () => {
