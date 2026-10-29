@@ -254,12 +254,12 @@ export function ExerciseCard({ ex, info, sug, focus, warm, act, cards, learning,
       <Card style={{ paddingVertical: 0 }}>
         <Press
           accessibilityRole="button"
-          accessibilityLabel={`${ex.name}, ${doneCount}/${n} sets${member ? `, ${member.letter}` : ''}. Show sets`}
+          accessibilityLabel={`${ex.name}, ${doneCount}/${n} sets${member ? `, ${member.letter}${member.upNext ? ', up next' : ''}` : ''}. Show sets`}
           {...a11yState({ expanded: false })}
           onPress={onToggle}
           style={styles.collapsed}
         >
-          {member ? <LetterBadge letter={member.letter} /> : null}
+          {member ? <LetterBadge letter={member.letter} upNext={member.upNext} /> : null}
           <Text style={[type.bodyStrong, { color: c.ink, flex: 1 }]}>{ex.name}</Text>
           <Text style={[type.caption, tabular, { color: allDone ? c.brand : c.muted }]}>{' '}{doneCount}/{n} sets</Text>
           {allDone ? (

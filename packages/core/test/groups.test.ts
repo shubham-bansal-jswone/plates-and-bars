@@ -230,8 +230,15 @@ describe('canGroupWithNext (#1182 S5)', () => {
     expect(can(e, 0, (k, s) => k === 0 && s === 0).ok).toBe(true); // one set ticked is not done
   });
   it('the same name twice is refused, also across a joined group', () => {
-    expect(can(ex(['a', 3], ['a', 3]), 0)).toEqual({ ok: false, why: 'same', ex: 1 });
+    expect(can(ex(['a', 3], ['a', 3]), 0)).toEqual({ ok: false, why: 'same', ex: 0 });
     expect(can(ex(['a', 3, 'g'], ['b', 3, 'g'], ['a', 3]), 1)).toEqual({ ok: false, why: 'same', ex: 2 });
   });
   it('a group that is not a valid run counts as ungrouped', () => expect(can(ex(['a', 3, 'g'], ['b', 3]), 0)).toEqual({ ok: true }));
+  it('the same-name reason names the exercise that would join', () => {
+    expect(can(ex(['a', 3], ['b', 3, 'g'], ['a', 3, 'g']), 0)).toEqual({ ok: false, why: 'same', ex: 0 }); // joins as first member
+    expect(can(ex(['a', 3, 'g'], ['b', 3, 'g'], ['a', 3]), 1)).toEqual({ ok: false, why: 'same', ex: 2 }); // appended
+    expect(can(ex(['a', 3], ['a', 3]), 0).ok).toBe(false);
+  });
+  it('an exercise with no sets is not finished', () => expect(can(ex(['a', 0], ['b', 2]), 0)).toEqual({ ok: true }));
+  it('a singleton id is no group: the next valid group can still be joined', () => expect(can(ex(['a', 3, 'g'], ['b', 3, 'h'], ['c', 3, 'h']), 0)).toEqual({ ok: true }));
 });

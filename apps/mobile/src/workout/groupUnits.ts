@@ -1,4 +1,4 @@
-import { groupLabels, nextInRound, type GroupWithNext } from '@plate-and-bar/core';
+import { GROUP_MAX, groupLabels, nextInRound, type GroupWithNext } from '@plate-and-bar/core';
 import { listJoin } from './copy';
 import type { ExState } from './model';
 
@@ -47,13 +47,13 @@ export function groupReason(r: GroupWithNext, names: readonly string[]): string 
   const n = names[r.ex] ?? '';
   switch (r.why) {
     case 'full':
-      return 'A superset holds up to 6 exercises.';
+      return `A superset holds up to ${GROUP_MAX} exercises.`;
     case 'done':
       return `${n} is already done, so it can’t join a superset.`;
     case 'other':
       return `${n} is in another superset. Ungroup it first.`;
     case 'same':
-      return `${n} is already in this superset, and two of the same can’t share one.`;
+      return `${n} would be in this superset twice.`;
     default:
       return null;
   }

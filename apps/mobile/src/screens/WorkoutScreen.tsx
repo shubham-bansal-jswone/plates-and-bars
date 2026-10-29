@@ -563,7 +563,8 @@ function SessionView({ now, db, reloadKey, w, profile, focus, rules, notify, tun
   }, [complete]);
   const current = pinned && day.exs.some((e) => e.name === pinned) ? pinned : (day.exs.find((e) => e.sets.some((s) => !s.done))?.name ?? null);
   const units = groupUnits(day.exs);
-  const at = current ? day.exs.findIndex((e) => e.name === current) : -1;
+  // The open unit is every unit holding an exercise with the current name (as on base, where `expanded` was `ex.name === current`): a name twice opens both copies.
+  const inUnit = (u: Unit) => (current ? day.exs.findIndex((e, k) => k >= u.start && k < u.end && e.name === current) : -1);
   // A live region, and on iOS (which has none) an announcement: where focus is not enough (a group made, the marker moving).
   const [said, setSaid] = useState('');
   const say = (msg: string) => {
@@ -575,16 +576,26 @@ function SessionView({ now, db, reloadKey, w, profile, focus, rules, notify, tun
   const [focusOn, setFocusOn] = useState<{ key: string } | null>(null);
   const reg = (key: string) => (n: ComponentRef<typeof RNText> | null) => void (n ? nodes.set(key, n) : nodes.delete(key));
   useEffect(() => {
-    if (focusOn) focusNode(nodes.get(focusOn.key));
-  }, [focusOn, nodes]);
+    const node = focusOn ? nodes.get(focusOn.key) : null;
+    if (!node) return;
+    focusNode(node);
+    // After a click the browser draws no ring on a script-focused node (:focus-visible); the user must see where focus went, as after a key press.
+    if (Platform.OS === 'web') {
+      const el = node as unknown as HTMLElement;
+      el.style.outline = `2px solid ${c.focus}`;
+      el.style.outlineOffset = '2px';
+      el.addEventListener('blur', () => (el.style.outline = ''), { once: true });
+    }
+  }, [focusOn, nodes, c.focus]);
   // The marker moved inside the open superset (a tick): say where. Not on first show, and not when another unit opened.
-  const open0 = units.find((u) => u.labels.length > 0 && u.start <= at && at < u.end);
+  const open0 = units.find((u) => u.labels.length > 0 && inUnit(u) >= 0);
   const marker = open0 ? upNext(day.exs, open0.start, open0.end) : null;
-  const markerKey = open0 && marker ? `${open0.start}:${marker.ex}:${marker.set}` : null;
+  const markerKey = open0 && marker ? `${open0.start}.${open0.end}:${marker.ex}:${marker.set}` : null;
   const lastMarker = useRef<string | null>(null);
   useEffect(() => {
     const before = lastMarker.current;
     lastMarker.current = markerKey;
+    // Same unit, same members (a member just added is announced as a new superset, not as a move of the marker).
     if (!before || !markerKey || before === markerKey || before.split(':')[0] !== markerKey.split(':')[0] || !open0 || !marker) return;
     say(`Up next: ${day.exs[marker.ex]?.name}, ${String.fromCharCode(65 + marker.ex - open0.start)}${marker.set + 1}.`);
   }, [markerKey]); // eslint-disable-line react-hooks/exhaustive-deps -- says once per move
@@ -650,17 +661,19 @@ function SessionView({ now, db, reloadKey, w, profile, focus, rules, notify, tun
     let superset: ComponentProps<typeof ExerciseCard>['superset'];
     const nx = day.exs[i + 1];
     const rule = canGroupWithNext(groupEx(day.exs), i, (k, s) => !!day.exs[k]?.sets[s]?.done);
-    if (expanded && nx && nx.part === ex.part && (rule.ok || (rule.why !== 'last' && rule.why !== 'inner'))) {
+    // Hidden: no offer here, or this exercise is itself finished (a finished card stays open; it says nothing about supersets).
+    const hidden = !rule.ok && (rule.why === 'last' || rule.why === 'inner' || (rule.why === 'done' && rule.ex === i));
+    if (expanded && nx && nx.part === ex.part && !hidden) {
       const ramping = (e: ExState) => guidance(e, ctx, wk).sug.mode === 'new' && !e.skipRamp && e.found === null && !e.sets.some((x) => x.done);
       const pending = [ex, nx].find(ramping);
       superset = { next: nx.name, reason: groupReason(rule, day.exs.map((e) => e.name)) ?? (pending ? `Finish the first-time ramp for ${pending.name} first.` : null), onPress: () => group(i) };
     }
-    const lead = m ? (m.next ? m.next.ex : at) : -1;
+    const lead = m ? (m.next ? m.next.ex : expanded ? inUnit(m.unit) : -1) : -1;
     return (
       <ExerciseCard
         key={ex.name}
         {...(superset ? { superset } : {})}
-        {...(m ? { member: { letter: String.fromCharCode(65 + i - m.unit.start), upNext: expanded && lead === i }, compact: expanded && lead !== i, currentSet: m.next && m.next.ex === i ? m.next.set : -1 } : {})}
+        {...(m ? { member: { letter: String.fromCharCode(65 + i - m.unit.start), upNext: lead === i }, compact: expanded && lead !== i, currentSet: m.next && m.next.ex === i ? m.next.set : -1 } : {})}
         headingRef={reg(`ex:${ex.name}`)}
         expanded={expanded}
         onToggle={pin}
@@ -683,12 +696,12 @@ function SessionView({ now, db, reloadKey, w, profile, focus, rules, notify, tun
   const stack = (
     <>
       {units.map((u) => {
-        const open = at >= u.start && at < u.end;
+        const open = inUnit(u) >= 0;
         const first = day.exs[u.start] as ExState;
         const second = first.part === 2 && day.exs[u.start - 1]?.part !== 2 ? <H1 level={2}>Second session</H1> : null;
         if (u.labels.length === 0) return <View key={first.name} style={{ gap: 8 }}>{second}{card(u.start, open)}</View>;
         const members = day.exs.slice(u.start, u.end);
-        const next = open ? upNext(day.exs, u.start, u.end) : null;
+        const next = upNext(day.exs, u.start, u.end);
         return (
           <View key={`g:${first.name}`} style={{ gap: 8 }}>
             {second}

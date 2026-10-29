@@ -144,3 +144,18 @@ describe('a stored rest (#1333 review)', () => {
     for (const r of [{ at }, { to }, { at: null }, { to: null }, { at, to: null }, { at: null, to }]) expect(parse({ ...base, ...r })).toBeNull();
   });
 });
+
+describe('groupRounds and groupReason (#1182 S5 review)', () => {
+  const m = (...done: boolean[]) => ({ name: '', group: 'g', sets: done.map((d) => ({ done: d })) }) as never;
+  it('uneven set counts: a member without that round does not hold it back', () => {
+    const { groupRounds } = jest.requireActual('../src/workout/groupUnits');
+    expect(groupRounds([m(true), m(true, true)])).toEqual({ total: 2, done: 2 });
+    expect(groupRounds([m(true), m(true, false)])).toEqual({ total: 2, done: 1 });
+    expect(groupRounds([m(false), m(true, true)])).toEqual({ total: 2, done: 0 });
+  });
+  it('the cap text comes from core and the duplicate reason names the joining exercise', () => {
+    const { groupReason } = jest.requireActual('../src/workout/groupUnits');
+    expect(groupReason({ ok: false, why: 'full', ex: 0 }, [])).toBe('A superset holds up to 6 exercises.');
+    expect(groupReason({ ok: false, why: 'same', ex: 1 }, ['a', 'b'])).toBe('b would be in this superset twice.');
+  });
+});

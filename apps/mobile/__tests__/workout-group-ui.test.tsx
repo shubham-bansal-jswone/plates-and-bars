@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react-native';
-import { AccessibilityInfo } from 'react-native';
+import { AccessibilityInfo, StyleSheet } from 'react-native';
 import { WorkoutScreen } from '../src/screens/WorkoutScreen';
 import { saveProfile } from '../src/db/records';
 import { saveSettings } from '../src/db/settings';
@@ -30,7 +30,7 @@ const focusedText = () => (focusNode as jest.Mock).mock.calls.at(-1)?.[0]?.props
 const stored = (db: Db) => JSON.parse(db.rows.get(`workouts:${DATE}`) as string) as Workout;
 
 /** Starts Push B, then reopens the screen on the same session with `skip_ramp` on (so no ramp blocks grouping) and `groups[i]` as exercise i's group. */
-async function mount(groups: (string | null)[] = [], o: { restOff?: boolean; ramp?: boolean; secondFrom?: number } = {}) {
+async function mount(groups: (string | null)[] = [], o: { restOff?: boolean; ramp?: boolean; rampOnly?: number; secondFrom?: number; dupe?: boolean } = {}) {
   const db = memoryDb();
   await saveSettings(db, { ...defaultSettings('2026-10-08T00:00:00Z'), rest_off: o.restOff ?? true });
   await saveProfile(db, { ...profile, where: 'gym' });
@@ -39,10 +39,10 @@ async function mount(groups: (string | null)[] = [], o: { restOff?: boolean; ram
   await waitFor(() => expect(db.rows.get(`workouts:${DATE}`)).toBeTruthy());
   await first.unmount();
   const w = stored(db);
-  db.rows.set(`workouts:${DATE}`, JSON.stringify({ ...w, exercises: w.exercises.map((e, i) => ({ ...e, skip_ramp: !o.ramp, ...(o.secondFrom !== undefined && i >= o.secondFrom ? { part: 2 as const } : {}), ...(groups[i] ? { group: groups[i] } : {}) })), updated_at: '2026-10-08T09:30:00Z' }));
+  db.rows.set(`workouts:${DATE}`, JSON.stringify({ ...w, exercises: w.exercises.map((e, i) => ({ ...e, ...(o.dupe && i === 3 ? { name: w.exercises[0]!.name } : {}), skip_ramp: o.rampOnly !== undefined ? i !== o.rampOnly : !o.ramp, ...(o.secondFrom !== undefined && i >= o.secondFrom ? { part: 2 as const } : {}), ...(groups[i] ? { group: groups[i] } : {}) })), updated_at: '2026-10-08T09:30:00Z' }));
   await render(withProfile(db, <WorkoutScreen db={db} now={THU} />));
   const names = stored(db).exercises.map((e) => e.name);
-  await screen.findByLabelText(`Add set to ${names[0]}`);
+  await screen.findAllByLabelText(`Add set to ${names[0]}`);
   return { db, names };
 }
 /** The block: a non-accessible container with role group (accessible would make a screen reader read it as one element). */
@@ -144,9 +144,10 @@ describe('an open superset', () => {
 
   it('collapsed, a member is a row with its letter, and tapping it opens the whole block', async () => {
     const { names } = await mount([null, null, 'g', 'g']);
-    expect(screen.getByLabelText(`${names[2]}, 0/3 sets, A. Show sets`)).toBeTruthy();
+    expect(screen.getByLabelText(`${names[2]}, 0/3 sets, A, up next. Show sets`)).toBeTruthy();
     expect(screen.getByLabelText(`${names[3]}, 0/3 sets, B. Show sets`)).toBeTruthy();
     expect(screen.getByText('0 of 3 rounds done')).toBeTruthy();
+    // The collapsed member holding the up-next set says so (its badge is filled): A here, not B.
     await press(`${names[3]}, 0/3 sets, B. Show sets`);
     expect(screen.getByText('Round 1 of 3')).toBeTruthy();
     expect(screen.getByLabelText(new RegExp(`^Mark ${names[2]} set 1, A1 done`))).toBeTruthy();
@@ -230,4 +231,67 @@ it('announces on iOS instead of using a live region', async () => {
   } finally {
     spy.mockRestore();
   }
+});
+
+describe('review round 2', () => {
+  it('a name twice in an ungrouped session: both copies open, as on base, and the second one can be ticked', async () => {
+    const { names } = await mount([], { dupe: true });
+    expect(names[3]).toBe(names[0]);
+    expect(screen.getAllByLabelText(`Add set to ${names[0]}`)).toHaveLength(2);
+    await press(`${names[1]}, 0/3 sets. Show sets`); // another exercise is pinned: the copies collapse
+    expect(screen.queryAllByLabelText(`Add set to ${names[0]}`)).toHaveLength(0);
+    const rows = screen.getAllByLabelText(new RegExp(`^${names[0]}, \\d+/\\d+ sets\\. Show sets`));
+    await fireEvent.press(rows[1]!); // the second copy's row opens it (and the first, which has the same name)
+    expect(screen.getAllByLabelText(`Add set to ${names[0]}`)).toHaveLength(2);
+    expect(screen.queryAllByLabelText(new RegExp(`^${names[0]}, \\d+/\\d+ sets`))).toHaveLength(0);
+    const marks = screen.getAllByLabelText(new RegExp(`^Mark ${names[0]} set 1 done`));
+    expect(marks).toHaveLength(2);
+    const w = screen.getAllByLabelText(new RegExp(`^${names[0]} set 1 (kg|reps|\\+|Assist)`))[2]!; // the second copy's weight field
+    await fireEvent.changeText(w, '40');
+    await fireEvent.changeText(screen.getAllByLabelText(new RegExp(`^${names[0]} set 1 reps`))[1]!, '9');
+    await fireEvent.press(marks[1]!);
+    expect(screen.getAllByLabelText(new RegExp(`^Mark ${names[0]} set 1 done`))[1]!.props.accessibilityState.checked).toBe(true);
+  });
+
+  it('exactly one set in the block is current after a tick (one lime ring)', async () => {
+    const { names } = await mount(['g', 'g'], { restOff: true });
+    const colours = () => {
+      const undone = screen.getAllByLabelText(/^Mark .* set \d, [AB]\d done/).filter((m) => !m.props.accessibilityState.checked);
+      const count = new Map<unknown, number>();
+      for (const m of undone) {
+        const c = StyleSheet.flatten(typeof m.props.style === 'function' ? m.props.style({ pressed: false }) : m.props.style).borderColor;
+        count.set(c, (count.get(c) ?? 0) + 1);
+      }
+      return [...count.values()].sort();
+    };
+    expect(colours()).toEqual([1, 5]);
+    await tick(names[0]!, 0, 'A1');
+    expect(colours()).toEqual([1, 4]); // B1 only; without the block-wide marker A2 would be a second one
+  });
+
+  it('the next exercise on its first-time ramp disables the chip with that exercise\'s name', async () => {
+    const { names } = await mount([], { rampOnly: 1 });
+    const chip = screen.getByLabelText(`Superset ${names[0]} with ${names[1]}`);
+    expect(chip.props.accessibilityState).toMatchObject({ disabled: true });
+    expect(screen.getByText(`Finish the first-time ramp for ${names[1]} first.`)).toBeTruthy();
+  });
+
+  it('the letter badge is hidden from screen readers', async () => {
+    await mount(['g', 'g']);
+    const badges = screen.getAllByText('A', { includeHiddenElements: true });
+    expect(badges.length).toBeGreaterThan(0);
+    for (const b of badges) expect(b.parent!.props['aria-hidden']).toBe(true);
+  });
+
+  it('the chip is not offered under an exercise that is itself finished', async () => {
+    const { names } = await mount();
+    for (let j = 1; j <= 3; j++) {
+      const [w, r] = screen.getAllByLabelText(new RegExp(`^${names[0]} set ${j} `));
+      await fireEvent.changeText(w!, '40');
+      await fireEvent.changeText(r!, '10');
+      await press(`Mark ${names[0]} set ${j} done`);
+    }
+    expect(screen.queryByLabelText(`Superset ${names[0]} with ${names[1]}`)).toBeNull();
+    expect(screen.queryByText(/is already done/)).toBeNull();
+  });
 });

@@ -4,6 +4,7 @@ import {
   cantRule,
   restAfterTick,
   canGroupWithNext,
+  groupLabels,
   restFor,
   noLoad,
   rampRate,
@@ -702,7 +703,9 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
     const a = d.exs[i];
     const b = d.exs[i + 1];
     if (!d.workout || !a || !b || !canGroupWithNext(groupEx(d.exs), i, (k, s) => !!d.exs[k]?.sets[s]?.done).ok) return null;
-    const id = a.group || b.group || newId();
+    // The id of a valid run (core's labels), never a raw field: a broken id on a lone exercise is not joined.
+    const valid = groupLabels(groupEx(d.exs));
+    const id = (valid[i] ? a.group : null) || (valid[i + 1] ? b.group : null) || newId();
     a.group = id;
     b.group = id;
     const members = d.exs.filter((e) => e.group === id).map((e) => e.name);
@@ -890,7 +893,7 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
         for (const r of [...e.sets, ...e.ramp]) rows.set(r.id, r);
         return [...e.sets.keys()].map((j) => setRecord(e, 'work', j, now())).concat([...e.ramp.keys()].map((j) => setRecord(e, 'ramp', j, now())));
       });
-      // ponytail: `(synced.current ?? w)` vs `w` cannot differ yet: with no ungroup UI, a base group is never absent from `w` while null on screen. Revisit with ungroup (S4).
+      // `w` (the loaded row) is only the stored copy and never decides the group; the base is `synced.current`, the row last written, so after an Ungroup it holds the explicit null and a swap keeps writing it.
       const ch = cantChange({ ...w, exercises: d.exs.map((e) => exerciseRecord(e, w.exercises.find((x) => x.name === e.name), (synced.current ?? w).exercises.find((x) => x.name === e.name))) }, records, i, draft, choice, w.where ?? profile?.where ?? 'gym', exclusions, d.lifts, date, at);
       d.exs = ch.exercises.map((x) => {
         const pick = (kind: 'work' | 'ramp'): Row[] =>

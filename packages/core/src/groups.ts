@@ -149,7 +149,7 @@ export type GroupWithNext = { ok: true } | { ok: false; why: 'last' | 'inner' | 
 /**
  * Whether exercise `i` may be grouped with exercise `i + 1`: two ungrouped exercises start a group; an ungrouped one joins the group that
  * starts at the next; the last member of a group takes an ungrouped next one. Not allowed: two groups (`other`, ex the next), the result over
- * `GROUP_MAX` (`full`), `i` or the next one fully done (`done`, ex which), the result holding one name twice (`same`, ex the next). The first reason
+ * `GROUP_MAX` (`full`), `i` or the next one fully done (`done`, ex which), the result holding one name twice (`same`, ex the one that would join: the next, or `i` when `i` is not in a group). The first reason
  * in that order is returned; groups that are not valid runs count as ungrouped. Rules that need the app (parts of the session, the first-time ramp) are not here.
  *
  * New (#1182, ADR 012), not a prototype port.
@@ -172,6 +172,6 @@ export function canGroupWithNext(exs: readonly GroupEx[], i: number, done: IsDon
   };
   for (const k of [i, i + 1]) if (finished(k)) return { ok: false, why: 'done', ex: k };
   const names = exs.slice(from, to).map((e) => e.name);
-  if (new Set(names).size !== names.length) return { ok: false, why: 'same', ex: i + 1 };
+  if (new Set(names).size !== names.length) return { ok: false, why: 'same', ex: ra ? i + 1 : i }; // the one that would join (a group's own names are unique)
   return { ok: true };
 }
