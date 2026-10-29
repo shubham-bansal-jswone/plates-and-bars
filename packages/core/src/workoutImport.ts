@@ -287,15 +287,25 @@ export function exerciseKey(name: string): string {
   return k.length > 3 ? k.replace(/s$/, '') : k;
 }
 
-/** The catalogue name for an imported name: an exact match, else one that matches ignoring case and the forms above; null when there is none. */
-export function matchExercise(name: string, catalogue: readonly string[]): string | null {
+/** Alias table: an imported name (as Strong or Hevy writes it) to the library exercise it is (content/import-aliases.json). */
+export type ImportAliases = Readonly<Record<string, string>>;
+
+/**
+ * The catalogue name for an imported name: an exact match, else one that matches ignoring case and the forms above, else the
+ * `aliases` entry for it (name compared ignoring case and outer spaces) when its target is in the catalogue; null when there is none.
+ * An exact or case-insensitive catalogue match always wins over an alias.
+ */
+export function matchExercise(name: string, catalogue: readonly string[], aliases: ImportAliases = {}): string | null {
   const exact = catalogue.find((n) => n === name);
   if (exact !== undefined) return exact;
   const lower = name.trim().toLowerCase();
   const ci = catalogue.find((n) => n.toLowerCase() === lower);
   if (ci !== undefined) return ci;
   const key = exerciseKey(name);
-  return key === '' ? null : (catalogue.find((n) => exerciseKey(n) === key) ?? null);
+  const byKey = key === '' ? undefined : catalogue.find((n) => exerciseKey(n) === key);
+  if (byKey !== undefined) return byKey;
+  for (const [from, to] of Object.entries(aliases)) if (from.trim().toLowerCase() === lower) return catalogue.find((n) => n === to) ?? null;
+  return null;
 }
 
 export interface ImportMatches {
@@ -305,8 +315,8 @@ export interface ImportMatches {
   unmatched: string[];
 }
 
-/** Sorts the imported exercise names into matched and unmatched against the catalogue (built-in and custom names). */
-export function matchAll(days: readonly ImportDay[], catalogue: readonly string[]): ImportMatches {
+/** Sorts the imported exercise names into matched and unmatched against the catalogue (built-in and custom names) and the alias table. */
+export function matchAll(days: readonly ImportDay[], catalogue: readonly string[], aliases: ImportAliases = {}): ImportMatches {
   const matched: Record<string, string> = Object.create(null) as Record<string, string>;
   const unmatched: string[] = [];
   const seen = new Set<string>();
@@ -314,7 +324,7 @@ export function matchAll(days: readonly ImportDay[], catalogue: readonly string[
     for (const s of d.sets) {
       if (seen.has(s.exercise)) continue;
       seen.add(s.exercise);
-      const hit = matchExercise(s.exercise, catalogue);
+      const hit = matchExercise(s.exercise, catalogue, aliases);
       if (hit === null) unmatched.push(s.exercise);
       else matched[s.exercise] = hit;
     }
