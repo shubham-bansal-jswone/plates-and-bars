@@ -222,6 +222,17 @@ describe('the dock of a new rest', () => {
     expect(scrollTo).not.toHaveBeenCalled();
   });
 
+  it('scrolls to the last tick\'s row again, with the new height, when the next rest\'s dock is laid out', async () => {
+    const names = await mount(['g', 'g', 'g'], false);
+    nodeTop = 900;
+    await tick(names[0]!, 0, 'A1');
+    await layout(150);
+    scrollTo.mockClear();
+    await tick(names[1]!, 0, 'B1'); // a new rest, a taller dock
+    await layout(240);
+    expect(scrollTo).toHaveBeenLastCalledWith({ x: 0, y: 1000 - (VIEW_H - 240 - 8), animated: false });
+  });
+
   it('leaves nothing waiting when its rest ends before the layout', async () => {
     const names = await mount(['g', 'g', 'g', null], false);
     nodeTop = 900;

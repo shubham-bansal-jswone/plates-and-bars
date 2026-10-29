@@ -119,23 +119,25 @@ export function WorkoutScreen({ db, now = () => new Date() }: Props) {
   const [measuredDock, setMeasuredDock] = useState<number | null>(null);
   const dockH = measuredDock ?? DOCK_FALLBACK_H;
   const scroll = useScrollIntoView();
-  // Each rest mounts a new dock, whose height is only known after its first layout (its label can be longer than the last one's). A reveal asked
-  // for in between waits in `pending` and runs once, with that height, when the layout comes. A later height change never scrolls.
+  // Each rest mounts a new dock, whose height is only known after its first layout (its label can be longer than the last one's), and a tick's rest can
+  // start after the render that moved the marker. So the node revealed for a tick is scrolled to again, once, on the first layout of a dock that comes while
+  // no later tick has happened. A later height change never scrolls (the user may have scrolled), and nothing is timed.
   const measuredFor = useRef<number | null>(null);
-  const pending = useRef<{ node: ComponentRef<typeof View>; rest: number } | null>(null);
+  const tickSeq = useRef(0);
+  const last = useRef<{ node: ComponentRef<typeof View>; tick: number } | null>(null);
   const reveal = (node: ComponentRef<typeof View> | null | undefined) => {
     if (!node) return;
+    last.current = { node, tick: tickSeq.current };
     if (!rest) scroll.reveal(node, 0);
     else if (measuredFor.current === rest.id) scroll.reveal(node, dockH);
-    else pending.current = { node, rest: rest.id };
+    // else: this rest's dock has no height yet; its first layout reveals the node
   };
   const onDockHeight = (h: number, id: number) => {
     setMeasuredDock(h);
+    if (measuredFor.current === id) return;
     measuredFor.current = id;
-    // A node waiting for another rest's dock (that rest ended or changed before its layout) is dropped, not revealed against this one.
-    const wait = pending.current;
-    pending.current = null;
-    if (wait && wait.rest === id) scroll.reveal(wait.node, h);
+    const l = last.current;
+    if (l && l.tick === tickSeq.current) scroll.reveal(l.node, h);
   };
   const restBar = <RestBar rest={rest} onAdd={addRest} onSkip={() => setRest(null)} onHeight={onDockHeight} />;
   // One tree for every state, the state's content in the one body slot: the rest bar and toast keep their place (and so are not remounted,
@@ -161,7 +163,7 @@ export function WorkoutScreen({ db, now = () => new Date() }: Props) {
       day.exs.length === 0 ? (
         <StartView key={w.date} now={now} db={db} w={w} labHold={labHold === true} profile={profile} focus={focus} rules={rulesApi} notify={notify} tune={tune} />
       ) : (
-        <SessionView key={w.date} reveal={reveal} dockH={dockH} now={now} db={db} reloadKey={shown + dataVersion} w={w} profile={profile} focus={focus} rules={rulesApi} notify={notify} tune={tune} onHowTo={setHowTo} onCant={(i, name, reason) => setCantName(reason ? { i, name, reason } : { i, name })} />
+        <SessionView key={w.date} reveal={reveal} dockH={dockH} onTick={() => void (tickSeq.current += 1)} now={now} db={db} reloadKey={shown + dataVersion} w={w} profile={profile} focus={focus} rules={rulesApi} notify={notify} tune={tune} onHowTo={setHowTo} onCant={(i, name, reason) => setCantName(reason ? { i, name, reason } : { i, name })} />
       );
     const where = day.workout?.where ?? profile.where;
     const planned = () => plannedCoverage({ date: w.date, profile, weekPlan: settings.adjustments.weekPlan as WeekPlan | undefined, exclusions: rules.exclusions, swaps: rules.swaps, lifts: day.lifts }, getCatalog());
@@ -536,7 +538,7 @@ function StartView({ now, db, w, labHold, profile, focus, rules, notify, tune }:
   );
 }
 
-function SessionView({ reveal, dockH, now, db, reloadKey, w, profile, focus, rules, notify, tune, onHowTo, onCant }: { reveal: (node: ComponentRef<typeof View> | null | undefined) => void; dockH: number; now: () => Date; db: WorkoutDb; reloadKey: number; w: W; profile: Prof; focus: readonly string[]; rules: ReturnType<typeof useRules>; notify: (msg: string) => void; tune: Tuning; onHowTo: (n: string) => void; onCant: (i: number, name: string, reason?: ExclusionReason) => void }) {
+function SessionView({ reveal, dockH, onTick, now, db, reloadKey, w, profile, focus, rules, notify, tune, onHowTo, onCant }: { reveal: (node: ComponentRef<typeof View> | null | undefined) => void; dockH: number; /** A set was ticked (the screen tells a tick's reveal from a later one). */ onTick: () => void; now: () => Date; db: WorkoutDb; reloadKey: number; w: W; profile: Prof; focus: readonly string[]; rules: ReturnType<typeof useRules>; notify: (msg: string) => void; tune: Tuning; onHowTo: (n: string) => void; onCant: (i: number, name: string, reason?: ExclusionReason) => void }) {
   const c = useTheme();
   const { date, day } = w;
   const { settings } = useSettings();
@@ -668,7 +670,7 @@ function SessionView({ reveal, dockH, now, db, reloadKey, w, profile, focus, rul
     const pin = () => setPinned(ex.name);
     const act: Actions = {
       edit: (kind, j, f, v) => (pin(), w.editSet(i, kind, j, f, v)),
-      tick: (j) => (pin(), w.tick(i, j)),
+      tick: (j) => (pin(), onTick(), w.tick(i, j)),
       rate: (j, v) => (pin(), w.rate(i, j, v)),
       form: (v) => (pin(), w.setForm(i, v)),
       rampStart: () => (pin(), w.rampStart(i)),
