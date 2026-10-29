@@ -1,4 +1,4 @@
-import { completeSetup, openApp, saved, tab } from '../support/app.mjs';
+import { completeSetup, openApp, saved, settled, tab } from '../support/app.mjs';
 import { expect, label, signIn, test } from '../support/sync.mjs';
 
 // Needs the backend stack (README.md, "Sync tests"). One account, two devices (browser contexts).
@@ -15,8 +15,12 @@ test('log a meal offline, sync it to a second device, then delete the account', 
   // Offline: the meal is saved on the device and the badge says it is not synced.
   await a.context().setOffline(true);
   await tab(a, 'Food');
+  await settled(label(a, '+ Add to breakfast'));
   await label(a, '+ Add to breakfast').click();
-  await saved(a, () => a.locator('[aria-label^="Roti / chapati"]').first().click());
+  // The sheet slides in; a tap while it moves is dropped on a slow runner (#1315, #1411), so wait until the row is still.
+  const roti = a.locator('[aria-label^="Roti / chapati"]').first();
+  await settled(roti);
+  await saved(a, () => roti.click());
   await label(a, 'Done').click();
   await expect(label(a, '102 of 1,990 kcal eaten')).toBeVisible();
   // The badge count is only refreshed by the 30 s sync tick (#767), so allow one tick before it says so.

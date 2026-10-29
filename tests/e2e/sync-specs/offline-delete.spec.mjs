@@ -1,4 +1,4 @@
-import { completeSetup, saved, tab } from '../support/app.mjs';
+import { completeSetup, saved, settled, tab } from '../support/app.mjs';
 import { badge, expect, label, newEmail, openedOn, signIn, test } from '../support/sync.mjs';
 
 // Needs the backend stack (README.md, "Sync tests"). Part of #688. Waits are on the badge and on screen text, never fixed sleeps:
@@ -8,8 +8,12 @@ const ROTI = 102;
 
 async function logRoti(page, meal) {
   await tab(page, 'Food');
+  await settled(label(page, `+ Add to ${meal}`));
   await label(page, `+ Add to ${meal}`).click();
-  await saved(page, () => page.locator('[aria-label^="Roti / chapati"]').first().click());
+  // The sheet slides in; a tap while it moves is dropped on a slow runner (#1315, #1411), so wait until the row is still.
+  const roti = page.locator('[aria-label^="Roti / chapati"]').first();
+  await settled(roti);
+  await saved(page, () => roti.click());
   await label(page, 'Done').click();
 }
 
