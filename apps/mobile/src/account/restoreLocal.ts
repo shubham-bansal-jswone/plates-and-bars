@@ -95,7 +95,7 @@ function shapeOk(tbl: SyncTableName, key: string, rec: Doc): boolean {
   // A live lift stat is core's record shape: its day and its sets. A tombstone carries neither.
   if (tbl === 'lift_stats') return !!key && (rec.deleted_at != null || (isYmd(rec.date) && Array.isArray(rec.sets)));
   if (tbl === 'swaps') return key.length > 0;
-  if (tbl === 'routines') return UUID.test(key) && typeof rec.name === 'string' && Array.isArray(rec.exercises);
+  if (tbl === 'routines') return UUID.test(key);
   if (tbl === 'profiles' || tbl === 'settings') return true;
   return UUID.test(key);
 }
