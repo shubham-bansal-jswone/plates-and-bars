@@ -21,11 +21,11 @@ Monorepo components:
 | API contract | `packages/api` | `openapi.yaml` (0.1.26), generated client, test vectors |
 | Backend | `backend` | Spring Boot API: auth, sync, account rights, AI proxy, barcode proxy, content |
 | Content | `content/*.json` | Exercise, food, recipe, card, lab data bundles |
-| Content tools | `tools/` | Importers, validators, golden-fixture generator |
+| Content tools | `tools/` | Importers and validators |
 | Website | `apps/site` | Astro site: landing, privacy, terms, deletion, licences, blog |
 | Infra | `infra/`, `.github/workflows/` | Compose stack, Caddy, CI, deploy, backup, monitoring |
 | E2E | `tests/e2e` | Playwright (web) and Maestro (Android) |
-| Prototype | `docs/prototype/plate-and-bar.html` | Behavioural reference for the rules |
+| Spec | `docs/spec/PROTOTYPE_SPEC.md`, `docs/spec/golden/` | Behavioural spec of record (HTML prototype frozen at git tag `prototype-final`) |
 
 ### Responsibilities split (observed)
 - **The server stores, syncs and guards; every rule runs on the device.** The contract header says this and the backend contains no targets, plan or progression logic (`openapi.yaml` info text; backend package list in section 3).
@@ -127,7 +127,7 @@ Note: the generic stack description in `~/.claude/CLAUDE.md` (Maven, Postgres, D
 ### 3.3 Other packages
 - `packages/core/src` (about 9.2k lines, ~50 modules): `targets`, `setup`, `plan`, `progression`, `food`, `recipes`, `workout`, `progress`, `stalls`, `mealplan`, `meals`, ... Pure functions; anything date-dependent takes `now` as an argument (`packages/core/README.md`). `package.json` `main` points at `src/index.ts`; the app consumes it as a `file:` dependency and Metro watches it.
 - `packages/api`: `openapi.yaml`, `client/{index,schema.d,contract-guards}.ts`, `test-vectors/*.json` + `verify.mjs`.
-- `tools/`: `exercises-import`, `foods-import`, `cards-import`, `exercise-figures`, `exercise-motion`, `golden-gen`, `validate/*`, `check-no-ifct`.
+- `tools/`: `exercises-import`, `foods-import`, `cards-import`, `exercise-figures`, `exercise-motion`, `validate/*`, `check-no-ifct`.
 - `apps/site/src/pages`: `index`, `privacy`, `terms`, `delete-account`, `licenses`, `blog/`.
 
 ---
@@ -725,7 +725,7 @@ Supported by the code read:
 - **Tombstone:** a record with `deleted_at` set, kept so deletes sync.
 - **Family:** all refresh tokens descended from one sign-in; revoked together on reuse.
 - **Cookie mode:** web transport of the refresh token (ADR 006).
-- **Golden fixtures:** `docs/spec/golden/*.json`, generated from the prototype by `tools/golden-gen`, used to pin `packages/core` behaviour.
+- **Golden fixtures:** `docs/spec/golden/*.json`, fixtures of record (originally generated from the prototype), used to pin `packages/core` behaviour.
 - **Lane:** an agent ownership area defined in `docs/AGENTS.md`.
 
 ### 22.5 Not identifiable from the code read

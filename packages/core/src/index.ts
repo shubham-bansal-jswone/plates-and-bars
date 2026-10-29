@@ -1,6 +1,6 @@
 /**
  * Public API of @plate-and-bar/core. Every export mirrors a function or table in
- * docs/prototype/plate-and-bar.html; the prototype name is given beside it.
+ * the prototype (frozen at git tag `prototype-final`); the prototype name is given beside it.
  */
 
 /** Mirrors prototype `num`. */
@@ -532,7 +532,7 @@ export type { TrendPoint, TrendChange, ChartBox, ChartLayout, ScaleJump, WeightE
 /**
  * Science cards (#488). The protein card's 1.6 g/kg floor, `Math.round(w * 1.6)` where
  * `w = latestWeight() || profile.weight`:
- * - `proteinFloor` mirrors prototype `KB.protein.b`'s `Math.round(w*1.6)` (docs/prototype/plate-and-bar.html line 2792).
+ * - `proteinFloor` mirrors prototype `KB.protein.b`'s `Math.round(w*1.6)` (prototype-final tag, `KB.protein`).
  * - `PROTEIN_PER_KG` mirrors its 1.6. The card shows the weight with `round1`; the floor multiplies the raw weight.
  */
 export { proteinFloor, PROTEIN_PER_KG } from './protein';
@@ -700,7 +700,7 @@ export type { SeededSession, SeededSessionInput } from './seeded';
  * - `routineFromSession` and `startRoutine` are new (#1184, ADR 011), not prototype ports (no prototype behaviour, no golden
  *   fixture): the exercises to store for a saved routine, and a hand-picked session from one: stored set counts kept, with
  *   only the deload and light-day steps on top (`adjustSets`, the step `sessionSets` ends with), and no lab hold (#1088).
- * - `isBlank` is the one blank-text rule (#421, contract 0.1.13); the app's copy should import this.
+ * - `isBlank` is the one blank-text rule (#421, contract 0.1.13); the app imports it from here.
  */
 export { isBlank } from './blank';
 export { adjustSets } from './session';

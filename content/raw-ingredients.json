@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "source": "docs/prototype/plate-and-bar.html (RAW, RAW_FIB)",
+  "source": "imported once from the prototype (frozen at tag prototype-final) (RAW, RAW_FIB); content is now the source of record",
   "per": "100 g raw. Carbs are total carbohydrate including fibre.",
   "ingredients": [
     {
