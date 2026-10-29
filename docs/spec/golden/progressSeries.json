@@ -1,5 +1,5 @@
 {
- "description": "Progress series rules (#1351 C1, new, no prototype counterpart). Points are [date, v]. range: keep date >= end minus 28 (4w) or 84 (12w) days, boundary inclusive. downsample: only above 120 points, one point per Monday-week, last or max (earliest on a tie); the kept point keeps its date. Long runs use v = (i*7)%11+60 for day i from start. measure: tapes are facts, expected series for each key.",
+ "description": "Progress series rules (#1351 C1, new, no prototype counterpart). Points are [date, v]. range: keep date >= end minus 28 (4w) or 84 (12w) days, boundary inclusive. downsample: only above 120 points, one point per Monday-week, last or max (earliest on a tie); the kept point keeps its date. Long runs use v = (i*7)%11+60 for day i from start. measure: tapes are facts, expected series for each key. The downsample case 'ties inside a week' repeats v = 3,9,2,9,1,9,4 by weekday from a Monday, so 'max' must keep the earliest 9. measure_long: 26 days of chest, thigh (every 4th is 0) and neck, one row after the end date; expects the default cap of the last 20 points.",
  "downsample_threshold": 120,
  "range_days": {
   "4w": 28,
