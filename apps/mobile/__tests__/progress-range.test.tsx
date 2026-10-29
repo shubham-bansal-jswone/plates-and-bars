@@ -2,7 +2,8 @@ import { StyleSheet } from 'react-native';
 import { fireEvent, render, screen } from '@testing-library/react-native';
 import { addDays, mondayOf, WEIGHT_CHART_BOX, type TrendPoint } from '@plate-and-bar/core';
 import { dateWithYear, shortDate } from '../src/format';
-import { saveWeight } from '../src/db/progress';
+
+import { saveMeasurement, saveWeight } from '../src/db/progress';
 import { saveProfile } from '../src/db/records';
 import { saveSettings } from '../src/db/settings';
 import { defaultSettings } from '../src/settings/types';
@@ -263,5 +264,24 @@ describe('Progress screen range and unit', () => {
     expect(screen.getByText(/^Down 13\.2 lb since /)).toBeTruthy(); // 6 kg
     await fireEvent.press(screen.getByRole('button', { name: 'Show as table' }));
     expect(screen.getByLabelText(`${dateWithYear(END)}, 176.4 lb`)).toBeTruthy();
+  });
+
+  it('the recent weigh-ins have their own heading, apart from the chart table', async () => {
+    await mount('kg');
+    expect(screen.getByRole('header', { name: 'Recent weigh-ins' })).toBeTruthy();
+  });
+
+  it('one waist measurement shows the same kind of hint as weight, and none shows nothing', async () => {
+    const tape = { id: null, version: 0, updated_at: '2026-10-08T00:00:00Z', deleted_at: null, date: '2026-10-08', waist_cm: 90, neck_cm: null, chest_cm: null, arm_cm: null, thigh_cm: null, hips_cm: null };
+    const db = memoryDb();
+    await saveSettings(db, defaultSettings('2026-10-08T00:00:00Z'));
+    await saveProfile(db, profile());
+    await render(withProfile(db, <WeightUnitProvider db={db}><ProgressScreen db={db} now={() => new Date(2026, 9, 8, 10, 0, 0)} /></WeightUnitProvider>));
+    await screen.findByRole('header', { name: 'Progress' });
+    expect(screen.queryByText('Log a few waist measurements to see your trend line here.')).toBeNull();
+    await screen.unmount();
+    await saveMeasurement(db, tape);
+    await render(withProfile(db, <WeightUnitProvider db={db}><ProgressScreen db={db} now={() => new Date(2026, 9, 8, 10, 0, 0)} /></WeightUnitProvider>));
+    expect(await screen.findByText('Log a few waist measurements to see your trend line here.')).toBeTruthy();
   });
 });

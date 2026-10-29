@@ -11,7 +11,7 @@ import { Text } from '../components/Text';
 import { Heading, Button, Caption, Card, Field, H1, Hint, Page } from '../components/ui';
 import type { WorkoutDb } from '../db/workouts';
 import { fmt, shortDate } from '../format';
-import { BF_HINT, BF_MISSING, BF_NO_PROFILE, HOW_TO_MEASURE, HOW_TO_MEASURE_HIPS, getMeasures, SCALE_JUMP_BODY, SCALE_JUMP_TITLE, WEIGHT_HINT } from '../progress/copy';
+import { BF_HINT, BF_MISSING, BF_NO_PROFILE, HOW_TO_MEASURE, HOW_TO_MEASURE_HIPS, getMeasures, SCALE_JUMP_BODY, RECENT_WEIGH_INS_TITLE, SCALE_JUMP_TITLE, WAIST_TREND_NONE, WEIGHT_HINT } from '../progress/copy';
 import { CheckinCard, RapidLossCard } from '../progress/CheckinCard';
 import { RecentWorkouts, WorkoutDay } from '../progress/history/History';
 import { useHistory } from '../progress/history/useHistory';
@@ -140,6 +140,7 @@ function WeightSection({ p }: { p: Progress }) {
         box={WEIGHT_CHART_BOX}
         changeLine={(ch) => (ch.direction === 'none' ? `No change since ${shortDate(ch.since)}.` : `${ch.direction === 'down' ? 'Down' : 'Up'} ${ch.amount} ${unit} since ${shortDate(ch.since)}.`)}
       />
+      {recent.length > 0 ? <Heading level={3} style={[typeScale.label, { color: c.ink }]}>{RECENT_WEIGH_INS_TITLE}</Heading> : null}
       {recent.map((w) => (
         <Card key={w.date} style={[styles.row, { backgroundColor: c.surfaceSoft }]} accessible accessibilityLabel={`${shortDate(w.date)}, ${weightWithUnit(w.weight_kg, unit)}`}>
           <Text style={{ color: c.muted }}>{shortDate(w.date)}</Text>
@@ -182,7 +183,7 @@ function MeasureSection({ p, isToday }: { p: Progress; isToday: boolean }) {
         </View>
       ))}
       <Button kind="ghost" disabled={!Object.values(text).some((t) => t?.trim())} label={isToday ? 'Save for today' : `Save for ${shortDate(p.date)}`} onPress={() => p.saveTape(text)} />
-      {waist.length >= 2 ? (
+      {waist.length >= 1 ? (
         <>
           <Heading level={3} style={[typeScale.label, { color: c.ink }]}>Waist</Heading>
           <RangedTrend
@@ -192,6 +193,7 @@ function MeasureSection({ p, isToday }: { p: Progress; isToday: boolean }) {
             unit="cm"
             noun="Waist"
             box={WAIST_CHART_BOX}
+            none={WAIST_TREND_NONE}
             changeLine={(ch) => (ch.direction === 'none' ? `No change in waist since ${shortDate(ch.since)}.` : `Waist ${ch.direction} ${ch.amount} cm since ${shortDate(ch.since)}.`)}
           />
         </>

@@ -62,6 +62,8 @@ export const BF_NO_PROFILE = 'Run setup (Targets tab) and add waist and neck for
 export const STEPS_BAD = 'Enter steps as a whole number, like 8000.';
 export const SLEEP_BAD = 'Enter hours slept, like 7.5.';
 export const TREND_NONE = 'Log a few weigh-ins to see your trend line here.';
+export const WAIST_TREND_NONE = 'Log a few waist measurements to see your trend line here.';
+export const RECENT_WEIGH_INS_TITLE = 'Recent weigh-ins';
 export const SCALE_JUMP_TITLE = (amount: string, unit: WeightUnit = 'kg'): string => `The scale went up ${amount} ${unit}`;
 export const SCALE_JUMP_BODY = 'That’s almost certainly water, not fat. Your weekly average is what counts.';
 
