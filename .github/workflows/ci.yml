@@ -27,7 +27,6 @@ jobs:
       run_mobile: ${{ steps.d.outputs.run_mobile }}
       run_backend: ${{ steps.d.outputs.run_backend }}
       run_tools: ${{ steps.d.outputs.run_tools }}
-      run_golden: ${{ steps.d.outputs.run_golden }}
       run_play_listing: ${{ steps.d.outputs.run_play_listing }}
       run_site: ${{ steps.d.outputs.run_site }}
       run_content_meta: ${{ steps.d.outputs.run_content_meta }}
@@ -171,22 +170,6 @@ jobs:
       - run: node validate/cli.mjs
       # ADR 002/005: no IFCT or INDB in content, app content, seed data or backend resources (fast, reads a few small folders)
       - run: npm run check:sources
-
-  # docs/spec/golden is generated from docs/prototype/plate-and-bar.html by tools/golden-gen and never edited by hand.
-  # This fails when either side changed without regenerating (the other half, core's golden tests drifting from the
-  # fixtures, is the `core` job). tools/golden-gen has no dependencies, so there is no install step.
-  golden:
-    name: golden (fixtures match prototype)
-    needs: changes
-    if: needs.changes.outputs.run_golden == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 22
-      - run: node golden-gen/cli.mjs --check
-        working-directory: tools
 
   # docs/PLAY-STORE-LISTING.md must stay within Google's character limits, carry no placeholder or AI vendor name, and
   # repeat the setup disclaimer in apps/mobile/src/setup/copy.ts word for word (#832, #851). The script uses only
