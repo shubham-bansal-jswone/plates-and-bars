@@ -327,27 +327,37 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
       buzz(PB_BUZZ);
     }
     // A milestone is looked for only on a tick (not a rate change, a form change or a removal; an untick earns none and un-shows none), in memory over
-    // the reload's cache plus today's sets. Every new one is marked shown and listed for the completion panel; one is toasted, and not when this tick's personal best was.
-    if (fromTick && ex.sets.some((s) => s.done)) {
-      const m = msRef.current;
-      let data = await ms.current?.data;
-      if (ms.current && data && foreignNow() !== ms.current.foreign) {
-        // Something else wrote since the reload (an import): read again, silently seeding what it brought, before this tick counts.
-        data = await loadMs();
-        if (data) ms.current = { data: Promise.resolve(data), foreign: foreignNow() };
-      }
-      if (data) {
-        const w = ref.current;
-        const sets = w.exs.flatMap((e) => todaySets(e)).filter((x) => x.done);
-        const entry = sets.length > 0 ? { t: w.workout?.base || w.workout?.template || HAND_PICKED, n: sets.length } : null;
-        const fresh = await takeNewMilestones(db, data, { date, sets, entry }, { profile: m.profile, overrides: m.overrides, unit: m.unit, end: m.end }).catch(() => []);
-        if (fresh.length > 0) {
-          setEarnedIn((cur) => ({ date, list: [...(cur.date === date ? cur.list : []), ...fresh.filter((f) => !(cur.date === date && cur.list.some((x) => x.id === f.id)))] }));
-          const pick = toastPick(fresh);
-          if (!pr && pick) notify(milestoneToastText(pick));
-        }
-      }
+    // the reload's cache plus today's sets. The queue never waits on it: this captures what the tick needs and chains the evaluation onto `msChain`,
+    // which keeps ticks in order. A history read (the reload's, or a reseed after a write by another screen) can finish a moment after the PR toast
+    // and the rest timer; that is accepted. Every new milestone is marked shown and listed for the completion panel; one is toasted, and not when this tick's personal best was.
+    // Known gap: done sets of the viewed day that arrive by a pull or an import (another device logged today) are left out of the reload seed on purpose,
+    // so the next tick here can toast at most one milestone they earned.
+    if (fromTick && ex.sets.some((s) => s.done) && dateRef.current === date) {
+      const w = ref.current;
+      const sets = w.exs.flatMap((e) => todaySets(e)).filter((x) => x.done);
+      const entry = sets.length > 0 ? { t: w.workout?.base || w.workout?.template || HAND_PICKED, n: sets.length } : null;
+      const snap = { date, sets, entry, pr: !!pr, m: msRef.current, cache: ms.current, foreign: foreignNow() };
+      msChain.current = msChain.current.then(() => evaluateMilestones(snap)).catch(() => undefined);
     }
+  };
+  const msChain = useRef<Promise<void>>(Promise.resolve());
+  const evaluateMilestones = async (snap: { date: string; sets: PrSet[]; entry: { t: string; n: number } | null; pr: boolean; m: typeof msRef.current; cache: typeof ms.current; foreign: number }) => {
+    if (!snap.cache) return;
+    let data = await snap.cache.data;
+    if (!data) return;
+    if (snap.foreign !== snap.cache.foreign) {
+      // Another screen wrote since the reload (an import): read again, silently seeding what it brought, before this tick counts. Kept on the cache for the next tick.
+      data = (await loadMs()) ?? data;
+      snap.cache.data = Promise.resolve(data);
+      snap.cache.foreign = snap.foreign;
+    }
+    if (dateRef.current !== snap.date) return; // the day changed meanwhile: the cache and the sets belong to another day
+    const { m } = snap;
+    const fresh = await takeNewMilestones(db, data, { date: snap.date, sets: snap.sets, entry: snap.entry }, { profile: m.profile, overrides: m.overrides, unit: m.unit, end: m.end }).catch(() => []);
+    if (fresh.length === 0 || dateRef.current !== snap.date) return;
+    setEarnedIn((cur) => ({ date: snap.date, list: [...(cur.date === snap.date ? cur.list : []), ...fresh.filter((f) => !(cur.date === snap.date && cur.list.some((x) => x.id === f.id)))] }));
+    const pick = toastPick(fresh);
+    if (!snap.pr && pick) notify(milestoneToastText(pick));
   };
 
   /** Applies `fn` to a copy of today's exercise `i` and shows it at once; `persist` is queued and gets the exercise's name. */

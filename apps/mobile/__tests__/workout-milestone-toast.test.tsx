@@ -57,16 +57,21 @@ async function seedDay(db: Db, name: string, date: string, sets: [number, number
   }
 }
 
+/** The milestone step runs off the day queue: let it settle. */
+const settle = () => act(async () => void (await new Promise((r) => setTimeout(r, 20))));
+
 type Hook = Awaited<ReturnType<typeof started>>['result'];
 const tickSet = async (result: Hook, j: number, w: string, r: string) => {
   await act(async () => result.current.editSet(0, 'work', j, 'w', w));
   await act(async () => result.current.editSet(0, 'work', j, 'r', r));
   await act(async () => result.current.tick(0, j));
   await act(async () => void (await dayQueue.current));
+  await settle();
 };
 const untick = async (result: Hook, j: number) => {
   await act(async () => result.current.tick(0, j));
   await act(async () => void (await dayQueue.current));
+  await settle();
 };
 const msToasts = () => notify.mock.calls.map(([m]) => String(m)).filter((m) => m.startsWith('Milestone:'));
 const prToasts = () => notify.mock.calls.map(([m]) => String(m)).filter((m) => m.startsWith('New personal best'));
@@ -187,5 +192,67 @@ describe('the quiet milestone toast (#1351 A9)', () => {
     expect(result.current.earned).toHaveLength(1);
     await rerender({ k: 0, date: '2026-10-07' });
     expect(result.current.earned).toEqual([]);
+  });
+
+  it('a tick never waits on a history read: the queue finishes while the reload read is held, the toast follows', async () => {
+    const { db, result, rerender } = await started();
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((r) => (release = r));
+    const real = workoutsDb.loadDoneSets;
+    const spy = jest.spyOn(workoutsDb, 'loadDoneSets').mockImplementation(async (...a) => {
+      await gate;
+      return real(...a);
+    });
+    await rerender({ k: 1 }); // a tab return starts a reload read, now held
+    await act(async () => result.current.editSet(0, 'work', 0, 'w', '60'));
+    await act(async () => result.current.editSet(0, 'work', 0, 'r', '5'));
+    await act(async () => result.current.tick(0, 0));
+    await act(async () => void (await dayQueue.current)); // would hang if the tick waited on the read
+    expect((await loadSets(db, DATE)).some((x) => x.done)).toBe(true);
+    expect(msToasts()).toEqual([]);
+    await act(async () => release());
+    await settle();
+    expect(msToasts()).toHaveLength(1);
+    spy.mockRestore();
+  });
+
+  it('a day change while the milestone step waits drops it: no toast and no listing', async () => {
+    const { result, rerender } = await started();
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((r) => (release = r));
+    const real = workoutsDb.loadDoneSets;
+    const spy = jest.spyOn(workoutsDb, 'loadDoneSets').mockImplementation(async (...a) => {
+      await gate;
+      return real(...a);
+    });
+    await rerender({ k: 1 });
+    await act(async () => result.current.editSet(0, 'work', 0, 'w', '60'));
+    await act(async () => result.current.editSet(0, 'work', 0, 'r', '5'));
+    await act(async () => result.current.tick(0, 0));
+    await act(async () => void (await dayQueue.current));
+    await rerender({ k: 1, date: '2026-10-07' });
+    spy.mockRestore();
+    await act(async () => release());
+    await settle();
+    expect(msToasts()).toEqual([]);
+    expect(result.current.earned).toEqual([]);
+  });
+
+  it('the reload seed leaves the viewed day out: a qualifying set stored on it and not yet announced still toasts on the next tick', async () => {
+    const { db, name, result, rerender } = await started();
+    await seedDay(db, name, DATE, [[60, 5]]); // the day already holds a done plate set whose own tick has not been evaluated
+    await rerender({ k: 1 });
+    await settle();
+    expect(await shown(db)).toEqual(new Set());
+    await tickSet(result, 0, '60', '5');
+    expect(msToasts()).toEqual([`Milestone: One plate a side, ${name}, 60 kg`]);
+  });
+
+  it('today counts in the session log: after 9 earlier sessions the first tick toasts the 10th workout', async () => {
+    const { result } = await started('kg', async (d, n) => {
+      for (let i = 1; i <= 9; i++) await seedDay(d, n, `2026-09-${String(i).padStart(2, '0')}`, [[20, 5]]);
+    });
+    await tickSet(result, 0, '20', '5');
+    expect(msToasts()).toEqual(['Milestone: 10th workout, 10 workouts completed']);
   });
 });
