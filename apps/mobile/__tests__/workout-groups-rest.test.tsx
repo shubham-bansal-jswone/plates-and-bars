@@ -181,12 +181,14 @@ function oldDock(rest: Old, exs: { name: string; sets: { done: boolean }[] }[]):
 const swapRename = (r: { label: string; from?: string[] } | null, from: string, to: string) =>
   r?.from?.includes(from) ? { ...r, ...(r.from[0] === from ? { label: `Next: ${to}` } : {}), from: r.from.map((n) => (n === from ? to : n)) } : r;
 
-type Ex = { name: string; sets: { done: boolean }[] };
+type Ex = { name: string; sets: { done: boolean; id?: string }[] };
+let rowSeq = 0;
+const withIds = (e: Ex): Ex => ({ ...e, sets: e.sets.map((s) => ({ ...s, id: s.id ?? `r${rowSeq++}` })) });
 type Act = { k: 'tick'; i: number; j: number } | { k: 'rmex'; i: number } | { k: 'rmset'; i: number } | { k: 'addset'; i: number } | { k: 'swap'; i: number; to: string } | { k: 'add'; name: string };
 
 /** Runs the actions on a session with a rest dock, the old logic and the new side by side; returns what each dock shows after every action. */
 function dockRun(start: Ex[], acts: Act[]) {
-  const exs: Ex[] = structuredClone(start);
+  const exs: Ex[] = structuredClone(start).map(withIds);
   let o: Old = null;
   let n: ReturnType<typeof restTarget> | null = null;
   const trace: { old: string | null; now: string | null; act: Act }[] = [];
@@ -209,14 +211,14 @@ function dockRun(start: Ex[], acts: Act[]) {
     } else if (a.k === 'rmset') {
       if (exs[a.i]!.sets.length > 1) exs[a.i]!.sets.pop();
     } else if (a.k === 'addset') {
-      exs[a.i]!.sets.push({ done: false });
+      exs[a.i]!.sets.push({ done: false, id: `r${rowSeq++}` });
     } else if (a.k === 'swap') {
       const was = exs[a.i]!.name;
-      exs[a.i] = { name: a.to, sets: [{ done: false }, { done: false }, { done: false }] };
+      exs[a.i] = withIds({ name: a.to, sets: [{ done: false }, { done: false }, { done: false }] });
       o = swapRename(o, was, a.to) as Old;
       n = swapRename(n, was, a.to) as typeof n;
     } else {
-      exs.push({ name: a.name, sets: [{ done: false }, { done: false }, { done: false }] });
+      exs.push(withIds({ name: a.name, sets: [{ done: false }, { done: false }, { done: false }] }));
     }
     o = oldDock(o, exs);
     if (n) n = restRetarget(exs as never, n);
@@ -280,6 +282,95 @@ describe('ungrouped sessions: the dock while a rest runs equals the old logic', 
   });
 });
 
+/** One session with a rest dock and an identity oracle: tick, untick, insert anywhere, remove by name (every copy), remove a set, add a set; names repeat. */
+type Dx = { name: string; sets: { done: boolean; id: string }[] };
+type DAct = { k: 'tick'; i: number; j: number } | { k: 'ins'; at: number; name: string } | { k: 'rmname'; name: string } | { k: 'rmset'; i: number } | { k: 'addset'; i: number };
+const dx = (name: string, n = 1 + (rowSeq++ % 2)): Dx => ({ name, sets: Array.from({ length: n }, () => ({ done: false, id: `d${rowSeq++}` })) });
+function identityRun(start: Dx[], acts: DAct[]) {
+  const exs = start.slice();
+  let n: ReturnType<typeof restTarget> | null = null;
+  let tracked: Dx[] = [];
+  const out: { got: string | null; want: string | null; act: DAct }[] = [];
+  const undone = (e: Dx) => e.sets.some((x) => !x.done);
+  for (const act of acts) {
+    // Indices wrap to the live length, so random runs stay valid after inserts and removals.
+    const a = 'i' in act ? { ...act, i: act.i % exs.length } : act.k === 'ins' ? { ...act, at: act.at % (exs.length + 1) } : act;
+    if (a.k === 'tick') {
+      const s = exs[a.i]?.sets[a.j];
+      if (!s) continue;
+      s.done = !s.done;
+      if (s.done) {
+        const r = restAfterTick(exs.map((e) => ({ name: e.name, sets: e.sets.length })), a.i, a.j, (k, m) => !!exs[k]?.sets[m]?.done, { restOff: false, tags: getCatalog().tags });
+        if (r.kind !== 'none' && r.next) {
+          n = restTarget(exs as never, a.i, r.next);
+          tracked = exs.slice(a.i);
+        }
+      }
+    } else if (a.k === 'ins') exs.splice(a.at, 0, dx(a.name));
+    else if (a.k === 'rmname') {
+      if (exs.every((e) => e.name === a.name)) continue;
+      for (let k = exs.length - 1; k >= 0; k--) if (exs[k]!.name === a.name) exs.splice(k, 1);
+    } else if (a.k === 'rmset') {
+      if (exs[a.i]!.sets.length > 1) exs[a.i]!.sets.pop();
+    } else exs[a.i]!.sets.push({ done: false, id: `d${rowSeq++}` });
+    if (n) n = restRetarget(exs as never, n);
+    const first = tracked.find((e) => exs.includes(e) && undone(e));
+    tracked = first ? tracked.slice(tracked.indexOf(first)) : []; // the list is only ever cut (an exercise reopened later is not taken back)
+    out.push({ got: n && n.label.replace(/^Next: (set \d+ of |[A-Z]\d+ )?/, ''), want: first?.name ?? null, act: a });
+  }
+  return out;
+}
+
+describe('ungrouped dock with repeated names, inserts and removals (row-id anchor)', () => {
+  const want = (t: ReturnType<typeof identityRun>) => expect(t.map((x) => x.got)).toEqual(t.map((x) => x.want));
+
+  it('a pull inserts before the head while a later copy of its name is open (Lat Pulldown, LR, LR)', () => {
+    const t = identityRun([dx('Lat Pulldown', 1), dx('Lateral Raise', 1), dx('Lateral Raise', 1)], [{ k: 'tick', i: 1, j: 0 }, { k: 'ins', at: 1, name: 'Seated Cable Row' }]);
+    want(t);
+    expect(t[1]!.got).toBe('Lateral Raise');
+  });
+
+  it('a can\'t-do swap inserts the replacement after a partly ticked earlier exercise', () => {
+    const t = identityRun([dx('Lat Pulldown', 2), dx('Lateral Raise', 1), dx('Lateral Raise', 1)], [{ k: 'tick', i: 0, j: 0 }, { k: 'tick', i: 1, j: 0 }, { k: 'ins', at: 1, name: 'Hack Squat' }]);
+    want(t);
+    expect(t[2]!.got).toBe('Lateral Raise');
+  });
+
+  it('an earlier exercise with another name is removed', () => {
+    const t = identityRun([dx('A', 1), dx('S', 1), dx('C', 1), dx('C', 1)], [{ k: 'tick', i: 3, j: 0 }, { k: 'tick', i: 2, j: 0 }, { k: 'rmname', name: 'A' }]);
+    want(t);
+  });
+
+  it('the head is removed after others ticked: followers are found by their rows, not by an earlier finished copy of their name', () => {
+    const t = identityRun([dx('C', 1), dx('A', 2), dx('C', 2), dx('A', 2)], [{ k: 'tick', i: 0, j: 0 }, { k: 'tick', i: 2, j: 0 }, { k: 'tick', i: 1, j: 0 }, { k: 'rmname', name: 'A' }]);
+    want(t);
+    expect(t[3]!.got).toBe('C');
+  });
+
+  it('over 150 random runs with repeated names, inserts anywhere and removals', () => {
+    let seed = 4242;
+    const rnd = (n: number) => ((seed = (seed * 1664525 + 1013904223) >>> 0), (seed >>> 8) % n);
+    const pool = ['A', 'B', 'C'];
+    let docks = 0;
+    for (let run = 0; run < 150; run++) {
+      const start = Array.from({ length: 3 + rnd(4) }, () => dx(pool[rnd(3)]!));
+      const acts: DAct[] = [];
+      for (let k = 0; k < 20; k++) {
+        const r = rnd(12);
+        if (r < 6) acts.push({ k: 'tick', i: rnd(9), j: rnd(3) });
+        else if (r < 8) acts.push({ k: 'ins', at: rnd(9), name: pool[rnd(3)]! });
+        else if (r < 9) acts.push({ k: 'rmname', name: pool[rnd(3)]! });
+        else if (r < 10) acts.push({ k: 'rmset', i: rnd(9) });
+        else acts.push({ k: 'addset', i: rnd(9) });
+      }
+      const t = identityRun(start, acts);
+      docks += t.filter((x) => x.want).length;
+      want(t);
+    }
+    expect(docks).toBeGreaterThan(300);
+  });
+});
+
 describe('the dock follows the session by position (#1329)', () => {
   const ex = (name: string, ...done: boolean[]) => ({ name, sets: done.map((d) => ({ done: d })) }) as never;
   const at = (i: number, name: string, to: { ex: number; set: number; name: string }, label = '', from?: string[]): RestNext => ({ at: { i, name }, to, label, ...(from ? { from } : {}) });
@@ -318,6 +409,24 @@ describe('the dock follows the session by position (#1329)', () => {
   it('ungrouped, a name listed twice matches two different exercises in order', () => {
     const r = at(0, 'B', { ex: 0, set: 1, name: 'B' }, 'Next: set 2 of B', ['B', 'B']);
     expect(restRetarget([ex('B', true), ex('B', false)], r)).toMatchObject({ at: { i: 1, name: 'B' }, from: ['B'] });
+  });
+
+  it('with row ids, an entry whose rows are all gone is found by name without trusting at.i', () => {
+    const r = { ...at(2, 'B', { ex: 2, set: 0, name: 'B' }, 'Next: set 1 of B', ['B']), ids: [['gone']] };
+    expect(restRetarget([ex('B', false), ex('X', true), ex('B', true)], r)).toBe(r);
+  });
+
+  it('with row ids, an entry renamed by a swap (its old exercise stays, finished) is found by its new name', () => {
+    const r = { ...at(0, 'Press', { ex: 0, set: 1, name: 'Press' }, 'Next: Seated', ['Seated', 'Fly']), ids: [['p1', 'p2'], ['f1']] };
+    const exs = [{ name: 'Press', sets: [{ done: true, id: 'p1' }] }, { name: 'Seated', sets: [{ done: false, id: 'n1' }] }, { name: 'Fly', sets: [{ done: false, id: 'f1' }] }] as never;
+    expect(restRetarget(exs, r)).toBe(r);
+  });
+
+  it('a stored rest with row ids parses; ids of the wrong shape or length are rejected', () => {
+    const base = { id: 1, end: 5000, total: 90, label: 'Next: B', from: ['B', 'C'], date: DATE };
+    expect(parseRest(JSON.stringify({ ...base, ids: [['a'], ['b', 'c']] }), DATE, 1000)?.ids).toEqual([['a'], ['b', 'c']]);
+    expect(parseRest(JSON.stringify({ ...base, ids: [['a']] }), DATE, 1000)).toBeNull();
+    expect(parseRest(JSON.stringify({ ...base, ids: [['a'], [1]] }), DATE, 1000)).toBeNull();
   });
 
   it('grouped: two exercises with one name cannot stand in for each other either', () => {

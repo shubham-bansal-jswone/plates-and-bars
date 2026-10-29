@@ -20,28 +20,34 @@ export function restLabel(exs: Exs, from: number, to: { ex: number; set: number 
  */
 export function restTarget(exs: Exs, i: number, n: { ex: number; set: number }): RestNext {
   const t: RestNext = { at: { i, name: exs[i]?.name ?? '' }, to: { ex: n.ex, set: n.set, name: exs[n.ex]?.name ?? '' }, label: restLabel(exs, i, n) };
-  return exs.some((e) => e.group) ? t : { ...t, from: exs.slice(i).map((e) => e.name) };
+  return exs.some((e) => e.group) ? t : { ...t, from: exs.slice(i).map((e) => e.name), ids: exs.slice(i).map((e) => e.sets.map((x) => x.id)) };
 }
 
 const open = (e: Exs[number]) => e.sets.some((x) => !x.done);
 
 /**
  * The ungrouped dock, exactly as before groups: the first name in `from` with an undone set becomes the label ('Next: Name') and the list is cut to start
- * there; none left closes it; while the first is still open nothing changes. The names are matched in order, each one searched after the exercise the
- * previous one matched, starting at the first one's place (`at.i`, kept up to date here). So an earlier exercise with the same name cannot stand in for a
- * finished one (#1329), a finished one is not stood in for by a later copy, and `at` never moves past an exercise still in `from`.
+ * there; none left closes it; while the first is still open nothing changes. Each entry is found by the set row ids it had at the tick (`r.ids`), so an
+ * insert or removal elsewhere, or a can't-do swap, cannot move it; this is what tells two exercises with one name apart (#1329). Only an entry whose rows
+ * are all gone (removed, replaced by fresh rows, or renamed by a swap) is looked for by name, after the exercise matched before it and before the next one found by rows.
+ * An older stored rest has no ids: its names are matched in order from the first one's place `at.i` (the last copy at or before it, else the start).
  */
 function retargetNames(exs: Exs, r: RestNext): RestNext | null {
   const from = r.from!;
+  const ids = r.ids;
   const head = from[0] ?? '';
   const at = r.at?.i ?? 0;
-  // The first one's place: the last copy of its name at or before `at`, else the first after it (a pull inserted one before it). Removing an exercise
-  // removes every copy of its name, so with none left the exercises that followed it have moved up by an unknown count: look from the start (the old rule).
   const copies = exs.flatMap((e, m) => (e.name === head ? [m] : []));
-  const lo = copies.length === 0 ? 0 : (copies.filter((m) => m <= at).pop() ?? copies[0]!);
-  let prev = lo - 1;
-  const pos = from.map((n) => {
-    const m = exs.findIndex((e, k) => k > prev && e.name === n);
+  const lo = copies.length === 0 ? 0 : (copies.filter((m) => m <= at).pop() ?? 0);
+  // An entry renamed since (a swap: the screen renames it in `from`) no longer names the exercise that holds its rows: it is looked for by name.
+  const byRows = from.map((n, j) => (ids?.[j]?.length ? exs.findIndex((e) => e.name === n && e.sets.some((x) => ids[j]!.includes(x.id))) : -1));
+  let prev = ids ? -1 : lo - 1;
+  const pos = from.map((n, j) => {
+    let m = byRows[j]!;
+    if (m < 0) {
+      const next = byRows.slice(j + 1).find((q) => q >= 0) ?? exs.length;
+      m = exs.findIndex((e, k) => k > prev && k < next && e.name === n);
+    }
     if (m >= 0) prev = m;
     return m;
   });
@@ -49,8 +55,8 @@ function retargetNames(exs: Exs, r: RestNext): RestNext | null {
   if (j < 0) return null;
   const p = pos[j]!;
   const first = from[j]!;
-  if (j === 0) return p === r.at?.i ? r : { ...r, at: { i: p, name: head } };
-  return { ...r, from: from.slice(j), at: { i: p, name: first }, to: { ex: p, set: exs[p]!.sets.findIndex((x) => !x.done), name: first }, label: `Next: ${first}` };
+  if (j === 0) return ids || p === r.at?.i ? r : { ...r, at: { i: p, name: head } };
+  return { ...r, from: from.slice(j), ...(ids ? { ids: ids.slice(j) } : {}), at: { i: p, name: first }, to: { ex: p, set: exs[p]!.sets.findIndex((x) => !x.done), name: first }, label: `Next: ${first}` };
 }
 
 /**
