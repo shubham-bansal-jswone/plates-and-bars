@@ -4,8 +4,12 @@ import { DONE_SETS_SQL, loadDoneSets, saveSet, saveWorkout } from '../src/db/wor
 import { useProgressSets } from '../src/progress/useProgressSets';
 import { setsBefore, setsInRange } from '../src/progress/setsView';
 import type { Workout, WorkoutSet } from '../src/workout/types';
+import { dayWrites, enqueueDay } from '../src/workout/dayQueue';
+import { writeImport } from '../src/import/writeImport';
+import type { ImportPlan } from '@plate-and-bar/core';
 import { openDb } from './sync-helpers';
 
+jest.mock('expo-crypto', () => ({ randomUUID: () => globalThis.crypto.randomUUID() }));
 const focusFns: (() => void)[] = [];
 jest.mock('expo-router', () => ({
   useFocusEffect: (cb: () => void) => {
@@ -100,36 +104,80 @@ describe('useProgressSets', () => {
     await day(db, '2026-10-02', [wset('b', 'Row', 62, 8)]);
     await rerender({ v: 1 });
     await waitFor(() => expect(result.current.all).toHaveLength(3));
+    expect(result.current.inRange('2026-10-08', '12w').map((s) => s.date)).toEqual(['2026-10-01', '2026-10-02']); // the cached slice was dropped
     expect(spy).toHaveBeenCalledTimes(2);
   });
 
   it('PRs from all find an old best outside the selected range', async () => {
     const db = await openDb();
     await day(db, '2025-01-10', [wset('p', 'Back Squat', 150, 5)]);
-    await day(db, '2025-01-12', [wset('q', 'Back Squat', 100, 5)]);
+    await day(db, '2026-09-20', [wset('q', 'Back Squat', 100, 5)]);
     await day(db, '2026-10-01', [wset('r', 'Back Squat', 120, 5)]);
     const { result } = await renderHook(() => useProgressSets(db, 0));
     await waitFor(() => expect(result.current.loading).toBe(false));
     const types = { 'Back Squat': 'barbell' as const };
     const inWin = result.current.inRange('2026-10-08', '12w');
-    expect(inWin).toHaveLength(1);
-    // The range slice has no history, so no PR; the whole history shows 120 x 5 is no record against 150 x 5.
-    expect(personalRecords(inWin, types).some((r) => r.date === '2026-10-01')).toBe(false);
-    expect(personalRecords(result.current.all, types).some((r) => r.date === '2026-10-01')).toBe(false);
+    expect(inWin).toHaveLength(2);
+    // The slice alone calls 120 a record over 100; with the whole history the 150 from last year stands, so it is not.
+    expect(personalRecords(inWin, types).map((r) => r.date)).toContain('2026-10-01');
+    expect(personalRecords(result.current.all, types).map((r) => r.date)).not.toContain('2026-10-01');
     expect(priorBestOf(result.current.before('2026-10-01'), 'barbell', '2026-10-01').best).toBeGreaterThan(170);
   });
 
-  it('reloads on focus, so a set ticked on Workout shows, and also without a sync version (dataVersion stays 0)', async () => {
+  it('reloads on focus after a local write, also without a sync version (dataVersion stays 0); a focus with no write does not read', async () => {
     const db = await openDb();
     await day(db, '2026-10-01', [wset('a', 'Row', 60, 8)]);
     const spy = jest.spyOn(db, 'getAllAsync');
     const { result } = await renderHook(() => useProgressSets(db, 0));
     await waitFor(() => expect(result.current.all).toHaveLength(1));
     expect(spy).toHaveBeenCalledTimes(1); // the focus on mount does not read twice
+    await focus();
+    expect(spy).toHaveBeenCalledTimes(1); // nothing was written since the read
     await saveSet(db, '2026-10-01', wset('b', 'Row', 62, 8));
+    dayWrites.current++; // what enqueueDay does for a tick on Workout
     await focus();
     await waitFor(() => expect(result.current.all).toHaveLength(2));
     expect(spy).toHaveBeenCalledTimes(2);
+    await focus();
+    expect(spy).toHaveBeenCalledTimes(2);
+  });
+
+  it('a focus after a failed read tries again', async () => {
+    const db = await openDb();
+    await day(db, '2026-10-01', [wset('a', 'Row', 60, 8)]);
+    jest.spyOn(db, 'getAllAsync').mockRejectedValueOnce(new Error('disk'));
+    const { result } = await renderHook(() => useProgressSets(db, 0));
+    await waitFor(() => expect(result.current.error).not.toBeNull());
+    await focus();
+    await waitFor(() => expect(result.current.all).toHaveLength(1));
+    expect(result.current.error).toBeNull();
+  });
+
+  it('shows imported days on the next focus (writeImport counts as a local write)', async () => {
+    const db = await openDb();
+    const { result } = await renderHook(() => useProgressSets(db, 0));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.all).toHaveLength(0);
+    const plan = { days: [{ date: '2024-03-27', sets: [{ exercise: 'Bench Press', setIndex: 0, weightKg: 60, reps: 5 }] }], sets: 1, skippedExercise: 0, occupied: [] } as unknown as ImportPlan;
+    await writeImport(db, plan);
+    await focus();
+    await waitFor(() => expect(result.current.all.map((s) => s.exercise)).toEqual(['Bench Press']));
+  });
+
+  it('waits for queued local writes before it reads (freshRead, not a direct read)', async () => {
+    const db = await openDb();
+    await day(db, '2026-10-01', [wset('a', 'Row', 60, 8)]);
+    const { result, rerender } = await renderHook((p: { v: number }) => useProgressSets(db, p.v), { initialProps: { v: 0 } });
+    await waitFor(() => expect(result.current.all).toHaveLength(1));
+    let open!: () => void;
+    const gate = new Promise<void>((r) => (open = r));
+    void enqueueDay(async () => { await gate; await saveSet(db, '2026-10-01', wset('b', 'Row', 62, 8)); }, () => undefined);
+    await rerender({ v: 1 });
+    await act(async () => { await new Promise<void>((r) => setImmediate(r)); });
+    expect(result.current.loading).toBe(true); // still waiting for the queued write
+    await act(async () => open());
+    await waitFor(() => expect(result.current.all).toHaveLength(2));
+    expect(result.current.loading).toBe(false);
   });
 
   it('reports a failed read as error and keeps the last sets', async () => {
