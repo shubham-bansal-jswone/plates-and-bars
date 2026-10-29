@@ -38,11 +38,16 @@ export interface RestState {
   end: number;
   total: number;
   label: string;
-  /** Exercise names in order from the one just ticked onward. The label names the first still having an undone set (never an earlier exercise); the rest is cleared when none has. */
-  from?: string[];
+  /** The exercise whose set was ticked (position and name at that time). With `to`, the dock follows the session by position (#1329); older stored rests have neither and keep their label. */
+  at?: { i: number; name: string };
+  /** The set the label names (position and exercise name at that time). */
+  to?: { ex: number; set: number; name: string };
   /** The day the rest started on. */
   date?: string;
 }
+
+/** A rest's target as `restTarget` returns it. */
+export type RestNext = Required<Pick<RestState, 'at' | 'to' | 'label'>>;
 
 const REST_DONE = 'Rest done, go!';
 const mmss = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;

@@ -5,7 +5,7 @@ import { useFocusEffect } from 'expo-router';
 import { AccessibilityInfo, Platform, StyleSheet, Text as RNText, useWindowDimensions, View } from 'react-native';
 import { useDataVersion } from '../sync/useDataVersion';
 import { Text } from '../components/Text';
-import { HAND_PICKED, ROUTINE_EXERCISES_MAX, routineFromSession, modsNote, overridesFromSettings, missingExercises, plannedCoverage, type WeekPlan, secondSessionChoices, sessionVolume, beginnerRamp, checkinFlags, isFocus, nextInList, coverageTemplates, mondayOf, planned, restFor, warmupRamp, type Checkin, isLearning, exInfo, fromKg, infoForUnit, priorSessions, REST_EXTEND_SEC, type ExclusionReason } from '@plate-and-bar/core';
+import { HAND_PICKED, ROUTINE_EXERCISES_MAX, routineFromSession, modsNote, overridesFromSettings, missingExercises, plannedCoverage, type WeekPlan, secondSessionChoices, sessionVolume, beginnerRamp, checkinFlags, isFocus, nextInList, coverageTemplates, mondayOf, planned, warmupRamp, type Checkin, isLearning, exInfo, fromKg, infoForUnit, priorSessions, REST_EXTEND_SEC, type ExclusionReason } from '@plate-and-bar/core';
 import { fmt } from '../format';
 import { ClearanceCard } from '../components/ClearanceCard';
 import { Button, Card, Chip, Disclosure, H1, Hint, MetricRow, Note, Page, useScrollToTopOn } from '../components/ui';
@@ -37,7 +37,8 @@ import { FinishWorkout } from '../workout/FinishWorkout';
 import { focusNode } from '../labelscan/focus';
 import { LibraryEntryButton } from '../library/LibraryEntryButton';
 import { Hero, IndexThumb, SegmentBar, StartButton } from '../workout/SessionHeader';
-import { HowToSheet, RestBar, ToastBar, type RestState } from '../workout/parts';
+import { HowToSheet, RestBar, ToastBar, type RestNext, type RestState } from '../workout/parts';
+import { restRetarget } from '../workout/restNext';
 import { useRestNotification } from '../reminders/useRestNotification';
 import { usePersistedRest } from '../workout/restStore';
 import { useRules } from '../workout/useRules';
@@ -71,12 +72,10 @@ export function WorkoutScreen({ db, now = () => new Date() }: Props) {
   }, []);
   useEffect(() => () => void (timer.current && clearTimeout(timer.current)), []);
   const v = useViewedDate(now);
-  const startRest = useCallback((name: string, label: string, from: string[]) => {
-    if (restOff) return;
-    const total = restFor(name, getCatalog().tags);
+  const startRest = useCallback((total: number, next: RestNext) => {
     const t = Date.now();
-    setRest({ id: t, end: t + total * 1000, total, label, from, date: v.date });
-  }, [restOff, v.date]);
+    setRest({ id: t, end: t + total * 1000, total, ...next, date: v.date });
+  }, [v.date]);
 
   // Tab screens stay mounted; rules removed on the Targets tab show here when this tab is shown again.
   const [shown, setShown] = useState(0);
@@ -90,18 +89,17 @@ export function WorkoutScreen({ db, now = () => new Date() }: Props) {
   const { unit } = useWeightUnit();
   const tune = useMemo(() => ({ overrides: overridesFromSettings(settings.exercise_overrides), returning: settings.returning, unit }), [settings.exercise_overrides, settings.returning, unit]);
   const labHold = useLabHold(db); // the lab hold (#1070): new sessions are lighter
-  const w = useWorkoutDay({ db, date: v.date, profile, now, focus, notify, startRest, labHold: labHold === true, adjustments: settings.adjustments, exclusions: rules.exclusions, swaps: rules.swaps, saveRule: addRule, tune, reloadKey: shown + dataVersion });
+  const w = useWorkoutDay({ db, date: v.date, profile, now, focus, notify, startRest, restOff, labHold: labHold === true, adjustments: settings.adjustments, exclusions: rules.exclusions, swaps: rules.swaps, saveRule: addRule, tune, reloadKey: shown + dataVersion });
   const { day } = w;
   usePersistedRest(db, rest, setRest, v.date);
   // The rest as a notification while the app is in the background (#1068); its +30 s and Skip come back through setRest.
   useRestNotification({ db, rest, setRest, sessionActive: day.exs.length > 0 });
-  // The dock never names an exercise that is gone or finished: it moves on to the next one with an undone set, or closes when none is left.
+  // The dock never names an exercise that is gone or finished: it moves on to the next undone set (by position, #1329), or closes when none is left.
   // Only on the day it started on (the rest keeps running while another day is read). Adjusting state while rendering, as React documents.
-  if (rest?.from && rest.date === v.date && day.ready) {
-    // Only exercises from the ticked one onward (the prototype's tick rule), never an earlier skipped one.
-    const open = new Set(day.exs.filter((e) => e.sets.some((x) => !x.done)).map((e) => e.name));
-    const first = rest.from.find((n) => open.has(n));
-    if (first !== rest.from[0] || !first) setRest(first ? { ...rest, label: `Next: ${first}`, from: rest.from.slice(rest.from.indexOf(first)) } : null);
+  if (rest?.at && rest.to && rest.date === v.date && day.ready) {
+    const t = restRetarget(day.exs, rest as RestNext);
+    if (!t) setRest(null);
+    else if (t !== (rest as RestNext)) setRest({ ...rest, ...t });
   }
   const addRest = () => setRest((r) => (r ? { ...r, end: r.end + REST_EXTEND_SEC * 1000, total: r.total + REST_EXTEND_SEC } : r));
   const [cantName, setCantName] = useState<{ i: number; name: string; reason?: ExclusionReason } | null>(null);
@@ -147,8 +145,6 @@ export function WorkoutScreen({ db, now = () => new Date() }: Props) {
           lifts={day.lifts}
           setsFor={(m) => planned()[m] ?? 0}
           onPick={(draft, choice) => {
-            // Renames the swapped exercise in the rest dock's list (it tracks names). The label changes only when it named that exercise: the replacement starts at set 1.
-            if (cantName && choice) setRest((r) => (r?.from?.includes(cantName.name) && r.date === v.date ? { ...r, ...(r.from[0] === cantName.name ? { label: `Next: ${choice}` } : {}), from: r.from.map((n) => (n === cantName.name ? choice : n)) } : r));
             w.cant(cantName ? cantName.i : null, draft, choice);
             setCantName(null);
           }}

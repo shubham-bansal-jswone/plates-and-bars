@@ -547,7 +547,7 @@ describe('Workout tab: logging sets', () => {
 
   describe('the rest dock across a reload (#1143)', () => {
     const NOW_MS = new Date(2026, 9, 8, 10, 0, 0).getTime();
-    const saved = (over: object = {}) => JSON.stringify({ id: 1, end: NOW_MS + 122_000, total: 150, label: 'Next: Machine Shoulder Press', from: ['Machine Shoulder Press', 'Pec Deck Fly'], date: DATE, ...over });
+    const saved = (over: object = {}) => JSON.stringify({ id: 1, end: NOW_MS + 122_000, total: 150, label: 'Next: Machine Shoulder Press', at: { i: 0, name: 'Barbell Bench Press' }, to: { ex: 1, set: 0, name: 'Machine Shoulder Press' }, date: DATE, ...over });
     const reload = async (raw: string) => {
       const db = await started();
       jest.spyOn(Date, 'now').mockReturnValue(NOW_MS);
@@ -584,7 +584,7 @@ describe('Workout tab: logging sets', () => {
     });
 
     it('a stored list with no exercise left to do closes the dock', async () => {
-      await reload(saved({ from: ['Gone Exercise'] }));
+      await reload(saved({ at: { i: 99, name: 'Gone Exercise' }, to: { ex: 99, set: 0, name: 'Gone Exercise' } }));
       expect(screen.queryByLabelText('Rest timer')).toBeNull();
     });
   });
