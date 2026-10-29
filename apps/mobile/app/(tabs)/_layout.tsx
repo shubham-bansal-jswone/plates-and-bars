@@ -2,9 +2,10 @@ import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
 import { BottomTabBar } from 'expo-router/tabs';
 import type { ReactNode } from 'react';
-import { Platform, View, useWindowDimensions } from 'react-native';
+import { Platform, useWindowDimensions } from 'react-native';
 import type { PressableProps, StyleProp, ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { NavTabBar } from '../../src/components/NavTabBar';
 import { InactiveScreenHidden } from '../../src/components/InactiveScreenHidden';
 import { BottomInsetPadded } from '../../src/components/bottomInset';
 import { Press, useWide } from '../../src/components/ui';
@@ -64,17 +65,8 @@ export default function TabsLayout() {
     <BottomInsetPadded.Provider value>
     <Tabs
       screenLayout={({ children }) => <InactiveScreenHidden>{children}</InactiveScreenHidden>}
-      // The tab bar is the page's navigation landmark.
-      tabBar={(props) =>
-        // Web only: on a phone the wrapper would add a screen-reader stop of its own.
-        Platform.OS === 'web' ? (
-          <View role="navigation" aria-label="Sections">
-            <BottomTabBar {...props} />
-          </View>
-        ) : (
-          <BottomTabBar {...props} />
-        )
-      }
+      // The tab bar is the page's navigation landmark. On web it is navigation (a nav of buttons with aria-current), not ARIA tabs (#1409).
+      tabBar={(props) => (Platform.OS === 'web' ? <NavTabBar {...props} /> : <BottomTabBar {...props} />)}
       screenOptions={{
         // Each screen draws its own heading, so the navigator's header would show the title twice.
         headerShown: false,

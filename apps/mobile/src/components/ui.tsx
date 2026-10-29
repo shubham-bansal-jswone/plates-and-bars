@@ -5,6 +5,7 @@ import { dark, glowShadow, linkText, pressedShadow, radius, space, tabular, type
 import { useTheme } from '../theme/useTheme';
 import { useBottomInset } from './bottomInset';
 import { Input } from './Input';
+import { arrowSelect, syncTabStops, type GroupEl } from './radioRoving';
 import { Text } from './Text';
 import type { PageScroller } from '../workout/scrollIntoView';
 
@@ -309,10 +310,24 @@ export function Field({ label, invalid, describedBy, style, ...rest }: TextInput
   return <Input accessibilityLabel={label} invalid={invalid} aria-invalid={invalid || undefined} aria-describedby={describedBy} {...rest} style={[styles.input, NUMERIC_KEYBOARDS.includes(rest.inputMode ?? rest.keyboardType ?? '') ? styles.numeric : null, style]} />;
 }
 
-/** `error` marks the group invalid and is its hint, so a screen reader hears why on entering it. */
+/**
+ * `error` marks the group invalid and is its hint, so a screen reader hears why on entering it.
+ * On web it follows the radio group pattern (#1409): one tab stop (the checked radio, else the first) and the arrow keys move the selection.
+ */
 export function Group({ children, label, error, describedBy }: { children: ReactNode; label?: string; error?: string; /** Ids of the error and hint texts (space separated), read on web as `aria-describedby`. */ describedBy?: string }) {
+  const ref = useRef<unknown>(null);
+  const web = Platform.OS === 'web';
+  // After every render: a choice may have been picked, or mounted, since the last one.
+  useEffect(() => {
+    if (web) syncTabStops(ref.current as GroupEl | null);
+  });
+  const onKeyDown = web
+    ? (e: { key: string; target: unknown; currentTarget: unknown; ctrlKey?: boolean; altKey?: boolean; metaKey?: boolean; preventDefault(): void }) => {
+        if (arrowSelect(e.currentTarget as GroupEl, e.target, e.key, !!(e.ctrlKey || e.altKey || e.metaKey))) e.preventDefault();
+      }
+    : undefined;
   return (
-    <View accessibilityRole="radiogroup" accessibilityLabel={label} accessibilityHint={error} aria-invalid={error ? true : undefined} aria-describedby={describedBy} style={styles.group}>
+    <View ref={ref as Ref<ComponentRef<typeof View>>} {...(onKeyDown ? { onKeyDown: onKeyDown as unknown as ViewProps['onKeyDown'] } : null)} accessibilityRole="radiogroup" accessibilityLabel={label} accessibilityHint={error} aria-invalid={error ? true : undefined} aria-describedby={describedBy} style={styles.group}>
       {children}
     </View>
   );

@@ -1,4 +1,4 @@
-import { Fragment, useState } from 'react';
+import { Fragment, useState, type ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { WhyLink } from '../why/WhyLink';
 import { Text } from './Text';
@@ -18,7 +18,7 @@ const NOTE_WHY: Record<string, string> = { home_dumbbells: 'home', home_bodyweig
  * The prototype's results block: burn, breakdown, daily targets and notes, all from `calcTargets` output.
  * `onCleared` shows the clearance card with its "My doctor has cleared me" button.
  */
-export function ResultsView({ profile, onCleared, hideTargets, hideHeadline, showWhy, columns }: { profile: Profile; onCleared?: () => void; hideTargets?: boolean; hideHeadline?: boolean; /** Two columns on a screen >= 900px (the page must be `wide`). */ columns?: boolean; /** Setup results: the expandable "Why these numbers?" block. */ showWhy?: boolean }) {
+export function ResultsView({ profile, onCleared, hideTargets, hideHeadline, showWhy, columns, footer }: { profile: Profile; /** Under everything else: the bottom of the right column in two columns, else after the block. */ footer?: ReactNode; onCleared?: () => void; hideTargets?: boolean; hideHeadline?: boolean; /** Two columns on a screen >= 900px (the page must be `wide`). */ columns?: boolean; /** Setup results: the expandable "Why these numbers?" block. */ showWhy?: boolean }) {
   const c = useTheme();
   const [whyOpen, setWhyOpen] = useState(false);
   const { unit } = useWeightUnit();
@@ -31,7 +31,7 @@ export function ResultsView({ profile, onCleared, hideTargets, hideHeadline, sho
     [String(t.carbs), 'g carbs', c.carbs],
     [String(t.fat), 'g fat', c.fat],
   ];
-  const left = (
+  const breakdown = (
     <View style={styles.wrap}>
       {hideHeadline ? null : <H1>{v.headline}</H1>}
       <View style={{ paddingBottom: space.sm }}>
@@ -43,27 +43,27 @@ export function ResultsView({ profile, onCleared, hideTargets, hideHeadline, sho
           <Text style={{ color: c.ink, fontWeight: '700' }}>{fmt(kcal)}</Text>
         </View>
       ))}
-      {hideTargets ? null : (
-        <>
-          <Heading level={2} style={[type.heading, { color: c.ink, marginTop: 8 }]}>Your daily targets</Heading>
-          <Card testID="target-0" accessible accessibilityLabel={`${fmt(t.kcal)} kcal`} style={styles.hero}>
-            <Text style={[type.metric, tabular, { color: c.brand }]}>{fmt(t.kcal)}</Text>
-            <Text style={[type.small, { color: c.muted }]}>kcal a day</Text>
-          </Card>
-          <View style={styles.grid}>
-            {tiles.map(([n, unit, color], i) => (
-              <View key={unit} testID={`target-${i + 1}`} accessible accessibilityLabel={`${n} ${unit}`} style={[styles.tile, { borderColor: c.line }]}>
-                <View style={[styles.dot, { backgroundColor: color }]} />
-                <Text style={[type.metricSm, tabular, { color: c.ink }]}>{n}</Text>
-                <Text style={[type.small, { color: c.muted }]}>{unit}</Text>
-              </View>
-            ))}
-          </View>
-        </>
-      )}
     </View>
   );
-  const right = (
+  const targets = hideTargets ? null : (
+    <View style={styles.wrap}>
+      <Heading level={2} style={[type.heading, { color: c.ink, marginTop: two ? 0 : 8 }]}>Your daily targets</Heading>
+      <Card testID="target-0" accessible accessibilityLabel={`${fmt(t.kcal)} kcal`} style={styles.hero}>
+        <Text style={[type.metric, tabular, { color: c.brand }]}>{fmt(t.kcal)}</Text>
+        <Text style={[type.small, { color: c.muted }]}>kcal a day</Text>
+      </Card>
+      <View style={styles.grid}>
+        {tiles.map(([n, unit, color], i) => (
+          <View key={unit} testID={`target-${i + 1}`} accessible accessibilityLabel={`${n} ${unit}`} style={[styles.tile, { borderColor: c.line }]}>
+            <View style={[styles.dot, { backgroundColor: color }]} />
+            <Text style={[type.metricSm, tabular, { color: c.ink }]}>{n}</Text>
+            <Text style={[type.small, { color: c.muted }]}>{unit}</Text>
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+  const explain = (
     <View style={styles.wrap}>
       <Hint>{v.pace}</Hint>
       <ClearanceCard profile={profile} onCleared={onCleared} />
@@ -93,16 +93,25 @@ export function ResultsView({ profile, onCleared, hideTargets, hideHeadline, sho
       ) : null}
     </View>
   );
+  // Two columns: the burn breakdown on the left; the targets on the right with what explains them (pace, clearance, notes, Why) right under them.
   return two ? (
     <View style={styles.cols}>
-      <View style={styles.col}>{left}</View>
-      <View style={styles.col}>{right}</View>
+      <View style={styles.col}>{breakdown}</View>
+      <View style={[styles.col, styles.wrap]}>
+        {targets}
+        {explain}
+        {footer}
+      </View>
     </View>
   ) : (
-    <View style={styles.wrap}>
-      {left}
-      {right}
-    </View>
+    <>
+      <View style={styles.wrap}>
+        {breakdown}
+        {targets}
+        {explain}
+      </View>
+      {footer}
+    </>
   );
 }
 
