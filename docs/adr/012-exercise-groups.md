@@ -14,7 +14,7 @@ Users want supersets: two or more exercises whose sets alternate, with rest afte
 - One optional, nullable property `group` on `WorkoutExercise` and on `RoutineExercise`: a short id string matching `^[A-Za-z0-9_-]{1,36}$` (1 to 36 ASCII letters, digits, underscore, hyphen; a UUID fits). Null or absent means ungrouped.
 - Members of a group are contiguous in `exercises[]`. There is no position field: the array order is the order. A group has 2 to 6 members; that is a core constant, not enforced by the contract schema, so a limit change needs no contract bump.
 - Labels (A1, A2, B1) are derived by the app, never stored. Progression, records and history stay per exercise name.
-- A client that does not know the field may drop it when it rewrites the exercise, as with `feel`. Additive patch bump to 0.1.28, not breaking.
+- A client that does not know the field may drop it when it rewrites the exercise, as with `feel` (workouts; routines keep unknown keys, so they carry it). The invalid routine `group` vectors (37 characters, a space, empty) are left out of `routines.json` until the app checks `group` in `createRoutine` (routines-carry slice, S6 of #1182); `exercise-group.json` covers the schema meanwhile. Additive patch bump to 0.1.28, not breaking.
 - Merge: the three-way merge compares keys, so ungrouping must be written as an explicit `null`, not by deleting the key, or the other device's group would win back.
 - Routines store the group, so a saved superset starts as a superset. Starting a routine creates a session with fresh group ids (ids are regenerated per session), so two sessions never share one.
 - Timed circuits (time-based, 3+ exercises) are deferred; they would be a later, separate contract change.
