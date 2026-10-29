@@ -5,6 +5,12 @@ import { render } from '@testing-library/react-native';
 import { Group } from '../src/components/ui';
 import { arrowSelect, syncTabStops, type GroupEl } from '../src/components/radioRoving';
 
+const mockSync = jest.fn();
+jest.mock('../src/components/radioRoving', () => {
+  const actual = jest.requireActual('../src/components/radioRoving');
+  return { ...actual, syncTabStops: (...a: unknown[]) => { mockSync(...a); return actual.syncTabStops(...a); } };
+});
+
 /** A radiogroup as react-native-web draws it: a div holding role=radio elements with aria-checked. */
 function dom(checked: number | null, n = 3, disabled?: number) {
   const { window } = new JSDOM(`<!doctype html><body><div id="g">${Array.from({ length: n }, (_, i) => `<div role="radio" tabindex="0" aria-checked="${i === checked}"${i === disabled ? ' aria-disabled="true"' : ''}>${i}</div>`).join('')}</div></body>`);
@@ -83,6 +89,20 @@ describe('radio group tab stops and arrow keys (#1409)', () => {
       preventDefault.mockClear();
       group.props.onKeyDown({ key: 'a', target: d.radios[0], currentTarget: d.group, preventDefault });
       expect(preventDefault).not.toHaveBeenCalled();
+    });
+
+    it('syncs the tab stops with the group element after rendering on web, and not on android', async () => {
+      mockSync.mockClear();
+      const tree = await render(<Group label="Sex">{null}</Group>);
+      expect(mockSync).toHaveBeenCalled();
+      const arg = mockSync.mock.calls.at(-1)?.[0];
+      expect(arg).toBeTruthy();
+      expect(typeof arg).toBe('object'); // the group's host element, not null
+      await tree.unmount();
+      jest.replaceProperty(Platform, 'OS', 'android');
+      mockSync.mockClear();
+      await render(<Group label="Sex">{null}</Group>);
+      expect(mockSync).not.toHaveBeenCalled();
     });
 
     it('keeps the radiogroup role and name, and adds no key handler off the web', async () => {
