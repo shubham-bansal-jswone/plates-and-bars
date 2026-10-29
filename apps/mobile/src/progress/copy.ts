@@ -115,6 +115,18 @@ export const RAPID_TITLE = 'Weight is dropping fast';
 export const RAPID_BODY = (drop: number, twoWeeks: boolean, stalls: number, unit: WeightUnit = 'kg'): string =>
   `Your weekly average fell about ${drop} ${unit}${twoWeeks ? ', faster than 1% of your bodyweight a week for 2 weeks running' : `, and ${stalls} lifts have stalled`}. Losing faster than about 1% a week makes it harder to keep muscle. Adding about ${RAPID_LOSS_KCAL} kcal a day helps protect muscle.`;
 
+// Bar chart (#1351 A3).
+export const BAR_NOT_LOGGED = 'Not logged';
+export const BAR_PARTIAL = 'few days logged';
+export const BAR_BELOW = 'Below target';
+export const BAR_TARGET_ROW = (target: string, unit: string): string => `Target ${target} ${unit}`;
+export const BAR_DELTA = (amount: string, unit: string, dir: 'under' | 'over' | 'on'): string => (dir === 'on' ? 'On target' : `${amount} ${unit} ${dir}`);
+export const BAR_WEEK_OF = 'Week of';
+export const BAR_SUMMARY_RANGE = (n: number, from: string, to: string): string => `${n} ${n === 1 ? 'week' : 'weeks'} from ${from} to ${to}`;
+export const BAR_COUNT_BELOW = (n: number): string => `${n} below target`;
+export const BAR_COUNT_PARTIAL = (n: number): string => `${n} with few days logged`;
+export const BAR_COUNT_NOT_LOGGED = (n: number): string => `${n} not logged`;
+
 // Any tape part and the weeks-on-track strip (#1351 A7).
 export const MEASURE_PART_GROUP = 'Measurement part';
 export const MEASURE_TREND_NONE = (part: string): string => `Log a few ${part.toLowerCase()} measurements to see your trend line here.`;
