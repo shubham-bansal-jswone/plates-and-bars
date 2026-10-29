@@ -16,6 +16,7 @@ export const RESTORE_COPY = {
   deviceOnly: (cycle: boolean, reports: number, hold: boolean) =>
     `Kept on this device only: ${[cycle ? 'cycle log' : '', reports ? `${reports} lab report${reports === 1 ? '' : 's'}` : '', hold ? 'lab hold' : ''].filter(Boolean).join(', ')}.`,
   nothing: 'Nothing in this file is newer than what is on this device.',
+  nothingOverCap: `Nothing in this file can be added: its routines are over the limit of ${ROUTINE_MAX_LIVE}. Delete a routine to make room.`,
   confirm: 'Restore',
   cancel: 'Cancel',
   restoring: 'Restoring...',
