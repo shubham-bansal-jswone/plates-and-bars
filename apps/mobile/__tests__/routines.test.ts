@@ -6,7 +6,7 @@ import { RoutineError, createRoutine, deleteRoutine, loadRoutines, renameRoutine
 import { pendingChanges } from '../src/db/outbox';
 import { wipeLocalStore } from '../src/sync/guard';
 import { RESTORE_COPY } from '../src/account/copy';
-import { exerciseProblem, routineNameOk } from '../src/db/routineRules';
+import { VALUE_MAX, exerciseProblem, routineNameOk } from '../src/db/routineRules';
 import { exclusive } from '../src/db/exclusive';
 import { openDb } from './sync-helpers';
 
@@ -223,12 +223,12 @@ describe('routines in the device export and restore', () => {
     const W = (e: Ex) => ({ name: 'Squat', part: 1, bridge: false, form: null, found_kg: null, skip_ramp: false, ...e });
     const DAYS = ['2026-10-06', '2026-10-07', '2026-10-08', '2026-10-09', '2026-10-10'];
     /** A file built from a real export so every field not under test is valid. Row i of `routinesIn` overrides routine i; `workoutsIn` are the exercise lists of workouts, each with one set. */
-    async function fileWith(routinesIn: Row[], workoutsIn: Ex[][] = []) {
+    async function fileWith(routinesIn: Row[], workoutsIn: Ex[][] = [], top: Row = {}) {
       const src = await openDb();
       for (let i = 0; i < routinesIn.length; i++) await createRoutine(src, `r${i}`, squat, T(1));
       for (const [i, ex] of workoutsIn.entries()) {
         const day = DAYS[i] as string;
-        await src.runAsync('INSERT INTO workouts (key, data) VALUES (?, ?)', day, JSON.stringify({ id: null, date: day, version: 1, updated_at: '2026-10-08T06:00:00.000Z', deleted_at: null, exercises: ex }));
+        await src.runAsync('INSERT INTO workouts (key, data) VALUES (?, ?)', day, JSON.stringify({ id: null, date: day, version: 1, updated_at: '2026-10-08T06:00:00.000Z', deleted_at: null, template: 'Upper A', base: 'Upper A', where: null, cardio_min: null, mods: {}, ci_choice: null, ...top, exercises: ex }));
         const sid = `5555555${i}-5555-4555-8555-555555555555`;
         await src.runAsync('INSERT INTO workout_sets (key, workout_date, kind, done, deleted, data) VALUES (?, ?, ?, ?, ?, ?)', sid, day, 'work', 0, 0, JSON.stringify({ id: sid, workout_id: null, version: 1, updated_at: '2026-10-08T06:00:00.000Z', deleted_at: null, exercise: 'Squat', kind: 'work', set_index: 0, weight_kg: null, reps: null, done: false, rate: null, t: null }));
       }
@@ -268,6 +268,24 @@ describe('routines in the device export and restore', () => {
       const { list, summary } = await restored(await fileWith([{ created_at: undefined }]));
       expect(list).toHaveLength(0);
       expect(summary.tables.routines).toMatchObject({ added: 0, invalid: 1 });
+    });
+
+    it.each(['2026-10-29', 'Oct 29 2026', '2026', '2026-10-29T10:00:00', '2026-02-30T10:00:00Z'])('a routine with created_at %s is skipped (not an RFC 3339 date-time)', async (at) => {
+      const { list, summary } = await restored(await fileWith([{ created_at: at }]));
+      expect(list).toHaveLength(0);
+      expect(summary.tables.routines).toMatchObject({ added: 0, invalid: 1 });
+    });
+
+    it('an exercise key name of 51 characters is refused by createRoutine and skips the restored row; 50 passes', async () => {
+      await expect(createRoutine(await openDb(), 'R', [{ name: 'Squat', sets: 3, ['k'.repeat(51)]: 1 }], T(1))).rejects.toMatchObject({ code: 'exercises' });
+      await expect(createRoutine(await openDb(), 'R', [{ name: 'Squat', sets: 3, ['k'.repeat(50)]: 1 }], T(1))).resolves.toBeTruthy();
+      const { list, summary } = await restored(await fileWith([{ exercises: [{ name: 'Squat', sets: 3, ['k'.repeat(51)]: 1 }] }, { exercises: [{ name: 'Squat', sets: 3, ['k'.repeat(50)]: 1 }] }]));
+      expect(list).toHaveLength(1);
+      expect(summary.tables.routines).toMatchObject({ added: 1, invalid: 1 });
+    });
+
+    it('the unlisted-value limit that bounds an exercise name is the exercise name limit', () => {
+      expect(VALUE_MAX).toBe(EXERCISE_NAME_MAX);
     });
 
     it('an exercise name of 201 code points is skipped; 200 passes', async () => {
@@ -354,6 +372,33 @@ describe('routines in the device export and restore', () => {
       const { dst, summary } = await restored(await fileWith([], [[{ name: 'Squat', part: 1, ...extras }]]));
       expect(await dst.getAllAsync('SELECT key FROM workouts')).toHaveLength(0);
       expect(summary.tables.workouts).toMatchObject({ invalid: 1 });
+    });
+
+    it('workout fields outside the contract are set to null and counted; valid ones stay', async () => {
+      const bad = { template: 't'.repeat(201), base: 5, where: 'home', cardio_min: -1, ci_choice: 'x' };
+      const { dst, summary } = await restored(await fileWith([], [[W({})], [W({})]], bad));
+      const row = JSON.parse((await dst.getFirstAsync<{ data: string }>('SELECT data FROM workouts WHERE key = ?', DAYS[0] as string))!.data) as Row;
+      expect(row).toMatchObject({ template: null, base: null, where: null, cardio_min: null, ci_choice: null });
+      expect(summary.tables.workouts).toMatchObject({ added: 2, repaired: 2 });
+      const ok = await restored(await fileWith([], [[W({})]], { template: 'Push', base: null, where: 'gym', cardio_min: 20, ci_choice: 'swap', mods: { light: true, reentry: 0.3 } }));
+      expect(ok.summary.tables.workouts!.repaired).toBeUndefined();
+      expect(JSON.parse((await ok.dst.getFirstAsync<{ data: string }>('SELECT data FROM workouts'))!.data)).toMatchObject({ template: 'Push', where: 'gym', cardio_min: 20, ci_choice: 'swap', mods: { light: true, reentry: 0.3 } });
+    });
+
+    it('workout fields at their limits stay: 200 code point text, 20 mods keys, a 50 character mods string; a fractional cardio_min and 201 code points are nulled', async () => {
+      const mods = { ...Object.fromEntries(Array.from({ length: 19 }, (_, i) => [`k${i}`, 1])), note: 'n'.repeat(50) };
+      const ok = await restored(await fileWith([], [[W({})]], { template: '🏋'.repeat(200), mods }));
+      expect(ok.summary.tables.workouts).toMatchObject({ added: 1 });
+      expect(ok.summary.tables.workouts!.repaired).toBeUndefined();
+      const bad = await restored(await fileWith([], [[W({})]], { template: '🏋'.repeat(201), cardio_min: 1.5 }));
+      expect(JSON.parse((await bad.dst.getFirstAsync<{ data: string }>('SELECT data FROM workouts'))!.data)).toMatchObject({ template: null, cardio_min: null });
+    });
+
+    it.each([['missing', undefined], ['not an object', 'x'], ['reentry 5', { reentry: 5 }], ['light not boolean', { light: 'yes' }], ['where not allowed', { where: 'home' }], ['key of 51 characters', { ['k'.repeat(51)]: 1 }], ['a nested object', { a: { b: 1 } }], ['21 keys', Object.fromEntries(Array.from({ length: 21 }, (_, i) => [`k${i}`, 1]))], ['a string value of 51 characters', { note: 'n'.repeat(51) }]])('a workout whose mods is %s is skipped with its sets and counted', async (_n, mods) => {
+      const { dst, summary } = await restored(await fileWith([], [[W({})]], { mods }));
+      expect(await dst.getAllAsync('SELECT key FROM workouts')).toHaveLength(0);
+      expect(summary.tables.workouts).toMatchObject({ added: 0, invalid: 1 });
+      expect(summary.tables.workout_sets).toMatchObject({ added: 0, invalid: 1 });
     });
 
     it('a workout tombstone with a bad exercise is repaired or skipped like a live row', async () => {

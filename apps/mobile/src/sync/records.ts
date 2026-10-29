@@ -115,6 +115,13 @@ const TIMESTAMP = /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?Z$/;
 /** The record fields the contract types as `Timestamp` (date-time with `Z`). Other strings are user content and stay as sent. */
 const TIMESTAMP_FIELDS: ReadonlySet<string> = new Set(['updated_at', 'deleted_at', 'given_at', 'logged_at', 't']);
 
+/** The date of a contract `Timestamp` string (date-time with `Z`), or null when it is not one. */
+export function parseTimestamp(v: string): Date | null {
+  const iso = TIMESTAMP.test(v) ? new Date(v) : null;
+  // Date rolls 2026-02-30 over to March: the parsed date must read back as the same calendar date and time.
+  return iso && !Number.isNaN(iso.getTime()) && iso.toISOString().slice(0, 19) === v.slice(0, 19) ? iso : null;
+}
+
 /** A pulled record that cannot be stored (a timestamp field that is not a valid date). It is skipped, not retried. */
 export class InvalidRecord extends Error {}
 
@@ -125,9 +132,8 @@ export class InvalidRecord extends Error {}
  */
 export function normalizeTimestamps(v: unknown, key?: string): unknown {
   if (typeof v === 'string' && key && TIMESTAMP_FIELDS.has(key)) {
-    const iso = TIMESTAMP.test(v) ? new Date(v) : null;
-    // Date rolls 2026-02-30 over to March: the parsed date must read back as the same calendar date and time.
-    if (!iso || Number.isNaN(iso.getTime()) || iso.toISOString().slice(0, 19) !== v.slice(0, 19)) throw new InvalidRecord('timestamp');
+    const iso = parseTimestamp(v);
+    if (!iso) throw new InvalidRecord('timestamp');
     return iso.toISOString();
   }
   if (Array.isArray(v)) return v.map((x) => normalizeTimestamps(x));

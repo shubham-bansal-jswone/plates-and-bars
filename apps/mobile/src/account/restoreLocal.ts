@@ -4,7 +4,7 @@ import type { WorkoutDb } from '../db/workouts';
 import { loadCycle, saveCycle } from '../db/cycle';
 import { loadHold, loadReports, saveHold, saveReport } from '../db/labs';
 import { NO_USER, type LocalExport } from './exportLocal';
-import { InvalidRecord, normalizeTimestamps, storeRecord, type Doc } from '../sync/records';
+import { InvalidRecord, normalizeTimestamps, parseTimestamp, storeRecord, type Doc } from '../sync/records';
 import { naturalId } from '../sync/ids';
 import { getLiftVersion } from '../sync/store';
 import { ROUTINE_EXERCISES_MAX, ROUTINE_MAX_LIVE, ROUTINE_SETS_MAX, ROUTINE_SETS_MIN, normalizeGroups } from '@plate-and-bar/core';
@@ -115,7 +115,7 @@ const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b)
  */
 function repairRoutine(rec: Doc): Fixed | null {
   const list = rec.exercises;
-  if (!routineNameOk(rec.name) || typeof rec.created_at !== 'string' || Number.isNaN(Date.parse(rec.created_at))) return null;
+  if (!routineNameOk(rec.name) || typeof rec.created_at !== 'string' || !parseTimestamp(rec.created_at)) return null;
   if (!Array.isArray(list) || list.length < 1 || list.length > ROUTINE_EXERCISES_MAX) return null;
   const clamped: Record<string, unknown>[] = [];
   for (const e of list) {
@@ -127,17 +127,38 @@ function repairRoutine(rec: Doc): Fixed | null {
 }
 
 const FEEL = /^(target|pain|[0-9]{1,2})$/;
+const WHERE = ['gym', 'dumbbells', 'bodyweight'];
+const CI_CHOICE = ['light', 'swap', 'orig'];
+const TEXT_MAX = 200; // Workout.template and Workout.base
+const MODS_VALUE_MAX = 50; // Workout.mods unknown-key string values
+
+/** Contract `Workout.mods`: an object of at most 20 keys (names up to 50), the listed keys typed, any other value a boolean, number, string up to 50 or null. */
+function modsOk(m: unknown): boolean {
+  if (!isObj(m)) return false;
+  const e = Object.entries(m);
+  if (e.length > 20) return false;
+  return e.every(([k, v]) => {
+    if (k.length > 50) return false;
+    if (k === 'light' || k === 'short' || k === 'deload') return typeof v === 'boolean';
+    if (k === 'where') return typeof v === 'string' && WHERE.includes(v);
+    if (k === 'reentry') return typeof v === 'number' && v >= 0 && v <= 1;
+    return v === null || typeof v === 'boolean' || typeof v === 'number' || (typeof v === 'string' && [...v].length <= MODS_VALUE_MAX);
+  });
+}
 
 /**
- * A workout (live or tombstone) with its exercises as the contract `WorkoutExercise` wants them. Structurally unrepairable is null,
- * and the workout is skipped together with its sets: no exercise list, more than 50 exercises, an exercise that is not an object,
- * has a name over 200 characters (a string value of the bounded-open rule) or breaks the bounded-open key rule. Repaired and kept, and counted as repaired: `part` outside
- * 1 or 2 becomes 1, a missing or mistyped `bridge`, `skip_ramp`, `form`, `found_kg` or `feel` gets its neutral value (false or
- * null), and `normalizeGroups` nulls an invalid group id or dissolves a broken group.
+ * A workout (live or tombstone) as the contract `Workout` wants it. Structurally unrepairable is null, and the workout is skipped
+ * together with its sets: no valid `mods` (emptying it would silently drop `light` or `deload`), no exercise list, more than
+ * ROUTINE_EXERCISES_MAX exercises, or an exercise that is not an object, has a name over 200 characters (a string value of the
+ * bounded-open rule) or breaks the bounded-open key rule. Repaired and kept, and counted as repaired. Top-level fields, required
+ * and nullable, get null when invalid or missing: `template` and `base` (not a string of at most 200 code points), `where` (not
+ * gym, dumbbells or bodyweight), `cardio_min` (not an integer from 0) and `ci_choice` (not light, swap or orig). Exercises:
+ * `part` outside 1 or 2 becomes 1, a missing or mistyped `bridge` or `skip_ramp` becomes false, `form`, `found_kg` or `feel` become
+ * null, and `normalizeGroups` nulls an invalid group id or dissolves a broken group.
  */
 function repairWorkout(rec: Doc): Fixed | null {
   const list = rec.exercises;
-  if (!Array.isArray(list) || list.length > 50) return null;
+  if (!modsOk(rec.mods) || !Array.isArray(list) || list.length > ROUTINE_EXERCISES_MAX) return null;
   const fixed: Record<string, unknown>[] = [];
   for (const e of list) {
     if (!isObj(e) || typeof e.name !== 'string' || !boundedOpenOk(e)) return null;
@@ -153,8 +174,17 @@ function repairWorkout(rec: Doc): Fixed | null {
     if (!boundedOpenOk(f)) return null; // the neutral values added a key past the 20-key limit
     fixed.push(f);
   }
-  const exercises = normalizeGroups(fixed as unknown as Groupable);
-  return { rec: { ...rec, exercises }, repaired: !same(exercises, list) };
+  const text = (v: unknown) => (typeof v === 'string' && [...v].length <= TEXT_MAX ? v : null);
+  const out: Doc = {
+    ...rec,
+    template: text(rec.template),
+    base: text(rec.base),
+    where: typeof rec.where === 'string' && WHERE.includes(rec.where) ? rec.where : null,
+    cardio_min: typeof rec.cardio_min === 'number' && Number.isInteger(rec.cardio_min) && rec.cardio_min >= 0 ? rec.cardio_min : null,
+    ci_choice: typeof rec.ci_choice === 'string' && CI_CHOICE.includes(rec.ci_choice) ? rec.ci_choice : null,
+    exercises: normalizeGroups(fixed as unknown as Groupable),
+  };
+  return { rec: out, repaired: !same(out, rec) };
 }
 
 /** Validates the text of an export file strictly. Throws `RestoreError`; touches nothing. */
