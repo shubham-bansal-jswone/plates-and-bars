@@ -114,3 +114,10 @@ export const WEEK_TARGET_HINT = 'The thin vertical line on each bar is your calo
 export const RAPID_TITLE = 'Weight is dropping fast';
 export const RAPID_BODY = (drop: number, twoWeeks: boolean, stalls: number, unit: WeightUnit = 'kg'): string =>
   `Your weekly average fell about ${drop} ${unit}${twoWeeks ? ', faster than 1% of your bodyweight a week for 2 weeks running' : `, and ${stalls} lifts have stalled`}. Losing faster than about 1% a week makes it harder to keep muscle. Adding about ${RAPID_LOSS_KCAL} kcal a day helps protect muscle.`;
+
+// Any tape part and the weeks-on-track strip (#1351 A7).
+export const MEASURE_PART_GROUP = 'Measurement part';
+export const MEASURE_TREND_NONE = (part: string): string => `Log a few ${part.toLowerCase()} measurements to see your trend line here.`;
+export const WEEKS_TITLE = 'Weeks on track';
+export const WEEKS_COUNT = (on: number, of: number): string => `${on} of the last ${of} weeks on track`;
+export const WEEKS_EMPTY = 'Your weeks on track will show here once you have logged some workouts.';
