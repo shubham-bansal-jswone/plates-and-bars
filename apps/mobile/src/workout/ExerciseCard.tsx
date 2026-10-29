@@ -80,6 +80,8 @@ interface Props {
   superset?: { next: string; reason: string | null; onPress: () => void };
   /** Where focus goes to this exercise's heading (after an ungroup). */
   headingRef?: Ref<ComponentRef<typeof RNText>>;
+  /** On the up-next set's row in a superset: the node the screen scrolls into view after a tick. */
+  upNextRef?: Ref<ComponentRef<typeof View>>;
 }
 
 function RateRow({ row, label, onRate }: { row: Row; label: string; onRate: (v: Rate | null) => void }) {
@@ -178,7 +180,7 @@ function plateTarget(typed: string, suggested: string | number | undefined): num
 }
 
 /** One exercise: suggestion, warm-up line, ramp or working sets, ratings and the form question. */
-export function ExerciseCard({ ex, info, sug, focus, warm, act, cards, learning, lifts, infoOf, prior, notify, expanded = true, onToggle, member, currentSet, compact, superset, headingRef }: Props) {
+export function ExerciseCard({ ex, info, sug, focus, warm, act, cards, learning, lifts, infoOf, prior, notify, expanded = true, onToggle, member, currentSet, compact, superset, headingRef, upNextRef }: Props) {
   const [skipped, setSkipped] = useState(false); // "I know my weight" was pressed: the first working set's weight field takes focus
   const [armed, setArmed] = useState(false); // removing an exercise takes a second tap: its logged sets go with it
   useEffect(() => {
@@ -380,7 +382,7 @@ export function ExerciseCard({ ex, info, sug, focus, warm, act, cards, learning,
           const label = member ? `${ex.name} set ${j + 1}, ${num}` : `${ex.name} set ${j + 1}`;
           const isCurrent = currentSet !== undefined ? currentSet === j : ex.sets.findIndex((x) => !x.done) === j;
           return (
-            <View key={s.id} style={{ gap: 6 }}>
+            <View key={s.id} ref={member?.upNext && !s.done && isCurrent ? upNextRef : undefined} style={{ gap: 6 }}>
               <SetRow n={num} wide={!!member} label={label} focusWeight={skipped && j === 0} onFocused={() => setSkipped(false)} row={s} wHead={wHead} repsHead={rw} unit={unit} locked={!ready} ph={{ w: t.w !== '' && t.w !== undefined ? formatWeight(Number(t.w), unit) : nl ? 'BW' : '–', r: t.r ? String(t.r) : '–' }} onEdit={(f, v) => act.edit('work', j, f, v)} onTick={() => act.tick(j)} current={!s.done && isCurrent} />
               {info.type === 'barbell' && !s.done && isCurrent ? <PlatesLink name={ex.name} label={`Plates for ${label}`} targetKg={plateTarget(s.w, t.w)} onApply={(loaded) => act.edit('work', j, 'w', String(loaded))} /> : null}
               <RateRow row={s} label={label} onRate={(v) => act.rate(j, v)} />

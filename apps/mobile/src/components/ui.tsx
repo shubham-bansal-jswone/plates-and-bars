@@ -6,6 +6,7 @@ import { useTheme } from '../theme/useTheme';
 import { useBottomInset } from './bottomInset';
 import { Input } from './Input';
 import { Text } from './Text';
+import type { PageScroller } from '../workout/scrollIntoView';
 
 /** Width of the readable content column; `Page` and the library list both use it. */
 export const COLUMN_MAX = 560;
@@ -17,19 +18,20 @@ const ScrollTop = createContext<() => void>(() => {});
  * The ScrollView is reused when the content under it changes, so the offset carries over (#1060); a child that swaps its
  * content in place passes `resetKey` (the page itself) or calls `useScrollToTopOn` (a child) to start the new content at the top.
  */
-export function Page({ children, resetKey, wide }: { children: ReactNode; resetKey?: unknown; /** Let the column grow to 1040px on a wide screen (>= 900px) for a two-column card layout; forms leave it off. */ wide?: boolean }) {
+export function Page({ children, resetKey, wide, scroller }: { children: ReactNode; resetKey?: unknown; /** Lets the screen scroll the page (to bring a node into view). */ scroller?: PageScroller; /** Let the column grow to 1040px on a wide screen (>= 900px) for a two-column card layout; forms leave it off. */ wide?: boolean }) {
   const c = useTheme();
   const isWide = useWide();
   const bottom = useBottomInset();
   const ref = useRef<ComponentRef<typeof ScrollView>>(null);
   const toTop = useCallback(() => ref.current?.scrollTo({ x: 0, y: 0, animated: false }), []);
+  const hold = useCallback((n: ComponentRef<typeof ScrollView> | null) => void ((ref.current = n), scroller?.attach(n)), [scroller]);
   const first = useRef(true);
   useLayoutEffect(() => {
     if (first.current) first.current = false;
     else toTop();
   }, [resetKey, toTop]);
   return (
-    <ScrollView ref={ref} style={{ backgroundColor: c.bg }} contentContainerStyle={[styles.page, { paddingBottom: space.lg + bottom }]} keyboardShouldPersistTaps="handled">
+    <ScrollView ref={hold} style={{ backgroundColor: c.bg }} contentContainerStyle={[styles.page, { paddingBottom: space.lg + bottom }]} keyboardShouldPersistTaps="handled">
       <ScrollTop.Provider value={toTop}>
         <View role="main" style={[styles.column, wide && isWide ? styles.columnWide : null]}>{children}</View>
       </ScrollTop.Provider>
