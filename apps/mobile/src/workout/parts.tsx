@@ -38,11 +38,20 @@ export interface RestState {
   end: number;
   total: number;
   label: string;
-  /** Exercise names in order from the one just ticked onward. The label names the first still having an undone set (never an earlier exercise); the rest is cleared when none has. */
+  /** Exercise names in order from the one just ticked onward (ungrouped sessions). The label names the first still having an undone set (never an earlier exercise); the rest is cleared when none has. */
   from?: string[];
+  /** The exercise whose set was ticked (position and name at that time). A grouped session's rest has `at` and `to` (and no `from`): its dock follows the session by position. */
+  at?: { i: number; name: string };
+  /** The set the label names (position and exercise name at that time). */
+  to?: { ex: number; set: number; name: string };
   /** The day the rest started on. */
   date?: string;
 }
+
+/** A grouped rest's target as `restTarget` returns it. */
+export type GroupNext = Required<Pick<RestState, 'at' | 'to' | 'label'>>;
+/** What `startRest` takes: an ungrouped session's label with its names list, or a grouped session's target. */
+export type RestNext = Pick<RestState, 'label' | 'from' | 'at' | 'to'>;
 
 const REST_DONE = 'Rest done, go!';
 const mmss = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
