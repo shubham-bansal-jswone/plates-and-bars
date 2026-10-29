@@ -216,14 +216,20 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
   /** The all-time best before a viewed date, per lift: read once (not per tick) and dropped when the data may have changed. */
   const priorBests = useRef<{ name: string; date: string; bodyweight: number | null; prior: PriorBest }[]>([]);
   // A sync pull, an import or restore (the screen's reloadKey moves) can change any earlier day.
+  const generation = useRef(0);
   useEffect(() => {
     priorBests.current = [];
+    generation.current++; // a read still in flight started before this reload: its result is not stored
   }, [reloadKey]);
+  /** `name|date` of lifts that toasted a personal best: once per lift per day even when the lift has no stored record to carry `pbToast` (a CSV import). */
+  const toastedToday = useRef(new Set<string>());
   const priorBestFor = async (name: string, type: ExType, bodyweight: number | null): Promise<PriorBest> => {
     // A new weigh-in is a different bodyweight: assisted lifts rescore the earlier days at it.
     const hit = priorBests.current.find((p) => p.name === name && p.date === date && p.bodyweight === bodyweight);
     if (hit) return hit.prior;
+    const gen = generation.current;
     const prior = priorBestOf(await loadExerciseSets(db, name), type, date, bodyweight);
+    if (gen !== generation.current) return prior;
     priorBests.current = [...priorBests.current.filter((p) => p.name !== name || p.date !== date), { name, date, bodyweight, prior }];
     return prior;
   };
@@ -237,6 +243,8 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
   // `removed`: an exercise taken out of the session, recomputed as if it had no sets left.
   const syncLift = async (name: string, removed?: ExState) => {
     if (!profile || !(removed ?? exNamed(name))) return;
+    // This write is to `date`: the prior best of every later viewed day may have changed, whatever the rest of this does.
+    priorBests.current = priorBests.current.filter((p) => p.name !== name || p.date <= date);
     const lifts = await loadLifts(db);
     const d = ref.current; // read after the await, so a tap made meanwhile is included
     const ex = removed ? { ...removed, sets: [], form: null } : exNamed(name);
@@ -251,31 +259,30 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
       ref.current = { ...ref.current, lifts: rest };
       setDay(ref.current);
       await deleteLift(db, ex.name, stamp(now()));
-      priorBests.current = priorBests.current.filter((p) => p.name !== ex.name || p.date <= date);
       return;
     }
     // The toast follows the all-time rule (core `isPrToday`), not `updateLift`'s last-8 `checkBest`. updateLift stays as it is
     // and the record it returns is corrected here: `pbToast` is `date` once a PR has toasted today (kept as before, so it shows at
     // most once a day and History, the completion panel and the share picture read it), and otherwise whatever updateLift carried.
     const was = lifts[ex.name];
-    const toasted = was?.pbToast === date;
+    const key = `${ex.name}|${date}`;
+    const toasted = was?.pbToast === date || toastedToday.current.has(key);
     let pr: PrImprovement | null = null;
     if (!toasted && ex.sets.some((s) => s.done)) {
       const prior = await priorBestFor(ex.name, info.type, profile.weight_kg);
       pr = isPrToday(prior, todaySets(ex), info.type, profile.weight_kg);
     }
     const record = { ...res.record };
-    if (pr) record.pbToast = date;
-    else if (!toasted) {
+    if (pr || toasted) record.pbToast = date;
+    else {
       if (was?.pbToast !== undefined && was.date === date) record.pbToast = was.pbToast;
       else delete record.pbToast;
     }
     ref.current = { ...ref.current, lifts: { ...lifts, [ex.name]: record } };
     setDay(ref.current);
     await saveLift(db, ex.name, record);
-    // An edit to this day changes the prior best of every later day viewed from this screen.
-    priorBests.current = priorBests.current.filter((p) => p.name !== ex.name || p.date <= date);
     if (pr) {
+      toastedToday.current.add(key);
       notify(pbToastText(ex.name, pr, tune.unit ?? 'kg', info.type));
       buzz(PB_BUZZ);
     }

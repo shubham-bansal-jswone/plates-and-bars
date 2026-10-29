@@ -20,14 +20,14 @@ const profileAt = (weight: string) => buildProfile({ ...emptyDraft(), sex: 'male
 const OVER = { step_kg: 2.5, rep_low: 5, rep_high: 12 };
 
 type Db = Awaited<ReturnType<typeof openDb>>;
-interface Props { k: number; weight: string; unit: 'kg' | 'lb'; type: ExType | null; name: string | null }
+interface Props { k: number; weight: string; unit: 'kg' | 'lb'; type: ExType | null; name: string | null; date?: string }
 
 /** A started session; `type` overrides exercise 0's type once its name is known (set through `rerender`). */
 async function started(unit: 'kg' | 'lb' = 'kg') {
   const db = await openDb();
   const base = { db, now: NOW, focus: [], adjustments: {}, notify, startRest: jest.fn(), exclusions: [], swaps: [], saveRule: jest.fn() };
   const view = await renderHook(
-    (p: Props) => useWorkoutDay({ ...base, profile: profileAt(p.weight), tune: { unit: p.unit, overrides: p.type && p.name ? { [p.name]: { type: p.type, ...OVER } } : {} }, reloadKey: p.k } as unknown as Parameters<typeof useWorkoutDay>[0]),
+    (p: Props) => useWorkoutDay({ ...base, ...(p.date ? { date: p.date } : {}), profile: profileAt(p.weight), tune: { unit: p.unit, overrides: p.type && p.name ? { [p.name]: { type: p.type, ...OVER } } : {} }, reloadKey: p.k } as unknown as Parameters<typeof useWorkoutDay>[0]),
     { initialProps: { k: 0, weight: '82', unit, type: null, name: null } as Props },
   );
   await waitFor(() => expect(view.result.current.day.ready).toBe(true));
@@ -128,7 +128,7 @@ describe('the personal-best toast uses the all-time rule (#1351 A4b)', () => {
     expect(pbToastText('Pull-up', reps, 'kg', 'bodyweight')).toBe('New personal best: Pull-up, 32 reps in total (+3)');
     expect(pbToastText('Plank', reps, 'kg', 'time')).toBe('New personal best: Plank, 32 sec in total (+3)');
     const assisted = { metric: 'assisted' as const, score: 520, set: { w: 30, r: 10 }, previousBest: 420, delta: 100 };
-    expect(pbToastText('Assisted Pull-up', assisted, 'kg', 'assisted')).toBe('New personal best: Assisted Pull-up, 10 reps with 30 kg of assistance (+100 more load lifted)');
+    expect(pbToastText('Assisted Pull-up', assisted, 'kg', 'assisted')).toBe('New personal best: Assisted Pull-up, 10 reps with 30 kg of assistance');
   });
 
   it('a total-reps lift toasts by reps', async () => {
@@ -172,7 +172,78 @@ describe('the personal-best toast uses the all-time rule (#1351 A4b)', () => {
     expect(toasts()).toHaveLength(1);
   });
 
-  it('History and the completion panel read the same record: the day is marked a personal record', async () => {
+  it('an edit to an earlier day drops the cached prior best of the day viewed after it', async () => {
+    const { db, name, props, result } = await started();
+    await seedDay(db, name, '2026-09-01', [[80, 5]]);
+    await seedDay(db, name, '2026-09-20', [[100, 5]]);
+    await tickSet(result, 0, '80', '5'); // prior 116.7: no PR, and the prior is cached
+    expect(toasts()).toEqual([]);
+    await act(async () => void (await props({ date: '2026-09-20' })));
+    await waitFor(() => expect(result.current.day.workout?.date).toBe('2026-09-20'));
+    await act(async () => result.current.tick(0, 0)); // untick the 100 x 5
+    await act(async () => void (await dayQueue.current));
+    await act(async () => void (await props({ date: undefined })));
+    await waitFor(() => expect(result.current.day.workout?.date).toBe(DATE));
+    await tickSet(result, 1, '90', '5'); // prior is now 93.3 (80 x 5): 105 beats it
+    expect(toasts()).toHaveLength(1);
+  });
+
+  it('a lift with stored sets but no lift record (an import) toasts once, and its buzz once, across untick and retick', async () => {
+    const vibrate = jest.spyOn(Vibration, 'vibrate').mockImplementation(() => undefined);
+    const { db, name, result } = await started();
+    await seedDay(db, name, '2026-09-01', [[80, 5]]);
+    await seedDay(db, name, '2026-09-20', [[90, 5]]);
+    vibrate.mockClear();
+    await tickSet(result, 0, '100', '5');
+    await act(async () => result.current.tick(0, 0));
+    await act(async () => void (await dayQueue.current));
+    await act(async () => result.current.tick(0, 0));
+    await act(async () => void (await dayQueue.current));
+    expect(toasts()).toHaveLength(1);
+    expect(vibrate.mock.calls.filter(([p]) => p === 60)).toHaveLength(1);
+    expect(await pbToast(db, name)).toBe(DATE);
+    vibrate.mockRestore();
+  });
+
+  it('a same-day record keeps an older pbToast through a tick that is not a PR', async () => {
+    const { db, name, result } = await started();
+    await seedDay(db, name, '2026-09-01', [[100, 5]]);
+    await seedDay(db, name, '2026-09-20', [[100, 5]]);
+    // The stored history is short, so the old last-8 check would call 60 x 5 a best; the all-time rule does not.
+    await saveLift(db, name, { date: DATE, sets: [{ w: 50, r: 5, rate: null }], form: null, n: 3, first: '2026-09-01', prev: null, hist: [{ date: '2026-09-01', e: 1 }, { date: '2026-09-20', e: 1 }], pbToast: '2026-09-01' });
+    await tickSet(result, 0, '60', '5');
+    expect(toasts()).toEqual([]);
+    expect(await pbToast(db, name)).toBe('2026-09-01');
+  });
+
+  it('a prior-best read that was in flight when a pull landed is not cached', async () => {
+    const { db, name, props, result } = await started();
+    await seedDay(db, name, '2026-09-01', [[60, 5]]);
+    await seedDay(db, name, '2026-09-20', [[60, 5]], true);
+    const real = db.getAllAsync.bind(db);
+    let release: () => void = () => {};
+    const gate = new Promise<void>((r) => (release = r));
+    let reads = 0;
+    db.getAllAsync = (async (sql: string, ...args: (string | number)[]) => {
+      const rows = await real(sql, ...args);
+      if (/json_extract\(data, '\$\.exercise'\)/.test(sql)) {
+        reads++;
+        if (reads === 1) await gate;
+      }
+      return rows;
+    }) as typeof db.getAllAsync;
+    await act(async () => result.current.editSet(0, 'work', 0, 'w', '50'));
+    await act(async () => result.current.editSet(0, 'work', 0, 'r', '5'));
+    await act(async () => result.current.tick(0, 0)); // the read starts and waits
+    await act(async () => void (await props({ k: 1 }))); // a pull lands meanwhile
+    await act(async () => release());
+    await act(async () => void (await dayQueue.current));
+    await waitFor(() => expect(result.current.day.ready).toBe(true));
+    await tickSet(result, 1, '50', '5');
+    expect(reads).toBe(2);
+  });
+
+  it('History and the completion panel read the same record: the day is marked a personal best', async () => {
     const { db, name, result } = await started();
     await seedDay(db, name, '2026-09-01', [[80, 5]]);
     await seedDay(db, name, '2026-09-20', [[90, 5]], true);
@@ -181,6 +252,6 @@ describe('the personal-best toast uses the all-time rule (#1351 A4b)', () => {
     expect(lifts[name]?.pbToast).toBe(DATE);
     expect(result.current.day.lifts[name]?.pbToast).toBe(DATE);
     await render(<CompletionPanel db={db} date={DATE} profileKg={82} exs={[{ ...result.current.day.exs[0]!, sets: result.current.day.exs[0]!.sets.map((x) => ({ ...x, done: true })) }]} cardio={null} lifts={result.current.day.lifts} reloadKey={0} />);
-    expect(screen.getAllByText('Personal record').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Personal best').length).toBeGreaterThan(0);
   });
 });
