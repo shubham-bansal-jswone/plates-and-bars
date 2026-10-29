@@ -4,7 +4,7 @@ import { DailyRead } from '../why/DailyRead';
 import { useOptionalSettings } from '../state/SettingsProvider';
 import { profileWhyValues } from '../why/values';
 import { StyleSheet, View } from 'react-native';
-import { DEFAULT_KCAL_TARGET, formatWeight, round1, waterRetentionPhase, latestWeight, navyBodyFat, personalRecords, stepsTarget, weightSeries, WEIGHT_CHART_BOX, type MeasureKey } from '@plate-and-bar/core';
+import { DEFAULT_KCAL_TARGET, formatWeight, round1, waterRetentionPhase, bodyweightOn, latestWeight, navyBodyFat, personalRecords, stepsTarget, weightSeries, WEIGHT_CHART_BOX, type MeasureKey } from '@plate-and-bar/core';
 import { useDataVersion } from '../sync/useDataVersion';
 import { useStepsVersion } from '../steps/DeviceStepsProvider';
 import { Text } from '../components/Text';
@@ -42,7 +42,6 @@ import { LabsSection } from '../labs/LabsSection';
 import { useLabs } from '../labs/useLabs';
 import { DateAnnouncer, DateBar } from '../components/DateBar';
 import { useViewedDate } from '../state/ViewedDate';
-import { bodyweightOn } from '../progress/bodyweight';
 
 interface Props {
   db: WorkoutDb;

@@ -1,6 +1,5 @@
 import { act, fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react-native';
-import type { ExType } from '@plate-and-bar/core';
-import { bodyweightOn } from '../src/progress/bodyweight';
+import { bodyweightOn, type ExType } from '@plate-and-bar/core';
 import { saveWeight } from '../src/db/progress';
 import { useProgress } from '../src/progress/useProgress';
 import { saveProfile } from '../src/db/records';

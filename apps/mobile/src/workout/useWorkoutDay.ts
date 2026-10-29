@@ -18,6 +18,7 @@ import {
   setTarget,
   tickFill,
   updateLift,
+  bodyweightOn,
   isPrToday,
   priorBestOf,
   newExercise,
@@ -46,7 +47,6 @@ import { localDate } from '../setup/logic';
 import { parseCardio } from './cardio';
 import { milestoneToastText, pbToastText } from './copy';
 import { freshRead } from '../state/freshRead';
-import { bodyweightOn } from '../progress/bodyweight';
 import { loadWeights } from '../db/progress';
 import type { Weight } from '../progress/types';
 import { loadMilestoneData, takeNewMilestones, toastPick, type MilestoneData } from '../progress/milestoneStore';
