@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Plate & Bar API
-  version: 0.1.27
+  version: 0.1.28
   summary: Contract between the Plate & Bar app and its backend (v0 draft, milestone M0).
   description: |
     The server stores, syncs and guards; every rule (targets, plan engine, progression,
@@ -4499,6 +4499,20 @@ components:
             answered. Optional so older clients that omit it still validate; a client that
             does not know the field may drop it when it rewrites the exercise.
             Prototype: `ex.feel`.
+        group:
+          type: [string, 'null']
+          minLength: 1
+          maxLength: 36
+          pattern: '^[A-Za-z0-9_-]{1,36}$'
+          description: >
+            Superset group (#1182, ADR 012): a short id shared by the members of one group.
+            Members of a group are contiguous in `exercises` and there is no position field;
+            the order of the array is the order. Null or absent means ungrouped. A group has 2
+            to 6 members, but that is a core rule, not enforced by this schema. The labels A
+            and B are derived by the app, not stored. Optional so older clients that omit it
+            still validate; a client that does not know the field may drop it when it
+            rewrites the exercise. To ungroup, write an explicit null so the three-way merge
+            sees the change.
 
     WorkoutSet:
       description: One working or ramp set within a workout.
@@ -5010,8 +5024,7 @@ components:
       type: object
       description: |
         One exercise of a routine. Open on purpose, as `WorkoutExercise`: the app keeps
-        keys it does not know, written by a newer client (for example a superset group,
-        #1182), when it rewrites the routine. At most 20 keys; an unlisted key's name is
+        keys it does not know, written by a newer client, when it rewrites the routine. At most 20 keys; an unlisted key's name is
         at most 50 characters and its value is a boolean, number, string of at most 200
         characters or null, so its size is bounded by these limits. A field a later
         contract adds is listed here with its own shape. A routine always starts a fresh
@@ -5038,6 +5051,20 @@ components:
             Target number of work sets when the routine is started. At most 20: a guard
             against a corrupt or hostile value, not a training rule; core decides the sets
             actually shown.
+        group:
+          type: [string, 'null']
+          minLength: 1
+          maxLength: 36
+          pattern: '^[A-Za-z0-9_-]{1,36}$'
+          description: >
+            Superset group (#1182, ADR 012): a short id shared by the members of one group.
+            Members of a group are contiguous in `exercises` and there is no position field;
+            the order of the array is the order. Null or absent means ungrouped. A group has 2
+            to 6 members, but that is a core rule, not enforced by this schema. The labels A
+            and B are derived by the app, not stored. Optional so older clients that omit it
+            still validate; a client that does not know the field may drop it when it
+            rewrites the routine. To ungroup, write an explicit null so the three-way merge
+            sees the change.
 
     Settings:
       description: |
