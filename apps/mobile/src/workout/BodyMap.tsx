@@ -1,5 +1,5 @@
 import { StyleSheet, View } from 'react-native';
-import Svg, { G, Polygon, Text as SvgText } from 'react-native-svg';
+import Svg, { Defs, G, Line, Pattern, Polygon, Rect, Text as SvgText } from 'react-native-svg';
 import { Text } from '../components/Text';
 import { useFontFamily } from '../theme/fonts';
 import { useTheme } from '../theme/useTheme';
@@ -34,11 +34,18 @@ export function BodyMap({ primary, secondary }: { primary: readonly string[]; se
   return (
     <View accessible accessibilityRole="image" accessibilityLabel={label} style={styles.wrap}>
       <Svg width="100%" viewBox="0 0 210 222" style={styles.svg}>
+        <Defs>
+          <Pattern id="also-hatch" width={4} height={4} patternUnits="userSpaceOnUse">
+            <Line x1={0} y1={4} x2={4} y2={0} stroke={c.bg} strokeWidth={1} />
+          </Pattern>
+        </Defs>
         {views.map(({ view, map, dx, name }) => {
           const state = shades(map, primary, secondary);
           return (
             <G key={view} transform={`translate(${dx} 0)`}>
               {REGIONS[view].map(([region, polygons]) => polygons.map((points, i) => <Polygon key={`${region}${i}`} points={points} fill={fill(state.get(region) ?? 0)} stroke={c.muscleOff} strokeWidth={0.6} />))}
+              {/* Also-working is hatched on top of its fill, so the main-vs-also distinction does not rest on colour alone. */}
+              {REGIONS[view].map(([region, polygons]) => (state.get(region) === 1 ? polygons.map((points, i) => <Polygon key={`${region}${i}h`} points={points} fill="url(#also-hatch)" stroke={c.muscleOff} strokeWidth={0.6} />) : null))}
               <SvgText x={50} y={216} textAnchor="middle" fontSize={12} fill={c.muted} fontFamily={fontFamily}>
                 {name}
               </SvgText>
@@ -52,7 +59,16 @@ export function BodyMap({ primary, secondary }: { primary: readonly string[]; se
           <Text style={{ color: c.muted, fontSize: 13 }}>Main focus</Text>
         </View>
         <View style={styles.key}>
-          <View style={[styles.swatch, { backgroundColor: also }]} />
+          <View style={[styles.swatch, { backgroundColor: also }]}>
+            <Svg width={12} height={12} viewBox="0 0 12 12" aria-hidden>
+              <Defs>
+                <Pattern id="also-hatch-key" width={4} height={4} patternUnits="userSpaceOnUse">
+                  <Line x1={0} y1={4} x2={4} y2={0} stroke={c.bg} strokeWidth={1} />
+                </Pattern>
+              </Defs>
+              <Rect width={12} height={12} fill="url(#also-hatch-key)" />
+            </Svg>
+          </View>
           <Text style={{ color: c.muted, fontSize: 13 }}>Also working</Text>
         </View>
       </View>
@@ -65,5 +81,5 @@ const styles = StyleSheet.create({
   svg: { aspectRatio: 210 / 222, maxHeight: 240 },
   legend: { flexDirection: 'row', gap: 16 },
   key: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  swatch: { width: 10, height: 10, borderRadius: 5 },
+  swatch: { width: 12, height: 12, borderRadius: 2, overflow: 'hidden' },
 });

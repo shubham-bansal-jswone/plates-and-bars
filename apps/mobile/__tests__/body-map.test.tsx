@@ -20,7 +20,8 @@ function drawn(): Map<string, Set<number>> {
     if (n.type === 'RNSVGPath' && n.props?.d) {
       const region = REGION_OF.get(n.props.d)!;
       expect(region).toBeDefined();
-      out.set(region, (out.get(region) ?? new Set()).add(n.props.fill!.payload));
+      // A pattern fill (the also-working hatch overlay) has no colour payload; it is checked in the hatch test.
+      if (typeof n.props.fill!.payload === 'number') out.set(region, (out.get(region) ?? new Set()).add(n.props.fill!.payload));
     }
     n.children?.forEach(walk);
   };
@@ -30,6 +31,19 @@ function drawn(): Map<string, Set<number>> {
 const regionsWith = (fill: string) => [...drawn()].filter(([, f]) => f.has(argb(fill))).map(([r]) => r).sort();
 
 describe('BodyMap', () => {
+  it('hatches the also-working muscles and their legend key, so the distinction is not colour alone', async () => {
+    await render(<BodyMap primary={['chest']} secondary={['triceps']} />);
+    const patterned: string[] = [];
+    const walk = (n: Node | null | undefined) => {
+      if (!n) return;
+      if (n.type === 'RNSVGPath' && n.props?.d && typeof n.props.fill?.payload !== 'number') patterned.push(REGION_OF.get(n.props.d)!);
+      n.children?.forEach(walk);
+    };
+    walk(screen.toJSON() as Node);
+    expect([...new Set(patterned)]).toEqual(['TRICEPS']);
+    expect(JSON.stringify(screen.toJSON())).toContain('also-hatch-key');
+  });
+
   it('draws main muscles in the brand colour, also-working in the stronger tint and the rest in the soft surface colour', async () => {
     await render(<BodyMap primary={['chest']} secondary={['triceps']} />);
     const d = drawn();

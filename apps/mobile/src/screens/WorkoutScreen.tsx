@@ -29,7 +29,6 @@ import { workoutLists } from '../workout/workoutLists';
 import { guidance, progressionContext, type Tuning } from '../workout/guidance';
 import { ExerciseCards, RecheckCards, StartCards } from '../workout/ExerciseCards';
 import { BurnLine } from '../workout/BurnLine';
-import { RING_SIZE } from '../workout/Ring';
 import { CardioBlock } from '../workout/CardioBlock';
 import { ModeNote, WeekTools } from '../workout/ScheduleTools';
 import { CantSheet } from '../workout/CantSheet';
@@ -200,7 +199,7 @@ export function WorkoutScreen({ db, now = () => new Date() }: Props) {
       </Page>
       {sheets}
       {restBar}
-      <ToastBar message={toast} lift={rest ? RING_SIZE + 30 : 0} />
+      <ToastBar message={toast} top />
     </View>
   );
 }

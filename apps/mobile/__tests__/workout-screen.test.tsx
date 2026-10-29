@@ -737,6 +737,22 @@ describe('Workout tab: logging sets', () => {
     await keys('45', 45);
   });
 
+  it('keeps autocorrect and autocapitalize off in the set row inputs, and shows the toast at the top so it does not cover the row and tick', async () => {
+    await setup();
+    await press('Start Push B');
+    await screen.findByText('Push B');
+    for (const label of ['Barbell Bench Press set 1 kg', 'Barbell Bench Press set 1 reps']) {
+      const input = screen.getByLabelText(label);
+      expect(input.props.autoCorrect).toBe(false);
+      expect(input.props.autoCapitalize).toBe('none');
+    }
+    await press('Mark Barbell Bench Press set 1 done');
+    const toast = await screen.findByText('Enter the weight and reps first.');
+    const wrap = StyleSheet.flatten(toast.parent?.props.style);
+    expect(wrap.top).toBe(12);
+    expect(wrap.bottom).toBeUndefined();
+  });
+
   it('refuses to tick a first-time set with nothing to fill from', async () => {
     const db = await setup();
     await press('Start Push B');
