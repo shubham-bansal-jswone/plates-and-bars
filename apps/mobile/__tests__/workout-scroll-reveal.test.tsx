@@ -63,6 +63,8 @@ async function tick(name: string, j: number, tag: string) {
   await fireEvent.changeText(rf!, '10');
   await press(new RegExp(`^Mark ${name} set ${j + 1}, ${tag} done`));
 }
+/** The rest dock's layout (jest lays nothing out): its height, as the dock of the current rest reports it. */
+const layout = (h: number) => fireEvent(screen.getByLabelText('Rest timer'), 'layout', { nativeEvent: { layout: { x: 0, y: 0, width: 375, height: h } } });
 async function tickUngrouped(name: string) {
   await fireEvent.changeText(screen.getByLabelText(`${name} set 1 kg`), '10');
   await fireEvent.changeText(screen.getByLabelText(`${name} set 1 reps`), '10');
@@ -94,6 +96,7 @@ describe('the up-next set in a superset of 3 (#1343)', () => {
     const names = await mount(['g', 'g', 'g'], false);
     nodeTop = 900;
     await tick(names[0]!, 0, 'A1');
+    await layout(DOCK_FALLBACK_H);
     await waitFor(() => expect(scrollTo).toHaveBeenCalledTimes(1));
     expect(scrollTo).toHaveBeenCalledWith({ x: 0, y: 1000 - (VIEW_H - DOCK_FALLBACK_H - 8), animated: false });
     expect(focus).not.toHaveBeenCalled(); // never a weight field
@@ -105,6 +108,7 @@ describe('the up-next set in a superset of 3 (#1343)', () => {
     scrollY = 300;
     nodeTop = 900;
     await tick(names[0]!, 0, 'A1');
+    await layout(DOCK_FALLBACK_H);
     await waitFor(() => expect(scrollTo).toHaveBeenCalledTimes(1));
     expect(scrollTo).toHaveBeenCalledWith({ x: 0, y: 300 + 1000 - (VIEW_H - DOCK_FALLBACK_H - 8), animated: false });
   });
@@ -114,6 +118,7 @@ describe('the up-next set in a superset of 3 (#1343)', () => {
     const names = await mount(['g', 'g', 'g'], false);
     nodeTop = 900;
     await tick(names[0]!, 0, 'A1');
+    await layout(DOCK_FALLBACK_H);
     await waitFor(() => expect(scrollTo).toHaveBeenCalledTimes(1));
     expect(scrollTo).toHaveBeenCalledWith(expect.objectContaining({ animated: false }));
   });
@@ -123,27 +128,18 @@ describe('the up-next set in a superset of 3 (#1343)', () => {
     scrollY = 20;
     nodeTop = -50; // the delta is -58, more than the page is scrolled
     await tick(names[0]!, 0, 'A1');
+    await layout(DOCK_FALLBACK_H);
     await waitFor(() => expect(scrollTo).toHaveBeenCalledTimes(1));
     expect(scrollTo).toHaveBeenCalledWith(expect.objectContaining({ y: 0 }));
   });
 
-  it('uses the dock\'s measured height, for the target and for the page spacer (large text)', async () => {
-    setReducedMotionForTests(true);
+  it('sizes the page spacer from the measured dock, 184 until then', async () => {
     const names = await mount(['g', 'g', 'g'], false);
     const spacer = () => StyleSheet.flatten(screen.getByTestId('dock-spacer').props.style).height;
-    expect(spacer()).toBe(DOCK_FALLBACK_H + DOCK_SPACER_MARGIN); // before the dock has been laid out
-    nodeTop = 900;
+    expect(spacer()).toBe(DOCK_FALLBACK_H + DOCK_SPACER_MARGIN);
     await tick(names[0]!, 0, 'A1');
-    await waitFor(() => expect(scrollTo).toHaveBeenCalledTimes(1));
-    await fireEvent(screen.getByLabelText('Rest timer'), 'layout', { nativeEvent: { layout: { x: 0, y: 0, width: 375, height: 240 } } });
+    await layout(240);
     expect(spacer()).toBe(240 + DOCK_SPACER_MARGIN);
-    // The row just revealed is revealed again with the real height (it was placed with the fallback).
-    await waitFor(() => expect(scrollTo).toHaveBeenCalledTimes(2));
-    expect(scrollTo).toHaveBeenLastCalledWith({ x: 0, y: 1000 - (VIEW_H - 240 - 8), animated: false });
-    scrollTo.mockClear();
-    await tick(names[1]!, 0, 'B1');
-    await waitFor(() => expect(scrollTo).toHaveBeenCalledTimes(1));
-    expect(scrollTo).toHaveBeenCalledWith({ x: 0, y: 1000 - (VIEW_H - 240 - 8), animated: false });
   });
 
   it('animates the scroll when reduced motion is off', async () => {
@@ -151,6 +147,7 @@ describe('the up-next set in a superset of 3 (#1343)', () => {
     const names = await mount(['g', 'g', 'g'], false);
     nodeTop = 900;
     await tick(names[0]!, 0, 'A1');
+    await layout(DOCK_FALLBACK_H);
     await waitFor(() => expect(scrollTo).toHaveBeenCalledWith(expect.objectContaining({ animated: true })));
   });
 
@@ -158,6 +155,7 @@ describe('the up-next set in a superset of 3 (#1343)', () => {
     const names = await mount(['g', 'g', 'g'], false);
     nodeTop = 100;
     await tick(names[0]!, 0, 'A1');
+    await layout(DOCK_FALLBACK_H);
     await waitFor(() => expect(measured).toHaveBeenCalled());
     expect(scrollTo).not.toHaveBeenCalled();
   });
@@ -180,11 +178,69 @@ describe('the up-next set in a superset of 3 (#1343)', () => {
   });
 });
 
+describe('the dock of a new rest', () => {
+  beforeEach(() => setReducedMotionForTests(true));
+
+  it('holds the reveal until the dock is laid out, then scrolls once with its height', async () => {
+    const names = await mount(['g', 'g', 'g'], false);
+    nodeTop = 900;
+    await tick(names[0]!, 0, 'A1');
+    expect(scrollTo).not.toHaveBeenCalled();
+    await layout(240);
+    expect(scrollTo).toHaveBeenCalledTimes(1);
+    expect(scrollTo).toHaveBeenCalledWith({ x: 0, y: 1000 - (VIEW_H - 240 - 8), animated: false });
+  });
+
+  it('scrolls at once when the dock of the current rest is already measured', async () => {
+    const names = await mount([], false);
+    await tickUngrouped(names[0]!);
+    await layout(240);
+    scrollTo.mockClear();
+    nodeTop = 640;
+    await press('Complete workout');
+    await screen.findByText(/^Finish with 1 of/);
+    expect(scrollTo).toHaveBeenCalledTimes(1);
+    expect(scrollTo).toHaveBeenCalledWith(expect.objectContaining({ y: 740 - (VIEW_H - 240 - 8) }));
+  });
+
+  it('scrolls at once, with no clearance, when no rest is up', async () => {
+    const names = await mount(['g', 'g', 'g'], true);
+    nodeTop = 900;
+    await tick(names[0]!, 0, 'A1');
+    expect(scrollTo).toHaveBeenCalledTimes(1);
+    expect(scrollTo).toHaveBeenCalledWith(expect.objectContaining({ y: 1000 - (VIEW_H - 8) }));
+  });
+
+  it('does not scroll when the dock changes height later, with nothing waiting', async () => {
+    const names = await mount(['g', 'g', 'g'], false);
+    nodeTop = 900;
+    await tick(names[0]!, 0, 'A1');
+    await layout(150);
+    expect(scrollTo).toHaveBeenCalledTimes(1);
+    scrollTo.mockClear();
+    await layout(300); // a relabel, a font loading: the user may have scrolled since
+    expect(scrollTo).not.toHaveBeenCalled();
+  });
+
+  it('leaves nothing waiting when its rest ends before the layout', async () => {
+    const names = await mount(['g', 'g', 'g', null], false);
+    nodeTop = 900;
+    await tick(names[0]!, 0, 'A1'); // the reveal waits for this rest's dock
+    await press('Skip'); // the rest ends first
+    expect(scrollTo).not.toHaveBeenCalled();
+    await press(`${names[3]}, 0/3 sets. Show sets`); // a set outside the block starts a new rest and moves no marker
+    await tickUngrouped(names[3]!);
+    await layout(240);
+    expect(scrollTo).not.toHaveBeenCalled(); // the old node is not revealed against this dock
+  });
+});
+
 describe('the finish question (#1344)', () => {
   it('is scrolled above the dock when it opens, and stays put when it already shows', async () => {
     const names = await mount([], false);
     await tickUngrouped(names[0]!);
     await screen.findByText(/1 of \d+ sets done/);
+    await layout(DOCK_FALLBACK_H);
     scrollTo.mockClear();
     nodeTop = 640;
     await press('Complete workout');

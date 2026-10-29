@@ -119,16 +119,23 @@ export function WorkoutScreen({ db, now = () => new Date() }: Props) {
   const [measuredDock, setMeasuredDock] = useState<number | null>(null);
   const dockH = measuredDock ?? DOCK_FALLBACK_H;
   const scroll = useScrollIntoView();
-  // A new rest mounts a new dock, whose height is only known after its layout (the label can be longer than the last one): a node revealed a moment ago is revealed again then.
-  const lastReveal = useRef<{ node: ComponentRef<typeof View>; at: number } | null>(null);
+  // Each rest mounts a new dock, whose height is only known after its first layout (its label can be longer than the last one's). A reveal asked
+  // for in between waits in `pending` and runs once, with that height, when the layout comes. A later height change never scrolls.
+  const measuredFor = useRef<number | null>(null);
+  const pending = useRef<{ node: ComponentRef<typeof View>; rest: number } | null>(null);
   const reveal = (node: ComponentRef<typeof View> | null | undefined) => {
-    lastReveal.current = node ? { node, at: Date.now() } : null;
-    scroll.reveal(node, rest ? dockH : 0);
+    if (!node) return;
+    if (!rest) scroll.reveal(node, 0);
+    else if (measuredFor.current === rest.id) scroll.reveal(node, dockH);
+    else pending.current = { node, rest: rest.id };
   };
-  const onDockHeight = (h: number) => {
+  const onDockHeight = (h: number, id: number) => {
     setMeasuredDock(h);
-    const last = lastReveal.current;
-    if (last && h !== dockH && Date.now() - last.at < 1000) scroll.reveal(last.node, h);
+    measuredFor.current = id;
+    // A node waiting for another rest's dock (that rest ended or changed before its layout) is dropped, not revealed against this one.
+    const wait = pending.current;
+    pending.current = null;
+    if (wait && wait.rest === id) scroll.reveal(wait.node, h);
   };
   const restBar = <RestBar rest={rest} onAdd={addRest} onSkip={() => setRest(null)} onHeight={onDockHeight} />;
   // One tree for every state, the state's content in the one body slot: the rest bar and toast keep their place (and so are not remounted,

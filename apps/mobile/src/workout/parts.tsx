@@ -61,13 +61,13 @@ export const DOCK_FALLBACK_H = 150;
 /** Space the page keeps under its last control, past the dock's own height. */
 export const DOCK_SPACER_MARGIN = 34;
 
-/** Rest timer bar (prototype `#restbar`): counts down, +30 s, skip. `onHeight` gets the dock's height each time it is laid out. */
-export function RestBar({ rest, onAdd, onSkip, onHeight }: { rest: RestState | null; onAdd: () => void; onSkip: () => void; onHeight?: (h: number) => void }) {
+/** Rest timer bar (prototype `#restbar`): counts down, +30 s, skip. `onHeight` gets the dock's height, and the rest's id, each time it is laid out. */
+export function RestBar({ rest, onAdd, onSkip, onHeight }: { rest: RestState | null; onAdd: () => void; onSkip: () => void; onHeight?: (h: number, restId: number) => void }) {
   // Mounted per rest, so the clock starts fresh each time a set is ticked.
   return rest ? <RunningRest key={rest.id} rest={rest} onAdd={onAdd} onSkip={onSkip} {...(onHeight ? { onHeight } : {})} /> : null;
 }
 
-function RunningRest({ rest, onAdd, onSkip, onHeight }: { rest: RestState; onAdd: () => void; onSkip: () => void; onHeight?: (h: number) => void }) {
+function RunningRest({ rest, onAdd, onSkip, onHeight }: { rest: RestState; onAdd: () => void; onSkip: () => void; onHeight?: (h: number, restId: number) => void }) {
   const c = useTheme();
   const [nowMs, setNow] = useState(() => Date.now());
   useEffect(() => {
@@ -92,7 +92,7 @@ function RunningRest({ rest, onAdd, onSkip, onHeight }: { rest: RestState; onAdd
   const time = mmss(left);
   return (
     // The dock is opaque and runs to the screen edge, so the page behind never shows through; on wide screens its panel stays a 560 px column in the middle.
-    <View onLayout={(e) => onHeight?.(e.nativeEvent.layout.height)} style={[styles.restDock, { backgroundColor: c.bg, borderColor: c.line, borderTopWidth: 1, borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg }]}>
+    <View onLayout={(e) => onHeight?.(e.nativeEvent.layout.height, rest.id)} style={[styles.restDock, { backgroundColor: c.bg, borderColor: c.line, borderTopWidth: 1, borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg }]}>
       <View accessibilityLabel="Rest timer" style={styles.rest}>
         <Ring progress={pct / 100} label={`Rest ${Math.round(pct)}% done`}>
           {/* At zero on Android and web the visible "Rest done, go!" is hidden from assistive tech: the live region below says it,
