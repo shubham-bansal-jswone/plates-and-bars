@@ -37,7 +37,7 @@ export const HISTORY_LIMIT = 20;
 /** The latest dates in the session log, newest first. */
 export const recentDates = (log: SessionLog): string[] => Object.keys(log).sort().reverse().slice(0, HISTORY_LIMIT);
 
-/** One session per logged day: its done work sets grouped by exercise, in the order they were logged. Volume is core's `sessionVolume`. */
+/** One session per logged day: its done work sets grouped by exercise, in the stored workout's exercise order (names the stored list lacks follow in row order). Volume is core's `sessionVolume`. */
 export function buildSessions(log: SessionLog, setsByDate: Readonly<Record<string, readonly WorkoutSet[]>>, cardioByDate: Readonly<Record<string, number | null>> = {}, storedByDate: Readonly<Record<string, readonly Pick<WorkoutExercise, 'name' | 'group'>[]>> = {}): HistorySession[] {
   return recentDates(log).flatMap((date) => {
     const done = (setsByDate[date] ?? []).filter((s) => s.kind === 'work' && s.done && !s.deleted_at);
@@ -52,7 +52,13 @@ export function buildSessions(log: SessionLog, setsByDate: Readonly<Record<strin
     const listed = stored.flatMap((e, i) => (by.has(e.name) ? [{ name: e.name, sets: 1, group: valid[i] }] : []));
     const listedLetters = groupLabels(listed);
     const letters = new Map(listed.flatMap((e, i) => (listedLetters[i] ? [[e.name, listedLetters[i]!] as const] : [])));
-    const exercises = [...by].map(([name, sets]): HistoryExercise => {
+    // Cards follow the stored exercise order too (rows have no order of their own: every first set is index 0, a re-saved set moves last);
+    // names the stored list lacks keep row order, after the stored ones.
+    const rank = new Map<string, number>();
+    for (const [i, e] of stored.entries()) if (!rank.has(e.name)) rank.set(e.name, i); // a repeated name sits at its first stored position
+    // `sort` is stable, so equal ranks (names the stored list lacks) keep row order.
+    const ordered = [...by].sort(([a], [b]) => (rank.get(a) ?? Infinity) - (rank.get(b) ?? Infinity) || 0);
+    const exercises = ordered.map(([name, sets]): HistoryExercise => {
       const mapped = sets.map((s) => ({ w: s.weight_kg, r: s.reps, rate: s.rate }));
       const l = letters.get(name);
       return { name, sets: mapped, volume: sessionVolume([{ sets: mapped.map((s) => ({ done: true, w: s.w, r: s.r })) }]), ...(l ? { label: l } : {}) };
