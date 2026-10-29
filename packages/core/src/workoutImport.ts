@@ -1,5 +1,5 @@
 import { lbToKg, type WeightUnit } from './weightUnit';
-import { GROUP_MAX, normalizeGroups } from './groups';
+import { GROUP_MAX } from './groups';
 import { regroup } from './routines';
 
 /**
@@ -356,8 +356,9 @@ function groupsOf(sup: ReadonlyMap<string, string | null>, newId: () => string):
   for (const e of exs) if (e.group !== null) size.set(e.group, (size.get(e.group) ?? 0) + 1);
   // Over 6 members is ungrouped whole (`normalizeGroups` would keep the first 6).
   const fit = exs.map((e) => (e.group !== null && (size.get(e.group) ?? 0) > GROUP_MAX ? { ...e, group: null } : e));
-  const made = regroup(normalizeGroups(fit), newId);
-  const out: Record<string, string> = {};
+  const made = regroup(fit, newId);
+  // No prototype: a name such as `constructor` is never found by a plain lookup.
+  const out: Record<string, string> = Object.create(null) as Record<string, string>;
   exs.forEach((e, i) => {
     const g = made[i];
     if (g !== undefined) out[e.name] = g;

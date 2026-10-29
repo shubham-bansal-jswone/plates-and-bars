@@ -269,6 +269,18 @@ describe('Hevy superset_id to groups (S8 of #1182)', () => {
     expect(d.groups).toEqual({ B: 'g1', C: 'g1' });
   });
 
+  it('disagreement is judged on every set, not the last or presence alone', () => {
+    expect(plan([row('A', ''), row('A', '0', 1), row('B', '0')]).days[0]!.groups).toBeUndefined();
+    expect(plan([row('A', '0'), row('A', '1', 1), row('B', '1')]).days[0]!.groups).toBeUndefined();
+  });
+
+  it('a non-member named like an Object.prototype key gets no group', () => {
+    const d = plan([row('A', '0'), row('B', '0'), row('constructor', ''), row('toString', '')]).days[0]!;
+    expect(d.groups).toEqual({ A: 'g1', B: 'g1' });
+    expect(d.groups!['constructor']).toBeUndefined();
+    expect(d.groups!['toString']).toBeUndefined();
+  });
+
   it('mapping two names to one, or skipping a member, is regrouped on what is left', () => {
     expect(plan([row('A', '0'), row('B', '0')], counter(), { B: 'A' }).days[0]!.groups).toBeUndefined();
     expect(plan([row('A', '0'), row('B', '0'), row('C', '0')], counter(), { B: null }).days[0]!.groups).toEqual({ A: 'g1', C: 'g1' });
