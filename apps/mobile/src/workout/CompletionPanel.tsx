@@ -17,7 +17,7 @@ import { useWeightUnit } from '../settings/weightUnit';
 
 /**
  * "Session done": shown while every set is ticked, read from today's exercises only. Nothing is stored and nothing is locked:
- * un-tick a set and it goes. The elapsed time is core's `sessionElapsed` over the ticks (`t`), shown only when every ticked set has one; no streak. A personal record is core's `updateLift` result (the record's `pbToast` is today).
+ * un-tick a set and it goes. The elapsed time is core's `sessionElapsed` over the ticks (`t`), shown only when every ticked set has one; no streak. A personal best is the lift record's `pbToast` being today, as `useWorkoutDay` sets it with core's `isPrToday`.
  */
 export function CompletionPanel({ db, date, profileKg, exs, cardio, lifts, reloadKey, headingRef, onSaveRoutine }: { /** Opens "Save as routine"; absent when the session has nothing to save. */ onSaveRoutine?: () => void; headingRef?: Ref<ComponentRef<typeof RNText>>; db: WorkoutDb; date: string; profileKg: number; exs: readonly ExState[]; cardio: number | null; lifts: Readonly<Record<string, LiftRecord>>; reloadKey: number }) {
   const c = useTheme();
@@ -46,7 +46,7 @@ export function CompletionPanel({ db, date, profileKg, exs, cardio, lifts, reloa
               <Text style={[type.bodyStrong, { color: c.ink }]}>{e.name}</Text>
               {rates.length ? <Text style={[type.caption, { color: c.muted }]}>Felt: {rates.join(', ')}</Text> : null}
             </View>
-            {pr ? <Text style={[type.small, styles.pr, { backgroundColor: c.brand, color: c.onBrand }]}>Personal record</Text> : null}
+            {pr ? <Text style={[type.small, styles.pr, { backgroundColor: c.brand, color: c.onBrand }]}>Personal best</Text> : null}
             {card.bests[i] ? <Text style={[type.heading, tabular, { color: c.ink }]}>{card.bests[i]}</Text> : null}
           </View>
         );

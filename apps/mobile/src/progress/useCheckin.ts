@@ -48,7 +48,8 @@ export function useCheckin({ db, date, weights, now, notify, reloadKey = 0 }: Op
   // The real date, so a day that is today is complete only when ticked (core #150), as in useProgress.
   const today = localDate(now());
   const [lifts, setLifts] = useState<Record<string, LiftRecord>>({});
-  const [sessions, setSessions] = useState<SessionLog>({});
+  /** Null until the first read, so a screen can tell "not read yet" from "no sessions". */
+  const [sessions, setSessions] = useState<SessionLog | null>(null);
   // Tab screens stay mounted, so the days are read again each time the tab is shown.
   const [shown, setShown] = useState(0);
   useFocusEffect(useCallback(() => setShown((n) => n + 1), []));
@@ -103,7 +104,7 @@ export function useCheckin({ db, date, weights, now, notify, reloadKey = 0 }: Op
     const r = rapidLoss(weights, date, stalledList(lifts, date).length);
     return r && !A.muted?.[RAPID_TYPE] && !A.dismissed?.[r.key] ? r : null;
   }, [profile, days, usable, date, weights, lifts, A.muted, A.dismissed]);
-  const habit = useMemo(() => (profile && days ? habits(date, sessions, profile, days) : null), [profile, days, date, sessions]);
+  const habit = useMemo(() => (profile && days ? habits(date, sessions ?? {}, profile, days) : null), [profile, days, date, sessions]);
 
   // As the prototype does on showing the check-in: remember a ready burn estimate, and that this week's was seen.
   const burn = checkin?.burn.ready ? checkin.burn.burn : null;
@@ -130,6 +131,8 @@ export function useCheckin({ db, date, weights, now, notify, reloadKey = 0 }: Op
   return {
     checkin,
     habit,
+    /** Every session date as read for `habit`, null until the first read: the weeks strip counts from the same log. */
+    sessions,
     /** The last 21 days as read for the check-in, null until loaded; the "Seven days" block uses `weekDays`. */
     days,
     /** The days for the "Seven days" block: always the real current week, whichever day is viewed. */
