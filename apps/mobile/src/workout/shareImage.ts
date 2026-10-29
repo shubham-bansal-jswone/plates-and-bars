@@ -2,7 +2,7 @@ import type { ComponentRef, RefObject } from 'react';
 import type { View } from 'react-native';
 import { dark as c } from '../theme/tokens';
 import type { SaveResult } from '../account/saveFile';
-import { CARD_PAD, HEADER_H, ROW_H, STATS_H, type ShareCardModel } from './shareModel';
+import { CARD_PAD, HEADER_H, ROW_H, STATS_H, rowName, type ShareCardModel } from './shareModel';
 
 const S = 3; // 360x450 logical px to 1080x1350
 const FAMILY: Record<number, string> = { 400: 'Inter_400Regular', 600: 'Inter_600SemiBold', 700: 'Inter_700Bold', 800: 'Inter_800ExtraBold' };
@@ -79,7 +79,7 @@ export async function shareWorkoutImage(model: ShareCardModel, _card?: RefObject
       g.fill();
       text('PR', px + prW / 2, y + (ROW_H / 2) * S, prW - 8 * S, c.onBrand, 800, 12, 'center');
     }
-    text(r.name, pad, y + (ROW_H / 2) * S, inner - bestW - prW - 16 * S, c.ink, 600, 16);
+    text(rowName(r), pad, y + (ROW_H / 2) * S, inner - bestW - prW - 16 * S, c.ink, 600, 16);
   });
   if (model.more) text(`+${model.more} more`, pad, rows + model.rows.length * ROW_H * S + 10 * S, inner, c.muted, 400, 14);
   const blob = await new Promise<Blob | null>((ok) => canvas.toBlob(ok, 'image/png'));

@@ -1,5 +1,5 @@
-import { HAND_PICKED, sessionVolume, type ExType, type LiftRecord, type SessionLog, type WeightUnit } from '@plate-and-bar/core';
-import type { WorkoutSet } from '../../workout/types';
+import { HAND_PICKED, groupLabels, sessionVolume, type ExType, type LiftRecord, type SessionLog, type WeightUnit } from '@plate-and-bar/core';
+import type { WorkoutExercise, WorkoutSet } from '../../workout/types';
 import { weightFieldText } from '../../workout/unitText';
 import { e1rmPoints, sessionTimeLine } from '../e1rm';
 
@@ -13,6 +13,8 @@ export interface HistoryExercise {
   sets: HistorySet[];
   /** Core's `sessionVolume` of this exercise's done sets, kg. */
   volume: number;
+  /** Superset letter ('A', 'B', ...) when the stored workout has this exercise in a valid group (core's `groupLabels`); absent otherwise. */
+  label?: string;
 }
 export interface HistorySession {
   date: string;
@@ -36,15 +38,22 @@ export const HISTORY_LIMIT = 20;
 export const recentDates = (log: SessionLog): string[] => Object.keys(log).sort().reverse().slice(0, HISTORY_LIMIT);
 
 /** One session per logged day: its done work sets grouped by exercise, in the order they were logged. Volume is core's `sessionVolume`. */
-export function buildSessions(log: SessionLog, setsByDate: Readonly<Record<string, readonly WorkoutSet[]>>, cardioByDate: Readonly<Record<string, number | null>> = {}): HistorySession[] {
+export function buildSessions(log: SessionLog, setsByDate: Readonly<Record<string, readonly WorkoutSet[]>>, cardioByDate: Readonly<Record<string, number | null>> = {}, storedByDate: Readonly<Record<string, readonly Pick<WorkoutExercise, 'name' | 'group'>[]>> = {}): HistorySession[] {
   return recentDates(log).flatMap((date) => {
     const done = (setsByDate[date] ?? []).filter((s) => s.kind === 'work' && s.done && !s.deleted_at);
     if (!done.length) return [];
     const by = new Map<string, WorkoutSet[]>();
     for (const s of [...done].sort((a, b) => a.set_index - b.set_index)) by.set(s.exercise, [...(by.get(s.exercise) ?? []), s]);
+    // Letters come from the stored exercise list (core decides which runs are valid); the day lists done exercises only.
+    const stored = storedByDate[date] ?? [];
+    const letters = groupLabels(stored.map((e) => ({ name: e.name, sets: 1, group: e.group })));
+    const letterOf = (name: string): { label?: string } => {
+      const l = letters[stored.findIndex((e) => e.name === name)];
+      return l ? { label: l } : {};
+    };
     const exercises = [...by].map(([name, sets]): HistoryExercise => {
       const mapped = sets.map((s) => ({ w: s.weight_kg, r: s.reps, rate: s.rate }));
-      return { name, sets: mapped, volume: sessionVolume([{ sets: mapped.map((s) => ({ done: true, w: s.w, r: s.r })) }]) };
+      return { name, sets: mapped, volume: sessionVolume([{ sets: mapped.map((s) => ({ done: true, w: s.w, r: s.r })) }]), ...letterOf(name) };
     });
     // Time counts every ticked set of the day, ramp sets too: one without a tick makes the duration unknown, never a guess.
     const ticked = (setsByDate[date] ?? []).filter((s) => s.done && !s.deleted_at);
