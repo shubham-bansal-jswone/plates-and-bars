@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ComponentRef } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
 import { fromKg, type LiftRecord, type WeightUnit } from '@plate-and-bar/core';
 import { Text } from '../../components/Text';
+import { PR_LABEL } from '../../workout/copy';
 import { Button, Card, Note, Heading, Hint, MetricRow, Press } from '../../components/ui';
 import { fmt, shortDate, weekdayLong } from '../../format';
 import { space, tabular, type as typeScale } from '../../theme/tokens';
@@ -116,7 +117,7 @@ export function WorkoutDay({ session, sessions, lifts, onBack }: { session: Hist
             {e.sets.map((s, i) => (
               <Text key={i} style={[typeScale.textBody, tabular, { color: c.body }]}>{`Set ${i + 1}: ${setText(s, unit)}`}</Text>
             ))}
-            {t.pbDate === session.date ? <Text style={[typeScale.small, { color: c.brand }]}>Personal best</Text> : null}
+            {t.pbDate === session.date ? <Text style={[typeScale.small, { color: c.brand }]}>{PR_LABEL}</Text> : null}
             {t.points.length >= 2 && max > 0 ? (
               <View accessible accessibilityRole="image" accessibilityLabel={`${e.name} volume over ${t.points.length} sessions, ${t.points.map((p) => volumeText(p.volume, unit)).join(', ')}`}>
                 <View style={styles.bars}>
