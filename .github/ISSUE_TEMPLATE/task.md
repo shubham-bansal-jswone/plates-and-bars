@@ -7,8 +7,8 @@ labels: ''
 **Lane:** contract / core / backend / app / content / website / qa / infra
 **Milestone:** M?
 
-## Prototype behaviour
-Which screen or function in `docs/prototype/plate-and-bar.html` this reproduces.
+## Spec behaviour
+Which section of `docs/spec/PROTOTYPE_SPEC.md` this reproduces.
 
 ## Acceptance criteria
 - [ ] 

@@ -20,7 +20,7 @@ Small tweak (one component, spacing, copy): do all phases inline, spawn nothing.
 
 ## Phases
 
-1. **Discover.** Read the screen, its components in `apps/mobile/src/components/`, tokens in `apps/mobile/src/theme/tokens.ts`, and the prototype part in `docs/prototype/plate-and-bar.html`. Port flows and copy; do not redesign rules (`docs/AGENTS.md`).
+1. **Discover.** Read the screen, its components in `apps/mobile/src/components/`, tokens in `apps/mobile/src/theme/tokens.ts`, and the matching section of `docs/spec/PROTOTYPE_SPEC.md` (the HTML prototype is at git tag `prototype-final`). Port flows and copy; do not redesign rules (`docs/AGENTS.md`).
 2. **Define.** One sentence each: who is using this, what they must do in under 10 seconds, what the top element on the screen is. Name success criteria you can check in a browser.
 3. **Design.** Hierarchy (one primary action per view), layout per breakpoint, component reuse before new components, every state: loading, empty, error, success, disabled, long text, offline. Pick type, colour, spacing, surfaces, radii, shadows, gradients and motion deliberately, each with a reason. Put the choices in shared tokens, not per-screen literals.
 4. **Implement.** Existing stack and components. Labels on every control, 44px targets, respects system text size, reduced motion honoured.

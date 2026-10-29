@@ -25,7 +25,7 @@ Monorepo components:
 | Website | `apps/site` | Astro site: landing, privacy, terms, deletion, licences, blog |
 | Infra | `infra/`, `.github/workflows/` | Compose stack, Caddy, CI, deploy, backup, monitoring |
 | E2E | `tests/e2e` | Playwright (web) and Maestro (Android) |
-| Prototype | `docs/prototype/plate-and-bar.html` | Behavioural reference for the rules |
+| Spec | `docs/spec/PROTOTYPE_SPEC.md`, `docs/spec/golden/` | Behavioural spec of record (HTML prototype frozen at git tag `prototype-final`) |
 
 ### Responsibilities split (observed)
 - **The server stores, syncs and guards; every rule runs on the device.** The contract header says this and the backend contains no targets, plan or progression logic (`openapi.yaml` info text; backend package list in section 3).
@@ -725,7 +725,7 @@ Supported by the code read:
 - **Tombstone:** a record with `deleted_at` set, kept so deletes sync.
 - **Family:** all refresh tokens descended from one sign-in; revoked together on reuse.
 - **Cookie mode:** web transport of the refresh token (ADR 006).
-- **Golden fixtures:** `docs/spec/golden/*.json`, generated from the prototype by `tools/golden-gen`, used to pin `packages/core` behaviour.
+- **Golden fixtures:** `docs/spec/golden/*.json`, fixtures of record (originally generated from the prototype), used to pin `packages/core` behaviour.
 - **Lane:** an agent ownership area defined in `docs/AGENTS.md`.
 
 ### 22.5 Not identifiable from the code read

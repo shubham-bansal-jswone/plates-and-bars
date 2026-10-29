@@ -1,7 +1,7 @@
 # @plate-and-bar/core
 
 The app's rules (targets, plan engine, progression, burn, food maths) ported from the prototype
-(`docs/prototype/plate-and-bar.html`) into pure TypeScript. No DOM, no storage, no I/O, no clock:
+(frozen at git tag `prototype-final`; the spec of record is `docs/spec/PROTOTYPE_SPEC.md`) into pure TypeScript. No DOM, no storage, no I/O, no clock:
 anything that depends on the date takes `now` as an argument. The app and backend import rules from
 here instead of re-typing numbers.
 

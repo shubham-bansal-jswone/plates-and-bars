@@ -1,5 +1,5 @@
 /**
- * Form check frame positions (#1011). Prototype function: `videoFrames` (plate-and-bar.html line 3173), lines 3181 and 3183:
+ * Form check frame positions (#1011). Prototype function: `videoFrames` (prototype-final tag):
  * `dur = v.duration && isFinite(v.duration) ? v.duration : 5` and `at = dur * (0.12 + 0.76 * k / Math.max(1, n - 1))`.
  * The prototype works in seconds and does not round; the app cuts in whole milliseconds, so `frameTimesMs` rounds.
  */

@@ -13,7 +13,7 @@ info:
 
     Wire conventions:
     - JSON field names are snake_case everywhere. Where a field comes from the prototype
-      (`docs/prototype/plate-and-bar.html`) under a different name, its description says
+      (git tag `prototype-final`) under a different name, its description says
       "Prototype: `name`".
     - Timestamps (`*_at`, `t`) are ISO 8601 date-times in UTC with a `Z` suffix.
     - Calendar days (`date`, `created`, `cleared`, `until`, ...) are `YYYY-MM-DD` in the

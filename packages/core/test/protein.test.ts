@@ -14,7 +14,7 @@ function protoCard(latest: number | null | undefined, profileWeight?: number): {
   return m ? { weight: Number(m[1]), protein: Number(m[2]) } : null;
 }
 
-describe('proteinFloor (prototype KB.protein.b, plate-and-bar.html line 2792)', () => {
+describe('proteinFloor (prototype KB.protein.b, prototype-final tag)', () => {
   it('matches the prototype card: round1 for the label, proteinFloor for the grams', () => {
     for (const kg of [80, 81.6, 70, 62.5, 100.5, 55, 70.3125]) {
       const card = protoCard(kg, 60);

@@ -12,8 +12,8 @@ Job: port, don't reinvent. Each function you write reproduces a prototype functi
 including rounding and edge cases.
 
 Method for every rule:
-1. Find the prototype function and everything it calls.
-2. Load the matching fixture from `docs/spec/golden/<area>.json`. Never edit or regenerate it yourself; if a
+1. Find the rule in `docs/spec/PROTOTYPE_SPEC.md` (it names the prototype function; the source is at git tag `prototype-final`) and everything it calls.
+2. Load the matching fixture from `docs/spec/golden/<area>.json`. Never edit it yourself (only a `spec-change` PR does); if a
    case you need is missing, or a fixture looks wrong, open a `spec-question` issue.
 3. Port it to strict TypeScript as pure functions: no DOM, no `localStorage`, no dates from the clock
    (take `now` as an argument), no I/O.
