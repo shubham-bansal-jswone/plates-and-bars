@@ -38,7 +38,7 @@ emit() { echo "run_$1=$2" >> "$out"; }
 if touched .github/workflows/ci.yml infra/scripts/; then all=1; else all=0; fi
 want() { [ "$all" = 1 ] && return 0; touched "$@"; }
 
-if has_npm packages/api && want packages/api/; then emit api true; else emit api false; fi
+if has_npm packages/api && want packages/api/ content/; then emit api true; else emit api false; fi
 if has_npm packages/core && want packages/core/ packages/api/ content/ docs/spec/golden/; then emit core true; else emit core false; fi
 # the app imports core and the generated client
 # the app also imports content/*.json and reads packages/api/test-vectors
@@ -57,3 +57,5 @@ if has_npm tests/e2e && want tests/e2e/ apps/mobile/ packages/core/ packages/api
 if has_npm tests/e2e && want tests/e2e/ apps/mobile/ packages/core/ packages/api/ content/ backend/; then emit e2e_sync true; else emit e2e_sync false; fi
 # the Play listing text must stay within Google's limits and carry the setup disclaimer word for word (needs only node, no install)
 if [ -f docs/check-play-listing.mjs ] && want docs/PLAY-STORE-LISTING.md docs/check-play-listing.mjs apps/mobile/src/setup/copy.ts; then emit play_listing true; else emit play_listing false; fi
+# .opencode/agents is generated from .claude/agents; regenerate and diff (needs only node, no install)
+if [ -f .opencode/generate-agents.mjs ] && want .claude/agents/ .opencode/; then emit opencode_agents true; else emit opencode_agents false; fi

@@ -5,7 +5,7 @@ import type { StoreDb } from '../db/records';
 import { bumpStoreEpoch, revertStoreEpoch, storeEpoch } from '../db/storeEpoch';
 import { WriteLock } from '../db/writeLock';
 import { pauseSync, resumeSync } from './engine';
-import { KEY_MILESTONES_SHOWN, KEY_PHOTOS_WIPE, KEY_REMINDERS, KEY_REST, KEY_SETTINGS_KEPT, KEY_SERVER_DELETED, KEY_USER, getKv, getUserId, setKv } from './store';
+import { KEY_MILESTONES_SHOWN, KEY_PHOTOS_WIPE, KEY_PLATES, KEY_REMINDERS, KEY_REST, KEY_SETTINGS_KEPT, KEY_SERVER_DELETED, KEY_USER, KEY_WEIGHT_UNIT, getKv, getUserId, setKv } from './store';
 import type { TokenStore } from './tokens';
 import { markSignOutPending } from './webSession';
 import { cancelReminders } from '../reminders/sync';
@@ -38,7 +38,7 @@ export async function withSyncPaused<T>(f: () => Promise<T>): Promise<T> {
 
 /**
  * Deletes the previous user's local store in one transaction under the write lock: every synced table, the cycle log, the lab reports and hold, the outbox and the
- * sync bookkeeping. Other device-only flags in `settings` stay, except that a forced wipe also removes the pending-wipe
+ * sync bookkeeping. The user's device-local choices go too (weight unit, plates, reminders, rest, steps, milestones shown). Other device-only flags in `settings` stay (`device.keystore_checked` only records a one-time check of this phone's secure storage), except that a forced wipe also removes the pending-wipe
  * marker (`device.server_deleted`), since what it stands for is done. Unless `force`, it counts the unsynced changes in the same
  * transaction and wipes nothing when there are any; the count is returned (0 means wiped).
  * The progress-photo vault (files and key) is wiped right after, whenever the store was (ADR 004, #251). A marker written
@@ -66,6 +66,7 @@ export async function wipeLocalStore(db: Db, opts: { force?: boolean; expectUser
     await txn.runAsync('DELETE FROM settings WHERE key = ?', KEY_REMINDERS);
     await txn.runAsync('DELETE FROM settings WHERE key = ?', KEY_REST);
     await txn.runAsync('DELETE FROM settings WHERE key = ?', KEY_MILESTONES_SHOWN); // shown ids belong to the wiped history; the next account seeds its own (#1351)
+    await txn.runAsync('DELETE FROM settings WHERE key IN (?, ?)', KEY_WEIGHT_UNIT, KEY_PLATES); // display and gym-equipment choices: the copy says settings are deleted, and the next account picks its own (#1371)
     if (opts.force) await txn.runAsync('DELETE FROM settings WHERE key = ?', KEY_SERVER_DELETED);
     await txn.runAsync("INSERT OR REPLACE INTO settings (key, value) VALUES (?, '1')", KEY_PHOTOS_WIPE);
     bumpStoreEpoch();

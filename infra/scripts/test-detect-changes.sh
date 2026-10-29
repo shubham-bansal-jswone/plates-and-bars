@@ -11,7 +11,8 @@ git config user.email t@example.com
 git config user.name t
 mkdir -p apps/mobile/src/about apps/site/src/pages tests/e2e/store backend/src/main/resources/db/migration backend/src/test/resources/golden backend/src/main/java packages/api/test-vectors packages/core apps/mobile/scripts apps/mobile/src/content apps/site backend/scripts tools content docs tests/e2e
 for d in packages/api packages/core apps/mobile apps/site tools tests/e2e; do echo '{}' > "$d/package.json"; done
-touch backend/build.gradle apps/mobile/scripts/content-meta.mjs docs/check-play-listing.mjs
+mkdir -p .opencode
+touch backend/build.gradle apps/mobile/scripts/content-meta.mjs docs/check-play-listing.mjs .opencode/generate-agents.mjs
 git add -A && git commit -qm base
 
 fail=0
@@ -22,18 +23,18 @@ expect() {
   git add -A && git commit -qm "change $file"
   : > out
   GITHUB_OUTPUT="$tmp/out" "$script" HEAD~1 > /dev/null
-  for j in api core mobile backend tools play_listing site content_meta e2e e2e_sync; do
+  for j in api core mobile backend tools play_listing site content_meta e2e e2e_sync opencode_agents; do
     got="$(sed -n "s/^run_$j=//p" out)"
     if [[ "$want" == *" $j "* ]]; then [ "$got" = true ] || { echo "FAIL: $file should run $j"; fail=1; }
     else [ "$got" = false ] || { echo "FAIL: $file should not run $j"; fail=1; }; fi
   done
   git reset -q --hard HEAD~1
 }
-expect content/cards.json "core mobile backend tools content_meta e2e e2e_sync site"
+expect content/cards.json "core api mobile backend tools content_meta e2e e2e_sync site"
 expect apps/mobile/src/why/cards.ts "mobile e2e e2e_sync site"
 expect apps/mobile/src/why/WhyLink.tsx "mobile e2e e2e_sync site"
 expect apps/mobile/src/why/learn.ts "mobile e2e e2e_sync"
-expect content/new-file.json "core mobile backend tools content_meta e2e e2e_sync"
+expect content/new-file.json "core api mobile backend tools content_meta e2e e2e_sync"
 expect backend/scripts/x.sh "backend e2e_sync"
 expect packages/api/test-vectors/sync-ids.json "api core mobile backend tools e2e e2e_sync"
 expect packages/api/openapi.yaml "api core mobile backend e2e e2e_sync"
@@ -54,6 +55,8 @@ expect apps/mobile/src/about/licences.json "mobile tools e2e e2e_sync"
 expect apps/site/src/pages/index.astro "site tools"
 expect backend/src/main/java/A.java "backend e2e_sync"
 expect tests/e2e/store/demo-seed.json "tools e2e e2e_sync"
+expect .claude/agents/app.md "opencode_agents"
+expect .opencode/generate-agents.mjs "opencode_agents"
 expect docs/other.md ""
 [ "$fail" = 0 ] && echo "detect-changes: all sample diffs OK"
 exit "$fail"
