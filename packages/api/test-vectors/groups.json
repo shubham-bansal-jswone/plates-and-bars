@@ -1,0 +1,23 @@
+{
+ "description": "Exercise group rules (#1182, ADR 012). Each case is a list of exercises as [name, sets, group]; `labels` is groupLabels, `normalized` the group ids after normalizeGroups (null = ungrouped). Limits: group_min 2, group_max 6, transition_sec 15. Order of an alternating group is by round: A1, B1, A2, B2; a member out of sets drops out.",
+ "limits": { "group_min": 2, "group_max": 6, "transition_sec": 15 },
+ "configs": [
+  { "note": "valid pair", "ex": [["a", 3, "g"], ["b", 3, "g"]], "labels": ["A", "B"], "normalized": ["g", "g"] },
+  { "note": "ungrouped and null", "ex": [["a", 3, null], ["b", 3, null]], "labels": [null, null], "normalized": [null, null] },
+  { "note": "singleton is dissolved", "ex": [["a", 3, "g"], ["b", 3, null]], "labels": [null, null], "normalized": [null, null] },
+  { "note": "non-contiguous id is dissolved whole", "ex": [["a", 3, "g"], ["b", 3, null], ["c", 3, "g"]], "labels": [null, null, null], "normalized": [null, null, null] },
+  { "note": "split id leaves another valid group alone", "ex": [["a", 3, "g"], ["b", 3, "h"], ["c", 3, "h"], ["d", 3, "g"]], "labels": [null, "A", "B", null], "normalized": [null, "h", "h", null] },
+  { "note": "three members, labels by order", "ex": [["a", 3, "g"], ["b", 3, "g"], ["c", 3, "g"]], "labels": ["A", "B", "C"], "normalized": ["g", "g", "g"] },
+  { "note": "two adjacent groups", "ex": [["a", 3, "g"], ["b", 3, "g"], ["c", 3, "h"], ["d", 3, "h"]], "labels": ["A", "B", "A", "B"], "normalized": ["g", "g", "h", "h"] },
+  { "note": "over the cap: first 6 stay, the 7th is ungrouped", "ex": [["a", 3, "g"], ["b", 3, "g"], ["c", 3, "g"], ["d", 3, "g"], ["e", 3, "g"], ["f", 3, "g"], ["g", 3, "g"]], "labels": [null, null, null, null, null, null, null], "normalized": ["g", "g", "g", "g", "g", "g", null] },
+  { "note": "exactly 6 is valid", "ex": [["a", 3, "g"], ["b", 3, "g"], ["c", 3, "g"], ["d", 3, "g"], ["e", 3, "g"], ["f", 3, "g"]], "labels": ["A", "B", "C", "D", "E", "F"], "normalized": ["g", "g", "g", "g", "g", "g"] },
+  { "note": "unequal set counts do not change grouping", "ex": [["a", 2, "g"], ["b", 4, "g"]], "labels": ["A", "B"], "normalized": ["g", "g"] }
+ ],
+ "order": [
+  { "note": "A1 B1 A2 B2", "ex": [["a", 2, "g"], ["b", 2, "g"]], "sequence": [[0, 0], [1, 0], [0, 1], [1, 1]] },
+  { "note": "unequal: B has more sets, A drops out", "ex": [["a", 2, "g"], ["b", 4, "g"]], "sequence": [[0, 0], [1, 0], [0, 1], [1, 1], [1, 2], [1, 3]] },
+  { "note": "unequal: first member has more", "ex": [["a", 3, "g"], ["b", 1, "g"]], "sequence": [[0, 0], [1, 0], [0, 1], [0, 2]] },
+  { "note": "three members, middle drops out", "ex": [["a", 2, "g"], ["b", 1, "g"], ["c", 2, "g"]], "sequence": [[0, 0], [1, 0], [2, 0], [0, 1], [2, 1]] },
+  { "note": "group between ungrouped exercises", "ex": [["x", 2, null], ["a", 1, "g"], ["b", 1, "g"], ["y", 1, null]], "sequence": [[0, 0], [0, 1], [1, 0], [2, 0], [3, 0]] }
+ ]
+}
