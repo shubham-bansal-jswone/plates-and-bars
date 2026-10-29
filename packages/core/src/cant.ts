@@ -1,3 +1,4 @@
+import { GROUP_MAX, normalizeGroups } from './groups';
 import { cantRule, widerRuleReplacements, type CantDraft, type CantRule, type Exclusion } from './exclusions';
 import type { Where } from './plan';
 import { lastFor, type LiftRecord } from './progression';
@@ -11,6 +12,8 @@ export interface CantExercise {
   form: 'yes' | 'no' | null;
   found_kg: number | null;
   skip_ramp: boolean;
+  /** Group (superset) id; null or absent is ungrouped (ADR 012). */
+  group?: string | null;
 }
 
 /**
@@ -64,6 +67,13 @@ export interface CantLifts {
   date: string;
 }
 
+/** `normalizeGroups` on the result (a group left under 2 members is dissolved); lists with no group come back as they were. */
+function fixGroups<T extends CantExercise>(list: T[]): T[] {
+  if (!list.some((e) => e.group)) return list;
+  const g = normalizeGroups(list.map((e) => ({ name: '', sets: 0, ...(e.group === undefined ? {} : { group: e.group }) }))).map((x) => x.group ?? null);
+  return list.map((e, i) => (e.group && g[i] === null ? { ...e, group: null } : e));
+}
+
 const live = (s: CantSet): boolean => !s.deleted_at;
 
 /**
@@ -90,6 +100,9 @@ export function newExercise(name: string, c: CantLifts, part: 1 | 2): { ex: Cant
  * and the pick, if any, takes its place. Ticked ramp sets alone do not keep an exercise. The pick is in
  * the same part (first or second session) as the exercise it replaces (#267).
  *
+ * A replacement takes the group of the exercise it replaces (a full group of 6 with the original kept: the pick stays
+ * ungrouped); groups left under 2 members are dissolved.
+ *
  * Mirrors the `replaceAt(idx, pick)` step of prototype `applyCant(choice)` (`w.exercises` as contract
  * `Workout.exercises` and `WorkoutSet`s).
  */
@@ -100,9 +113,16 @@ export function replaceAt<E extends CantExercise, S extends CantSet>(exercises: 
   const work = sets.filter((s) => mine(s) && s.kind === 'work').sort((a, b) => a.set_index - b.set_index);
   const done = work.filter((s) => s.done);
   const nx = pick ? newExercise(pick, c, ex.part) : null;
+  // New (#1331, not a prototype port): the pick joins the replaced exercise's group. When the original stays (ticked sets)
+  // in a full group, the pick would be a 7th member: it is the one left ungrouped.
+  // It then goes right after the group, so the group stays in one piece.
+  const full = !!done.length && !!ex.group && exercises.filter((e) => e.group === ex.group).length >= GROUP_MAX;
+  if (nx && ex.group && !full) nx.ex.group = ex.group;
   const out: (E | CantExercise)[] = [...exercises];
   if (done.length) {
-    if (nx) out.splice(idx + 1, 0, nx.ex);
+    let at = idx + 1;
+    if (full) while (exercises[at]?.group === ex.group) at++;
+    if (nx) out.splice(at, 0, nx.ex);
     const index = new Map(done.map((s, i) => [s, i]));
     const kept: S[] = [];
     const changed: S[] = [];
@@ -117,11 +137,11 @@ export function replaceAt<E extends CantExercise, S extends CantSet>(exercises: 
         changed.push(copy);
       }
     }
-    return { exercises: out, sets: [...kept, ...(nx ? nx.sets : [])], changed, removed };
+    return { exercises: fixGroups(out), sets: [...kept, ...(nx ? nx.sets : [])], changed, removed };
   }
   if (nx) out.splice(idx, 1, nx.ex);
   else out.splice(idx, 1);
-  return { exercises: out, sets: [...sets.filter((s) => !mine(s)), ...(nx ? nx.sets : [])], changed: [], removed: sets.filter(mine) };
+  return { exercises: fixGroups(out), sets: [...sets.filter((s) => !mine(s)), ...(nx ? nx.sets : [])], changed: [], removed: sets.filter(mine) };
 }
 
 /**
