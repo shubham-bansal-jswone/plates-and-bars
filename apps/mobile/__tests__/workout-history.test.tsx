@@ -117,6 +117,18 @@ describe('Progress: recent workouts', () => {
     expect(screen.queryByText('Personal best')).toBeNull();
   });
 
+  it('an assisted lift is scored as assisted at the profile bodyweight: less assistance is a record', async () => {
+    const db = memoryDb();
+    await saveWorkout(db, workout('2026-10-01', 'Pull A'));
+    await saveSet(db, '2026-10-01', wset('z', 'Assisted Pull-up', 0, 30, 8)); // 8 x (82 - 30)
+    await saveWorkout(db, workout('2026-10-06', 'Pull A'));
+    await saveSet(db, '2026-10-06', wset('a', 'Assisted Pull-up', 0, 20, 8)); // 8 x (82 - 20): a record; as a loaded lift it would not be
+    await setup(db);
+    await fireEvent.press(await screen.findByLabelText('6 Oct, Pull A, 1 set, 160 kg'));
+    await screen.findByRole('header', { name: 'Pull A' });
+    expect(await screen.findByText('Personal best')).toBeTruthy();
+  });
+
   async function withDay() {
     const db = memoryDb();
     await saveWorkout(db, workout('2026-10-06', 'Pull A'));

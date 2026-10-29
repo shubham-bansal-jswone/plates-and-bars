@@ -1,4 +1,4 @@
-import { type ComponentRef, type Ref } from 'react';
+import { useEffect, useRef, type ComponentRef, type Ref } from 'react';
 import { Platform, StyleSheet, Text as RNText, View } from 'react-native';
 import { type Milestone } from '@plate-and-bar/core';
 import { Text } from '../components/Text';
@@ -19,14 +19,19 @@ import { useWeightUnit } from '../settings/weightUnit';
  * "Session done": shown while every set is ticked, read from today's exercises only. Nothing is stored and nothing is locked:
  * un-tick a set and it goes. The elapsed time is core's `sessionElapsed` over the ticks (`t`), shown only when every ticked set has one; no streak. A personal best is a lift in `prs` (`useWorkoutDay`: core's `isPrToday` over today's sets), not the record's `pbToast`.
  */
-export function CompletionPanel({ earned = [], db, date, profileKg, exs, cardio, prs, reloadKey, headingRef, onSaveRoutine }: { /** Milestones earned in this session (#1351 A9), one line each. */ earned?: readonly Milestone[]; /** Opens "Save as routine"; absent when the session has nothing to save. */ onSaveRoutine?: () => void; headingRef?: Ref<ComponentRef<typeof RNText>>; db: WorkoutDb; date: string; profileKg: number; exs: readonly ExState[]; cardio: number | null; /** Lifts that are a personal best today. */ prs?: ReadonlySet<string>; reloadKey: number }) {
+export function CompletionPanel({ earned = [], db, date, profileKg, exs, cardio, prs, settlePrs, reloadKey, headingRef, onSaveRoutine }: { /** Milestones earned in this session (#1351 A9), one line each. */ earned?: readonly Milestone[]; /** Opens "Save as routine"; absent when the session has nothing to save. */ onSaveRoutine?: () => void; headingRef?: Ref<ComponentRef<typeof RNText>>; db: WorkoutDb; date: string; profileKg: number; exs: readonly ExState[]; cardio: number | null; /** Lifts that are a personal best today. */ prs: ReadonlySet<string>; /** Resolves when `prs` has been worked out for the current sets: Share waits for it, so the picture never lacks a PR the panel shows. */ settlePrs?: () => Promise<void>; reloadKey: number }) {
   const c = useTheme();
   const { unit } = useWeightUnit();
   const { cardRef, busy, note: shareNote, share } = useShareCard();
+  // What the picture is built from, as of the last commit: Share reads it after waiting for `prs`, not the render it was tapped in.
+  const latest = useRef({ date, exs, cardio, prs, unit });
+  useEffect(() => {
+    latest.current = { date, exs, cardio, prs, unit };
+  });
   const sets = exs.flatMap((e) => e.sets);
   const done = sets.filter((s) => s.done).length;
   if (sets.length === 0 || done !== sets.length) return null;
-  const card = buildShareCard({ date, exs, cardio, ...(prs ? { prs } : {}), unit });
+  const card = buildShareCard({ date, exs, cardio, prs, unit });
   const elapsed = sessionTimeLine(exs.flatMap((e) => [...e.ramp, ...e.sets]));
   const twoSessions = exs.some((e) => e.part === 2);
   return (
@@ -55,7 +60,7 @@ export function CompletionPanel({ earned = [], db, date, profileKg, exs, cardio,
         <Text key={m.id} testID="completion-milestone" accessibilityLabel={`Milestone: ${milestoneLine(m)}`} style={[type.caption, { color: c.body }]}>{`Milestone: ${milestoneLine(m)}`}</Text>
       ))}
       <BurnLine db={db} date={date} profileKg={profileKg} exs={exs} cardio={cardio} reloadKey={reloadKey} />
-      <Button kind="ghost" label="Share" a11yLabel="Share workout summary picture" onPress={() => share(card)} disabled={busy} busy={busy} />
+      <Button kind="ghost" label="Share" a11yLabel="Share workout summary picture" onPress={() => void (settlePrs ? settlePrs().then(() => new Promise((r) => setTimeout(r, 16))).catch(() => undefined).then(() => share(buildShareCard(latest.current))) : share(card))} disabled={busy} busy={busy} />
       {onSaveRoutine ? <Button kind="ghost" label={ROUTINE_COPY.action} onPress={onSaveRoutine} /> : null}
       {shareNote ? <Note>{shareNote}</Note> : null}
       {Platform.OS === 'web' ? null : <ShareCard model={card} cardRef={cardRef} />}

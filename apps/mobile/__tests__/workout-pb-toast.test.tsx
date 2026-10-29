@@ -324,6 +324,36 @@ describe('the personal-best toast uses the all-time rule (#1351 A4b)', () => {
     expect(toasts()).toHaveLength(1);
   });
 
+  it('Complete workout with one set of the record lift unticked: the badge shows in the panel, the records and the share picture', async () => {
+    const { db, name, result } = await started();
+    await seedDay(db, name, '2026-09-01', [[80, 5]]);
+    await seedDay(db, name, '2026-09-20', [[90, 5]], true);
+    const last = result.current.day.exs.find((e) => e.name === name)!.sets.length - 1;
+    await completeWith(result, name, '100', '5', [last]); // the last set of the lift stays unticked
+    expect(result.current.prs.size).toBe(0); // not complete yet
+    await act(async () => void result.current.finishEarly());
+    await act(async () => void (await dayQueue.current));
+    await waitFor(() => expect(result.current.prs.has(name)).toBe(true));
+    expect(await badges(db, name, result)).toEqual({ panel: [name], history: [name], share: [name] });
+    await render(<CompletionPanel db={db} date={DATE} profileKg={82} exs={result.current.day.exs} cardio={null} prs={result.current.prs} reloadKey={0} />);
+    expect(screen.getAllByText('Personal best').length).toBeGreaterThan(0);
+  });
+
+  it('Complete workout after untick and a smaller set: no badge', async () => {
+    const { db, name, result } = await started();
+    await seedDay(db, name, '2026-09-01', [[80, 5]]);
+    await seedDay(db, name, '2026-09-20', [[90, 5]], true);
+    await tickSet(result, 0, '100', '5');
+    await act(async () => result.current.tick(0, 0));
+    await act(async () => void (await dayQueue.current));
+    await completeWith(result, name, '60', '5', [result.current.day.exs.find((e) => e.name === name)!.sets.length - 1]);
+    await act(async () => void result.current.finishEarly());
+    await act(async () => void (await dayQueue.current));
+    await waitFor(() => expect(result.current.day.exs.length).toBeGreaterThan(0));
+    expect((await badges(db, name, result)).panel).toEqual([]);
+    expect((await badges(db, name, result)).history).toEqual([]);
+  });
+
   it('an untick removes the badge', async () => {
     const { db, name, result } = await started();
     await seedDay(db, name, '2026-09-01', [[80, 5]]);

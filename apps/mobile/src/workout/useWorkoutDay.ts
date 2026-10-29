@@ -289,14 +289,19 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
    * half-done reads no history for it.
    */
   /** `for`: the exercises the names were worked out for; a later edit makes them stale at once, so a badge never outlives the sets it was read from. */
+  /** The evaluation in flight (resolved once `prs` is set), for `settlePrs`. */
+  const prPending = useRef<Promise<void>>(Promise.resolve());
   const [prState, setPrState] = useState<{ for: unknown; names: ReadonlySet<string> }>({ for: null, names: NO_PRS });
   useEffect(() => {
     const exs = loaded === date ? day.exs : [];
     const sets = exs.flatMap((e) => e.sets);
-    if (!profile || sets.length === 0 || sets.some((s) => !s.done)) return;
+    if (!profile || sets.length === 0 || sets.some((s) => !s.done)) {
+      prPending.current = Promise.resolve();
+      return;
+    }
     let live = true;
     const ctx = progressionContext(date, day.lifts, profile, day.workout, tune);
-    void (async () => {
+    prPending.current = (async () => {
       const names = new Set<string>();
       for (const ex of exs) {
         const { info } = guidance(ex, ctx, day.workout);
@@ -336,8 +341,8 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
       return;
     }
     // The toast follows the all-time rule (core `isPrToday`), not `updateLift`'s last-8 `checkBest`. updateLift stays as it is
-    // and the record it returns is corrected here: `pbToast` is `date` once a PR has toasted today (kept as before, so it shows at
-    // most once a day and History, the completion panel and the share picture read it), and otherwise whatever updateLift carried.
+    // and the record it returns is corrected here: `pbToast` is `date` once a PR has toasted today (kept as before; it only gates the
+    // toast to once a day). The Personal best badges do not read it: they come from the PR rule (`prs`, History's `personalRecords`), #1372.
     const was = lifts[ex.name];
     const key = `${ex.name}|${date}`;
     const toasted = was?.pbToast === date || toastedToday.current.has(key);
@@ -1075,5 +1080,5 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
     notify(choice ? `Swapped in ${choice}` : gone);
   };
 
-  return { date, msSettled: () => msChain.current, earned: earnedIn.date === date ? earnedIn.list : NO_EARNED, prs: loaded === date && prState.for === day.exs ? prState.names : NO_PRS, day: loaded === date ? day : NOT_READY, cant, setCardio, editSet, tick, rate, setForm, setFeel, skipRemaining, rampStart, rampSkip, rampAdd, rampTick, rampRated, addSet, removeSet, groupWithNext, ungroup, addExercise, removeExercise, finishEarly, start, startPicked, startFromRoutine, addSecond };
+  return { date, msSettled: () => msChain.current, earned: earnedIn.date === date ? earnedIn.list : NO_EARNED, prs: loaded === date && prState.for === day.exs ? prState.names : NO_PRS, settlePrs: () => prPending.current, day: loaded === date ? day : NOT_READY, cant, setCardio, editSet, tick, rate, setForm, setFeel, skipRemaining, rampStart, rampSkip, rampAdd, rampTick, rampRated, addSet, removeSet, groupWithNext, ungroup, addExercise, removeExercise, finishEarly, start, startPicked, startFromRoutine, addSecond };
 }

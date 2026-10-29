@@ -1,6 +1,7 @@
+import { useState } from 'react';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { Dimensions, Platform, StyleSheet } from 'react-native';
 import { CompletionPanel } from '../src/workout/CompletionPanel';
 import { blankRow, type ExState, type Row } from '../src/workout/model';
@@ -41,13 +42,47 @@ afterEach(() => {
   mockCopied.length = 0;
 });
 
+describe('the panel passes prs to its own share card', () => {
+  it('draws PR on the hidden card for a lift in prs, and not otherwise', async () => {
+    await panel();
+    expect(screen.getByText('PR', { includeHiddenElements: true })).toBeTruthy();
+    await screen.unmount();
+    await render(<CompletionPanel db={memoryDb()} date="2026-10-08" profileKg={83.7} exs={exs} cardio={null} prs={new Set()} reloadKey={0} />);
+    expect(screen.queryByText('PR', { includeHiddenElements: true })).toBeNull();
+  });
+
+  it('Share waits for the pending prs, so the picture still has the PR', async () => {
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((r) => (release = r));
+    let setPrs: (p: ReadonlySet<string>) => void = () => undefined;
+    // Like the hook: the names are set first, then the promise resolves.
+    const settle = async () => {
+      await gate;
+      await act(async () => setPrs(new Set(['Barbell Bench Press'])));
+    };
+    const Host = () => {
+      const [prs, set] = useState<ReadonlySet<string>>(new Set());
+      setPrs = set;
+      return <CompletionPanel db={memoryDb()} date="2026-10-08" profileKg={83.7} exs={exs} cardio={null} prs={prs} settlePrs={settle} reloadKey={0} />;
+    };
+    await render(<Host />);
+    fireEvent.press(screen.getByLabelText('Share workout summary picture')); // before the prs are known
+    await new Promise((r) => setTimeout(r, 30));
+    expect(mockShare).not.toHaveBeenCalled(); // still waiting
+    release();
+    await waitFor(() => expect(mockShare).toHaveBeenCalledTimes(1));
+    expect(screen.getByText('PR', { includeHiddenElements: true })).toBeTruthy();
+    expect(mockCapture).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('share the workout summary picture', () => {
   it('shows a secondary Share button once the session is complete, and none while a set is undone', async () => {
     await panel();
     expect(screen.getByLabelText('Share workout summary picture')).toBeTruthy();
     expect(screen.getByTestId('share-card', { includeHiddenElements: true })).toBeTruthy();
     await screen.unmount();
-    await render(<CompletionPanel db={memoryDb()} date="2026-10-08" profileKg={80} exs={[ex('Pec Deck Fly', [row('30', '12', false)])]} cardio={null} reloadKey={0} />);
+    await render(<CompletionPanel db={memoryDb()} date="2026-10-08" profileKg={80} exs={[ex('Pec Deck Fly', [row('30', '12', false)])]} cardio={null} prs={new Set()} reloadKey={0} />);
     expect(screen.queryByLabelText('Share workout summary picture')).toBeNull();
   });
 
