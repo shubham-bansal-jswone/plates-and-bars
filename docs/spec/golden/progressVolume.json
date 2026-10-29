@@ -2552,14 +2552,14 @@
    "note": "The latest complete week with any set wins; an all-zero latest week is skipped.",
    "weeks": [
     {
-     "week": "2026-10-05",
+     "week": "2026-09-07",
      "partial": false,
      "sets": {
       "quads": 9
      }
     },
     {
-     "week": "2026-10-05",
+     "week": "2026-09-14",
      "partial": false,
      "sets": {
       "chest": 3,
@@ -2567,7 +2567,7 @@
      }
     },
     {
-     "week": "2026-10-05",
+     "week": "2026-09-21",
      "partial": false,
      "sets": {
       "chest": 0,
@@ -2581,7 +2581,7 @@
    "note": "A tie goes to the muscle earlier in COVER_SHOW (quads before glutes).",
    "weeks": [
     {
-     "week": "2026-10-05",
+     "week": "2026-09-07",
      "partial": false,
      "sets": {
       "glutes": 4,
@@ -2595,7 +2595,7 @@
    "note": "Half sets count as values (glutes 2 beats hams 1.5).",
    "weeks": [
     {
-     "week": "2026-10-05",
+     "week": "2026-09-07",
      "partial": false,
      "sets": {
       "hams": 1.5,
@@ -2609,14 +2609,14 @@
    "note": "A partial (in-progress) week does not override a complete earlier week: Monday's 1 set of abs loses to last week's 20 of lats.",
    "weeks": [
     {
-     "week": "2026-10-05",
+     "week": "2026-09-07",
      "partial": false,
      "sets": {
       "lats": 20
      }
     },
     {
-     "week": "2026-10-05",
+     "week": "2026-09-14",
      "partial": true,
      "sets": {
       "abs": 1
@@ -2629,14 +2629,14 @@
    "note": "The partial week wins when it is the only week with any set.",
    "weeks": [
     {
-     "week": "2026-10-05",
+     "week": "2026-09-07",
      "partial": false,
      "sets": {
       "lats": 0
      }
     },
     {
-     "week": "2026-10-05",
+     "week": "2026-09-14",
      "partial": true,
      "sets": {
       "abs": 1
@@ -2646,10 +2646,37 @@
    "expected": "abs"
   },
   {
+   "note": "A partial week with the most sets still does not override the latest complete week with any: chest (3) beats the partial abs (9) and the older lats (6).",
+   "weeks": [
+    {
+     "week": "2026-09-07",
+     "partial": false,
+     "sets": {
+      "lats": 6
+     }
+    },
+    {
+     "week": "2026-09-14",
+     "partial": false,
+     "sets": {
+      "chest": 3
+     }
+    },
+    {
+     "week": "2026-09-21",
+     "partial": true,
+     "sets": {
+      "abs": 9
+     }
+    }
+   ],
+   "expected": "chest"
+  },
+  {
    "note": "A muscle outside COVER_SHOW is ignored (front-delt), the shown one wins.",
    "weeks": [
     {
-     "week": "2026-10-05",
+     "week": "2026-09-07",
      "partial": false,
      "sets": {
       "front-delt": 8,
@@ -2663,7 +2690,7 @@
    "note": "Only a muscle outside COVER_SHOW has sets: null.",
    "weeks": [
     {
-     "week": "2026-10-05",
+     "week": "2026-09-07",
      "partial": false,
      "sets": {
       "front-delt": 8
@@ -2676,14 +2703,14 @@
    "note": "No set in any week: null.",
    "weeks": [
     {
-     "week": "2026-10-05",
+     "week": "2026-09-07",
      "partial": false,
      "sets": {
       "chest": 0
      }
     },
     {
-     "week": "2026-10-05",
+     "week": "2026-09-14",
      "partial": false,
      "sets": {}
     }

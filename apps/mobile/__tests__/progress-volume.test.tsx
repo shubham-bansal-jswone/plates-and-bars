@@ -178,11 +178,11 @@ describe('volumeView', () => {
 describe('VolumeSection', () => {
   it('the focus muscle leads when it has sets in the weeks drawn', async () => {
     const db = await openDb();
-    await history(db); // lats have sets in earlier weeks, chest in the latest
-    await show(db, { focus: ['lats'] });
-    await screen.findByRole('button', { name: 'Lats' });
-    expect(pressedOf('Lats')).toBe(true);
-    expect(pressedOf('Chest')).toBe(false);
+    await history(db); // chest and lats both have sets; the default is Lats (last full week), so a Chest focus is what makes Chest lead
+    await show(db, { focus: ['chest'] });
+    await screen.findByRole('button', { name: 'Chest' });
+    expect(pressedOf('Chest')).toBe(true);
+    expect(pressedOf('Lats')).toBe(false);
   });
 
   it('a focus muscle with no sets does not open an empty chart: the most recent muscle does (#1409)', async () => {
