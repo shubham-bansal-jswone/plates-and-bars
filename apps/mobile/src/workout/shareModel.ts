@@ -1,4 +1,4 @@
-import { formatWeight, fromKg, groupLabels, sessionVolume, type LiftRecord, type WeightUnit } from '@plate-and-bar/core';
+import { formatWeight, fromKg, groupLabels, sessionVolume, type WeightUnit } from '@plate-and-bar/core';
 import { fmt, shortDate, weekdayLong } from '../format';
 import type { ExState, Row } from './model';
 
@@ -49,7 +49,7 @@ export interface ShareCardModel {
  * best set and personal records. Built only from the ticked sets, so it cannot carry body weight, health answers, how a set
  * felt, calories (they depend on body weight), photos or any identifier.
  */
-export function buildShareCard(p: { date: string; exs: readonly ExState[]; cardio: number | null; lifts: Readonly<Record<string, LiftRecord>>; unit?: WeightUnit; /** Superset letter per exercise; default: from the exercises' `group` (core's `groupLabels`). */ labels?: readonly (string | null | undefined)[] }): ShareCardModel {
+export function buildShareCard(p: { date: string; exs: readonly ExState[]; cardio: number | null; /** Lifts that are a personal best on `date`, from core's `personalRecords` / `isPrToday` (never `pbToast`). */ prs?: ReadonlySet<string>; unit?: WeightUnit; /** Superset letter per exercise; default: from the exercises' `group` (core's `groupLabels`). */ labels?: readonly (string | null | undefined)[] }): ShareCardModel {
   const unit = p.unit ?? 'kg';
   const sets = p.exs.flatMap((e) => e.sets);
   const done = sets.filter((s) => s.done).length;
@@ -71,7 +71,7 @@ export function buildShareCard(p: { date: string; exs: readonly ExState[]; cardi
   const rows = p.exs.map((e, i) => {
     const b = bestSet(e.sets);
     const label = labels[i];
-    return { name: e.name, ...(label ? { label } : {}), best: !b ? '' : n(b.w) ? `${formatWeight(n(b.w), unit)} x ${n(b.r)}` : `${n(b.r)} reps`, pr: p.lifts[e.name]?.pbToast === p.date };
+    return { name: e.name, ...(label ? { label } : {}), best: !b ? '' : n(b.w) ? `${formatWeight(n(b.w), unit)} x ${n(b.r)}` : `${n(b.r)} reps`, pr: p.prs?.has(e.name) ?? false };
   });
   const title = `${weekdayLong(p.date)} workout`;
   const dateLabel = `${shortDate(p.date)} ${p.date.slice(0, 4)}`;

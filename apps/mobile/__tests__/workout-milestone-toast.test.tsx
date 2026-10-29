@@ -53,7 +53,7 @@ async function seedDay(db: Db, name: string, date: string, sets: [number, number
   await saveWorkout(db, { ...w, date, id: `w-${date}` } as typeof w);
   let i = 0;
   for (const [kg, reps] of sets) {
-    const s: WorkoutSet = { id: `${date}-${name}-${i}`, version: 0, updated_at: `${date}T09:00:00Z`, deleted_at: null, workout_id: null, exercise: name, kind: 'work', set_index: i++, weight_kg: kg, reps, done: true, rate: null, t: null };
+    const s: WorkoutSet = { id: `${date}-${name}-${i}`, version: 0, updated_at: `${date}T09:00:00Z`, deleted_at: null, workout_id: null, exercise: name, kind: 'work', set_index: 100 + i++, weight_kg: kg, reps, done: true, rate: null, t: null };
     await saveSet(db, date, s);
   }
 }
@@ -133,7 +133,7 @@ describe('the quiet milestone toast (#1351 A9)', () => {
     expect(msToasts()).toEqual([]);
     expect(result.current.earned.map((m) => m.id)).toEqual(['plates-1']);
     const ex = result.current.day.exs[0]!;
-    await render(<CompletionPanel db={{} as WorkoutDb} date={DATE} profileKg={82} earned={result.current.earned} exs={[{ ...ex, sets: ex.sets.map((x) => ({ ...x, done: true })) }]} cardio={null} lifts={result.current.day.lifts} reloadKey={0} />);
+    await render(<CompletionPanel db={{} as WorkoutDb} date={DATE} profileKg={82} earned={result.current.earned} exs={[{ ...ex, sets: ex.sets.map((x) => ({ ...x, done: true })) }]} cardio={null} prs={result.current.prs} reloadKey={0} />);
     expect(screen.getByLabelText(`Milestone: One plate a side, ${name}, 60 kg`)).toBeTruthy();
   });
 

@@ -103,6 +103,7 @@ export interface PickSeed {
 }
 
 const NO_EARNED: Milestone[] = [];
+const NO_PRS: ReadonlySet<string> = new Set();
 const NOT_READY: Day = { ready: false, workout: null, exs: [], lifts: {}, sessions: {} };
 const clone = (d: Day): Day => ({ ...d, exs: structuredClone(d.exs) });
 
@@ -212,7 +213,13 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
   /** Writes the rows with these ids of exercise `name`, looked up when the write runs; gone rows are skipped. */
   const writeSets = async (name: string, kind: 'work' | 'ramp', ids: readonly string[], h: WorkoutDb = db, shown?: readonly ExState[]) => {
     const stored = new Map((await loadSets(h, date)).map((s) => [s.id, s]));
-    for (const id of ids) {
+    // Rows of one name from before #1335 can share a set number (two copies each numbered from 0). Load orders them by (number, id) and writes
+    // nothing; the first write for the name renumbers every live row of it to its shown position, so a ticked set stays put after a reload.
+    const rows = (shown ?? ref.current.exs).find((e) => e.name === name);
+    const live = [...stored.values()].filter((s) => s.exercise === name && s.kind === kind && !s.deleted_at);
+    const clash = new Set(live.map((s) => s.set_index)).size < live.length;
+    const moved = clash && rows ? (kind === 'work' ? rows.sets : rows.ramp).filter((r, k) => { const s = stored.get(r.id); return !!s && !s.deleted_at && s.set_index !== k; }).map((r) => r.id) : [];
+    for (const id of [...ids, ...moved.filter((m) => !ids.includes(m))]) {
       const ex = (shown ?? ref.current.exs).find((e) => e.name === name);
       const j = ex ? (kind === 'work' ? ex.sets : ex.ramp).findIndex((r) => r.id === id) : -1;
       if (!ex || j < 0) continue;
@@ -281,6 +288,40 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
   const todaySets = (ex: ExState): PrSet[] =>
     ex.sets.map((r) => ({ date, exercise: ex.name, kind: 'work', weight_kg: r.w === '' ? null : num(r.w), reps: r.r === '' ? null : Math.round(num(r.r)), done: r.done, rate: r.rate }));
 
+  /**
+   * Lifts of the viewed day that are a personal best now (#1372), for the completion panel's badge and the share picture: core's `isPrToday` over
+   * today's in-memory sets and the toast path's cached prior best, so the badge, the toast, History and the Recent PRs list use one rule and an untick
+   * removes it. `pbToast` only gates the toast. Worked out only while the session is complete (the only time the panel shows), so a day opened
+   * half-done reads no history for it.
+   */
+  /** `for`: the exercises the names were worked out for; a later edit makes them stale at once, so a badge never outlives the sets it was read from. */
+  /** The evaluation in flight (resolved once `prs` is set), for `settlePrs`. */
+  const prPending = useRef<Promise<void>>(Promise.resolve());
+  const [prState, setPrState] = useState<{ for: unknown; names: ReadonlySet<string> }>({ for: null, names: NO_PRS });
+  useEffect(() => {
+    const exs = loaded === date ? day.exs : [];
+    const sets = exs.flatMap((e) => e.sets);
+    if (!profile || sets.length === 0 || sets.some((s) => !s.done)) {
+      prPending.current = Promise.resolve();
+      return;
+    }
+    let live = true;
+    const ctx = progressionContext(date, day.lifts, profile, day.workout, tune);
+    prPending.current = (async () => {
+      const names = new Set<string>();
+      for (const ex of exs) {
+        const { info } = guidance(ex, ctx, day.workout);
+        const prior = await priorBestFor(ex.name, info.type, profile.weight_kg).catch(() => null);
+        if (prior && isPrToday(prior, todaySets(ex), info.type, profile.weight_kg)) names.add(ex.name);
+      }
+      if (live) setPrState({ for: day.exs, names });
+    })();
+    return () => {
+      live = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- priorBestFor and todaySets read `date`, the db and refs; the sets, the day and the data version are the inputs
+  }, [day.exs, loaded, date, profile?.weight_kg, reloadKey]);
+
   /** Recomputes the exercise's lift record from its ticked sets; shows the personal-best toast when core says so. */
   // Runs inside the day queue and builds on the stored lift records, not the screen's copy: a pull may have stored a
   // newer record (another device's session) since the screen loaded (#409).
@@ -306,8 +347,8 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
       return;
     }
     // The toast follows the all-time rule (core `isPrToday`), not `updateLift`'s last-8 `checkBest`. updateLift stays as it is
-    // and the record it returns is corrected here: `pbToast` is `date` once a PR has toasted today (kept as before, so it shows at
-    // most once a day and History, the completion panel and the share picture read it), and otherwise whatever updateLift carried.
+    // and the record it returns is corrected here: `pbToast` is `date` once a PR has toasted today (kept as before; it only gates the
+    // toast to once a day). The Personal best badges do not read it: they come from the PR rule (`prs`, History's `personalRecords`), #1372.
     const was = lifts[ex.name];
     const key = `${ex.name}|${date}`;
     const toasted = was?.pbToast === date || toastedToday.current.has(key);
@@ -1007,6 +1048,11 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
    * An exercise with ticked sets keeps them and the replacement follows it, as in the prototype.
    */
   const cant = (i: number | null, draft: CantDraft, choice: string | null) => {
+    // A session never holds one name twice (#1340): the sheet never offers a name already in it, and core refuses it too. Nothing is saved or changed.
+    if (choice && ref.current.exs.some((e) => e.name === choice)) {
+      notify(`${choice} is already in today’s session.`);
+      return;
+    }
     const rule = cantRule(draft, choice, date);
     const gone = removalNote(ref.current.exs, draft.name).toast; // said before the exercises change: a member of a superset leaves it
     const today = draft.dur === 'today';
@@ -1045,5 +1091,5 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
     notify(choice ? `Swapped in ${choice}` : gone);
   };
 
-  return { date, msSettled: () => msChain.current, earned: earnedIn.date === date ? earnedIn.list : NO_EARNED, day: loaded === date ? day : NOT_READY, cant, setCardio, editSet, tick, rate, setForm, setFeel, skipRemaining, rampStart, rampSkip, rampAdd, rampTick, rampRated, addSet, removeSet, groupWithNext, ungroup, addExercise, removeExercise, finishEarly, start, startPicked, startFromRoutine, addSecond };
+  return { date, msSettled: () => msChain.current, earned: earnedIn.date === date ? earnedIn.list : NO_EARNED, prs: loaded === date && prState.for === day.exs ? prState.names : NO_PRS, settlePrs: () => prPending.current, day: loaded === date ? day : NOT_READY, cant, setCardio, editSet, tick, rate, setForm, setFeel, skipRemaining, rampStart, rampSkip, rampAdd, rampTick, rampRated, addSet, removeSet, groupWithNext, ungroup, addExercise, removeExercise, finishEarly, start, startPicked, startFromRoutine, addSecond };
 }

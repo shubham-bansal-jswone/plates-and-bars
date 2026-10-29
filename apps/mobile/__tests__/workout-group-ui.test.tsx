@@ -235,23 +235,16 @@ it('announces on iOS instead of using a live region', async () => {
 });
 
 describe('review round 2', () => {
-  it('a name twice in an ungrouped session: both copies open, as on base, and the second one can be ticked', async () => {
+  it('a name stored twice shows once (#1340: a session never holds one name twice); that one can be ticked', async () => {
     const { names } = await mount([], { dupe: true });
-    expect(names[3]).toBe(names[0]);
-    expect(screen.getAllByLabelText(`Add set to ${names[0]}`)).toHaveLength(2);
-    await press(`${names[1]}, 0/3 sets. Show sets`); // another exercise is pinned: the copies collapse
-    expect(screen.queryAllByLabelText(`Add set to ${names[0]}`)).toHaveLength(0);
-    const rows = screen.getAllByLabelText(new RegExp(`^${names[0]}, \\d+/\\d+ sets\\. Show sets`));
-    await fireEvent.press(rows[1]!); // the second copy's row opens it (and the first, which has the same name)
-    expect(screen.getAllByLabelText(`Add set to ${names[0]}`)).toHaveLength(2);
-    expect(screen.queryAllByLabelText(new RegExp(`^${names[0]}, \\d+/\\d+ sets`))).toHaveLength(0);
+    expect(names[3]).toBe(names[0]); // the stored row repeats the name; the screen shows it once, at its first place
+    expect(screen.getAllByLabelText(`Add set to ${names[0]}`)).toHaveLength(1);
     const marks = screen.getAllByLabelText(new RegExp(`^Mark ${names[0]} set 1 done`));
-    expect(marks).toHaveLength(2);
-    const w = screen.getAllByLabelText(new RegExp(`^${names[0]} set 1 (kg|reps|\\+|Assist)`))[2]!; // the second copy's weight field
-    await fireEvent.changeText(w, '40');
-    await fireEvent.changeText(screen.getAllByLabelText(new RegExp(`^${names[0]} set 1 reps`))[1]!, '9');
-    await fireEvent.press(marks[1]!);
-    expect(screen.getAllByLabelText(new RegExp(`^Mark ${names[0]} set 1 done`))[1]!.props.accessibilityState.checked).toBe(true);
+    expect(marks).toHaveLength(1);
+    await fireEvent.changeText(screen.getAllByLabelText(new RegExp(`^${names[0]} set 1 (kg|reps|\\+|Assist)`))[0]!, '40');
+    await fireEvent.changeText(screen.getAllByLabelText(new RegExp(`^${names[0]} set 1 reps`))[0]!, '9');
+    await fireEvent.press(marks[0]!);
+    expect(screen.getAllByLabelText(new RegExp(`^Mark ${names[0]} set 1 done`))[0]!.props.accessibilityState.checked).toBe(true);
   });
 
   it('exactly one set in the block is current after a tick (one lime ring)', async () => {

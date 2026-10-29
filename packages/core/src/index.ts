@@ -728,11 +728,13 @@ export type { SeededSession, SeededSessionInput } from './seeded';
  * - `routineFromSession` and `startRoutine` are new (#1184, ADR 011), not prototype ports (no prototype behaviour, no golden
  *   fixture): the exercises to store for a saved routine, and a hand-picked session from one: stored set counts kept, with
  *   only the deload and light-day steps on top (`adjustSets`, the step `sessionSets` ends with), and no lab hold (#1088).
+ * - `dedupeExercises` is new (#1340), not a prototype port: one entry per exercise name (first copy keeps its place, later copies' sets are merged
+ *   in up to `ROUTINE_SETS_MAX`, groups repaired); `replaceAt` refuses a pick already in the session and `startRoutine` applies the rule. Vectors: golden/dedupe.json.
  * - `isBlank` is the one blank-text rule (#421, contract 0.1.13); the app imports it from here.
  */
 export { isBlank } from './blank';
 export { adjustSets } from './session';
-export { routineFromSession, startRoutine, missingExercises, ROUTINE_EXERCISES_MAX, ROUTINE_SETS_MIN, ROUTINE_SETS_MAX, ROUTINE_NAME_MAX, ROUTINE_MAX_LIVE } from './routines';
+export { dedupeExercises, routineFromSession, startRoutine, missingExercises, ROUTINE_EXERCISES_MAX, ROUTINE_SETS_MIN, ROUTINE_SETS_MAX, ROUTINE_NAME_MAX, ROUTINE_MAX_LIVE } from './routines';
 export type { RoutineExercise, StartRoutineInput, StartedRoutine } from './routines';
 
 /**

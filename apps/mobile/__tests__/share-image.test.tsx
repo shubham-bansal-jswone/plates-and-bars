@@ -1,6 +1,7 @@
+import { useState } from 'react';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { Dimensions, Platform, StyleSheet } from 'react-native';
 import { CompletionPanel } from '../src/workout/CompletionPanel';
 import { blankRow, type ExState, type Row } from '../src/workout/model';
@@ -9,7 +10,12 @@ import { fmt } from '../src/format';
 import { buildShareCard, CARD_H, CARD_MAX_ROWS, CARD_PAD, CARD_W, HEADER_H, MORE_H, ROW_H, STATS_H } from '../src/workout/shareModel';
 import { memoryDb } from './helpers';
 
-const mockCapture = jest.fn(async () => 'file:///cache/ReactNative-snapshot-image-1.png');
+/** Whether the PR text was on screen (the hidden card included) at each capture. */
+const prAtCapture: boolean[] = [];
+const mockCapture = jest.fn(async () => {
+  prAtCapture.push(screen.queryAllByText('PR', { includeHiddenElements: true }).length > 0);
+  return 'file:///cache/ReactNative-snapshot-image-1.png';
+});
 const mockShare = jest.fn(async () => undefined);
 const mockCopied: string[] = [];
 jest.mock('react-native-view-shot', () => ({ captureRef: (...a: unknown[]) => (mockCapture as (...x: unknown[]) => Promise<string>)(...a) }));
@@ -33,12 +39,59 @@ jest.mock('expo-router', () => ({ useRouter: () => ({ replace: jest.fn(), push: 
 const row = (w: string, r: string, done: boolean, rate: Row['rate'] = null): Row => ({ ...blankRow(), w, r, done, rate });
 const ex = (name: string, sets: Row[]): ExState => ({ name, part: 1, bridge: false, form: null, found: null, skipRamp: true, feel: null, ramp: [], sets });
 const exs = [ex('Barbell Bench Press', [row('60', '8', true, 'hard'), row('62.5', '6', true)]), ex('Pec Deck Fly', [row('30', '12', true)])];
-const panel = () => render(<CompletionPanel db={memoryDb()} date="2026-10-08" profileKg={83.7} exs={exs} cardio={null} lifts={{ 'Barbell Bench Press': { pbToast: '2026-10-08' } as never }} reloadKey={0} />);
+const panel = () => render(<CompletionPanel db={memoryDb()} date="2026-10-08" profileKg={83.7} exs={exs} cardio={null} prs={new Set(['Barbell Bench Press'])} reloadKey={0} />);
 const original = Platform.OS;
 afterEach(() => {
   Platform.OS = original;
   jest.clearAllMocks();
   mockCopied.length = 0;
+  prAtCapture.length = 0;
+});
+
+describe('the panel passes prs to its own share card', () => {
+  it('draws PR on the hidden card for a lift in prs, and not otherwise', async () => {
+    await panel();
+    expect(screen.getByText('PR', { includeHiddenElements: true })).toBeTruthy();
+    await screen.unmount();
+    await render(<CompletionPanel db={memoryDb()} date="2026-10-08" profileKg={83.7} exs={exs} cardio={null} prs={new Set()} reloadKey={0} />);
+    expect(screen.queryByText('PR', { includeHiddenElements: true })).toBeNull();
+  });
+
+  it('Share waits for the pending prs: the PR is on screen when the picture is captured, and it is shared once', async () => {
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((r) => (release = r));
+    let setPrs: (p: ReadonlySet<string>) => void = () => undefined;
+    // Like the hook: the names are set, then the promise resolves (no act, no wait for the render).
+    const settle = async () => {
+      await gate;
+      setPrs(new Set(['Barbell Bench Press']));
+    };
+    const Host = () => {
+      const [prs, set] = useState<ReadonlySet<string>>(new Set());
+      setPrs = set;
+      return <CompletionPanel db={memoryDb()} date="2026-10-08" profileKg={83.7} exs={exs} cardio={null} prs={prs} settlePrs={settle} reloadKey={0} />;
+    };
+    await render(<Host />);
+    await fireEvent.press(screen.getByLabelText('Share workout summary picture')); // before the prs are known
+    await fireEvent.press(screen.getByLabelText('Share workout summary picture')); // a second tap changes nothing
+    await new Promise((r) => setTimeout(r, 30));
+    expect(mockCapture).not.toHaveBeenCalled(); // still waiting
+    release();
+    await waitFor(() => expect(mockShare).toHaveBeenCalledTimes(1));
+    expect(prAtCapture).toEqual([true]);
+    await act(async () => undefined); // settle anything left
+  });
+
+  it('does not share after the panel is gone', async () => {
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((r) => (release = r));
+    await render(<CompletionPanel db={memoryDb()} date="2026-10-08" profileKg={83.7} exs={exs} cardio={null} prs={new Set(['Barbell Bench Press'])} settlePrs={() => gate} reloadKey={0} />);
+    await fireEvent.press(screen.getByLabelText('Share workout summary picture'));
+    await screen.unmount();
+    release();
+    await new Promise((r) => setTimeout(r, 30));
+    expect(mockCapture).not.toHaveBeenCalled();
+  });
 });
 
 describe('share the workout summary picture', () => {
@@ -47,13 +100,13 @@ describe('share the workout summary picture', () => {
     expect(screen.getByLabelText('Share workout summary picture')).toBeTruthy();
     expect(screen.getByTestId('share-card', { includeHiddenElements: true })).toBeTruthy();
     await screen.unmount();
-    await render(<CompletionPanel db={memoryDb()} date="2026-10-08" profileKg={80} exs={[ex('Pec Deck Fly', [row('30', '12', false)])]} cardio={null} lifts={{}} reloadKey={0} />);
+    await render(<CompletionPanel db={memoryDb()} date="2026-10-08" profileKg={80} exs={[ex('Pec Deck Fly', [row('30', '12', false)])]} cardio={null} prs={new Set()} reloadKey={0} />);
     expect(screen.queryByLabelText('Share workout summary picture')).toBeNull();
   });
 
   it('captures the card as a 1080x1350 PNG and hands the file to the share sheet, nothing else', async () => {
     await panel();
-    fireEvent.press(screen.getByLabelText('Share workout summary picture'));
+    await fireEvent.press(screen.getByLabelText('Share workout summary picture'));
     await waitFor(() => expect(mockShare).toHaveBeenCalledTimes(1));
     expect(mockCapture).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ format: 'png', width: 1080, height: 1350, result: 'tmpfile' }));
     const [uri, opts] = mockShare.mock.calls[0] as unknown as [string, { mimeType: string }];
@@ -65,7 +118,7 @@ describe('share the workout summary picture', () => {
   it('says so when the capture fails, and does not open the share sheet', async () => {
     mockCapture.mockRejectedValueOnce(new Error('boom'));
     await panel();
-    fireEvent.press(screen.getByLabelText('Share workout summary picture'));
+    await fireEvent.press(screen.getByLabelText('Share workout summary picture'));
     await waitFor(() => expect(screen.getByText('Could not share the picture. Try again.')).toBeTruthy());
     expect(mockShare).not.toHaveBeenCalled();
   });
@@ -86,7 +139,7 @@ describe('share the workout summary picture', () => {
     g0.URL = { createObjectURL: () => 'blob:x', revokeObjectURL: revoke };
     try {
       const { shareWorkoutImage } = jest.requireActual<typeof import('../src/workout/shareImage')>('../src/workout/shareImage.ts'); // the web file, by name (the bare path picks .native.ts)
-      expect(await shareWorkoutImage(buildShareCard({ date: '2026-10-08', exs, cardio: null, lifts: {} }))).toBe('saved');
+      expect(await shareWorkoutImage(buildShareCard({ date: '2026-10-08', exs, cardio: null }))).toBe('saved');
       expect(anchor.download).toBe('plate-and-bar-workout-summary.png');
       expect(anchor.click).toHaveBeenCalled();
       expect(calls).toContain('Barbell Bench Press');
@@ -112,7 +165,7 @@ describe('share the workout summary picture', () => {
     try {
       const { shareWorkoutImage } = jest.requireActual<typeof import('../src/workout/shareImage')>('../src/workout/shareImage.ts');
       const name = 'A very long custom exercise name that would run under the best set'.repeat(2);
-      await shareWorkoutImage(buildShareCard({ date: '2026-10-08', exs: [ex(name, [row('60', '8', true)])], cardio: null, lifts: {} }));
+      await shareWorkoutImage(buildShareCard({ date: '2026-10-08', exs: [ex(name, [row('60', '8', true)])], cardio: null }));
       const drawn = widths.find((x) => x.s.endsWith('…'));
       expect(drawn).toBeTruthy();
       expect(drawn!.w).toBeLessThanOrEqual(1080 - 120);
@@ -128,9 +181,9 @@ describe('share the workout summary picture', () => {
     let release: () => void = () => undefined;
     mockShare.mockImplementationOnce(() => new Promise<undefined>((ok) => (release = () => ok(undefined))));
     await panel();
-    fireEvent.press(screen.getByLabelText('Share workout summary picture'));
+    await fireEvent.press(screen.getByLabelText('Share workout summary picture'));
     await waitFor(() => expect(mockShare).toHaveBeenCalledTimes(1));
-    fireEvent.press(screen.getByLabelText('Share workout summary picture'));
+    await fireEvent.press(screen.getByLabelText('Share workout summary picture'));
     expect(mockCapture).toHaveBeenCalledTimes(1);
     release();
     await waitFor(() => expect(screen.getByLabelText('Share workout summary picture').props.accessibilityState?.disabled).toBeFalsy());
@@ -160,7 +213,7 @@ describe('share the workout summary picture', () => {
 
 describe('what the card contains', () => {
   it('has the day, sets, volume, exercises, best sets and records, and none of the body weight, how a set felt or calories', async () => {
-    const m = buildShareCard({ date: '2026-10-08', exs, cardio: null, lifts: { 'Barbell Bench Press': { pbToast: '2026-10-08' } as never } });
+    const m = buildShareCard({ date: '2026-10-08', exs, cardio: null, prs: new Set(['Barbell Bench Press']) });
     expect(m.title).toBe('Thursday workout');
     expect(m.stats).toEqual([{ label: 'Sets', value: '3/3' }, { label: 'Volume (kg)', value: '1,215' }, { label: 'Exercises', value: '2' }]);
     expect(m.rows).toEqual([{ name: 'Barbell Bench Press', best: '62.5 x 6', pr: true }, { name: 'Pec Deck Fly', best: '30 x 12', pr: false }]);
@@ -176,7 +229,7 @@ describe('what the card contains', () => {
 
   it('keeps the fixed size: extra exercises become "+N more"', () => {
     const many = Array.from({ length: 10 }, (_, i) => ex(`Lift ${i}`, [row('10', '5', true)]));
-    const m = buildShareCard({ date: '2026-10-08', exs: many, cardio: 20, lifts: {} });
+    const m = buildShareCard({ date: '2026-10-08', exs: many, cardio: 20 });
     expect(m.rows).toHaveLength(7);
     expect(m.more).toBe(3);
     expect(m.stats.at(-1)).toEqual({ label: 'Cardio (min)', value: '20' });
@@ -187,7 +240,7 @@ describe('what the card contains', () => {
 
   it('the card stats are short: a 5-digit volume is 12.4k and labels fit a narrow box', () => {
     const heavy = [ex('Leg Press', [row('200', '60', true)])];
-    const m = buildShareCard({ date: '2026-10-08', exs: heavy, cardio: 45, lifts: {} });
+    const m = buildShareCard({ date: '2026-10-08', exs: heavy, cardio: 45 });
     expect(m.cardStats).toEqual([{ label: 'Sets', value: '1/1' }, { label: 'Volume kg', value: '12k' }, { label: 'Exercises', value: '1' }, { label: 'Cardio min', value: '45' }]);
     expect(m.stats[1]).toEqual({ label: 'Volume (kg)', value: '12,000' }); // the panel keeps the full figure
   });
@@ -196,12 +249,12 @@ describe('what the card contains', () => {
 describe('pounds', () => {
   it('shows volume and best sets in lb, as the panel does', () => {
     const heavy = [ex('Leg Press', [row('100', '5', true)])];
-    const m = buildShareCard({ date: '2026-10-08', exs: heavy, cardio: null, lifts: {}, unit: 'lb' });
+    const m = buildShareCard({ date: '2026-10-08', exs: heavy, cardio: null, unit: 'lb' });
     expect(m.stats[1]).toEqual({ label: 'Volume (lb)', value: fmt(fromKg(500, 'lb')) });
     expect(m.cardStats[1]?.label).toBe('Volume lb');
     expect(m.bests[0]).toBe(`${formatWeight(100, 'lb')} x 5`);
     expect(m.bests[0]).toBe('220.5 x 5');
-    expect(buildShareCard({ date: '2026-10-08', exs: heavy, cardio: null, lifts: {} }).bests[0]).toBe(`${formatWeight(100, 'kg')} x 5`);
+    expect(buildShareCard({ date: '2026-10-08', exs: heavy, cardio: null }).bests[0]).toBe(`${formatWeight(100, 'kg')} x 5`);
   });
 });
 
