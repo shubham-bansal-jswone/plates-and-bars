@@ -33,7 +33,7 @@ export function addToStoredDay(opts: { db: Db; date: string; now: () => Date; na
     const built = newExercise(name, { lifts, date }, part);
     const ex: ExState = { name, part, bridge: false, form: null, found: null, skipRamp: false, feel: null, sets: built.sets.map(() => blankRow()), ramp: [] };
     const base: Workout = session ?? { id: null, version: stored?.version ?? 0, updated_at: at, deleted_at: null, date, template: HAND_PICKED, base: null, where: null, mods: {}, exercises: [], ci_choice: null, cardio_min: live(stored) ? stored.cardio_min : null };
-    const row: Workout = { ...base, template: base.template ?? HAND_PICKED, exercises: [...base.exercises, exerciseRecord(ex)], updated_at: at };
+    const row: Workout = { ...base, template: base.template ?? HAND_PICKED, exercises: [...base.exercises, exerciseRecord(ex, undefined, undefined)], updated_at: at };
     await inTransaction(db, async (txn) => {
       const h = txn as WorkoutDb;
       // Started over a deleted session: its sets go with it, so the new one does not pick them up.

@@ -1,4 +1,4 @@
-import { num, type Rate, type SetEntry } from '@plate-and-bar/core';
+import { normalizeGroups, num, type Rate, type SetEntry } from '@plate-and-bar/core';
 import { newId } from '../db/records';
 import type { Form, Workout, WorkoutExercise, WorkoutSet } from './types';
 
@@ -20,6 +20,8 @@ export interface ExState {
   skipRamp: boolean;
   /** The answer to "Where did you feel that set most?" ('target', 'pain' or a `misplaced_feel` index). */
   feel: string | null;
+  /** Group (superset) id; null or absent is ungrouped. Core's `normalizeGroups` keeps it valid (ADR 012). */
+  group?: string | null;
   sets: Row[];
   ramp: Row[];
 }
@@ -38,9 +40,28 @@ export const stamp = (d: Date): string => d.toISOString().replace(/\.\d{3}Z$/, '
  * The stored exercise for `e`. Keys this client does not know (added by a newer one) are carried through from the
  * `stored` copy, as `mods` is; the known keys always come from the screen, and `feel` is dropped when it is cleared.
  */
-export function exerciseRecord(e: ExState, stored?: WorkoutExercise): WorkoutExercise {
-  const { feel: _f, ...extra } = stored ?? ({} as WorkoutExercise);
-  return { ...extra, name: e.name, part: e.part, bridge: e.bridge, form: e.form, found_kg: e.found, skip_ramp: e.skipRamp, ...(e.feel ? { feel: e.feel } : {}) };
+export function exerciseRecord(e: ExState, stored: WorkoutExercise | undefined, base: WorkoutExercise | undefined): WorkoutExercise {
+  const { feel: _f, group: _g, ...extra } = stored ?? ({} as WorkoutExercise);
+  // `group`: the id when set; an explicit null only when `base` (the copy this screen loaded, the merge's base) had a value (even an
+  // invalid one) or null, so the three-way merge sees the ungroup. Never decided from `stored` (so `base` has no default: undefined means no base copy, no null): a group a pull stored since the
+  // load would be wiped by an unrelated edit. The key is never added for an exercise that never had one.
+  const group = e.group ? { group: e.group } : base?.group !== undefined ? { group: null } : {};
+  return { ...extra, name: e.name, part: e.part, bridge: e.bridge, form: e.form, found_kg: e.found, skip_ramp: e.skipRamp, ...(e.feel ? { feel: e.feel } : {}), ...group };
+}
+
+/** Core's `normalizeGroups` on any list with a `group`: the repaired group of each item (null when dissolved or invalid). */
+const repaired = (gs: readonly unknown[]): (string | null)[] => normalizeGroups(gs.map((g) => ({ name: '', sets: 0, group: g as string | null }))).map((x) => x.group ?? null);
+
+/** Repairs the groups of a stored exercise list: a broken or split group is dissolved with an explicit `group: null`; other exercises are untouched. */
+export function fixGroups(list: readonly WorkoutExercise[]): WorkoutExercise[] {
+  const g = repaired(list.map((e) => e.group));
+  return list.map((e, i) => (e.group != null && g[i] === null ? { ...e, group: null } : e));
+}
+
+/** The same repair on the screen's exercises (a group left with under 2 members, a split or an over-full one is dissolved). */
+export function fixExGroups(exs: readonly ExState[]): ExState[] {
+  const g = repaired(exs.map((e) => e.group));
+  return exs.map((e, i) => (e.group != null && g[i] === null ? { ...e, group: null } : e));
 }
 
 const text = (n: number | null): string => (n === null ? '' : String(n));
@@ -73,7 +94,8 @@ export function exercisesFrom(w: Workout, sets: readonly WorkoutSet[]): ExState[
       .filter((s) => s.exercise === name && s.kind === kind && !s.deleted_at)
       .sort((a, b) => a.set_index - b.set_index)
       .map((s) => ({ id: s.id, version: s.version, w: text(s.weight_kg), r: text(s.reps), done: s.done, rate: s.rate, t: s.t }));
-  return w.exercises.map((x) => ({
+  const group = repaired(w.exercises.map((x) => x.group));
+  return w.exercises.map((x, i) => ({
     name: x.name,
     part: x.part,
     bridge: x.bridge,
@@ -81,6 +103,7 @@ export function exercisesFrom(w: Workout, sets: readonly WorkoutSet[]): ExState[
     found: x.found_kg,
     skipRamp: x.skip_ramp,
     feel: x.feel ?? null,
+    group: group[i] ?? null,
     sets: rows(x.name, 'work'),
     ramp: rows(x.name, 'ramp'),
   }));
@@ -99,7 +122,7 @@ const touched = (r: Row): boolean => r.done || r.w !== '' || r.r !== '' || r.rat
 export function carryOnto(adopted: readonly ExState[], local: readonly ExState[]): { exs: ExState[]; changed: { name: string; ids: string[] }[]; kept: Map<string, string | null> } {
   const changed: { name: string; ids: string[] }[] = [];
   const kept = new Map<string, string | null>();
-  const exs = structuredClone(adopted) as ExState[];
+  const exs = fixExGroups(structuredClone(adopted) as ExState[]);
   for (const mine of local) for (const m of mine.sets) if (touched(m)) kept.set(m.id, null);
   for (const ex of exs) {
     const mine = local.find((l) => l.name === ex.name);
@@ -144,7 +167,7 @@ export function mergeWorkout(base: Workout, mine: Workout, theirs: Workout): Wor
   const { exercises: _b, ...baseRest } = base;
   const { exercises: _m, ...mineRest } = mine;
   const { exercises: _t, ...theirsRest } = theirs;
-  return { ...pick(baseRest, mineRest, theirsRest), exercises };
+  return { ...pick(baseRest, mineRest, theirsRest), exercises: fixGroups(exercises) };
 }
 
 /** A workout row as text without its `version`: a sync push patches only the version, so it does not count as a change. */
@@ -167,6 +190,7 @@ export function unionWorkout(mine: Workout, theirs: Workout): Workout {
   const base = hasSession(win) || !hasSession(lose) ? win : lose;
   return {
     ...base,
+    exercises: fixGroups(base.exercises),
     cardio_min: win.cardio_min ?? lose.cardio_min,
     id: theirs.id,
     version: theirs.version,

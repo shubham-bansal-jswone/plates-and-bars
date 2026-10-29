@@ -52,19 +52,19 @@ describe('exerciseRecord (#527)', () => {
 
   it('carries keys this client does not know through from the stored exercise', () => {
     const stored = { ...ex('Bench'), future_key: { a: 1 } } as WorkoutExercise;
-    expect(exerciseRecord(state(), stored)).toEqual({ ...ex('Bench', { form: 'yes', found_kg: 40 }), future_key: { a: 1 } });
+    expect(exerciseRecord(state(), stored, stored)).toEqual({ ...ex('Bench', { form: 'yes', found_kg: 40 }), future_key: { a: 1 } });
   });
 
   it('known keys come from the screen, and a cleared feel is not kept', () => {
     const stored = ex('Bench', { form: 'no', feel: 'pain' });
-    const out = exerciseRecord(state({ feel: null }), stored);
+    const out = exerciseRecord(state({ feel: null }), stored, stored);
     expect(out.form).toBe('yes');
     expect('feel' in out).toBe(false);
-    expect(exerciseRecord(state({ feel: 'target' }), stored).feel).toBe('target');
+    expect(exerciseRecord(state({ feel: 'target' }), stored, stored).feel).toBe('target');
   });
 
   it('without a stored copy it writes the known keys only', () => {
-    expect(exerciseRecord(state())).toEqual(ex('Bench', { form: 'yes', found_kg: 40 }));
+    expect(exerciseRecord(state(), undefined, undefined)).toEqual(ex('Bench', { form: 'yes', found_kg: 40 }));
   });
 });
 
