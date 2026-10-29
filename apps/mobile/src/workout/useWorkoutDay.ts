@@ -13,6 +13,7 @@ import {
   newExercise,
   lastFor,
   seededSession,
+  startRoutine,
   mergeSecondSession,
   templateName,
   type CantDraft,
@@ -339,6 +340,23 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
       return {
         workout: { id: null, version: 0, updated_at: stamp(now()), deleted_at: null, date, template: templateName(seed.template, where), base: made.base, where: override, mods: made.mods, exercises: [], ci_choice: ciChoice },
         exs: made.exercises.map((e) => ({ name: e.name, part: 1, bridge: e.bridge, form: null, found: null, skipRamp: false, feel: null, sets: blank(e.sets), ramp: [] })),
+      };
+    });
+
+  /**
+   * Start from a saved routine (#1184): a hand-picked session (`HAND_PICKED`, no base, so the rotation skips it) with the routine's
+   * names and stored set counts; core's `startRoutine` applies only the deload and light steps. Exercises the library lacks or the
+   * rules exclude stay in the session, and the screen flags them. Like every start, never overwrites a session already stored.
+   */
+  const startFromRoutine = (routine: readonly { name: string; sets: number }[], override: Workout['where'] = null, ciChoice: Workout['ci_choice'] = null) =>
+    begin(() => {
+      const where = override ?? (profile as Profile).where;
+      const { deload, reentry } = rangesOf(adjustments);
+      const cat = getCatalog();
+      const made = startRoutine({ date, ciChoice, where, profile: profile as Profile, deload, reentry, tags: cat.tags, routine, catalogue: Object.keys(cat.tags), exclusions });
+      return {
+        workout: { id: null, version: 0, updated_at: stamp(now()), deleted_at: null, date, template: HAND_PICKED, base: null, where: override, mods: made.mods, exercises: [], ci_choice: ciChoice },
+        exs: made.exercises.map((e) => ({ name: e.name, part: 1, bridge: false, form: null, found: null, skipRamp: false, feel: null, sets: Array.from({ length: e.sets }, blankRow), ramp: [] })),
       };
     });
 
@@ -845,5 +863,5 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
     notify(choice ? `Swapped in ${choice}` : `${draft.name} removed`);
   };
 
-  return { date, day: loaded === date ? day : NOT_READY, cant, setCardio, editSet, tick, rate, setForm, setFeel, skipRemaining, rampStart, rampSkip, rampAdd, rampTick, rampRated, addSet, removeSet, addExercise, removeExercise, finishEarly, start, startPicked, addSecond };
+  return { date, day: loaded === date ? day : NOT_READY, cant, setCardio, editSet, tick, rate, setForm, setFeel, skipRemaining, rampStart, rampSkip, rampAdd, rampTick, rampRated, addSet, removeSet, addExercise, removeExercise, finishEarly, start, startPicked, startFromRoutine, addSecond };
 }

@@ -1,6 +1,6 @@
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
-import { adjustSets, BALANCE_EXERCISE, isBlank, ROUTINE_EXERCISES_MAX, ROUTINE_MAX_LIVE, ROUTINE_NAME_MAX, ROUTINE_SETS_MAX, ROUTINE_SETS_MIN, routineFromSession, seededSession, startRoutine, type Exclusion, type StartRoutineInput } from '../src/index';
+import { adjustSets, BALANCE_EXERCISE, isBlank, ROUTINE_EXERCISES_MAX, ROUTINE_MAX_LIVE, ROUTINE_NAME_MAX, ROUTINE_SETS_MAX, ROUTINE_SETS_MIN, missingExercises, routineFromSession, seededSession, startRoutine, type Exclusion, type StartRoutineInput } from '../src/index';
 
 type Rec = { name: string; exercises: Record<string, unknown>[] };
 const vectors = JSON.parse(readFileSync(resolve(__dirname, '../../api/test-vectors/routines.json'), 'utf8')) as {
@@ -162,5 +162,17 @@ describe('routine limits pinned to routines.json', () => {
   it('cap scenarios turn on ROUTINE_MAX_LIVE', () => {
     expect(vectors.cap.cases.find((x) => x.live === ROUTINE_MAX_LIVE && x.push.join() === 'new')?.refused).toEqual([0]);
     expect(vectors.cap.cases.find((x) => x.live === ROUTINE_MAX_LIVE - 1 && x.push.join() === 'new,new')?.refused).toEqual([1]);
+  });
+});
+
+describe('missingExercises', () => {
+  const exclusions: Exclusion[] = [{ scope: 'exercise', key: 'Curl', reason: 'pain', to: {}, done: false }];
+  it('returns unknown and excluded names in input order, with the reason', () => {
+    expect(missingExercises(['Gone', 'Row', 'Curl'], { catalogue: ['Row', 'Curl'], exclusions, tags })).toEqual([{ name: 'Gone', reason: 'unknown' }, { name: 'Curl', reason: 'excluded' }]);
+  });
+  it('a name not in the catalogue is unknown even when a rule covers it; a Set catalogue works; no rules means none excluded', () => {
+    const rule: Exclusion[] = [{ scope: 'exercise', key: 'Gone', reason: 'pain', to: {}, done: false }];
+    expect(missingExercises(['Gone'], { catalogue: new Set(['Row']), exclusions: rule, tags })).toEqual([{ name: 'Gone', reason: 'unknown' }]);
+    expect(missingExercises(['Curl'], { catalogue: ['Curl'], tags })).toEqual([]);
   });
 });

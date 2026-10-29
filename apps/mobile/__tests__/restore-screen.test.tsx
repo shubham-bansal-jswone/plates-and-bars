@@ -9,6 +9,7 @@ jest.mock('expo-router', () => ({ useRouter: () => ({ back: jest.fn(), push: jes
 const mockPick = jest.fn();
 jest.mock('../src/account/pickFile', () => ({ pickExportText: () => mockPick() }));
 const mockOther = { on: false };
+const mockTables: { current: Record<string, unknown> } = { current: { food_logs: { added: 2, newer: 1, older: 0, conflicts: 0, same: 0 } } };
 const mockApply = jest.fn(async () => undefined);
 const mockParse = jest.fn();
 jest.mock('../src/account/restoreLocal', () => {
@@ -22,7 +23,7 @@ jest.mock('../src/account/restoreLocal', () => {
   return {
     RestoreError,
     parseRestore: (t: string) => mockParse(t),
-    previewRestore: async () => ({ tables: { food_logs: { added: 2, newer: 1, older: 0, conflicts: 0, same: 0 } }, differentAccount: mockOther.on, deviceOnly: { cycle: false, labReports: 0, hold: false } }),
+    previewRestore: async () => ({ tables: mockTables.current, differentAccount: mockOther.on, deviceOnly: { cycle: false, labReports: 0, hold: false } }),
     applyRestore: () => mockApply(),
   };
 });
@@ -33,6 +34,7 @@ const show = () => render(<SyncContext.Provider value={state}><DataScreen db={me
 beforeEach(() => {
   mockApply.mockClear();
   mockOther.on = false;
+  mockTables.current = { food_logs: { added: 2, newer: 1, older: 0, conflicts: 0, same: 0 } };
   mockParse.mockReset();
   mockPick.mockReset();
 });
@@ -59,6 +61,26 @@ describe('restore from a file on the data screen (#1177)', () => {
     expect(await screen.findByText(rc.differentAccount)).toBeTruthy();
     expect(screen.getByText(/Food log: 2 new, 0 already here \(kept\)/)).toBeTruthy();
     expect(screen.queryByText(/older/)).toBeNull();
+  });
+
+  it('says routines over the limit cannot be added, not that nothing is newer, when every one is skipped', async () => {
+    mockTables.current = { routines: { added: 0, newer: 0, older: 0, conflicts: 0, same: 0, overCap: 3 } };
+    mockPick.mockResolvedValue('{}');
+    mockParse.mockResolvedValue({});
+    await show();
+    await fireEvent.press(screen.getByLabelText(rc.action));
+    expect(await screen.findByText(rc.nothingOverCap)).toBeTruthy();
+    expect(screen.queryByText(rc.nothing)).toBeNull();
+    expect(screen.queryByLabelText(rc.confirm)).toBeNull();
+  });
+
+  it('keeps the plain message when nothing is newer and nothing was skipped', async () => {
+    mockTables.current = { food_logs: { added: 0, newer: 0, older: 2, conflicts: 0, same: 0 } };
+    mockPick.mockResolvedValue('{}');
+    mockParse.mockResolvedValue({});
+    await show();
+    await fireEvent.press(screen.getByLabelText(rc.action));
+    expect(await screen.findByText(rc.nothing)).toBeTruthy();
   });
 
   it('applies only after the explicit confirmation', async () => {
