@@ -45,6 +45,9 @@ import { localDate } from '../setup/logic';
 import { parseCardio } from './cardio';
 import { milestoneToastText, pbToastText } from './copy';
 import { freshRead } from '../state/freshRead';
+import { bodyweightOn } from '../progress/bodyweight';
+import { loadWeights } from '../db/progress';
+import type { Weight } from '../progress/types';
 import { loadMilestoneData, takeNewMilestones, toastPick, type MilestoneData } from '../progress/milestoneStore';
 import type { Profile } from '../setup/types';
 import { displayRow, weightFromField } from './unitText';
@@ -66,6 +69,8 @@ export interface Day {
   exs: ExState[];
   lifts: Record<string, LiftRecord>;
   sessions: SessionLog;
+  /** Weigh-ins, read with the day: the bodyweight that scores assisted lifts (`bodyweightOn`). */
+  weights: Weight[];
 }
 
 interface Options {
@@ -104,7 +109,7 @@ export interface PickSeed {
 
 const NO_EARNED: Milestone[] = [];
 const NO_PRS: ReadonlySet<string> = new Set();
-const NOT_READY: Day = { ready: false, workout: null, exs: [], lifts: {}, sessions: {} };
+const NOT_READY: Day = { ready: false, workout: null, exs: [], lifts: {}, sessions: {}, weights: [] };
 const clone = (d: Day): Day => ({ ...d, exs: structuredClone(d.exs) });
 
 /**
@@ -113,7 +118,7 @@ const clone = (d: Day): Day => ({ ...d, exs: structuredClone(d.exs) });
  */
 export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustments, labHold = false, notify, startRest, restOff = false, exclusions, swaps, saveRule, tune, reloadKey = 0 }: Options) {
   const date = shown ?? localDate(now());
-  const [day, setDay] = useState<Day>({ ready: false, workout: null, exs: [], lifts: {}, sessions: {} });
+  const [day, setDay] = useState<Day>({ ready: false, workout: null, exs: [], lifts: {}, sessions: {}, weights: [] });
   /** The day the loaded session belongs to: while the viewed day is another one the screen is not ready, so no action runs against the old day's rows. */
   const [loaded, setLoaded] = useState<string | null>(null);
   const ref = useRef(day);
@@ -161,7 +166,7 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
     (async () => {
       // The result is applied inside freshRead, in the same step as its counter check: a session being built
       // (start, addSecond) resumes from an await and must not land between the check and the commit.
-      await freshRead({ queue: dayQueue, writes: dayWrites }, () => Promise.all([loadWorkout(db, date), loadSets(db, date), loadLifts(db), loadSessionLog(db)]), () => live, ([stored, sets, lifts, sessions]) => {
+      await freshRead({ queue: dayQueue, writes: dayWrites }, () => Promise.all([loadWorkout(db, date), loadSets(db, date), loadLifts(db), loadSessionLog(db), loadWeights(db)]), () => live, ([stored, sets, lifts, sessions, weights]) => {
         // A session deleted on another device shows as no session, so a new one can be started (#408).
         const workout = stored?.deleted_at ? null : stored;
         synced.current = stored;
@@ -171,6 +176,7 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
           exs: workout ? exercisesFrom(workout, sets) : [],
           lifts,
           sessions,
+          weights,
         });
         setLoaded(date);
       });
@@ -307,12 +313,13 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
     }
     let live = true;
     const ctx = progressionContext(date, day.lifts, profile, day.workout, tune);
+    const bw = bodyweightOn(day.weights, date, profile.weight_kg);
     prPending.current = (async () => {
       const names = new Set<string>();
       for (const ex of exs) {
         const { info } = guidance(ex, ctx, day.workout);
-        const prior = await priorBestFor(ex.name, info.type, profile.weight_kg).catch(() => null);
-        if (prior && isPrToday(prior, todaySets(ex), info.type, profile.weight_kg)) names.add(ex.name);
+        const prior = await priorBestFor(ex.name, info.type, bw).catch(() => null);
+        if (prior && isPrToday(prior, todaySets(ex), info.type, bw)) names.add(ex.name);
       }
       if (live) setPrState({ for: day.exs, names });
     })();
@@ -320,7 +327,7 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
       live = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- priorBestFor and todaySets read `date`, the db and refs; the sets, the day and the data version are the inputs
-  }, [day.exs, loaded, date, profile?.weight_kg, reloadKey]);
+  }, [day.exs, loaded, date, profile?.weight_kg, day.weights, reloadKey]);
 
   /** Recomputes the exercise's lift record from its ticked sets; shows the personal-best toast when core says so. */
   // Runs inside the day queue and builds on the stored lift records, not the screen's copy: a pull may have stored a
@@ -335,8 +342,9 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
     const ex = removed ? { ...removed, sets: [], form: null } : exNamed(name);
     if (!ex) return;
     const { info } = guidance(ex, progressionContext(date, lifts, profile, d.workout, tune), d.workout);
-    // Bodyweight for assisted machines: the latest logged weight if any (no weights table yet), else the profile's.
-    const res = updateLift(lifts[ex.name], { sets: ex.sets, form: ex.form }, date, info.type, profile.weight_kg);
+    // Bodyweight for assisted machines: the latest weigh-in on or before the day, else the profile's (read with the day, not per tick).
+    const bw = bodyweightOn(d.weights, date, profile.weight_kg);
+    const res = updateLift(lifts[ex.name], { sets: ex.sets, form: ex.form }, date, info.type, bw);
     if (!res) return;
     if (res.record === null) {
       // No ticked sets left and no earlier session: the lift's record is deleted (a tombstone in lift_stats).
@@ -354,8 +362,8 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
     const toasted = was?.pbToast === date || toastedToday.current.has(key);
     let pr: PrImprovement | null = null;
     if (!toasted && ex.sets.some((s) => s.done)) {
-      const prior = await priorBestFor(ex.name, info.type, profile.weight_kg);
-      pr = isPrToday(prior, todaySets(ex), info.type, profile.weight_kg);
+      const prior = await priorBestFor(ex.name, info.type, bw);
+      pr = isPrToday(prior, todaySets(ex), info.type, bw);
     }
     const record = { ...res.record };
     if (pr || toasted) record.pbToast = date;
