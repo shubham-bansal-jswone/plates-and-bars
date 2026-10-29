@@ -115,7 +115,7 @@ function StrengthBody({ all, types, inRange, date, bodyweight }: Loaded & { date
               end={date}
               convert={toShown}
               unit={unit}
-              noun={`${lift} e1RM`}
+              noun={`${lift} estimated 1-rep max`}
               box={WEIGHT_CHART_BOX}
               summary={summary}
             />
@@ -165,5 +165,4 @@ const styles = StyleSheet.create({
   list: { width: '100%' },
   row: { minHeight: 44, justifyContent: 'center', borderBottomWidth: 1 },
   pr: { gap: 2, padding: space.md, borderRadius: radius.md },
-  prLine: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', gap: space.sm },
 });

@@ -13,7 +13,12 @@ export interface LiftChoices {
 export function liftChoices(all: readonly PrSet[], types: Readonly<Record<string, ExType>>, end: string): LiftChoices {
   const main = mainLifts(all, types, end).map((m) => m.lift);
   const byLift = new Map<string, PrSet[]>();
-  for (const s of all) if (s.date <= end && !s.deleted_at) byLift.set(s.exercise, [...(byLift.get(s.exercise) ?? []), s]);
+  for (const s of all) {
+    if (s.date > end || s.deleted_at) continue;
+    const rows = byLift.get(s.exercise);
+    if (rows) rows.push(s);
+    else byLift.set(s.exercise, [s]);
+  }
   const more: { lift: string; n: number; last: string }[] = [];
   const singles: { lift: string; last: string }[] = [];
   for (const [lift, rows] of byLift) {

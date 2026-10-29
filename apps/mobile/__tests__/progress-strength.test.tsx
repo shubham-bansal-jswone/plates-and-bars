@@ -118,7 +118,7 @@ describe('table and note', () => {
     await show();
     expect(screen.getAllByText(E1RM_NOTE)).toHaveLength(1);
     await fireEvent.press(screen.getByRole('button', { name: 'Show as table' }));
-    expect(screen.getByLabelText('Bench Press e1RM values by date')).toBeTruthy();
+    expect(screen.getByLabelText('Bench Press estimated 1-rep max values by date')).toBeTruthy();
   });
 });
 
@@ -162,15 +162,22 @@ describe('recent personal bests', () => {
   });
 
   it('assisted lifts are scored at the latest weigh-in on or before the viewed date, else the profile weight', async () => {
-    // Assisted pull-up: assist 30 kg then 20 kg, 8 reps. Score = reps * (bodyweight - assist).
-    const sets = [set(addDays(END, -14), 'Assisted Pull-up', 30, 8), set(END, 'Assisted Pull-up', 20, 8)];
-    mockHook = hook(sets, { 'Assisted Pull-up': 'assisted' });
-    await show([{ date: addDays(END, -3), weight_kg: 90 }, { date: addDays(END, 5), weight_kg: 200 }]);
-    // 90 kg: 8*(90-20)=560 vs 8*(90-30)=480 => +80
-    expect(screen.getByLabelText(/^Personal best, Assisted Pull-up, 8 reps with 20 kg of assistance, /)).toBeTruthy();
+    // Day A: 10 reps with 30 kg assistance. Day B: 12 reps with 40 kg. Score = reps * (bodyweight - assist).
+    mockHook = hook([set(addDays(END, -14), 'Assisted Pull-up', 30, 10), set(END, 'Assisted Pull-up', 40, 12)], { 'Assisted Pull-up': 'assisted' });
+    const pr = /^Personal best, Assisted Pull-up, 12 reps with 40 kg of assistance, /;
+    // 100 kg weigh-in before the viewed date: 12 x 60 = 720 beats 10 x 70 = 700.
+    await show([{ date: addDays(END, -3), weight_kg: 100 }]);
+    expect(screen.getByLabelText(pr)).toBeTruthy();
     await screen.unmount();
-    await show([]); // profile 80 kg: 8*60=480 vs 8*50=400
-    expect(screen.getByLabelText(/^Personal best, Assisted Pull-up, 8 reps with 20 kg of assistance, /)).toBeTruthy();
+    // No weigh-in: the profile's 80 kg gives 480 against 500, no record.
+    await show([]);
+    expect(screen.queryByLabelText(pr)).toBeNull();
+    expect(screen.getByText('No personal bests yet.')).toBeTruthy();
+    await screen.unmount();
+    // A 100 kg weigh-in after the viewed date does not count: still the profile weight.
+    await show([{ date: addDays(END, 2), weight_kg: 100 }]);
+    expect(screen.queryByLabelText(pr)).toBeNull();
+    expect(screen.getByText('No personal bests yet.')).toBeTruthy();
   });
 
   it('an assisted row in lb gives the assistance in lb: 30 kg is 66.1 lb', async () => {
