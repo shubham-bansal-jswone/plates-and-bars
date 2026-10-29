@@ -523,7 +523,7 @@ export type { IntakeAverage, IntakeTargets, WeeklyIntake, WeekOnTrack } from './
  * - `weightSeries` mirrors the series in prototype `weightChart()`; `waistSeries` mirrors `waistPts` in `measuresHtml()`;
  *   `WEIGHT_CHART_POINTS` and `WAIST_CHART_POINTS` are their 30 and 20.
  * - `trendChange` mirrors `diff` in `weightChart()` ("Down/Up X kg since …", "No change since …") and `change` in `measuresHtml()`.
- * - `chartLayout` mirrors the geometry of `weightChart()` and `lineChart()`; `WEIGHT_CHART_BOX`, `WAIST_CHART_BOX` are their boxes.
+ * - `chartLayout` keeps the y geometry of `weightChart()` and `lineChart()` and spaces x by date when given dates (a spec change, #1370; without dates, the prototype's index spacing); `WEIGHT_CHART_BOX`, `WAIST_CHART_BOX` are their boxes.
  * - `scaleJump` mirrors the `S.ui.scaleJump` step of the prototype's `case 'saveW'`; `SCALE_JUMP_KG`, `SCALE_JUMP_DAYS` are its 0.8 and 3.
  * - `weightEntry` mirrors the checks in `case 'saveW'`, `measurementRow` mirrors `saveMeasures()`, `sleepEntry` the `enSleep`
  *   input (0–24 h); `round1` mirrors `r1`. `WEIGHT_ABOVE_KG`, `WEIGHT_BELOW_KG`, `TAPE_MIN_CM`,

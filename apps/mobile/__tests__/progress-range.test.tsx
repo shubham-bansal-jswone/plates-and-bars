@@ -269,6 +269,25 @@ describe('TrendChart additions', () => {
     for (const cy of cys) expect(Math.abs(cy - (box.H - box.py))).toBeLessThan(4);
   });
 
+  it('spaces the points by date, not by index (#1370): weigh-ins 3 and 7 days apart are drawn 3 and 7 units apart', async () => {
+    const irregular = [{ date: '2026-10-01', v: 80 }, { date: '2026-10-04', v: 78 }, { date: '2026-10-11', v: 77 }];
+    await render(<TrendChart points={irregular} box={box} label="Weight" unit="kg" />);
+    const cx = walk('RNSVGCircle').map((n) => Number(JSON.stringify(n.props).match(/"cx":([\d.]+)/)?.[1]));
+    // 34 + 278 * 3 / 10 = 117.4, not the index midpoint 173.
+    expect(cx[0]).toBeCloseTo(34, 6);
+    expect(cx[1]).toBeCloseTo(117.4, 6);
+    expect(cx[2]).toBeCloseTo(312, 6);
+  });
+
+  it('two points on one date both render, at the same x (#1370)', async () => {
+    const same = [{ date: '2026-10-01', v: 80 }, { date: '2026-10-05', v: 79 }, { date: '2026-10-05', v: 81 }];
+    await render(<TrendChart points={same} box={box} label="e1RM" />);
+    const cx = walk('RNSVGCircle').map((n) => Number(JSON.stringify(n.props).match(/"cx":([\d.]+)/)?.[1]));
+    expect(cx).toHaveLength(3);
+    expect(cx[1]).toBeCloseTo(cx[2] as number, 9);
+    expect(cx[2]).toBeCloseTo(312, 6);
+  });
+
   it('the dates row is hidden from assistive tech, as the label carries them', async () => {
     await render(<TrendChart points={pts} box={box} label="Weight" unit="kg" />);
     const first = screen.getByText(shortDate('2026-09-01'), { includeHiddenElements: true });
