@@ -792,6 +792,15 @@ export { E1RM_MAX_REPS, SESSION_GAP_MS, epley, e1rm, setE1rm, e1rmHistory, sessi
 export type { E1rmSet, E1rmPoint, SessionElapsed } from './e1rm';
 
 /**
+ * Personal records, tick-time PR check and main lifts (#1351 C3, new rules; spec section 0 2026-10-29 changes the prototype's last-8 `beforeBest`
+ * of `updateLift` + `checkBest` to the all-time best, same 0.5% threshold `PR_THRESHOLD`). `personalRecords` lists each day a lift's running best estimate
+ * was beaten (first session never counts); `isPrToday` is the same rule for today's sets against a `PriorBest` (what `priorBestOf` returns from the lift's
+ * stored sets) and says what improved; `mainLifts` picks the top 3 loaded lifts by sessions with an estimate in the last 12 weeks (at least 3).
+ */
+export { PR_THRESHOLD, PR_MIN_PRIOR_SESSIONS, MAIN_LIFT_WEEKS, MAIN_LIFT_MIN_POINTS, MAIN_LIFT_COUNT, priorBestOf, isPrToday, personalRecords, mainLifts } from './records';
+export type { PrSet, PrSetRef, PrImprovement, PersonalRecord, PriorBest, MainLift } from './records';
+
+/**
  * Workout import from a Strong or Hevy CSV (#1179, new, no prototype counterpart).
  * - `parseWorkoutCsv` reads the export into work sets by day (warm-up, distance/time-only and unreadable rows counted, not stored; weights to kg with `lbToKg`; a Strong file needs the unit, a Hevy header gives it); `parseCsv` is its CSV reader.
  * - `matchExercise`, `matchAll` sort the imported names into catalogue matches (exact, then case and form insensitive) and unmatched.
