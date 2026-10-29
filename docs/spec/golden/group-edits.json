@@ -1,0 +1,45 @@
+{
+ "description": "Group edits (#1345, ADR 012), worked by hand. Each exercise is [name, sets, group, part]; results are [name, group] with null for an explicit group: null. `to` is the new index of the exercise acted on. move: one step up (-1) or down (+1); a null result means no step. leave: take member i out of its group. join: group i with i + 1 (make_id is the id handed out for a new group; done lists [exercise, set] ticks); a null result means refused, `why` the core reason.",
+ "move": [
+  { "note": "lone down over a lone one", "ex": [["a",3,null,1],["b",3,null,1],["c",3,null,1]], "i": 0, "dir": 1, "result": { "list": [["b",null],["a",null],["c",null]], "to": 1 } },
+  { "note": "lone down hops the whole group", "ex": [["a",3,null,1],["b",3,"g",1],["c",3,"g",1],["d",3,null,1]], "i": 0, "dir": 1, "result": { "list": [["b","g"],["c","g"],["a",null],["d",null]], "to": 2 } },
+  { "note": "lone up hops the whole group", "ex": [["x",3,"g",1],["y",3,"g",1],["a",3,null,1]], "i": 2, "dir": -1, "result": { "list": [["a",null],["x","g"],["y","g"]], "to": 0 } },
+  { "note": "member up inside the group swaps letters", "ex": [["a",3,"g",1],["b",3,"g",1],["c",3,"g",1]], "i": 1, "dir": -1, "result": { "list": [["b","g"],["a","g"],["c","g"]], "to": 0 } },
+  { "note": "first member down inside a group of 3", "ex": [["a",3,"g",1],["b",3,"g",1],["c",3,"g",1]], "i": 0, "dir": 1, "result": { "list": [["b","g"],["a","g"],["c","g"]], "to": 1 } },
+  { "note": "first member up leaves the group and hops the lone one above", "ex": [["x",3,null,1],["a",3,"g",1],["b",3,"g",1],["c",3,"g",1]], "i": 1, "dir": -1, "result": { "list": [["a",null],["x",null],["b","g"],["c","g"]], "to": 0 } },
+  { "note": "last member down leaves the group", "ex": [["a",3,"g",1],["b",3,"g",1],["c",3,"g",1],["x",3,null,1]], "i": 2, "dir": 1, "result": { "list": [["a","g"],["b","g"],["x",null],["c",null]], "to": 3 } },
+  { "note": "leaving a pair dissolves it: both end with an explicit null", "ex": [["x",3,null,1],["a",3,"g",1],["b",3,"g",1]], "i": 1, "dir": -1, "result": { "list": [["a",null],["x",null],["b",null]], "to": 0 } },
+  { "note": "first member up hops a whole group above it", "ex": [["h1",3,"h",1],["h2",3,"h",1],["a",3,"g",1],["b",3,"g",1],["c",3,"g",1]], "i": 2, "dir": -1, "result": { "list": [["a",null],["h1","h"],["h2","h"],["b","g"],["c","g"]], "to": 0 } },
+  { "note": "last member down hops a whole group below it", "ex": [["a",3,"g",1],["b",3,"g",1],["c",3,"g",1],["h1",3,"h",1],["h2",3,"h",1]], "i": 2, "dir": 1, "result": { "list": [["a","g"],["b","g"],["h1","h"],["h2","h"],["c",null]], "to": 4 } },
+  { "note": "top of the list", "ex": [["a",3,null,1],["b",3,null,1]], "i": 0, "dir": -1, "result": null },
+  { "note": "bottom of the list", "ex": [["a",3,null,1],["b",3,null,1]], "i": 1, "dir": 1, "result": null },
+  { "note": "first member of the first group cannot go up", "ex": [["a",3,"g",1],["b",3,"g",1]], "i": 0, "dir": -1, "result": null },
+  { "note": "no step over the part boundary, down", "ex": [["a",3,null,1],["b",3,null,2]], "i": 0, "dir": 1, "result": null },
+  { "note": "no step over the part boundary, up", "ex": [["a",3,null,1],["b",3,null,2]], "i": 1, "dir": -1, "result": null },
+  { "note": "a broken group counts as lone exercises: a is not in a group, so it hops b only", "ex": [["a",3,"g",1],["b",3,null,1],["c",3,null,1]], "i": 0, "dir": 1, "result": { "list": [["b",null],["a",null],["c",null]], "to": 1 } }
+ ],
+ "leave": [
+  { "note": "pair, first member: both end with an explicit null, order kept", "ex": [["a",3,"g"],["b",3,"g"]], "i": 0, "result": { "list": [["a",null],["b",null]], "to": 0, "dissolved": true } },
+  { "note": "pair, second member", "ex": [["a",3,"g"],["b",3,"g"]], "i": 1, "result": { "list": [["a",null],["b",null]], "to": 1, "dissolved": true } },
+  { "note": "triple, first member stays on top", "ex": [["a",3,"g"],["b",3,"g"],["c",3,"g"]], "i": 0, "result": { "list": [["a",null],["b","g"],["c","g"]], "to": 0, "dissolved": false } },
+  { "note": "triple, middle member goes below the group", "ex": [["a",3,"g"],["b",3,"g"],["c",3,"g"]], "i": 1, "result": { "list": [["a","g"],["c","g"],["b",null]], "to": 2, "dissolved": false } },
+  { "note": "triple, last member stays at the bottom", "ex": [["a",3,"g"],["b",3,"g"],["c",3,"g"]], "i": 2, "result": { "list": [["a","g"],["b","g"],["c",null]], "to": 2, "dissolved": false } },
+  { "note": "group of 6, third member goes below", "ex": [["a",3,"g"],["b",3,"g"],["c",3,"g"],["d",3,"g"],["e",3,"g"],["f",3,"g"]], "i": 2, "result": { "list": [["a","g"],["b","g"],["d","g"],["e","g"],["f","g"],["c",null]], "to": 5, "dissolved": false } },
+  { "note": "between lone exercises", "ex": [["x",3,null],["a",3,"g"],["b",3,"g"],["c",3,"g"],["y",3,null]], "i": 2, "result": { "list": [["x",null],["a","g"],["c","g"],["b",null],["y",null]], "to": 3, "dissolved": false } },
+  { "note": "a lone exercise is in no group", "ex": [["a",3,null],["b",3,"g"]], "i": 0, "result": null },
+  { "note": "past the end", "ex": [["a",3,"g"],["b",3,"g"]], "i": 2, "result": null }
+ ],
+ "join": [
+  { "note": "two lone exercises start a group with the made id", "ex": [["a",3,null],["b",3,null]], "i": 0, "make_id": "n1", "result": { "list": [["a","n1"],["b","n1"]], "members": [0, 2], "merged": false } },
+  { "note": "a lone exercise joins the group below it", "ex": [["a",3,null],["b",3,"g"],["c",3,"g"]], "i": 0, "make_id": "n1", "result": { "list": [["a","g"],["b","g"],["c","g"]], "members": [0, 3], "merged": false } },
+  { "note": "the last member takes the lone one below", "ex": [["a",3,"g"],["b",3,"g"],["c",3,null]], "i": 1, "make_id": "n1", "result": { "list": [["a","g"],["b","g"],["c","g"]], "members": [0, 3], "merged": false } },
+  { "note": "two groups merge under the first id", "ex": [["a",3,"g"],["b",3,"g"],["c",3,"h"],["d",3,"h"]], "i": 1, "make_id": "n1", "result": { "list": [["a","g"],["b","g"],["c","g"],["d","g"]], "members": [0, 4], "merged": true } },
+  { "note": "merge with lone exercises around it", "ex": [["x",3,null],["a",3,"g"],["b",3,"g"],["c",3,"h"],["d",3,"h"],["y",3,null]], "i": 2, "make_id": "n1", "result": { "list": [["x",null],["a","g"],["b","g"],["c","g"],["d","g"],["y",null]], "members": [1, 5], "merged": true } },
+  { "note": "3 + 3 = 6 merges", "ex": [["a",3,"g"],["b",3,"g"],["c",3,"g"],["d",3,"h"],["e",3,"h"],["f",3,"h"]], "i": 2, "make_id": "n1", "result": { "list": [["a","g"],["b","g"],["c","g"],["d","g"],["e","g"],["f","g"]], "members": [0, 6], "merged": true } },
+  { "note": "4 + 3 = 7 is over the cap", "ex": [["a",3,"g"],["b",3,"g"],["c",3,"g"],["d",3,"g"],["e",3,"h"],["f",3,"h"],["z",3,"h"]], "i": 3, "make_id": "n1", "result": null, "why": "full" },
+  { "note": "a finished boundary exercise blocks the merge", "ex": [["a",2,"g"],["b",2,"g"],["c",2,"h"],["d",2,"h"]], "i": 1, "done": [[1,0],[1,1]], "make_id": "n1", "result": null, "why": "done" },
+  { "note": "a member that is not the last has no offer", "ex": [["a",3,"g"],["b",3,"g"],["c",3,"h"],["d",3,"h"]], "i": 0, "make_id": "n1", "result": null, "why": "inner" },
+  { "note": "a made id that is not valid refuses", "ex": [["a",3,null],["b",3,null]], "i": 0, "make_id": "has space", "result": null },
+  { "note": "a made id already on another exercise refuses", "ex": [["a",3,null],["b",3,null],["c",3,"n1"],["d",3,"n1"]], "i": 0, "make_id": "n1", "result": null }
+ ]
+}
