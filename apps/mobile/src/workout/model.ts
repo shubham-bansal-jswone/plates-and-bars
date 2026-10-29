@@ -1,4 +1,4 @@
-import { normalizeGroups, num, type Rate, type SetEntry } from '@plate-and-bar/core';
+import { dedupeExercises, normalizeGroups, num, type Rate, type SetEntry } from '@plate-and-bar/core';
 import { newId } from '../db/records';
 import type { Form, Workout, WorkoutExercise, WorkoutSet } from './types';
 
@@ -58,6 +58,19 @@ export function fixGroups(list: readonly WorkoutExercise[]): WorkoutExercise[] {
   return list.map((e, i) => (e.group != null && g[i] === null ? { ...e, group: null } : e));
 }
 
+/**
+ * A stored exercise list with one entry per name (#1340): core's `dedupeExercises` (first copy keeps its place and fields, group repair
+ * after). Set rows are stored by exercise name, so the kept entry already owns every copy's rows and no set data is lost. A list with no
+ * repeat comes back as `fixGroups` leaves it. Used on every merge and on load; the cleaned list is written back only by the next real edit.
+ */
+export function dedupeStored(list: readonly WorkoutExercise[]): WorkoutExercise[] {
+  const marked = list.map((e, i) => ({ name: e.name, sets: 0, group: e.group, i }));
+  return dedupeExercises(marked).map(({ i, group }) => {
+    const e = list[i] as WorkoutExercise;
+    return e.group != null && group === null ? { ...e, group: null } : e;
+  });
+}
+
 /** The same repair on the screen's exercises (a group left with under 2 members, a split or an over-full one is dissolved). */
 export function fixExGroups(exs: readonly ExState[]): ExState[] {
   const g = repaired(exs.map((e) => e.group));
@@ -94,8 +107,8 @@ export function exercisesFrom(w: Workout, sets: readonly WorkoutSet[]): ExState[
       .filter((s) => s.exercise === name && s.kind === kind && !s.deleted_at)
       .sort((a, b) => a.set_index - b.set_index)
       .map((s) => ({ id: s.id, version: s.version, w: text(s.weight_kg), r: text(s.reps), done: s.done, rate: s.rate, t: s.t }));
-  const group = repaired(w.exercises.map((x) => x.group));
-  return w.exercises.map((x, i) => ({
+  // One entry per name (#1340): rows are read by name, so the kept entry shows every copy's sets.
+  return dedupeStored(w.exercises).map((x) => ({
     name: x.name,
     part: x.part,
     bridge: x.bridge,
@@ -103,7 +116,7 @@ export function exercisesFrom(w: Workout, sets: readonly WorkoutSet[]): ExState[
     found: x.found_kg,
     skipRamp: x.skip_ramp,
     feel: x.feel ?? null,
-    group: group[i] ?? null,
+    group: x.group ?? null,
     sets: rows(x.name, 'work'),
     ramp: rows(x.name, 'ramp'),
   }));
@@ -175,7 +188,7 @@ export function mergeWorkout(base: Workout, mine: Workout, theirs: Workout): Wor
   const { exercises: _b, ...baseRest } = base;
   const { exercises: _m, ...mineRest } = mine;
   const { exercises: _t, ...theirsRest } = theirs;
-  return { ...pick(baseRest, mineRest, theirsRest), exercises: fixGroups(exercises) };
+  return { ...pick(baseRest, mineRest, theirsRest), exercises: dedupeStored(exercises) };
 }
 
 /** A workout row as text without its `version`: a sync push patches only the version, so it does not count as a change. */
@@ -198,7 +211,7 @@ export function unionWorkout(mine: Workout, theirs: Workout): Workout {
   const base = hasSession(win) || !hasSession(lose) ? win : lose;
   return {
     ...base,
-    exercises: fixGroups(base.exercises),
+    exercises: dedupeStored(base.exercises),
     cardio_min: win.cardio_min ?? lose.cardio_min,
     id: theirs.id,
     version: theirs.version,

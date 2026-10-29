@@ -1,0 +1,42 @@
+{
+ "description": "One exercise name per session (#1340, owner decision). Exercises are [name, sets, group]; null group = ungrouped. dedupe: dedupeExercises keeps the first copy's place and fields, sums set counts capped at sets_max (a first copy already above it is not cut), then repairs groups (ADR 012). swap: replaceAt(exercises, [], idx, pick) with no history; the result is the list of [name, group] after, a pick already in the session changes nothing. import: planImport with the mapping given, ids g1, g2, ... in order; sets are [exercise, setIndex] in file order, groups are by stored name.  The plan engine needs no vector: it cannot repeat a name (resolveSession drops repeats, trimSession and applyFocus work from distinct names); an app test pins that over every template, place, length and focus.",
+ "limits": { "sets_max": 20 },
+ "dedupe": [
+  { "note": "no repeat: unchanged", "ex": [["a", 3, null], ["b", 3, null]], "out": [["a", 3, null], ["b", 3, null]] },
+  { "note": "the #1329 repro: the later copy folds into the first", "ex": [["Machine Chest Press", 3, null], ["Lat Pulldown", 3, null], ["Seated Dumbbell Press", 3, null], ["Seated Cable Row", 3, null], ["Machine Chest Press", 3, null]], "out": [["Machine Chest Press", 6, null], ["Lat Pulldown", 3, null], ["Seated Dumbbell Press", 3, null], ["Seated Cable Row", 3, null]] },
+  { "note": "sets are capped at the limit", "ex": [["a", 15, null], ["a", 9, null]], "out": [["a", 20, null]] },
+  { "note": "a first copy above the limit is not cut", "ex": [["a", 25, null], ["a", 3, null]], "out": [["a", 25, null]] },
+  { "note": "three copies sum", "ex": [["a", 2, null], ["b", 3, null], ["a", 3, null], ["a", 4, null]], "out": [["a", 9, null], ["b", 3, null]] },
+  { "note": "later copy's group is dropped with it; the first copy's group stays", "ex": [["a", 3, "g"], ["b", 3, "g"], ["c", 3, "h"], ["a", 3, "h"]], "out": [["a", 6, "g"], ["b", 3, "g"], ["c", 3, null]] },
+  { "note": "first copy ungrouped: the later copy's group does not carry over", "ex": [["a", 3, null], ["b", 3, "g"], ["a", 3, "g"]], "out": [["a", 6, null], ["b", 3, null]] },
+  { "note": "a repeat of a member keeps the group, the first copy decides", "ex": [["a", 3, "g"], ["b", 3, "g"], ["b", 3, null]], "out": [["a", 3, "g"], ["b", 6, "g"]] },
+  { "note": "a group of three keeps two valid members", "ex": [["a", 3, "g"], ["b", 3, "g"], ["c", 3, "g"], ["c", 3, "g"]], "out": [["a", 3, "g"], ["b", 3, "g"], ["c", 6, "g"]] },
+  { "note": "a group split in two runs stays dissolved after the repeat goes", "ex": [["a", 3, "g"], ["b", 3, "g"], ["x", 3, null], ["c", 3, "g"], ["a", 3, null]], "out": [["a", 6, null], ["b", 3, null], ["x", 3, null], ["c", 3, null]] },
+  { "note": "empty", "ex": [], "out": [] }
+ ],
+ "swap": [
+  { "note": "pick not in the session: swapped", "ex": [["a", null], ["b", null]], "idx": 0, "pick": "c", "out": [["c", null], ["b", null]] },
+  { "note": "pick already in the session: refused, nothing changes", "ex": [["a", null], ["b", null]], "idx": 0, "pick": "b", "out": [["a", null], ["b", null]] },
+  { "note": "pick is the exercise itself: refused", "ex": [["a", null], ["b", null]], "idx": 1, "pick": "b", "out": [["a", null], ["b", null]] },
+  { "note": "a refused pick leaves a group alone", "ex": [["a", "g"], ["b", "g"], ["c", null]], "idx": 0, "pick": "c", "out": [["a", "g"], ["b", "g"], ["c", null]] },
+  { "note": "no pick still removes", "ex": [["a", null], ["b", null]], "idx": 0, "pick": null, "out": [["b", null]] }
+ ],
+ "import": [
+  { "note": "same exercise in two blocks: one entry, sets in file order, superset kept when all its sets agree",
+    "mapping": { "Bench": "Bench", "Row": "Row" },
+    "days": [{ "date": "2026-01-05", "title": "t", "sets": [["Bench", 60, 8, "s"], ["Row", 50, 8, "s"], ["Bench", 62.5, 6, "s"], ["Row", 52.5, 6, "s"]] }],
+    "sets": [["Bench", 0], ["Row", 0], ["Bench", 1], ["Row", 1]], "groups": { "Bench": "g1", "Row": "g1" } },
+  { "note": "two imported names mapped to one stored name merge into one entry",
+    "mapping": { "Bench Press (Barbell)": "Bench", "Barbell Bench": "Bench", "Row": "Row" },
+    "days": [{ "date": "2026-01-05", "title": "t", "sets": [["Bench Press (Barbell)", 60, 8], ["Row", 50, 8], ["Barbell Bench", 60, 7]] }],
+    "sets": [["Bench", 0], ["Row", 0], ["Bench", 1]] },
+  { "note": "a merged exercise whose sets disagree on the superset is ungrouped, and the partner is left alone",
+    "mapping": { "Bench": "Bench", "Row": "Row" },
+    "days": [{ "date": "2026-01-05", "title": "t", "sets": [["Bench", 60, 8, "s"], ["Row", 50, 8, "s"], ["Bench", 62.5, 6]] }],
+    "sets": [["Bench", 0], ["Row", 0], ["Bench", 1]] },
+  { "note": "a merge that leaves the group non-adjacent is ungrouped whole",
+    "mapping": { "Bench": "Bench", "Row": "Row", "Curl": "Curl" },
+    "days": [{ "date": "2026-01-05", "title": "t", "sets": [["Bench", 60, 8, "s"], ["Curl", 20, 8], ["Row", 50, 8, "s"]] }],
+    "sets": [["Bench", 0], ["Curl", 0], ["Row", 0]] }
+ ]
+}

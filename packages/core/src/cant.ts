@@ -103,12 +103,15 @@ export function newExercise(name: string, c: CantLifts, part: 1 | 2): { ex: Cant
  * A replacement takes the group of the exercise it replaces (a full group of 6 with the original kept: the pick stays
  * ungrouped); groups left under 2 members are dissolved.
  *
+ * A pick already in the session (any exercise of `exercises`, the replaced one included) is refused: nothing changes (#1340; a session
+ * never holds one name twice, as its sets are stored by name). The sheet never offers such a name.
+ *
  * Mirrors the `replaceAt(idx, pick)` step of prototype `applyCant(choice)` (`w.exercises` as contract
  * `Workout.exercises` and `WorkoutSet`s).
  */
 export function replaceAt<E extends CantExercise, S extends CantSet>(exercises: readonly E[], sets: readonly S[], idx: number, pick: string | null, c: CantLifts): CantResult<E, S> {
   const ex = exercises[idx];
-  if (!ex) return { exercises: [...exercises], sets: [...sets], changed: [], removed: [] };
+  if (!ex || (pick && exercises.some((e) => e.name === pick))) return { exercises: [...exercises], sets: [...sets], changed: [], removed: [] };
   const mine = (s: S): boolean => live(s) && s.exercise === ex.name;
   const work = sets.filter((s) => mine(s) && s.kind === 'work').sort((a, b) => a.set_index - b.set_index);
   const done = work.filter((s) => s.done);

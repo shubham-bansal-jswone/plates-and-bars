@@ -114,8 +114,8 @@ describe('startRoutine (#1184, decision D2)', () => {
     const r = [{ name: 'A', sets: 1 }, { name: 'B', sets: 12 }, { name: 'Calf Raise', sets: 2 }, { name: 'C', sets: 20 }];
     expect(startRoutine({ ...base, routine: r, profile: p, tags: { 'Calf Raise': { pattern: 'calf' } } as never }).exercises.map((e) => e.sets)).toEqual([1, 12, 2, 20]);
   });
-  it('duplicate stored names each keep their own count', () => {
-    expect(startRoutine({ ...base, routine: [{ name: 'Row', sets: 4 }, { name: 'Row', sets: 3 }] }).exercises.map((e) => e.sets)).toEqual([4, 3]);
+  it('duplicate stored names become one exercise with the counts merged (#1340: a session never repeats a name)', () => {
+    expect(startRoutine({ ...base, routine: [{ name: 'Row', sets: 4 }, { name: 'Row', sets: 3 }] }).exercises.map((e) => [e.name, e.sets])).toEqual([['Row', 7]]);
   });
   it('lab hold is not applied to a routine session', () => {
     const s = startRoutine({ ...base, labHold: true } as StartRoutineInput);

@@ -1007,6 +1007,11 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
    * An exercise with ticked sets keeps them and the replacement follows it, as in the prototype.
    */
   const cant = (i: number | null, draft: CantDraft, choice: string | null) => {
+    // A session never holds one name twice (#1340): the sheet never offers a name already in it, and core refuses it too. Nothing is saved or changed.
+    if (choice && ref.current.exs.some((e) => e.name === choice)) {
+      notify(`${choice} is already in this session`);
+      return;
+    }
     const rule = cantRule(draft, choice, date);
     const gone = removalNote(ref.current.exs, draft.name).toast; // said before the exercises change: a member of a superset leaves it
     const today = draft.dur === 'today';
