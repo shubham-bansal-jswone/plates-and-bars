@@ -93,6 +93,7 @@ export function BarChart({ bars, box, label, unit, noun, valueHeader, target, ex
     if (b.value === null) return { date: b.label, value: BAR_NOT_LOGGED };
     const gap = t === undefined ? null : b.value - t;
     const parts = [
+      ...(b.partial ? [BAR_PARTIAL] : []),
       ...(t === undefined || gap === null ? [] : [
         BAR_TARGET_ROW(format(t), unit),
         BAR_DELTA(format(Math.abs(gap)), unit, isOn(b.value, t, format) ? 'on' : gap < 0 ? 'under' : 'over'),
@@ -100,7 +101,7 @@ export function BarChart({ bars, box, label, unit, noun, valueHeader, target, ex
       ]),
       ...(extra?.[i] ? [extra[i]] : []),
     ];
-    return { date: b.label, value: `${format(b.value)} ${unit}${b.partial ? `, ${BAR_PARTIAL}` : ''}`, note: parts.join(', ') || undefined };
+    return { date: b.label, value: `${format(b.value)} ${unit}`, note: parts.join(', ') || undefined };
   });
   const onLayout = (e: LayoutChangeEvent) => setWidth(e.nativeEvent.layout.width || box.W);
   return (

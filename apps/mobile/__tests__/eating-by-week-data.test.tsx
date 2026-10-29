@@ -1,10 +1,12 @@
 import { act, fireEvent, render, renderHook, screen } from '@testing-library/react-native';
-import { saveLog } from '../src/db/food';
+import { loadLogsBetween, saveLog } from '../src/db/food';
 import { saveProfile } from '../src/db/records';
 import type { FoodLog } from '../src/food/types';
 import { useWeeklyIntake } from '../src/progress/useWeeklyIntake';
 import { ProgressScreen } from '../src/screens/ProgressScreen';
 import { dayQueue } from '../src/workout/dayQueue';
+import { SyncContext, type SyncState } from '../src/sync/SyncProvider';
+import { DEFAULT_KCAL_TARGET } from '@plate-and-bar/core';
 import { buildProfile, emptyDraft } from '../src/setup/logic';
 import { memoryDb, withProfile } from './helpers';
 
@@ -85,6 +87,36 @@ describe('EatingByWeek on Progress: data source', () => {
   });
 });
 
+describe('EatingByWeek on Progress: reloads and targets', () => {
+  it('a sync pull (dataVersion bump) rereads the logs without a refocus', async () => {
+    const db = memoryDb();
+    await saveProfile(db, profile());
+    const at = (dataVersion: number) => <SyncContext.Provider value={{ dataVersion } as SyncState}>{withProfile(db, <ProgressScreen db={db} now={NOW} />)}</SyncContext.Provider>;
+    const view = await render(at(0));
+    await screen.findByRole('header', { name: 'Eating by week' });
+    expect(bars()).toEqual([]);
+    await days(db, ['2026-10-05', '2026-10-06', '2026-10-07', '2026-10-08'], 1700); // a pull stored these
+    await view.rerender(at(1));
+    expect(await screen.findByLabelText(/^1,700 kcal a day/)).toBeTruthy();
+  });
+
+  it('with no profile the target is the same default as Seven days', async () => {
+    const db = memoryDb();
+    await days(db, ['2026-10-05', '2026-10-06', '2026-10-07', '2026-10-08'], 1700);
+    await render(withProfile(db, <ProgressScreen db={db} now={NOW} />));
+    expect(await screen.findByLabelText(new RegExp(`^1,700 kcal a day, last 4 weeks, target ${DEFAULT_KCAL_TARGET.toLocaleString('en-IN')} kcal`))).toBeTruthy();
+  });
+
+  it('loadLogsBetween is inclusive, bounded and leaves out deleted logs', async () => {
+    const db = memoryDb();
+    await log(db, '2026-10-01', 1);
+    await log(db, '2026-10-03', 2);
+    await log(db, '2026-10-04', 3);
+    await log(db, '2026-10-02', 4, { deleted_at: '2026-10-05T00:00:00Z' });
+    expect((await loadLogsBetween(db, '2026-10-01', '2026-10-03')).map((l) => l.kcal).sort()).toEqual([1, 2]);
+  });
+});
+
 describe('useWeeklyIntake reloads', () => {
   const run = async (db: Db, date = '2026-10-08', reloadKey = 0) => {
     const r = await renderHook((p: { date: string; k: number }) => useWeeklyIntake({ db, date: p.date, reloadKey: p.k }), { initialProps: { date, k: reloadKey } });
@@ -135,6 +167,27 @@ describe('useWeeklyIntake reloads', () => {
     await act(async () => {});
     expect(result.current.failed).toBe(false);
     expect(result.current.days).toHaveLength(1);
+  });
+
+  it('an error belongs to its date: moving to a date that reads fine shows its days, not the error', async () => {
+    const db = memoryDb();
+    await days(db, ['2026-10-01'], 2000);
+    const real = db.getAllAsync.bind(db);
+    jest.spyOn(db, 'getAllAsync').mockImplementation(((sql: string, ...p: (string | number)[]) => (sql.includes('log_date >=') && p[1] === '2026-10-08' ? Promise.reject(new Error('boom')) : real(sql, ...p))) as typeof db.getAllAsync);
+    const { result, rerender } = await run(db);
+    expect(result.current).toEqual({ days: null, failed: true });
+    let open: () => void = () => {};
+    const gate = new Promise<void>((r) => { open = r; });
+    const failing = db.getAllAsync as unknown as jest.Mock;
+    failing.mockImplementation(async (sql: string, ...p: (string | number)[]) => { await gate; return real(sql, ...p); });
+    await rerender({ date: '2026-10-02', k: 0 });
+    await act(async () => {});
+    expect(result.current).toEqual({ days: null, failed: false }); // the old date's error is not shown while the new date reads
+    open();
+    await act(async () => {});
+    expect(result.current.failed).toBe(false);
+    expect(result.current.days).toHaveLength(1);
+    jest.restoreAllMocks();
   });
 
   it('waits for queued workout writes before reading, as the check-in does', async () => {

@@ -509,12 +509,12 @@ export type { WeekSets, VolumeVsPlan, VolumeVsPlanResult } from './progressVolum
 
 /**
  * Weekly intake and weeks-on-track series (#1351 C4, C5, new rules). `weeklyIntake` is the average kcal and protein per Monday-week over
- * the days with a live food log (the `weekSummary` rule), null for a week with none, `partial` under `WEEKLY_INTAKE_MIN_DAYS` (4) days.
+ * the days with a live food log (the `weekSummary` rule), null for a week with none, `partial` under `WEEKLY_INTAKE_MIN_DAYS` (4) days. `intakeAverage` is the logged-days-weighted average over the last 4 of those weeks.
  * `weeksOnTrackSeries` is the per-week form of `habits().weeks`; the goal rule it shares with `habits` stays internal
  * (`weeklySessionGoal`, `weekOnTrack` in `progress.ts`, mirroring prototype `consistencyHtml()`).
  */
-export { weeklyIntake, weeksOnTrackSeries, WEEKLY_INTAKE_MIN_DAYS } from './progressSeries';
-export type { IntakeTargets, WeeklyIntake, WeekOnTrack } from './progressSeries';
+export { weeklyIntake, intakeAverage, weeksOnTrackSeries, WEEKLY_INTAKE_MIN_DAYS } from './progressSeries';
+export type { IntakeAverage, IntakeTargets, WeeklyIntake, WeekOnTrack } from './progressSeries';
 
 /**
  * Progress: weight and waist trend, the scale-jump note and entry limits (#233).

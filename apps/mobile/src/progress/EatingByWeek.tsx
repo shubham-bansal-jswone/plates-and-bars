@@ -1,13 +1,13 @@
 import { useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { WEIGHT_CHART_BOX, type ProgressDay } from '@plate-and-bar/core';
+import { WEEKLY_INTAKE_MIN_DAYS, WEIGHT_CHART_BOX, type ProgressDay } from '@plate-and-bar/core';
 import { Text } from '../components/Text';
 import { Card, Heading, Hint } from '../components/ui';
 import { fmt } from '../format';
 import { type as typeScale } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { BarChart, type Bar } from './BarChart';
-import { EATING_CHART_LABEL, EATING_EMPTY, EATING_ERROR, EATING_HEADLINE, EATING_HOLLOW_HINT, EATING_LOADING, EATING_NO_TARGET, EATING_NOUN, EATING_PROTEIN, EATING_TITLE, EATING_VALUE_HEADER } from './copy';
+import { EATING_CHART_LABEL, EATING_EMPTY, EATING_ERROR, EATING_HEADLINE, EATING_HOLLOW_HINT, EATING_LOADING, EATING_NO_TARGET, EATING_NONE_RECENT, EATING_NOUN, EATING_PROTEIN, EATING_TITLE, EATING_VALUE_HEADER } from './copy';
 import { eatingView } from './eatingLogic';
 
 interface Props {
@@ -32,21 +32,30 @@ export function EatingByWeek({ days, failed, date, kcalTarget, proteinTarget }: 
   const view = useMemo(() => (days ? eatingView(days, date, kt, pt) : null), [days, date, kt, pt]);
   const bars: Bar[] = useMemo(() => (view?.weeks ?? []).map((w) => ({ label: w.weekStart, value: w.avgKcal, partial: w.partial })), [view]);
   const extra = useMemo(() => (view?.weeks ?? []).map((w) => (w.avgProtein_g === null ? null : EATING_PROTEIN(fmt(w.avgProtein_g), null))), [view]);
+  const avg = view?.avg;
+  const thin = !!avg && avg.loggedDays < WEEKLY_INTAKE_MIN_DAYS;
+  const headlineLabel = !avg ? undefined : avg.avgKcal === null || avg.avgProtein_g === null ? EATING_NONE_RECENT : `${fmt(avg.avgKcal)} ${EATING_HEADLINE(kt ? fmt(kt) : null, thin ? avg.loggedDays : null)}. ${EATING_PROTEIN(fmt(avg.avgProtein_g), pt ? fmt(pt) : null)}`;
   return (
     <Card style={styles.section}>
       <Heading level={2} style={[typeScale.heading, { color: c.ink }]}>{EATING_TITLE}</Heading>
       {failed ? (
         <Hint>{EATING_ERROR}</Hint>
-      ) : !view ? (
+      ) : !view || !avg ? (
         <Hint>{EATING_LOADING}</Hint>
-      ) : !view.enough || view.kcal === null || view.protein === null ? (
+      ) : !view.any ? (
         <Hint>{EATING_EMPTY}</Hint>
       ) : (
         <>
-          <View accessible accessibilityLabel={`${fmt(view.kcal)} ${EATING_HEADLINE(kt ? fmt(kt) : null)}. ${EATING_PROTEIN(fmt(view.protein), pt ? fmt(pt) : null)}`}>
-            <Text style={[typeScale.title, { color: c.ink }]}>{fmt(view.kcal)}</Text>
-            <Text style={{ color: c.muted }}>{EATING_HEADLINE(kt ? fmt(kt) : null)}</Text>
-            <Text style={{ color: c.muted }}>{EATING_PROTEIN(fmt(view.protein), pt ? fmt(pt) : null)}</Text>
+          <View accessible accessibilityLabel={headlineLabel}>
+            {avg.avgKcal === null || avg.avgProtein_g === null ? (
+              <Text style={[typeScale.label, { color: c.ink }]}>{EATING_NONE_RECENT}</Text>
+            ) : (
+              <>
+                <Text style={[typeScale.title, { color: c.ink }]}>{fmt(avg.avgKcal)}</Text>
+                <Text style={{ color: c.muted }}>{EATING_HEADLINE(kt ? fmt(kt) : null, thin ? avg.loggedDays : null)}</Text>
+                <Text style={{ color: c.muted }}>{EATING_PROTEIN(fmt(avg.avgProtein_g), pt ? fmt(pt) : null)}</Text>
+              </>
+            )}
           </View>
           {kt ? null : <Hint>{EATING_NO_TARGET}</Hint>}
           <BarChart

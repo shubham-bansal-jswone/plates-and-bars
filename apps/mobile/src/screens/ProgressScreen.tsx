@@ -106,7 +106,7 @@ export function ProgressScreen({ db, now = () => new Date() }: Props) {
             <LabsSection labs={labs} today={v.today} />
             <StepsSleepSection key={`steps-${p.date}`} p={p} />
             <WeekCard date={v.today} pastDay={!v.isToday} days={ci.weekDays} kcalTarget={profile?.targets.kcal ?? DEFAULT_KCAL_TARGET} />
-            <EatingByWeek days={eating.days} failed={eating.failed} date={p.date} kcalTarget={profile?.targets.kcal ?? 0} proteinTarget={profile?.targets.protein_g ?? 0} />
+            <EatingByWeek days={eating.days} failed={eating.failed} date={p.date} kcalTarget={profile?.targets.kcal ?? DEFAULT_KCAL_TARGET} proteinTarget={profile?.targets.protein_g ?? 0} />
             <WeeksOnTrack sessions={ci.sessions} date={p.date} profile={profile} />
           </>
         ) : (

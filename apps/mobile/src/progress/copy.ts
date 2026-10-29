@@ -133,7 +133,10 @@ export const EATING_LOADING = 'Loading…';
 export const EATING_ERROR = 'Couldn’t read your food logs. Open this tab again to retry.';
 export const EATING_EMPTY = 'Log food on 4 or more days in a week to see weekly averages.';
 export const EATING_NO_TARGET = 'Run setup (Targets tab) to set a calorie target and compare your weeks with it.';
-export const EATING_HEADLINE = (target: string | null): string => `kcal a day, last 4 weeks${target ? `, target ${target} kcal` : ''}`;
+/** `days` is the logged days the average rests on when that is under 4, else null. */
+export const EATING_HEADLINE = (target: string | null, days: number | null = null): string =>
+  `kcal a day, last 4 weeks${days === null ? '' : `, from ${days} ${days === 1 ? 'day' : 'days'} logged`}${target ? `, target ${target} kcal` : ''}`;
+export const EATING_NONE_RECENT = 'No food logged in the last 4 weeks';
 export const EATING_PROTEIN = (g: string, target: string | null): string => `Protein ${g} g a day${target ? `, target ${target} g` : ''}`;
 export const EATING_CHART_LABEL = 'Average calories by week';
 export const EATING_NOUN = 'Calories';

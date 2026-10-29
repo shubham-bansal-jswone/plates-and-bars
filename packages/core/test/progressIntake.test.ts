@@ -1,7 +1,7 @@
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
 import {
-  WEEKLY_INTAKE_MIN_DAYS, addDays, habits, weeklyIntake, weeksOnTrackSeries, weekSummary,
+  WEEKLY_INTAKE_MIN_DAYS, addDays, habits, weeklyIntake, intakeAverage, weeksOnTrackSeries, weekSummary,
   type IntakeTargets, type ProgressDay, type WeekOnTrack, type WeeklyIntake,
 } from '../src/index';
 import { weekOnTrack, weeklySessionGoal } from '../src/progress';
@@ -10,6 +10,7 @@ const golden = (n: string) => JSON.parse(readFileSync(resolve(__dirname, `../../
 type RawDay = { date: string; logs: { kcal: number; protein_g: number; qty: number; deleted_at: string | null }[] };
 const gi = golden('weeklyIntake') as {
   min_days: number;
+  intake_average: { note: string; weeks: { loggedDays: number; avgKcal: number | null; avgProtein_g: number | null }[]; last_n?: number; expected: { avgKcal: number | null; avgProtein_g: number | null; loggedDays: number } }[];
   weekly_intake: { note: string; end: string; weeks: number; targets: IntakeTargets; days: RawDay[]; expected: WeeklyIntake[] }[];
 };
 const go = golden('weeksOnTrack') as {
@@ -17,6 +18,22 @@ const go = golden('weeksOnTrack') as {
 };
 const toDays = (raw: RawDay[]): ProgressDay[] =>
   raw.map((d) => ({ date: d.date, trained: false, logs: d.logs.map((l) => ({ ...l, id: 'x', name: 'f', carbs_g: 0, fat_g: 0 })) as unknown as ProgressDay['logs'] }));
+
+describe('intakeAverage (#1351 A6)', () => {
+  it.each(gi.intake_average.map((c) => [c.note, c] as const))('%s', (_n, c) => {
+    const r = intakeAverage(c.weeks, c.last_n);
+    expect(r.loggedDays).toBe(c.expected.loggedDays);
+    for (const k of ['avgKcal', 'avgProtein_g'] as const) {
+      if (c.expected[k] === null) expect(r[k]).toBeNull();
+      else expect(r[k]).toBeCloseTo(c.expected[k]!, 9);
+    }
+  });
+  it('works on weeklyIntake output end to end', () => {
+    const c = gi.weekly_intake[0]!;
+    const r = intakeAverage(weeklyIntake(toDays(c.days), c.end, 3, c.targets));
+    expect(r.loggedDays).toBe(c.expected.reduce((n, w) => n + w.loggedDays, 0));
+  });
+});
 
 describe('weeklyIntake (#1351 C4)', () => {
   it('constant matches the vectors', () => expect(WEEKLY_INTAKE_MIN_DAYS).toBe(gi.min_days));
