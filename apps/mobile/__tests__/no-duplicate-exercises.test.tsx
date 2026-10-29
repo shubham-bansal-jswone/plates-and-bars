@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { act, cleanup, fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react-native';
 import { dedupeExercises, TEMPLATES } from '@plate-and-bar/core';
 import { WorkoutScreen } from '../src/screens/WorkoutScreen';
 import { saveProfile } from '../src/db/records';
@@ -8,6 +8,10 @@ import { cantChange } from '../src/workout/cantApply';
 import { dedupeStored, exercisesFrom, mergeWorkout, unionWorkout } from '../src/workout/model';
 import type { Workout, WorkoutExercise, WorkoutSet } from '../src/workout/types';
 import { memoryDb, withProfile } from './helpers';
+import { loadSets, loadWorkout, saveSet, saveWorkout } from '../src/db/workouts';
+import { dayQueue } from '../src/workout/dayQueue';
+import { useWorkoutDay } from '../src/workout/useWorkoutDay';
+import { openDb } from './sync-helpers';
 
 jest.mock('expo-router', () => ({
   useRouter: () => ({ replace: jest.fn(), push: jest.fn() }),
@@ -150,20 +154,59 @@ describe('load: a stored session that repeats a name', () => {
   });
 });
 
-describe('the rest dock cannot confuse copies (#1329)', () => {
-  // The dock finds exercises by name; with one entry per name it cannot name the wrong copy.
-  it('a list of two same-named exercises read from storage is one entry, so the dock has no earlier open copy to name', () => {
-    const shown = exercisesFrom(row([ex('A'), ex('B'), ex('A')]), [set('1', 'A', 0), set('2', 'B', 0)]);
-    expect(shown.map((e) => e.name)).toEqual(['A', 'B']);
+// Hook-level: the can't-do pick and the legacy set numbers (#1340 round 2).
+const profileH = profile('gym', 'some');
+async function hook(seed?: (db: Awaited<ReturnType<typeof openDb>>) => Promise<void>) {
+  const db = await openDb();
+  if (seed) await seed(db);
+  const notify = jest.fn();
+  const saveRule = jest.fn(() => ({}) as never);
+  const opts = { db, profile: profileH, now: NOW, focus: [], adjustments: {}, notify, startRest: jest.fn(), exclusions: [], swaps: [], saveRule, tune: {} } as unknown as Parameters<typeof useWorkoutDay>[0];
+  const view = await renderHook(({ k }: { k: number }) => useWorkoutDay({ ...opts, reloadKey: k }), { initialProps: { k: 0 } });
+  await waitFor(() => expect(view.result.current.day.ready).toBe(true));
+  return { db, notify, saveRule, ...view };
+}
+
+describe('can\'t do: a pick already in the session is refused whole', () => {
+  it.each(['perm', 'week'] as const)('with the answer %s it says so, saves no rule and swaps nothing', async (dur) => {
+    const { db, notify, saveRule, result } = await hook();
+    await act(async () => void (await result.current.start('Upper A', {}, null)));
+    await act(async () => void (await dayQueue.current));
+    const before = result.current.day.exs.map((e) => e.name);
+    const [first, second] = before as [string, string];
+    await act(async () => result.current.cant(0, { name: first, reason: 'dislike', dur, scope: 'exercise', key: first } as never, second));
+    await act(async () => void (await dayQueue.current));
+    expect(notify).toHaveBeenCalledWith(`${second} is already in today’s session.`);
+    expect(saveRule).not.toHaveBeenCalled();
+    expect(notify.mock.calls.some(([m]) => /Swapped in/.test(String(m)))).toBe(false);
+    expect(result.current.day.exs.map((e) => e.name)).toEqual(before);
+    expect((await loadWorkout(db, DATE))?.exercises.map((e) => e.name)).toEqual(before);
   });
-  it('a pull inserting a same-named exercise, or a swap onto a name in the session, leaves one entry per name', () => {
-    const base = row([ex('A'), ex('B')]);
-    expect(names(mergeWorkout(base, base, row([ex('B'), ex('A'), ex('B')])))).toEqual(['B', 'A']);
-    const ch = cantChange(base, [set('1', 'A', 0), set('2', 'B', 0)], 0, { name: 'A', reason: 'dislike', dur: 'today', scope: 'exercise', key: 'A' } as never, 'B', 'gym', [], {}, DATE, '2026-10-08T10:00:00Z');
-    expect(ch.exercises.map((e) => e.name)).toEqual(['A', 'B']);
+});
+
+describe('legacy rows of a repeated name share set numbers', () => {
+  // Stored in reverse so only the id tiebreak gives the order. Two copies of Row saved before #1335: x4 and x3, each numbered from 0. Shown as A0,B0,A1,B1,A2,B2,A3.
+  const seed = async (db: Awaited<ReturnType<typeof openDb>>) => {
+    await saveWorkout(db, row([ex('Row'), ex('Row')]));
+    for (const [id, i] of [['b2', 2], ['b1', 1], ['b0', 0], ['a3', 3], ['a2', 2], ['a1', 1], ['a0', 0]] as const) await saveSet(db, DATE, set(id, 'Row', i));
+  };
+  const order = (r: { current: { day: { exs: { sets: { id: string }[] }[] } } }) => r.current.day.exs[0]?.sets.map((s) => s.id);
+  const SHOWN = ['a0', 'b0', 'a1', 'b1', 'a2', 'b2', 'a3'];
+
+  it('load shows them by number then id and writes nothing', async () => {
+    const { db, result } = await hook(seed);
+    expect(order(result)).toEqual(SHOWN);
+    expect((await loadSets(db, DATE)).filter((s) => s.updated_at !== '2026-10-08T08:00:00Z')).toEqual([]);
   });
-  it('removing the head together with an earlier copy cannot happen: there is no earlier copy', () => {
-    const shown = exercisesFrom(row([ex('A'), ex('B'), ex('C'), ex('A')]), []);
-    expect(new Set(shown.map((e) => e.name)).size).toBe(shown.length);
+
+  it('a ticked set stays where it is after a reload', async () => {
+    const { db, result, rerender } = await hook(seed);
+    await act(async () => result.current.tick(0, 1));
+    await act(async () => void (await dayQueue.current));
+    await rerender({ k: 1 });
+    await waitFor(() => expect((result.current.day.exs[0]?.sets.find((s) => s.done)) !== undefined).toBe(true));
+    expect(order(result)).toEqual(SHOWN);
+    expect(result.current.day.exs[0]?.sets[1]?.done).toBe(true);
+    expect((await loadSets(db, DATE)).filter((s) => !s.deleted_at).map((s) => s.set_index).sort()).toEqual([0, 1, 2, 3, 4, 5, 6]);
   });
 });

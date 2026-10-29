@@ -105,7 +105,7 @@ export function exercisesFrom(w: Workout, sets: readonly WorkoutSet[]): ExState[
   const rows = (name: string, kind: 'work' | 'ramp'): Row[] =>
     sets
       .filter((s) => s.exercise === name && s.kind === kind && !s.deleted_at)
-      .sort((a, b) => a.set_index - b.set_index)
+      .sort((a, b) => a.set_index - b.set_index || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)) // ties (rows of repeated names from before #1335) by id, never by database order
       .map((s) => ({ id: s.id, version: s.version, w: text(s.weight_kg), r: text(s.reps), done: s.done, rate: s.rate, t: s.t }));
   // One entry per name (#1340): rows are read by name, so the kept entry shows every copy's sets.
   return dedupeStored(w.exercises).map((x) => ({

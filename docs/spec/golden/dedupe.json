@@ -30,7 +30,7 @@
     "mapping": { "Bench Press (Barbell)": "Bench", "Barbell Bench": "Bench", "Row": "Row" },
     "days": [{ "date": "2026-01-05", "title": "t", "sets": [["Bench Press (Barbell)", 60, 8], ["Row", 50, 8], ["Barbell Bench", 60, 7]] }],
     "sets": [["Bench", 0], ["Row", 0], ["Bench", 1]] },
-  { "note": "a merged exercise whose sets disagree on the superset is ungrouped, and the partner is left alone",
+  { "note": "a merged exercise whose sets disagree on the superset is ungrouped, and its partner, left alone in the superset, is ungrouped too",
     "mapping": { "Bench": "Bench", "Row": "Row" },
     "days": [{ "date": "2026-01-05", "title": "t", "sets": [["Bench", 60, 8, "s"], ["Row", 50, 8, "s"], ["Bench", 62.5, 6]] }],
     "sets": [["Bench", 0], ["Row", 0], ["Bench", 1]] },
