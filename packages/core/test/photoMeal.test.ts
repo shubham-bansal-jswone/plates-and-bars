@@ -1,7 +1,7 @@
 import { capPhotoItems, clampPhotoServings, photoAdjLabel, photoEstimateLog, photoLogQty, photoMacros, stepPhotoAdj, PHOTO_ITEMS_MAX } from '../src/index';
 
-// Golden numbers worked from docs/prototype/plate-and-bar.html: analysePhoto (2189), phMacros (2168), ph-add (2231), slider (2158).
-describe('capPhotoItems (raw.slice(0, 12), line 2210)', () => {
+// Golden numbers worked from the prototype-final tag: `analysePhoto`, `phMacros`, `ph-add`, the portion slider.
+describe('capPhotoItems (raw.slice(0, 12))', () => {
   const list = (n: number) => Array.from({ length: n }, (_, i) => i);
   it('keeps 12 of 15, in order', () => expect(capPhotoItems(list(15))).toEqual(list(12)));
   it('keeps all of 12 and of 3', () => {
@@ -11,14 +11,14 @@ describe('capPhotoItems (raw.slice(0, 12), line 2210)', () => {
   it('exports the cap', () => expect(PHOTO_ITEMS_MAX).toBe(12));
 });
 
-describe('clampPhotoServings (line 2213)', () => {
+describe('clampPhotoServings (`analysePhoto`)', () => {
   it.each([
     [1.5, 1.5], [0.1, 0.25], [0.25, 0.25], [6, 6], [9, 6], [-2, 0.25], [100, 6],
     [0, 1], ['', 1], [null, 1], [undefined, 1], ['abc', 1], [NaN, 1], ['2,5', 2.5], ['3', 3],
   ])('%p -> %p', (v, out) => expect(clampPhotoServings(v)).toBe(out));
 });
 
-describe('stepPhotoAdj (slider 0.5 to 2 step 0.25, line 2158)', () => {
+describe('stepPhotoAdj (slider 0.5 to 2 step 0.25)', () => {
   it('steps by 0.25', () => {
     expect(stepPhotoAdj(1, 1)).toBe(1.25);
     expect(stepPhotoAdj(1, -1)).toBe(0.75);
@@ -29,7 +29,7 @@ describe('stepPhotoAdj (slider 0.5 to 2 step 0.25, line 2158)', () => {
   });
 });
 
-describe('photoMacros (phMacros, line 2168)', () => {
+describe('photoMacros (phMacros)', () => {
   const base = { kcal: 130, protein_g: 2.7, carbs_g: 28, fat_g: 0.3 };
   it('is base times mult times adj, unrounded', () => {
     const m = photoMacros(base, 1.5, 0.75);

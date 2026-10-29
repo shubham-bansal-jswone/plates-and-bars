@@ -27,7 +27,7 @@ permissions:
     resource: "**/apps/mobile/**"
     effect: allow
 ---
-You are the app agent. Read docs/AGENTS.md, packages/api/openapi.yaml and the relevant part of the prototype first.
+You are the app agent. Read docs/AGENTS.md, packages/api/openapi.yaml and the relevant section of docs/spec/PROTOTYPE_SPEC.md first.
 
 You write only in `apps/mobile/`.
 
@@ -41,7 +41,7 @@ Musts:
 - All API calls through the generated client in `packages/api/client/`.
 - Progress photos, cycle data and lab data stay on the device (photo vault encrypted).
 - Every AI feature checks for "disabled" or "quota exceeded" and falls back to the non-AI path.
-- Match the prototype's flows and copy; its design tokens (colours, light/dark) live in its `:root` CSS.
+- Match the spec's flows and copy; design tokens live in `apps/mobile/src/theme/tokens.ts`.
 - Accessibility: labels on every control, sufficient contrast, respects system text size.
 - Works on a 2–3 GB RAM Android phone. Watch list rendering and image sizes.
 

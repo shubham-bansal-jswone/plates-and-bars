@@ -1,7 +1,7 @@
 # @plate-and-bar/core
 
 The app's rules (targets, plan engine, progression, burn, food maths) ported from the prototype
-(`docs/prototype/plate-and-bar.html`) into pure TypeScript. No DOM, no storage, no I/O, no clock:
+(frozen at git tag `prototype-final`; the spec of record is `docs/spec/PROTOTYPE_SPEC.md`) into pure TypeScript. No DOM, no storage, no I/O, no clock:
 anything that depends on the date takes `now` as an argument. The app and backend import rules from
 here instead of re-typing numbers.
 
@@ -159,9 +159,9 @@ npm run test:coverage # jest with a 90% line-coverage threshold
 
 ## How the golden tests work
 
-`docs/spec/golden/<area>.json` holds input/output pairs generated from the prototype. Tests load them
-from the repo root (`test/helpers.ts`, `loadGolden`) and check every case. Never edit or regenerate
-these files here; a prototype change lands them in a `spec-change` PR, and this package follows.
+`docs/spec/golden/<area>.json` holds the spec's input/output pairs (originally generated from the prototype, no longer regenerated). Tests load them
+from the repo root (`test/helpers.ts`, `loadGolden`) and check every case. Change these files only in a
+`spec-change` PR, which edits the spec, the fixture and this package's port together.
 
 The fixtures store display-rounded numbers, so the test projects the port's result onto the fixture
 shape before comparing (`toGolden` in `test/targets.test.ts`): energy values with `Math.round`,
