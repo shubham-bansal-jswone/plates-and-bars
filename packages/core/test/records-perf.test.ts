@@ -6,8 +6,10 @@ import {
   type ExType, type MainLift, type PersonalRecord, type PriorBest, type PrSet,
 } from '../src/index';
 
-// Reference: the pre-#1378 grouping (array spread per set, quadratic), kept verbatim. The per-day score is taken
-// from the public `priorBestOf` on a single day (its grouping is trivial there), so only the grouping differs.
+// Reference: the pre-#1378 grouping (array spread per set, quadratic), copied from the old code. Not strictly verbatim:
+// the per-day score (`dayScore`, not exported) is read from the public `priorBestOf` called on that single day with a
+// date past it. A single day has one group, so the new push-based grouping cannot differ there; only the per-lift and
+// per-day grouping (what #1378 changed) comes from the old spread code.
 const dayOf = (day: readonly PrSet[], type: ExType | undefined, bw?: number | null): { score: number } | null => {
   const p = priorBestOf(day, type, '9999-12-31', bw);
   return p.sessions ? { score: p.best } : null;
@@ -79,7 +81,7 @@ function rng(seed: number): () => number {
 const TYPES: ExType[] = ['barbell', 'dumbbell', 'machine', 'bodyweight', 'time', 'assisted'];
 const DAY0 = '2021-01-04';
 
-function gen(seed: number, nSets: number, nLifts: number, spanDays: number) {
+function gen(seed: number, nSets: number, nLifts: number, spanDays: number, sessions = 0) {
   const r = rng(seed);
   const types: Record<string, ExType> = {};
   const names: string[] = [];
@@ -98,6 +100,7 @@ function gen(seed: number, nSets: number, nLifts: number, spanDays: number) {
       kind: f < 0.1 ? 'ramp' : 'work',
       weight_kg: Math.round((20 + r() * 150) * 2) / 2,
       reps: 1 + Math.floor(r() * 14),
+      ...(sessions > 0 ? { session: `s${Math.floor(r() * sessions)}-${date}` } : {}),
       done: f > 0.05,
       rate: f > 0.9 ? 'fail' : null,
       deleted_at: f > 0.97 ? '2026-01-01T00:00:00Z' : null,
@@ -108,7 +111,7 @@ function gen(seed: number, nSets: number, nLifts: number, spanDays: number) {
 
 describe('records perf (#1378)', () => {
   it.each([1, 2, 3, 4, 5, 6, 7, 8])('old and new agree on random input (seed %i)', (seed) => {
-    const { sets, types, end } = gen(seed, 400 + seed * 60, 4 + seed, 200 + seed * 40);
+    const { sets, types, end } = gen(seed, 400 + seed * 60, 4 + seed, seed % 2 ? 40 + seed * 5 : 200 + seed * 40, seed > 2 ? 3 : 0);
     for (const bw of [undefined, 80]) expect(personalRecords(sets, types, bw)).toEqual(refPersonalRecords(sets, types, bw));
     expect(mainLifts(sets, types, end)).toEqual(refMainLifts(sets, types, end));
     const mid = addDays(DAY0, 120);
@@ -119,6 +122,7 @@ describe('records perf (#1378)', () => {
     expect(PR_MIN_PRIOR_SESSIONS).toBeGreaterThan(0);
   });
 
+  // The 2 s budgets are a catastrophe guard, not proof of linear time.
   it('about 25,000 sets over 5 years and 15 lifts finish within budget', () => {
     const { sets, types, end } = gen(99, 25000, 15, 5 * 365);
     types['Lift A'] = 'barbell';

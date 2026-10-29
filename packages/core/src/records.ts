@@ -171,7 +171,10 @@ export function personalRecords(sets: readonly PrSet[], types: Readonly<Record<s
   const byLift = new Map<string, Map<string, PrSet[]>>();
   for (const s of sets) {
     let days = byLift.get(s.exercise);
-    if (!days) byLift.set(s.exercise, (days = new Map<string, PrSet[]>()));
+    if (!days) {
+      days = new Map<string, PrSet[]>();
+      byLift.set(s.exercise, days);
+    }
     const day = days.get(s.date);
     if (day) day.push(s);
     else days.set(s.date, [s]);
