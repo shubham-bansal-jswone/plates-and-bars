@@ -806,5 +806,5 @@ export type { ImportSource, ImportError, ImportSet, ImportDay, ImportSkipped, Im
  * - `GROUP_MAX` 6, `GROUP_MIN` 2, `GROUP_TRANSITION_SEC` 15.
  * - `groupLabels` member letters, `normalizeGroups` repair, `nextInRound` alternating order, `restAfterTick` round and transition rest (reuses `restFor`).
  */
-export { GROUP_MAX, GROUP_MIN, GROUP_TRANSITION_SEC, groupLabels, normalizeGroups, nextInRound, restAfterTick } from './groups';
+export { GROUP_MAX, GROUP_MIN, GROUP_TRANSITION_SEC, groupLabels, normalizeGroups, validId, nextInRound, restAfterTick } from './groups';
 export type { GroupEx, IsDone, RestAfterTick } from './groups';

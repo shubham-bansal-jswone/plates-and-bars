@@ -1,5 +1,5 @@
 import type { Schemas } from '@plate-and-bar/api';
-import { EXERCISE_NAME_MAX, ROUTINE_EXERCISES_MAX, ROUTINE_MAX_LIVE, ROUTINE_NAME_MAX, ROUTINE_SETS_MAX, ROUTINE_SETS_MIN, isBlank, normalizeGroups } from '@plate-and-bar/core';
+import { EXERCISE_NAME_MAX, ROUTINE_EXERCISES_MAX, ROUTINE_MAX_LIVE, ROUTINE_NAME_MAX, ROUTINE_SETS_MAX, ROUTINE_SETS_MIN, isBlank, normalizeGroups, validId } from '@plate-and-bar/core';
 import { exclusive } from './exclusive';
 import { newId, type StoreDb } from './records';
 import type { WorkoutDb } from './workouts';
@@ -40,7 +40,7 @@ function checkExercises(list: RoutineExercise[]): RoutineExercise[] {
     const keys = Object.entries(e);
     if (keys.length > 20 || keys.some(([k, v]) => len(k) > 50 || (v !== null && !['boolean', 'number', 'string'].includes(typeof v)) || (typeof v === 'string' && len(v) > 200 && k !== 'name'))) throw new RoutineError('exercises');
     // A group id outside the contract pattern is refused (routines.json); a group that is not a valid run is repaired below.
-    if (e.group != null && !(typeof e.group === 'string' && /^[A-Za-z0-9_-]{1,36}$/u.test(e.group))) throw new RoutineError('exercises');
+    if (e.group != null && !validId(e.group)) throw new RoutineError('exercises');
     if (!Number.isInteger(e.sets) || e.sets < ROUTINE_SETS_MIN || e.sets > ROUTINE_SETS_MAX) throw new RoutineError('sets');
     if (seen.has(e.name)) continue;
     seen.add(e.name);
