@@ -1,5 +1,5 @@
 {
- "description": "Routine records (#1184, contract 0.1.27). A record is valid when its name is 1 to 60 code points (not UTF-16 units: 60 emoji pass, 61 fail) and not blank (blank-text.json pattern), it has 1 to 50 exercises, each with a non-blank name of 1 to 200 code points, an integer sets from 1 to 20, and at most 20 keys in total; an unlisted key is kept and its value must be a boolean, number, string or null. Only these fields are checked; id, version, updated_at, deleted_at and created_at follow SyncMeta. The cap section holds the 100-live-routine scenarios. Backend and app tests should load this file.",
+ "description": "Routine records (#1184, contract 0.1.27). A record is valid when its name is 1 to 60 code points (not UTF-16 units: 60 emoji pass, 61 fail) and not blank (blank-text.json pattern), it has 1 to 50 exercises, each with a non-blank name of 1 to 200 code points, an integer sets from 1 to 20, and at most 20 keys in total; an unlisted key is kept and its value must be a boolean, number, string or null. An exercise group, when present, is null or matches exercise-group.json (exercises.group). Only these fields are checked; id, version, updated_at, deleted_at and created_at follow SyncMeta. The cap section holds the 100-live-routine scenarios. Backend and app tests should load this file.",
  "limits": {
   "name_max": 60,
   "exercises_min": 1,
@@ -278,6 +278,42 @@
       "name": "Squat",
       "sets": 3,
       "group": "a"
+     }
+    ]
+   }
+  },
+  {
+   "note": "group id of 36 characters",
+   "record": {
+    "name": "R",
+    "exercises": [
+     {
+      "name": "Squat",
+      "sets": 3,
+      "group": "111111111111111111111111111111111111"
+     },
+     {
+      "name": "Row",
+      "sets": 3,
+      "group": "111111111111111111111111111111111111"
+     }
+    ]
+   }
+  },
+  {
+   "note": "group null (ungrouped)",
+   "record": {
+    "name": "R",
+    "exercises": [
+     {
+      "name": "Squat",
+      "sets": 3,
+      "group": null
+     },
+     {
+      "name": "Row",
+      "sets": 3,
+      "group": null
      }
     ]
    }
@@ -643,7 +679,7 @@
      {
       "name": "Squat",
       "sets": 3,
-      "group": {
+      "extra": {
        "a": 1
       }
      }

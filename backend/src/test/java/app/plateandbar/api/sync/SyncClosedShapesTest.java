@@ -123,4 +123,21 @@ class SyncClosedShapesTest {
         }
         assertThat(push(SyncTable.workouts, record)).as("more than 20 keys").isNotNull();
     }
+
+    /** WorkoutExercise.group (#1182, ADR 012): the vectors of the contract, through the real validator. */
+    @org.junit.jupiter.api.Test
+    void aWorkoutExerciseGroupFollowsTheContractVectors() throws Exception {
+        JsonNode file = new tools.jackson.databind.ObjectMapper().readTree(
+                java.nio.file.Files.readString(java.nio.file.Path.of("..", "packages", "api", "test-vectors", "exercise-group.json")));
+        ObjectNode record = SyncFixtures.oneOfEach(USER, AT).get(SyncTable.workouts);
+        ObjectNode exercise = (ObjectNode) record.get("exercises").get(0);
+        for (JsonNode v : file.path("valid")) {
+            exercise.set("group", v);
+            assertThat(push(SyncTable.workouts, record)).as("valid %s", v).isNull();
+        }
+        for (JsonNode v : file.path("invalid")) {
+            exercise.set("group", v);
+            assertThat(push(SyncTable.workouts, record)).as("invalid %s", v).isNotNull();
+        }
+    }
 }

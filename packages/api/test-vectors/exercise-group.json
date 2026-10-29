@@ -1,0 +1,5 @@
+{
+ "description": "WorkoutExercise.group and RoutineExercise.group (#1182, ADR 012, contract 0.1.28). An id is valid when it matches ^[A-Za-z0-9_-]{1,36}$ (ASCII letters, digits, underscore, hyphen; 1 to 36), or is null. Backend and app tests should load this file.",
+ "valid": ["a", "A1", "abc-123_X", "123456789012345678901234567890123456", "00000000-0000-4000-8000-000000000000", null],
+ "invalid": ["", "1234567890123456789012345678901234567", "a b", "a.b", "é", "ａ", "a\n", " a", 1, true, {}]
+}

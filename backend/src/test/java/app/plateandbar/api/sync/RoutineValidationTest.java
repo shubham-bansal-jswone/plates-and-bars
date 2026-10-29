@@ -70,4 +70,21 @@ class RoutineValidationTest {
         SyncRequestValidator.Parsed p = VALIDATOR.validate(USER, b, b.toString().getBytes(StandardCharsets.UTF_8));
         assertThat(p.maxLiveRoutines()).isEqualTo(RoutineVectors.FILE.path("limits").path("max_live_routines").asInt());
     }
+
+    /** RoutineExercise.group (#1182, ADR 012): the shared exercise-group vectors, through a routine exercise. */
+    @org.junit.jupiter.api.Test
+    void aRoutineExerciseGroupFollowsTheContractVectors() throws Exception {
+        JsonNode file = new tools.jackson.databind.ObjectMapper().readTree(
+                java.nio.file.Files.readString(java.nio.file.Path.of("..", "packages", "api", "test-vectors", "exercise-group.json")));
+        ObjectNode record = new tools.jackson.databind.ObjectMapper().createObjectNode().put("name", "R");
+        ObjectNode exercise = record.putArray("exercises").addObject().put("name", "Squat").put("sets", 3);
+        for (JsonNode v : file.path("valid")) {
+            exercise.set("group", v);
+            assertThat(validate(body(record))).as("valid %s", v).isNull();
+        }
+        for (JsonNode v : file.path("invalid")) {
+            exercise.set("group", v);
+            assertThat(validate(body(record))).as("invalid %s", v).isNotNull();
+        }
+    }
 }
