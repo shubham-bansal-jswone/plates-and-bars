@@ -1,5 +1,5 @@
 {
- "description": "Progress volume rules (#1351 C2, new, no prototype counterpart). weekly: sets per muscle for each of `weeks` Monday-weeks ending at the week containing `end` (oldest first), by the doneCoverage rule (work, done, not deleted, workout not deleted, exercise in the workout, primary 1, secondary 0.5, untagged nothing); every COVER_SHOW muscle is present, 0 when none (expected lists only the muscles below with every other muscle 0). The last week is the whole Monday-Sunday week (days after end count) and `partial` is true when end is not its Sunday. Tags: A chest/triceps, B quads/glutes, U untagged. vs_plan: avg over the last 4 complete (non-partial) weeks, gap = avg - target, below = target > 0 and avg < target, low = avg < 6 (COVER_LOW), barPct = min(100, avg/12*100); target is the CURRENT plan's (plannedCoverage). Weeks lists only some muscles; the rest are 0. since: the user's first logged workout date; weeks ending before it are not used, and the week containing it is partial unless it is a Monday; null means no history (weeksUsed 0, nothing below). A partial week is relative to the viewed date: a past date mid-week shows that week in progress as of that day.",
+ "description": "Progress volume rules (#1351 C2, new, no prototype counterpart). weekly: sets per muscle for each of `weeks` Monday-weeks ending at the week containing `end` (oldest first), by the doneCoverage rule (work, done, not deleted, workout not deleted, exercise in the workout, primary 1, secondary 0.5, untagged nothing); every COVER_SHOW muscle is present, 0 when none (expected lists only the muscles below with every other muscle 0). The last week is the whole Monday-Sunday week (days after end count) and `partial` is true when end is not its Sunday. Tags: A chest/triceps, B quads/glutes, U untagged. vs_plan: avg over the last 4 complete (non-partial) weeks, gap = avg - target, below = target > 0 and avg < target, low = avg < 6 (COVER_LOW), barPct = min(100, avg/12*100); target is the CURRENT plan's (plannedCoverage). Weeks lists only some muscles; the rest are 0. since: the user's first logged workout date; weeks ending before it are not used, and the week containing it is partial unless it is a Monday; null means no history (weeksUsed 0, nothing below). A partial week is relative to the viewed date: a past date mid-week shows that week in progress as of that day. An empty-string since is read as no history.",
  "tags": {
   "A": {
    "primary": [
@@ -1821,6 +1821,627 @@
       "below": false,
       "low": false,
       "barPct": 100
+     },
+     {
+      "muscle": "lats",
+      "avg": 0,
+      "target": 0,
+      "gap": 0,
+      "below": false,
+      "low": true,
+      "barPct": 0
+     },
+     {
+      "muscle": "upper-back",
+      "avg": 0,
+      "target": 0,
+      "gap": 0,
+      "below": false,
+      "low": true,
+      "barPct": 0
+     },
+     {
+      "muscle": "side-delt",
+      "avg": 0,
+      "target": 0,
+      "gap": 0,
+      "below": false,
+      "low": true,
+      "barPct": 0
+     },
+     {
+      "muscle": "rear-delt",
+      "avg": 0,
+      "target": 0,
+      "gap": 0,
+      "below": false,
+      "low": true,
+      "barPct": 0
+     },
+     {
+      "muscle": "biceps",
+      "avg": 0,
+      "target": 0,
+      "gap": 0,
+      "below": false,
+      "low": true,
+      "barPct": 0
+     },
+     {
+      "muscle": "triceps",
+      "avg": 0,
+      "target": 0,
+      "gap": 0,
+      "below": false,
+      "low": true,
+      "barPct": 0
+     },
+     {
+      "muscle": "quads",
+      "avg": 0,
+      "target": 0,
+      "gap": 0,
+      "below": false,
+      "low": true,
+      "barPct": 0
+     },
+     {
+      "muscle": "hams",
+      "avg": 0,
+      "target": 0,
+      "gap": 0,
+      "below": false,
+      "low": true,
+      "barPct": 0
+     },
+     {
+      "muscle": "glutes",
+      "avg": 0,
+      "target": 0,
+      "gap": 0,
+      "below": false,
+      "low": true,
+      "barPct": 0
+     },
+     {
+      "muscle": "calves",
+      "avg": 0,
+      "target": 0,
+      "gap": 0,
+      "below": false,
+      "low": true,
+      "barPct": 0
+     },
+     {
+      "muscle": "abs",
+      "avg": 0,
+      "target": 0,
+      "gap": 0,
+      "below": false,
+      "low": true,
+      "barPct": 0
+     }
+    ]
+   }
+  },
+  {
+   "note": "first workout on a Sunday (2026-10-11): the week of 10-05 is partial, 10-12 and 10-19 are used",
+   "weeks": [
+    {
+     "week": "2026-08-10",
+     "partial": false,
+     "sets": {
+      "chest": 0
+     }
+    },
+    {
+     "week": "2026-08-17",
+     "partial": false,
+     "sets": {
+      "chest": 0
+     }
+    },
+    {
+     "week": "2026-08-24",
+     "partial": false,
+     "sets": {
+      "chest": 0
+     }
+    },
+    {
+     "week": "2026-08-31",
+     "partial": false,
+     "sets": {
+      "chest": 0
+     }
+    },
+    {
+     "week": "2026-09-07",
+     "partial": false,
+     "sets": {
+      "chest": 0
+     }
+    },
+    {
+     "week": "2026-09-14",
+     "partial": false,
+     "sets": {
+      "chest": 0
+     }
+    },
+    {
+     "week": "2026-09-21",
+     "partial": false,
+     "sets": {
+      "chest": 0
+     }
+    },
+    {
+     "week": "2026-09-28",
+     "partial": false,
+     "sets": {
+      "chest": 0
+     }
+    },
+    {
+     "week": "2026-10-05",
+     "partial": false,
+     "sets": {
+      "chest": 0
+     }
+    },
+    {
+     "week": "2026-10-12",
+     "partial": false,
+     "sets": {
+      "chest": 12
+     }
+    },
+    {
+     "week": "2026-10-19",
+     "partial": false,
+     "sets": {
+      "chest": 12
+     }
+    },
+    {
+     "week": "2026-10-26",
+     "partial": true,
+     "sets": {
+      "chest": 0
+     }
+    }
+   ],
+   "planned": {
+    "chest": 12
+   },
+   "since": "2026-10-11",
+   "expected": {
+    "basis": "current-plan",
+    "weeksUsed": 2,
+    "rows": [
+     {
+      "muscle": "chest",
+      "avg": 12,
+      "target": 12,
+      "gap": 0,
+      "below": false,
+      "low": false,
+      "barPct": 100
+     },
+     {
+      "muscle": "lats",
+      "avg": 0,
+      "target": 0,
+      "gap": 0,
+      "below": false,
+      "low": true,
+      "barPct": 0
+     },
+     {
+      "muscle": "upper-back",
+      "avg": 0,
+      "target": 0,
+      "gap": 0,
+      "below": false,
+      "low": true,
+      "barPct": 0
+     },
+     {
+      "muscle": "side-delt",
+      "avg": 0,
+      "target": 0,
+      "gap": 0,
+      "below": false,
+      "low": true,
+      "barPct": 0
+     },
+     {
+      "muscle": "rear-delt",
+      "avg": 0,
+      "target": 0,
+      "gap": 0,
+      "below": false,
+      "low": true,
+      "barPct": 0
+     },
+     {
+      "muscle": "biceps",
+      "avg": 0,
+      "target": 0,
+      "gap": 0,
+      "below": false,
+      "low": true,
+      "barPct": 0
+     },
+     {
+      "muscle": "triceps",
+      "avg": 0,
+      "target": 0,
+      "gap": 0,
+      "below": false,
+      "low": true,
+      "barPct": 0
+     },
+     {
+      "muscle": "quads",
+      "avg": 0,
+      "target": 0,
+      "gap": 0,
+      "below": false,
+      "low": true,
+      "barPct": 0
+     },
+     {
+      "muscle": "hams",
+      "avg": 0,
+      "target": 0,
+      "gap": 0,
+      "below": false,
+      "low": true,
+      "barPct": 0
+     },
+     {
+      "muscle": "glutes",
+      "avg": 0,
+      "target": 0,
+      "gap": 0,
+      "below": false,
+      "low": true,
+      "barPct": 0
+     },
+     {
+      "muscle": "calves",
+      "avg": 0,
+      "target": 0,
+      "gap": 0,
+      "below": false,
+      "low": true,
+      "barPct": 0
+     },
+     {
+      "muscle": "abs",
+      "avg": 0,
+      "target": 0,
+      "gap": 0,
+      "below": false,
+      "low": true,
+      "barPct": 0
+     }
+    ]
+   }
+  },
+  {
+   "note": "first workout on Sunday 2026-10-18: only 10-19 is used",
+   "weeks": [
+    {
+     "week": "2026-08-10",
+     "partial": false,
+     "sets": {
+      "chest": 0
+     }
+    },
+    {
+     "week": "2026-08-17",
+     "partial": false,
+     "sets": {
+      "chest": 0
+     }
+    },
+    {
+     "week": "2026-08-24",
+     "partial": false,
+     "sets": {
+      "chest": 0
+     }
+    },
+    {
+     "week": "2026-08-31",
+     "partial": false,
+     "sets": {
+      "chest": 0
+     }
+    },
+    {
+     "week": "2026-09-07",
+     "partial": false,
+     "sets": {
+      "chest": 0
+     }
+    },
+    {
+     "week": "2026-09-14",
+     "partial": false,
+     "sets": {
+      "chest": 0
+     }
+    },
+    {
+     "week": "2026-09-21",
+     "partial": false,
+     "sets": {
+      "chest": 0
+     }
+    },
+    {
+     "week": "2026-09-28",
+     "partial": false,
+     "sets": {
+      "chest": 0
+     }
+    },
+    {
+     "week": "2026-10-05",
+     "partial": false,
+     "sets": {
+      "chest": 0
+     }
+    },
+    {
+     "week": "2026-10-12",
+     "partial": false,
+     "sets": {
+      "chest": 12
+     }
+    },
+    {
+     "week": "2026-10-19",
+     "partial": false,
+     "sets": {
+      "chest": 12
+     }
+    },
+    {
+     "week": "2026-10-26",
+     "partial": true,
+     "sets": {
+      "chest": 0
+     }
+    }
+   ],
+   "planned": {
+    "chest": 12
+   },
+   "since": "2026-10-18",
+   "expected": {
+    "basis": "current-plan",
+    "weeksUsed": 1,
+    "rows": [
+     {
+      "muscle": "chest",
+      "avg": 12,
+      "target": 12,
+      "gap": 0,
+      "below": false,
+      "low": false,
+      "barPct": 100
+     },
+     {
+      "muscle": "lats",
+      "avg": 0,
+      "target": 0,
+      "gap": 0,
+      "below": false,
+      "low": true,
+      "barPct": 0
+     },
+     {
+      "muscle": "upper-back",
+      "avg": 0,
+      "target": 0,
+      "gap": 0,
+      "below": false,
+      "low": true,
+      "barPct": 0
+     },
+     {
+      "muscle": "side-delt",
+      "avg": 0,
+      "target": 0,
+      "gap": 0,
+      "below": false,
+      "low": true,
+      "barPct": 0
+     },
+     {
+      "muscle": "rear-delt",
+      "avg": 0,
+      "target": 0,
+      "gap": 0,
+      "below": false,
+      "low": true,
+      "barPct": 0
+     },
+     {
+      "muscle": "biceps",
+      "avg": 0,
+      "target": 0,
+      "gap": 0,
+      "below": false,
+      "low": true,
+      "barPct": 0
+     },
+     {
+      "muscle": "triceps",
+      "avg": 0,
+      "target": 0,
+      "gap": 0,
+      "below": false,
+      "low": true,
+      "barPct": 0
+     },
+     {
+      "muscle": "quads",
+      "avg": 0,
+      "target": 0,
+      "gap": 0,
+      "below": false,
+      "low": true,
+      "barPct": 0
+     },
+     {
+      "muscle": "hams",
+      "avg": 0,
+      "target": 0,
+      "gap": 0,
+      "below": false,
+      "low": true,
+      "barPct": 0
+     },
+     {
+      "muscle": "glutes",
+      "avg": 0,
+      "target": 0,
+      "gap": 0,
+      "below": false,
+      "low": true,
+      "barPct": 0
+     },
+     {
+      "muscle": "calves",
+      "avg": 0,
+      "target": 0,
+      "gap": 0,
+      "below": false,
+      "low": true,
+      "barPct": 0
+     },
+     {
+      "muscle": "abs",
+      "avg": 0,
+      "target": 0,
+      "gap": 0,
+      "below": false,
+      "low": true,
+      "barPct": 0
+     }
+    ]
+   }
+  },
+  {
+   "note": "since after the viewed date: no week is usable, nothing below",
+   "weeks": [
+    {
+     "week": "2026-08-10",
+     "partial": false,
+     "sets": {
+      "chest": 0
+     }
+    },
+    {
+     "week": "2026-08-17",
+     "partial": false,
+     "sets": {
+      "chest": 0
+     }
+    },
+    {
+     "week": "2026-08-24",
+     "partial": false,
+     "sets": {
+      "chest": 0
+     }
+    },
+    {
+     "week": "2026-08-31",
+     "partial": false,
+     "sets": {
+      "chest": 0
+     }
+    },
+    {
+     "week": "2026-09-07",
+     "partial": false,
+     "sets": {
+      "chest": 0
+     }
+    },
+    {
+     "week": "2026-09-14",
+     "partial": false,
+     "sets": {
+      "chest": 0
+     }
+    },
+    {
+     "week": "2026-09-21",
+     "partial": false,
+     "sets": {
+      "chest": 0
+     }
+    },
+    {
+     "week": "2026-09-28",
+     "partial": false,
+     "sets": {
+      "chest": 0
+     }
+    },
+    {
+     "week": "2026-10-05",
+     "partial": false,
+     "sets": {
+      "chest": 0
+     }
+    },
+    {
+     "week": "2026-10-12",
+     "partial": false,
+     "sets": {
+      "chest": 12
+     }
+    },
+    {
+     "week": "2026-10-19",
+     "partial": false,
+     "sets": {
+      "chest": 12
+     }
+    },
+    {
+     "week": "2026-10-26",
+     "partial": true,
+     "sets": {
+      "chest": 0
+     }
+    }
+   ],
+   "planned": {
+    "chest": 12
+   },
+   "since": "2026-11-05",
+   "expected": {
+    "basis": "current-plan",
+    "weeksUsed": 0,
+    "rows": [
+     {
+      "muscle": "chest",
+      "avg": 0,
+      "target": 12,
+      "gap": -12,
+      "below": false,
+      "low": true,
+      "barPct": 0.0
      },
      {
       "muscle": "lats",

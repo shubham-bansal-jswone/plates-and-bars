@@ -68,8 +68,8 @@ describe('volumeVsPlan (#1351 C2)', () => {
     expect(r.rows[0]).toMatchObject({ avg: 4, gap: 0, below: false });
   });
 
-  it('since undefined behaves as no history', () => {
-    expect(volumeVsPlan([{ week: 'a', partial: false, sets: { chest: 5 } }], { chest: 9 }, undefined).weeksUsed).toBe(0);
+  it('an empty since behaves as no history', () => {
+    expect(volumeVsPlan([{ week: 'a', partial: false, sets: { chest: 5 } }], { chest: 9 }, '').weeksUsed).toBe(0);
   });
 
   it('no complete week: zeros, nothing below', () => {

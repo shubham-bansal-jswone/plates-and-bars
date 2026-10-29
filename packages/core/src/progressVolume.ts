@@ -92,15 +92,15 @@ export interface VolumeVsPlanResult {
  *
  * A week is usable when it is not `partial` (a Tuesday must not read as under target) and it does not end before
  * `since`, the date of the user's first logged workout (zeros from before the user started are not misses). The
- * week containing `since` counts as partial unless `since` is its Monday. `since` is null or undefined when there
- * is no history: then `weeksUsed` is 0, averages are 0 and nothing is flagged below. Fewer than 4 usable weeks are
+ * week containing `since` counts as partial unless `since` is its Monday. `since` is null when there
+ * is no history (an empty string counts as null): then `weeksUsed` is 0, averages are 0 and nothing is flagged below. Fewer than 4 usable weeks are
  * averaged as they are.
  *
  * New rule (#1351 C2). Mirrors `coverageRows` for `low` and `barPct`.
  */
-export function volumeVsPlan(weeks: readonly WeekSets[], planned: Readonly<MuscleSets>, since: string | null | undefined): VolumeVsPlanResult {
+export function volumeVsPlan(weeks: readonly WeekSets[], planned: Readonly<MuscleSets>, since: string | null): VolumeVsPlanResult {
   const used = since
-    ? weeks.filter((w) => !w.partial && addDays(w.week, 6) >= since && !(since > w.week)).slice(-VOLUME_AVG_WEEKS)
+    ? weeks.filter((w) => !w.partial && w.week >= since).slice(-VOLUME_AVG_WEEKS)
     : [];
   const rows = COVER_SHOW.map((muscle) => {
     const avg = used.length ? used.reduce((a, w) => a + (w.sets[muscle] || 0), 0) / used.length : 0;
