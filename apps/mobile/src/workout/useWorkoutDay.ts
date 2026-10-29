@@ -38,7 +38,7 @@ import { rangesOf } from './adjust';
 import { guidance, progressionContext, type Tuning } from './guidance';
 import { cantChange, persistCant } from './cantApply';
 import { dayQueue, dayWrites, enqueueDay } from './dayQueue';
-import { blankRow, carryOnto, exerciseRecord, exercisesFrom, isCardioOnly, mergeWorkout, setRecord, stamp, unversioned, type ExState, type Row } from './model';
+import { blankRow, carryOnto, exerciseRecord, exercisesFrom, fixExGroups, isCardioOnly, mergeWorkout, setRecord, stamp, unversioned, type ExState, type Row } from './model';
 import type { Workout } from './types';
 
 export interface Day {
@@ -688,7 +688,7 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
     const d = clone(ref.current);
     const gone = d.exs.find((e) => e.name === name);
     if (!gone || !d.workout) return false;
-    d.exs = d.exs.filter((e) => e.name !== name);
+    d.exs = fixExGroups(d.exs.filter((e) => e.name !== name)); // a group left with under 2 members is dissolved
     const last = d.exs.length === 0;
     // The last exercise out ends the session, not the cardio minutes (prototype delex): they stay as a cardio-only day.
     const cardio = d.workout.cardio_min;

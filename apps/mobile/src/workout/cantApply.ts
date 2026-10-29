@@ -2,7 +2,7 @@ import { cantSession, type CantDraft, type Exclusion, type LiftRecord, type NewC
 import { newId } from '../db/records';
 import { loadLifts, loadSets, loadWorkout, saveSet, saveWorkout, type WorkoutDb } from '../db/workouts';
 import { getCatalog } from './catalog';
-import { mergeWorkout, stamp, unversioned } from './model';
+import { fixGroups, mergeWorkout, stamp, unversioned } from './model';
 import type { Workout, WorkoutSet } from './types';
 import { inTransaction, type PullDb } from '../db/outbox';
 import { enqueueDay } from './dayQueue';
@@ -17,6 +17,21 @@ export interface CantChange {
   removed: WorkoutSet[];
   /** New blank sets, with ids. */
   added: WorkoutSet[];
+}
+
+/**
+ * A swap keeps the group: a new exercise takes the group of the one it replaced (paired in order when as many left as came in), or, when
+ * the old one stayed because it had ticked sets, of the exercise before it. Groups that no longer hold are dissolved by `fixGroups`.
+ */
+function keepGroups(before: Workout['exercises'], after: Workout['exercises']): Workout['exercises'] {
+  const was = new Set(before.map((e) => e.name));
+  const left = before.filter((e) => !after.some((x) => x.name === e.name));
+  const fresh = after.filter((e) => !was.has(e.name));
+  return after.map((e, p) => {
+    if (was.has(e.name)) return e;
+    const from = left.length ? (left.length === fresh.length ? left[fresh.indexOf(e)] : undefined) : after[p - 1];
+    return from?.group ? { ...e, group: from.group } : e;
+  });
 }
 
 /**
@@ -45,7 +60,7 @@ export function cantChange(
     return rec;
   });
   return {
-    exercises: res.exercises as Workout['exercises'],
+    exercises: fixGroups(keepGroups(workout.exercises, res.exercises as Workout['exercises'])),
     sets: all.filter((s) => !s.deleted_at),
     changed: res.changed.map((s) => ({ ...s, updated_at: at })),
     removed: res.removed.map((s) => ({ ...s, updated_at: at, deleted_at: at })),

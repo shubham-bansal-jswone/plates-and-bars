@@ -18,6 +18,8 @@ export interface WorkoutExercise {
   skip_ramp: boolean;
   /** Where the last set was felt: 'target', 'pain', or the index of the card's `misplaced_feel` entry (#485). */
   feel?: string | null;
+  /** Exercise group (superset) id, `^[A-Za-z0-9_-]{1,36}$`; null or absent is ungrouped. Ungrouping is written as an explicit null (ADR 012). */
+  group?: string | null;
 }
 
 /** Contract `Workout`: one per day. */

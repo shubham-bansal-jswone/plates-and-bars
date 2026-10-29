@@ -329,6 +329,20 @@ describe('add and remove exercises (#147)', () => {
     expect((await loadLifts(db))[name]).toBeUndefined(); // its only session was this one
   });
 
+  it('removing a member of a two-exercise group dissolves it, stored with an explicit null (#1182)', async () => {
+    const { db } = await started();
+    const w = (await loadWorkout(db, DATE))!;
+    await saveWorkout(db, { ...w, exercises: w.exercises.map((e, i) => (i < 2 ? { ...e, group: 'g1' } : e)), updated_at: '2026-10-08T09:30:00Z' });
+    const opts = { db, profile, now: NOW, focus: [], adjustments: {}, notify: jest.fn(), startRest: jest.fn(), exclusions: [], swaps: [], saveRule: jest.fn(), tune: {} } as unknown as Parameters<typeof useWorkoutDay>[0];
+    const fresh = await renderHook(() => useWorkoutDay({ ...opts, reloadKey: 0 }));
+    await waitFor(() => expect(fresh.result.current.day.exs[0]?.group).toBe('g1'));
+    const [a, b] = fresh.result.current.day.exs;
+    await act(async () => void fresh.result.current.removeExercise(a!.name));
+    await settle();
+    expect(fresh.result.current.day.exs.find((e) => e.name === b!.name)?.group).toBeNull();
+    expect((await loadWorkout(db, DATE))!.exercises.find((e) => e.name === b!.name)).toHaveProperty('group', null);
+  });
+
   it('removing the last exercise deletes today\'s workout so a new session can start', async () => {
     const { db, result } = await started();
     for (const e of [...result.current.day.exs]) await act(async () => void result.current.removeExercise(e.name));
