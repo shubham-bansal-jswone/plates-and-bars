@@ -3,9 +3,9 @@ import { restAfterTick, restFor } from '@plate-and-bar/core';
 import { loadWorkout, saveWorkout } from '../src/db/workouts';
 import { getCatalog } from '../src/workout/catalog';
 import { dayQueue } from '../src/workout/dayQueue';
-import type { RestNext } from '../src/workout/parts';
+import type { RestNext, RestState } from '../src/workout/parts';
 import { parseRest } from '../src/workout/restStore';
-import { restRetarget, restTarget } from '../src/workout/restNext';
+import { renameSwapped, restRetarget, restTarget } from '../src/workout/restNext';
 import { useWorkoutDay } from '../src/workout/useWorkoutDay';
 import { buildProfile, emptyDraft } from '../src/setup/logic';
 import { openDb } from './sync-helpers';
@@ -411,15 +411,41 @@ describe('the dock follows the session by position (#1329)', () => {
     expect(restRetarget([ex('B', true), ex('B', false)], r)).toMatchObject({ at: { i: 1, name: 'B' }, from: ['B'] });
   });
 
-  it('with row ids, an entry whose rows are all gone is found by name without trusting at.i', () => {
+  it('with row ids shared by two copies of a name (as a load builds them): the position rule picks the copy', () => {
+    const cp = (name: string, ...done: boolean[]) => ({ name, sets: done.map((d, k) => ({ done: d, id: `${name}-${k}` })) }) as never;
+    const ids = [['MCP-0', 'MCP-1', 'MCP-2']];
+    // The last copy finished (the first is open and holds the same rows): the dock closes (#1329).
+    const last = { ...at(4, 'MCP', { ex: 4, set: 2, name: 'MCP' }, 'Next: set 3 of MCP', ['MCP']), ids };
+    expect(restRetarget([cp('MCP', false, false, false), cp('LP', true), cp('SDP', true), cp('SCR', true), cp('MCP', true, true, true)], last)).toBeNull();
+    // The first copy finished while the second is open: the dock keeps naming it, not the exercise after.
+    const first = { ...at(0, 'MCP', { ex: 0, set: 0, name: 'MCP' }, 'Next: MCP', ['MCP', 'MCP', 'SDP']), ids: [ids[0]!, ids[0]!, ['SDP-0']] };
+    expect(restRetarget([cp('MCP', true, true, true), cp('MCP', false, false, false), cp('SDP', false)], first)).toMatchObject({ label: 'Next: MCP', at: { i: 1, name: 'MCP' } });
+  });
+
+  it('with row ids, an entry whose rows are gone is found by position (at.i, then the first copy)', () => {
     const r = { ...at(2, 'B', { ex: 2, set: 0, name: 'B' }, 'Next: set 1 of B', ['B']), ids: [['gone']] };
-    expect(restRetarget([ex('B', false), ex('X', true), ex('B', true)], r)).toBe(r);
+    expect(restRetarget([ex('B', false), ex('X', true), ex('B', true)], r)).toBeNull();
   });
 
   it('with row ids, an entry renamed by a swap (its old exercise stays, finished) is found by its new name', () => {
     const r = { ...at(0, 'Press', { ex: 0, set: 1, name: 'Press' }, 'Next: Seated', ['Seated', 'Fly']), ids: [['p1', 'p2'], ['f1']] };
     const exs = [{ name: 'Press', sets: [{ done: true, id: 'p1' }] }, { name: 'Seated', sets: [{ done: false, id: 'n1' }] }, { name: 'Fly', sets: [{ done: false, id: 'f1' }] }] as never;
-    expect(restRetarget(exs, r)).toBe(r);
+    expect(restRetarget(exs, r)).toMatchObject({ label: 'Next: Seated', at: { i: 1, name: 'Seated' } });
+  });
+
+  it('a swap renames only the entries holding the swapped rows (a pull inserted another copy of the name)', () => {
+    const r: RestState = { id: 1, end: 5000, total: 90, label: 'Next: D', date: DATE, from: ['D', 'C', 'A'], ids: [['d1', 'd2'], ['c1'], ['a1']] };
+    expect(renameSwapped(r, 'D', ['d9'], 'S0')).toBe(r);
+    // [A, D(2), C, B, A, A] with the first A ticked, another D pulled in at the end and swapped: the dock still names the open D at index 1.
+    const rows = (n: string, ...id: string[]) => ({ name: n, sets: id.map((i) => ({ done: false, id: i })) }) as never;
+    const exs = [{ name: 'A', sets: [{ done: true, id: 'a0' }] }, rows('D', 'd1', 'd2'), rows('C', 'c1'), rows('B', 'b1'), rows('A', 'a1'), rows('A', 'a2'), rows('S0', 'n1')] as never;
+    expect(restRetarget(exs, renameSwapped(r, 'D', ['d9'], 'S0') as never)).toMatchObject({ label: 'Next: D', at: { i: 1, name: 'D' } });
+    expect(renameSwapped(r, 'D', ['d2'], 'S0')).toMatchObject({ label: 'Next: S0', from: ['S0', 'C', 'A'] });
+    expect(renameSwapped(r, 'A', ['a1'], 'S0')).toMatchObject({ label: 'Next: D', from: ['D', 'C', 'S0'] });
+    // Swapped twice (the replacement has fresh rows): the renamed entry dropped its old rows, so the second swap still finds it.
+    expect(renameSwapped(renameSwapped(r, 'D', ['d2'], 'S0'), 'S0', ['n1'], 'S1')).toMatchObject({ label: 'Next: S1', from: ['S1', 'C', 'A'] });
+    const { ids: _ids, ...old } = r;
+    expect(renameSwapped(old, 'D', ['x'], 'S0')).toMatchObject({ from: ['S0', 'C', 'A'] });
   });
 
   it('a stored rest with row ids parses; ids of the wrong shape or length are rejected', () => {

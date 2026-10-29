@@ -38,7 +38,7 @@ import { focusNode } from '../labelscan/focus';
 import { LibraryEntryButton } from '../library/LibraryEntryButton';
 import { Hero, IndexThumb, SegmentBar, StartButton } from '../workout/SessionHeader';
 import { HowToSheet, RestBar, ToastBar, type RestNext, type RestState } from '../workout/parts';
-import { restRetarget } from '../workout/restNext';
+import { renameSwapped, restRetarget } from '../workout/restNext';
 import { useRestNotification } from '../reminders/useRestNotification';
 import { usePersistedRest } from '../workout/restStore';
 import { useRules } from '../workout/useRules';
@@ -145,8 +145,11 @@ export function WorkoutScreen({ db, now = () => new Date() }: Props) {
           lifts={day.lifts}
           setsFor={(m) => planned()[m] ?? 0}
           onPick={(draft, choice) => {
-            // Renames the swapped exercise in the rest dock's list (it tracks names). The label changes only when it named that exercise: the replacement starts at set 1.
-            if (cantName && choice) setRest((r) => (r?.from?.includes(cantName.name) && r.date === v.date ? { ...r, ...(r.from[0] === cantName.name ? { label: `Next: ${choice}` } : {}), from: r.from.map((n) => (n === cantName.name ? choice : n)) } : r));
+            // Renames the swapped exercise in the rest dock's list (by its set rows when the list has them). The label changes only when it named that exercise: the replacement starts at set 1.
+            if (cantName && choice) {
+              const rows = (day.exs[cantName.i]?.sets ?? []).map((x) => x.id);
+              setRest((r) => (r?.from && r.date === v.date ? renameSwapped(r, cantName.name, rows, choice) : r));
+            }
             w.cant(cantName ? cantName.i : null, draft, choice);
             setCantName(null);
           }}

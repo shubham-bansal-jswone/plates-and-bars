@@ -1,6 +1,6 @@
 import { groupLabels, nextInRound } from '@plate-and-bar/core';
 import type { ExState } from './model';
-import type { RestNext } from './parts';
+import type { RestNext, RestState } from './parts';
 
 type Exs = readonly Pick<ExState, 'name' | 'group' | 'sets'>[];
 const gx = (exs: Exs) => exs.map((e) => ({ name: e.name, sets: e.sets.length, group: e.group }));
@@ -27,10 +27,11 @@ const open = (e: Exs[number]) => e.sets.some((x) => !x.done);
 
 /**
  * The ungrouped dock, exactly as before groups: the first name in `from` with an undone set becomes the label ('Next: Name') and the list is cut to start
- * there; none left closes it; while the first is still open nothing changes. Each entry is found by the set row ids it had at the tick (`r.ids`), so an
- * insert or removal elsewhere, or a can't-do swap, cannot move it; this is what tells two exercises with one name apart (#1329). Only an entry whose rows
- * are all gone (removed, replaced by fresh rows, or renamed by a swap) is looked for by name, after the exercise matched before it and before the next one found by rows.
- * An older stored rest has no ids: its names are matched in order from the first one's place `at.i` (the last copy at or before it, else the start).
+ * there; none left closes it; while the first is still open nothing changes. An entry is found by the set row ids it had at the tick (`r.ids`) when exactly
+ * one exercise of that name holds them, so an insert or removal elsewhere cannot move it. Otherwise (no holder: removed, fresh rows or renamed by a swap;
+ * or several: two exercises with one name share rows after a load, #1340) it is found by position: the first one's place is the last copy of its name at
+ * or before `at.i` (kept current here), else the first; each later entry is the first match after the previous one and before the next one found by
+ * rows. That is what tells same-named exercises apart (#1329); a finished one is never stood in for by a later copy.
  */
 function retargetNames(exs: Exs, r: RestNext): RestNext | null {
   const from = r.from!;
@@ -39,9 +40,11 @@ function retargetNames(exs: Exs, r: RestNext): RestNext | null {
   const at = r.at?.i ?? 0;
   const copies = exs.flatMap((e, m) => (e.name === head ? [m] : []));
   const lo = copies.length === 0 ? 0 : (copies.filter((m) => m <= at).pop() ?? 0);
-  // An entry renamed since (a swap: the screen renames it in `from`) no longer names the exercise that holds its rows: it is looked for by name.
-  const byRows = from.map((n, j) => (ids?.[j]?.length ? exs.findIndex((e) => e.name === n && e.sets.some((x) => ids[j]!.includes(x.id))) : -1));
-  let prev = ids ? -1 : lo - 1;
+  const byRows = from.map((n, j) => {
+    const held = exs.flatMap((e, m) => (e.name === n && e.sets.some((x) => ids?.[j]?.includes(x.id)) ? [m] : []));
+    return held.length === 1 ? held[0]! : -1;
+  });
+  let prev = lo - 1;
   const pos = from.map((n, j) => {
     let m = byRows[j]!;
     if (m < 0) {
@@ -55,8 +58,19 @@ function retargetNames(exs: Exs, r: RestNext): RestNext | null {
   if (j < 0) return null;
   const p = pos[j]!;
   const first = from[j]!;
-  if (j === 0) return ids || p === r.at?.i ? r : { ...r, at: { i: p, name: head } };
+  if (j === 0) return p === r.at?.i ? r : { ...r, at: { i: p, name: head } };
   return { ...r, from: from.slice(j), ...(ids ? { ids: ids.slice(j) } : {}), at: { i: p, name: first }, to: { ex: p, set: exs[p]!.sets.findIndex((x) => !x.done), name: first }, label: `Next: ${first}` };
+}
+
+/**
+ * A can't-do swap of the exercise `name` that holds the set rows `rows`: the entries of the rest's list that named it now name `choice`. With row ids only the
+ * entries holding those rows (not another copy of the name), or having none left (renamed before); an older rest (no ids) renames by name. A renamed entry
+ * drops its ids (the replacement has fresh rows), so it is found by name. The label changes when the first entry was renamed.
+ */
+export function renameSwapped(r: RestState, name: string, rows: readonly string[], choice: string): RestState {
+  const hit = (n: string, k: number) => n === name && (!r.ids || !r.ids[k]?.length || r.ids[k]!.some((id) => rows.includes(id)));
+  if (!r.from?.some(hit)) return r;
+  return { ...r, ...(hit(r.from[0]!, 0) ? { label: `Next: ${choice}` } : {}), from: r.from.map((n, k) => (hit(n, k) ? choice : n)), ...(r.ids ? { ids: r.ids.map((l, k) => (hit(r.from![k]!, k) ? [] : l)) } : {}) };
 }
 
 /**
