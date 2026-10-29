@@ -1,5 +1,5 @@
 import measuresContent from '../../../../content/measures.json';
-import { KCAL_PER_KG, KCAL_PER_LB, RAPID_LOSS_KCAL, type MeasureKey, type WeightUnit } from '@plate-and-bar/core';
+import { KCAL_PER_KG, KCAL_PER_LB, RAPID_LOSS_KCAL, type MeasureKey, type SeriesRange, type WeightUnit } from '@plate-and-bar/core';
 import { contentReader, isObj, isStr, isTrimmedText, perLoad } from '../content/reader';
 
 /** One tape measure from content/measures.json. */
@@ -62,8 +62,24 @@ export const BF_NO_PROFILE = 'Run setup (Targets tab) and add waist and neck for
 export const STEPS_BAD = 'Enter steps as a whole number, like 8000.';
 export const SLEEP_BAD = 'Enter hours slept, like 7.5.';
 export const TREND_NONE = 'Log a few weigh-ins to see your trend line here.';
+export const WAIST_TREND_NONE = 'Log a few waist measurements to see your trend line here.';
+export const RECENT_WEIGH_INS_TITLE = 'Recent weigh-ins';
 export const SCALE_JUMP_TITLE = (amount: string, unit: WeightUnit = 'kg'): string => `The scale went up ${amount} ${unit}`;
 export const SCALE_JUMP_BODY = 'That’s almost certainly water, not fat. Your weekly average is what counts.';
+
+// Chart range control and table alternative (#1351 A1).
+export const RANGE_LABEL: Readonly<Record<SeriesRange, string>> = { '4w': '4 weeks', '12w': '12 weeks', all: 'All' };
+export const RANGE_NO_DATA = (range: SeriesRange): string => `${RANGE_LABEL[range]}: not enough data`;
+export const RANGE_OFF_LABEL = (range: SeriesRange): string => `${RANGE_LABEL[range]}, not enough data`;
+export const RANGE_GROUP = (noun: string): string => `${noun} range`;
+export const CHART_TARGET = (value: string, unit: string): string => `Target ${value} ${unit}`;
+export const TABLE_SHOW = 'Show as table';
+export const TABLE_HIDE = 'Hide table';
+export const TABLE_SHOW_ALL = 'Show all';
+export const TABLE_SHOW_RECENT = (n: number): string => `Show last ${n}`;
+export const TABLE_DATE = 'Date';
+export const TABLE_LABEL = (noun: string): string => `${noun} values by date`;
+export const TREND_SUMMARY = (noun: string, first: number, last: number, unit: string): string => `${noun} from ${first} to ${last} ${unit}`;
 
 // Weekly check-in, burn card and habits (prototype `renderCheckin`, `consistencyHtml`).
 export const CHECKIN_TITLE = 'Weekly check-in';

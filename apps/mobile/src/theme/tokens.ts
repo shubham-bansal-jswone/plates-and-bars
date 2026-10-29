@@ -137,6 +137,9 @@ export const radius = { sm: 10, md: 14, lg: 20, full: 9999 } as const;
 /** Spacing scale. */
 export const space = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32, xxxl: 48 } as const;
 
+/** Widest a progress chart (and its range control) is drawn, px: on a wide screen it stays a readable shape instead of stretching with the card. */
+export const CHART_MAX_WIDTH = 560;
+
 export type FontWeight = '300' | '400' | '500' | '600' | '700' | '800' | '900';
 
 export interface TextStyleToken {
