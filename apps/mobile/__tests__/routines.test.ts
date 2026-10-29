@@ -268,7 +268,7 @@ describe('routines in the device export and restore', () => {
       expect((await storedRoutines(dst)).every(contractOk)).toBe(true);
     });
 
-    it.each<[string, Row]>([['exercises is a string', { exercises: 'x' }], ['exercises is missing', { exercises: undefined }], ['name is a number', { name: 5 }], ['name is missing', { name: undefined }]])(
+    it.each<[string, Row]>([['exercises is a string', { exercises: 'x' }], ['exercises is missing', { exercises: undefined }], ['name is a number', { name: 5 }], ['name is missing', { name: undefined }], ['name is null', { name: null }], ['exercises is [null]', { exercises: [null] }], ['exercises is [1]', { exercises: [1] }]])(
       'a routine whose %s is skipped and counted, and the rest of the file restores',
       async (_n, bad) => {
         const { list, summary } = await restored(await fileWith([bad, {}]));
@@ -276,6 +276,10 @@ describe('routines in the device export and restore', () => {
         expect(summary.tables.routines).toMatchObject({ added: 1, invalid: 1 });
       },
     );
+
+    it('a routine whose id is not a UUID refuses the whole file', async () => {
+      await expect(parseRestore(await fileWith([{ id: 'not-a-uuid' }, {}]))).rejects.toMatchObject({ code: 'bad_rows' });
+    });
 
     it('a routine without created_at is skipped', async () => {
       const { list, summary } = await restored(await fileWith([{ created_at: undefined }]));
