@@ -9,7 +9,7 @@ const g = JSON.parse(readFileSync(resolve(__dirname, '../../../docs/spec/golden/
   tags: Record<string, { primary: string[]; secondary: string[] }>;
   avg_weeks: number;
   weekly: { note: string; end: string; weeks: number; days: CoverageDay[]; expected: WeekSets[] }[];
-  vs_plan: { note: string; weeks: { week: string; partial: boolean; sets: MuscleSets }[]; planned: MuscleSets; expected: ReturnType<typeof volumeVsPlan> }[];
+  vs_plan: { note: string; weeks: { week: string; partial: boolean; sets: MuscleSets }[]; planned: MuscleSets; since: string | null; expected: ReturnType<typeof volumeVsPlan> }[];
 };
 const tags = g.tags as never;
 const ws = (rows: { week: string; partial: boolean; sets: MuscleSets }[]): WeekSets[] => rows;
@@ -55,7 +55,7 @@ describe('weeklyDoneSets (#1351 C2)', () => {
 
 describe('volumeVsPlan (#1351 C2)', () => {
   it.each(g.vs_plan.map((c) => [c.note, c] as const))('%s', (_n, c) => {
-    const r = volumeVsPlan(ws(c.weeks), c.planned);
+    const r = volumeVsPlan(ws(c.weeks), c.planned, c.since);
     expect(r.basis).toBe(c.expected.basis);
     expect(r.weeksUsed).toBe(c.expected.weeksUsed);
     expect(r.rows.map((x) => x.muscle)).toEqual([...COVER_SHOW]);
@@ -63,20 +63,24 @@ describe('volumeVsPlan (#1351 C2)', () => {
   });
 
   it('averages fewer weeks as they are', () => {
-    const r = volumeVsPlan([{ week: '2026-10-19', partial: false, sets: { chest: 4 } }, { week: '2026-10-26', partial: true, sets: { chest: 0 } }], { chest: 4 });
+    const r = volumeVsPlan([{ week: '2026-10-19', partial: false, sets: { chest: 4 } }, { week: '2026-10-26', partial: true, sets: { chest: 0 } }], { chest: 4 }, '2026-10-01');
     expect(r.weeksUsed).toBe(1);
     expect(r.rows[0]).toMatchObject({ avg: 4, gap: 0, below: false });
   });
 
+  it('since undefined behaves as no history', () => {
+    expect(volumeVsPlan([{ week: 'a', partial: false, sets: { chest: 5 } }], { chest: 9 }, undefined).weeksUsed).toBe(0);
+  });
+
   it('no complete week: zeros, nothing below', () => {
-    const r = volumeVsPlan([{ week: '2026-10-26', partial: true, sets: { chest: 3 } }], { chest: 9 });
+    const r = volumeVsPlan([{ week: '2026-10-26', partial: true, sets: { chest: 3 } }], { chest: 9 }, '2026-10-01');
     expect(r.weeksUsed).toBe(0);
     expect(r.rows[0]).toMatchObject({ avg: 0, target: 9, gap: -9, below: false });
-    expect(volumeVsPlan([], {}).weeksUsed).toBe(0);
+    expect(volumeVsPlan([], {}, '2026-10-01').weeksUsed).toBe(0);
   });
 
   it('exactly on target is not below; half sets average through', () => {
-    const r = volumeVsPlan([{ week: 'a', partial: false, sets: { chest: 5.5 } }, { week: 'b', partial: false, sets: { chest: 6 } }], { chest: 5.75 });
+    const r = volumeVsPlan([{ week: 'a', partial: false, sets: { chest: 5.5 } }, { week: 'b', partial: false, sets: { chest: 6 } }], { chest: 5.75 }, '2026-10-01');
     expect(r.rows[0]).toMatchObject({ avg: 5.75, below: false, low: true });
   });
 });
