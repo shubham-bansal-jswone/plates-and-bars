@@ -1,5 +1,5 @@
 import { triage } from '../support/axe.mjs';
-import { answerSetup, axeSource, completeSetup, expect, label, openApp, reloadTo, saved, tab, test } from '../support/app.mjs';
+import { answerSetup, axeSource, completeSetup, expect, label, openApp, reloadTo, saved, settled, tab, test } from '../support/app.mjs';
 
 // axe-core on the main screens, in light and dark: the WCAG 2.0/2.1 A and AA rules (which include colour contrast) plus
 // the landmark and heading best-practice rules. Every violation fails the test. A failure caused by a filed bug goes in
@@ -108,8 +108,13 @@ const screens = {
     // Log one food first so the Seven days card has a logged day: a kcal and protein chip over a fill, which a blank
     // week never draws (#1204). Today is Monday (the pinned test clock), and a bar's label has a "kcal" figure only when logged; hidden tabs are filtered out.
     await tab(page, 'Food');
+    await settled(label(page, '+ Add to breakfast'));
     await label(page, '+ Add to breakfast').click();
-    await page.locator('[aria-label^="Roti / chapati"]').first().click();
+    // The sheet slides in; a tap while it moves is dropped on a slow runner (#1315), so wait until the row and Done are still.
+    const roti = page.locator('[aria-label^="Roti / chapati"]').first();
+    await settled(roti);
+    await settled(label(page, 'Done'));
+    await roti.click();
     await label(page, 'Done').click();
     await expect(label(page, '102 of 1,990 kcal eaten')).toBeVisible();
     await tab(page, 'Progress');
@@ -133,8 +138,11 @@ const screens = {
   // An exercise's detail, which draws the front and back muscle map (#1197). axe does not test graphic contrast; the jest stroke test in body-map.test.tsx guards the outline.
   'library-exercise': async (page) => {
     await tab(page, 'Targets');
+    await settled(label(page, 'Exercise library')); // a tap while the Targets pane is still mounting is dropped (#1315)
     await label(page, 'Exercise library').click();
-    await page.getByRole('button').filter({ hasText: ' · ' }).first().click();
+    const first = page.getByRole('button').filter({ hasText: ' · ' }).first();
+    await settled(first);
+    await first.click();
     await expect(label(page, 'Back to library')).toBeVisible();
     await expect(page.getByRole('button', { name: /^Add to today’s session/ })).toBeVisible();
     await expect(page.getByRole('img', { name: /^Muscles worked: / })).toBeVisible();

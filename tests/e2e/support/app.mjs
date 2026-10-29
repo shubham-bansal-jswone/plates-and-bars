@@ -97,6 +97,33 @@ export async function completeSetup(page) {
   await expect(label(page, 'Calories (kcal)')).toHaveValue('1,990');
 }
 
+/**
+ * Resolves once the element has kept the same position and size for 10 animation frames in a row (about 160 ms), so a sheet
+ * sliding in or a tab pane mounting is over. Playwright's own "stable" check needs only two equal frames, and on a busy
+ * CI runner a stalled animation can show two equal frames and then move: the click lands on a moving target and the app
+ * drops it (traces of #1315: the roti tap and the Exercise library tap were "performed" mid-transition and did nothing).
+ * Event based, no fixed delay.
+ */
+export async function settled(locator) {
+  await locator.waitFor({ state: 'visible' });
+  await locator.evaluate(
+    (el) =>
+      new Promise((resolve) => {
+        let last = '';
+        let same = 0;
+        const tick = () => {
+          const r = el.getBoundingClientRect();
+          const now = `${r.x},${r.y},${r.width},${r.height}`;
+          same = now === last ? same + 1 : 0;
+          last = now;
+          if (same >= 10) resolve();
+          else requestAnimationFrame(tick);
+        };
+        tick();
+      }),
+  );
+}
+
 /** Switches to a bottom tab (Food, Workout, Progress, Targets). */
 export const tab = (page, name) => label(page, name).click();
 
