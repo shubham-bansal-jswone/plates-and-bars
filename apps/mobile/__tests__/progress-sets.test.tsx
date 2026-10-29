@@ -1,7 +1,8 @@
 import { renderHook, waitFor } from '@testing-library/react-native';
-import { addDays, mainLifts, personalRecords } from '@plate-and-bar/core';
+import { addDays, mainLifts, personalRecords, priorBestOf } from '@plate-and-bar/core';
 import { loadDoneSets, saveSet, saveWorkout } from '../src/db/workouts';
 import { useProgressSets } from '../src/progress/useProgressSets';
+import { setsBefore, setsInRange } from '../src/progress/setsView';
 import type { Workout, WorkoutSet } from '../src/workout/types';
 import { openDb } from './sync-helpers';
 
@@ -39,50 +40,82 @@ describe('loadDoneSets', () => {
   });
 });
 
+describe('set views', () => {
+  const mk = (date: string) => ({ date, exercise: 'Row', kind: 'work' as const, weight_kg: 50, reps: 5, done: true, rate: null });
+  const all = ['2026-07-15', '2026-07-16', '2026-10-08', '2026-10-09'].map(mk);
+  it('setsInRange keeps both bounds (84 days back to end)', () => {
+    expect(setsInRange(all, '2026-10-08', '12w').map((s) => s.date)).toEqual(['2026-07-16', '2026-10-08']);
+    expect(setsInRange(all, '2026-10-08', '4w').map((s) => s.date)).toEqual(['2026-10-08']);
+    expect(setsInRange(all, '2026-10-08', 'all')).toHaveLength(3);
+  });
+  it('setsBefore leaves out the day itself', () => {
+    expect(setsBefore(all, '2026-10-08').map((s) => s.date)).toEqual(['2026-07-15', '2026-07-16']);
+  });
+});
+
 describe('useProgressSets', () => {
-  it('loads after first render, then returns sets and types with overrides', async () => {
+  it('loads after first render, then returns all sets and types with overrides', async () => {
     const db = await openDb();
     await day(db, '2026-10-01', [wset('a', 'Bench Press', 80, 5), wset('b', 'My Lift', 20, 10)]);
     const seen: boolean[] = [];
     const { result } = await renderHook(() => {
-      const r = useProgressSets(db, 0, '2026-10-08', 'all', { 'My Lift': { type: 'bodyweight', step_kg: 0, rep_low: 5, rep_high: 10 } });
+      const r = useProgressSets(db, 0, { 'My Lift': { type: 'bodyweight', step_kg: 0, rep_low: 5, rep_high: 10 } });
       seen.push(r.loading);
       return r;
     });
     expect(seen[0]).toBe(true); // first paint has no data and is not blocked
     await waitFor(() => expect(result.current.loading).toBe(false));
-    expect(result.current.sets.map((s) => s.exercise)).toEqual(['Bench Press', 'My Lift']);
+    expect(result.current.all.map((s) => s.exercise)).toEqual(['Bench Press', 'My Lift']);
     expect(result.current.types['My Lift']).toBe('bodyweight');
     expect(result.current.types['Bench Press']).toBeDefined();
     expect(result.current.error).toBeNull();
   });
 
-  it('bounds the range by the end day and reloads after a dataVersion bump', async () => {
+  it('switching range or end does not reload; a dataVersion bump does', async () => {
     const db = await openDb();
     await day(db, '2026-04-01', [wset('old', 'Row', 50, 8)]);
     await day(db, '2026-10-01', [wset('a', 'Row', 60, 8)]);
     const spy = jest.spyOn(db, 'getAllAsync');
-    const { result, rerender } = await renderHook((p: { v: number }) => useProgressSets(db, p.v, '2026-10-08', '12w'), { initialProps: { v: 0 } });
+    const { result, rerender } = await renderHook((p: { v: number }) => useProgressSets(db, p.v), { initialProps: { v: 0 } });
     await waitFor(() => expect(result.current.loading).toBe(false));
-    expect(result.current.sets.map((s) => s.date)).toEqual(['2026-10-01']);
+    expect(result.current.inRange('2026-10-08', '12w').map((s) => s.date)).toEqual(['2026-10-01']);
+    expect(result.current.inRange('2026-10-08', 'all')).toHaveLength(2);
+    expect(result.current.inRange('2026-10-08', '12w')).toBe(result.current.inRange('2026-10-08', '12w'));
+    expect(result.current.before('2026-10-01').map((s) => s.date)).toEqual(['2026-04-01']);
     await rerender({ v: 0 });
-    expect(spy).toHaveBeenCalledTimes(1); // cached for the same version and range
+    expect(spy).toHaveBeenCalledTimes(1);
     await day(db, '2026-10-02', [wset('b', 'Row', 62, 8)]);
     await rerender({ v: 1 });
-    await waitFor(() => expect(result.current.sets).toHaveLength(2));
+    await waitFor(() => expect(result.current.all).toHaveLength(3));
     expect(spy).toHaveBeenCalledTimes(2);
+  });
+
+  it('PRs from all find an old best outside the selected range', async () => {
+    const db = await openDb();
+    await day(db, '2025-01-10', [wset('p', 'Back Squat', 150, 5)]);
+    await day(db, '2025-01-12', [wset('q', 'Back Squat', 100, 5)]);
+    await day(db, '2026-10-01', [wset('r', 'Back Squat', 120, 5)]);
+    const { result } = await renderHook(() => useProgressSets(db, 0));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    const types = { 'Back Squat': 'barbell' as const };
+    const inWin = result.current.inRange('2026-10-08', '12w');
+    expect(inWin).toHaveLength(1);
+    // The range slice has no history, so no PR; the whole history shows 120 x 5 is no record against 150 x 5.
+    expect(personalRecords(inWin, types).some((r) => r.date === '2026-10-01')).toBe(false);
+    expect(personalRecords(result.current.all, types).some((r) => r.date === '2026-10-01')).toBe(false);
+    expect(priorBestOf(result.current.before('2026-10-01'), 'barbell', '2026-10-01').best).toBeGreaterThan(170);
   });
 
   it('reports a failed read as error and keeps the last sets', async () => {
     const db = await openDb();
     await day(db, '2026-10-01', [wset('a', 'Row', 60, 8)]);
-    const { result, rerender } = await renderHook((p: { v: number }) => useProgressSets(db, p.v, '2026-10-08', 'all'), { initialProps: { v: 0 } });
-    await waitFor(() => expect(result.current.sets).toHaveLength(1));
+    const { result, rerender } = await renderHook((p: { v: number }) => useProgressSets(db, p.v), { initialProps: { v: 0 } });
+    await waitFor(() => expect(result.current.all).toHaveLength(1));
     jest.spyOn(db, 'getAllAsync').mockRejectedValueOnce(new Error('disk'));
     await rerender({ v: 1 });
     await waitFor(() => expect(result.current.error?.message).toBe('disk'));
     expect(result.current.loading).toBe(false);
-    expect(result.current.sets).toHaveLength(1);
+    expect(result.current.all).toHaveLength(1);
   });
 });
 
