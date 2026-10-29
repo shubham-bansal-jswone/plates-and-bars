@@ -101,6 +101,7 @@ describe('Move up and Move down', () => {
 
   it('swapping members keeps the block and its cards mounted: an armed Remove stays armed', async () => {
     const { names } = await mount(['g', 'g', 'g']);
+    if (!screen.queryByLabelText(`Remove exercise ${names[2]} from today`)) await press(`More for ${names[2]}`); // a member that is not up next keeps Remove behind this
     await press(`Remove exercise ${names[2]} from today`);
     expect(screen.getByText('Tap again to remove')).toBeTruthy();
     await press(`Move ${names[0]} down`);
