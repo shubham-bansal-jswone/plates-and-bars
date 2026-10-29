@@ -800,3 +800,11 @@ export type { E1rmSet, E1rmPoint, SessionElapsed } from './e1rm';
  */
 export { parseWorkoutCsv, parseCsv, importDate, exerciseKey, matchExercise, matchAll, planImport, IMPORT_MAX_CHARS, IMPORT_MAX_ROWS, IMPORT_MAX_DAYS, IMPORT_MAX_EXERCISES } from './workoutImport';
 export type { ImportSource, ImportError, ImportSet, ImportDay, ImportSkipped, ImportParsed, ImportResult, ImportMatches, ImportWorkoutDay, ImportPlan } from './workoutImport';
+
+/**
+ * Exercise groups (supersets; #1182, ADR 012). New, not a prototype port: no prototype behaviour, no golden fixture.
+ * - `GROUP_MAX` 6, `GROUP_MIN` 2, `GROUP_TRANSITION_SEC` 15.
+ * - `groupLabels` member letters, `normalizeGroups` repair, `nextInRound` alternating order, `restAfterTick` round and transition rest (reuses `restFor`).
+ */
+export { GROUP_MAX, GROUP_MIN, GROUP_TRANSITION_SEC, groupLabels, normalizeGroups, nextInRound, restAfterTick } from './groups';
+export type { GroupEx, IsDone, RestAfterTick } from './groups';
