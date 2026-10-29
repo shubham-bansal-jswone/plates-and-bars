@@ -14,7 +14,11 @@ import { formatWeight, fromKg, unitLabel, type WeightUnit } from './weightUnit';
  * "New best estimated 1RM" is deliberately NOT a milestone: that is the Recent PRs list
  * (`personalRecords`, records.ts), and a second place for it would disagree with the list.
  *
- * Weights are kg in storage; `unit` only picks the plate steps and the wording.
+ * Weights are kg in storage; `unit` only picks the wording. Every threshold is unit-independent, so switching
+ * kg and lb never moves or removes a milestone (plates: a set earns a step by meeting the kg step OR the lb step).
+ *
+ * For the app (A9): decide "newly earned" from a stored set of the ids already shown, not from `date === today`.
+ * A date check would never toast the plan block, which is dated the Sunday before `habits` first reports it.
  */
 
 /** Plate steps assumed by the plates milestones: a 20 kg / 45 lb bar and 20 kg / 45 lb plates, 1 to 3 a side. */
@@ -23,10 +27,13 @@ export const PLATE_MILESTONES: Readonly<Record<WeightUnit, readonly [number, num
   lb: [135, 225, 315],
 };
 
-/** A lift counts as at a plate step within this many units of the user's unit (absorbs kg-lb rounding: 134.9 lb counts as 135). */
-export const PLATE_TOLERANCE = 0.1;
-/** The same slack in kg for the bodyweight milestones. */
-export const BODYWEIGHT_TOLERANCE_KG = 0.1;
+/** A weight meets an lb plate step within this many lb: absorbs lb to kg to lb rounding (61.2 kg stored for 135 lb is 134.9 lb). Not used for kg steps. */
+export const PLATE_TOLERANCE_LB = 0.1;
+/** Float epsilon (kg) for kg comparisons: 59.9 kg is not a plate and 79.9 kg is not an 80 kg bodyweight. */
+export const KG_EPSILON = 1e-6;
+
+/** Barbell-typed library lifts that use an EZ bar (about 10 kg, not 20 kg), so "plates a side" does not apply (a test checks they exist in the content). */
+export const EZ_BAR_LIFTS: readonly string[] = ['Preacher Curl'];
 
 /** Library names counted as a bench press for the bodyweight milestone (loaded barbell lifts only; a test checks they are in the content). */
 export const BENCH_LIFTS: readonly string[] = ['Barbell Bench Press'];
@@ -71,15 +78,17 @@ interface Hit {
   w: number;
 }
 
-/** The earliest qualifying set (the heaviest of its day, then by name), or null. */
-function earliest(hits: Hit[]): Hit | null {
+/** The earliest qualifying set; on that day the lightest (`light`, the one that crossed a plate step) or the heaviest, then by name; or null. */
+function earliest(hits: Hit[], light: boolean): Hit | null {
   let best: Hit | null = null;
   for (const h of hits) {
-    if (!best || h.date < best.date || (h.date === best.date && (h.w > best.w || (h.w === best.w && h.lift < best.lift)))) best = h;
+    const dw = light ? best ? h.w - best.w : 0 : best ? best.w - h.w : 0;
+    if (!best || h.date < best.date || (h.date === best.date && (dw < 0 || (dw === 0 && h.lift < best.lift)))) best = h;
   }
   return best;
 }
 
+const WORDS = ['', 'One', 'Two', 'Three'];
 const ord = (n: number): string => `${n}${n % 10 === 1 && n % 100 !== 11 ? 'st' : n % 10 === 2 && n % 100 !== 12 ? 'nd' : n % 10 === 3 && n % 100 !== 13 ? 'rd' : 'th'}`;
 const show = (kg: number, unit: WeightUnit): string => `${formatWeight(kg, unit)} ${unitLabel(unit)}`;
 
@@ -92,10 +101,11 @@ const show = (kg: number, unit: WeightUnit): string => `${formatWeight(kg, unit)
  * bodyweight before any weigh-in, and its plan sets the on-track goal (`habits`; absent reads as the
  * 6-day plan, `days: 0` has no plan and never earns the plan block).
  *
- * 1. Plates: first done work set of a barbell lift at 1, 2 or 3 plates a side (`PLATE_MILESTONES`: 60,
- *    100, 140 kg or 135, 225, 315 lb; weight in the user's unit within `PLATE_TOLERANCE`).
+ * 1. Plates: first done work set of a barbell lift (not an `EZ_BAR_LIFTS` one) at 1, 2 or 3 plates a side:
+ *    at least the kg step (60, 100, 140; float epsilon only) OR the lb step (135, 225, 315; within
+ *    `PLATE_TOLERANCE_LB`), whatever the `unit`. The detail shows the lightest set of that day that meets it.
  * 2. Bench at bodyweight / 3. squat at 1.5 x bodyweight: first such set of a `BENCH_LIFTS` / `SQUAT_LIFTS`
- *    lift at or above the bodyweight of that day (latest weigh-in on or before it, else the profile weight;
+ *    lift at or above the bodyweight of that day (heaviest set of the day shown) (latest weigh-in on or before it, else the profile weight;
  *    none known, no milestone).
  * 4. Workouts: the 10th, 50th and 100th day with at least one logged set (`sessionDates`, the rule that
  *    orders the plan); dated on that day.
@@ -118,12 +128,14 @@ export function milestones(
   const live = sets.filter((s) => s.date <= end && counts(s));
 
   // 1. Plates
-  const barbell = live.filter((s) => types[s.exercise] === 'barbell');
-  PLATE_MILESTONES[unit].forEach((step, i) => {
-    const hit = earliest(barbell.filter((s) => fromKg(s.weight_kg as number, unit) >= step - PLATE_TOLERANCE).map((s) => ({ date: s.date, lift: s.exercise, w: s.weight_kg as number })));
+  const barbell = live.filter((s) => types[s.exercise] === 'barbell' && !EZ_BAR_LIFTS.includes(s.exercise));
+  PLATE_MILESTONES.kg.forEach((kgStep, i) => {
+    const lbStep = PLATE_MILESTONES.lb[i] as number;
+    const meets = (kg: number): boolean => kg >= kgStep - KG_EPSILON || fromKg(kg, 'lb') >= lbStep - PLATE_TOLERANCE_LB;
+    const hit = earliest(barbell.filter((s) => meets(s.weight_kg as number)).map((s) => ({ date: s.date, lift: s.exercise, w: s.weight_kg as number })), true);
     if (!hit) return;
     const n = i + 1;
-    out.push({ id: `plates-${n}`, kind: 'plates', title: n === 1 ? 'One plate a side' : `${n} plates a side`, detail: `${hit.lift}, ${show(hit.w, unit)}`, date: hit.date });
+    out.push({ id: `plates-${n}`, kind: 'plates', title: `${WORDS[n]} ${n === 1 ? 'plate' : 'plates'} a side`, detail: `${hit.lift}, ${show(hit.w, unit)}`, date: hit.date });
   });
 
   // 2 and 3. Bodyweight multiples, against the bodyweight of the day of the set.
@@ -134,9 +146,10 @@ export function milestones(
         .filter((s) => names.includes(s.exercise))
         .filter((s) => {
           const bw = bodyweightOn(s.date);
-          return bw !== null && (s.weight_kg as number) >= bw * x - BODYWEIGHT_TOLERANCE_KG;
+          return bw !== null && (s.weight_kg as number) >= bw * x - KG_EPSILON;
         })
         .map((s) => ({ date: s.date, lift: s.exercise, w: s.weight_kg as number })),
+      false,
     );
   const bench = times(BENCH_LIFTS, BENCH_BODYWEIGHT_X);
   if (bench) out.push({ id: 'bench-bodyweight', kind: 'bodyweight', title: 'Bench press at your bodyweight', detail: `${bench.lift}, ${show(bench.w, unit)}`, date: bench.date });

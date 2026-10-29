@@ -1,5 +1,5 @@
 import content from '../../../content/exercises.json';
-import { BENCH_LIFTS, SQUAT_LIFTS, PLATE_MILESTONES, milestones, addDays, type ExType, type PrSet, type SessionLog, type WeightUnit } from '../src/index';
+import { BENCH_LIFTS, EZ_BAR_LIFTS, SQUAT_LIFTS, PLATE_MILESTONES, milestones, addDays, type ExType, type Milestone, type PrSet, type SessionLog, type WeightUnit } from '../src/index';
 import { loadGolden } from './helpers';
 
 type Row = [string, string, number, number, string];
@@ -13,7 +13,7 @@ interface Case {
   profile: { days?: number; weight_kg?: number } | null;
   sets: Row[];
   sessions: Run[];
-  milestones: [string, string][];
+  milestones: Milestone[];
 }
 const g = loadGolden<{ cases: Case[] }>('milestones');
 
@@ -28,7 +28,7 @@ const mkSessions = (runs: Run[]): SessionLog => {
 describe('milestones (#1351 C6)', () => {
   it.each(g.cases.map((c) => [c.note, c] as const))('%s', (_n, c) => {
     const out = milestones(mkSets(c.sets), mkSessions(c.sessions), c.weights.map(([date, weight_kg]) => ({ date, weight_kg })), c.types, c.unit, c.end, c.profile);
-    expect(out.map((m) => [m.id, m.date])).toEqual(c.milestones);
+    expect(out).toEqual(c.milestones);
   });
 
   it('every milestone has a stable id, kind, title and detail', () => {
@@ -40,7 +40,8 @@ describe('milestones (#1351 C6)', () => {
     const out = milestones(mkSets([['Barbell Back Squat', '2026-01-05', 140, 5, '']]), {}, [], { 'Barbell Back Squat': 'barbell' }, 'lb', '2026-02-01');
     expect(out.map((m) => [m.id, m.title, m.detail])).toEqual([
       ['plates-1', 'One plate a side', 'Barbell Back Squat, 308.6 lb'],
-      ['plates-2', '2 plates a side', 'Barbell Back Squat, 308.6 lb'],
+      ['plates-2', 'Two plates a side', 'Barbell Back Squat, 308.6 lb'],
+      ['plates-3', 'Three plates a side', 'Barbell Back Squat, 308.6 lb'],
     ]);
     const w = milestones([], mkSessions([{ start: '2026-01-01', count: 100, step_days: 1, n: 1 }]), [], {}, 'kg', '2026-12-31', { days: 0 });
     expect(w.map((m) => [m.title, m.detail])).toEqual([['100th workout', '100 workouts completed'], ['50th workout', '50 workouts completed'], ['10th workout', '10 workouts completed']]);
@@ -65,7 +66,15 @@ describe('milestones (#1351 C6)', () => {
     expect(milestones(sets.map((s) => ({ ...s, deleted_at: 'x' })), {}, [], types, 'kg', '2026-02-01')).toHaveLength(0);
   });
 
+  it('switching unit never changes ids or dates', () => {
+    const sets = mkSets([['Barbell Back Squat', '2026-01-05', 60, 5, ''], ['Barbell Back Squat', '2026-01-12', 100, 3, ''], ['Barbell Back Squat', '2026-01-19', 140, 1, ''], ['Barbell Bench Press', '2026-01-20', 61.2, 1, '']]);
+    const run = (unit: WeightUnit) => milestones(sets, {}, [], { 'Barbell Back Squat': 'barbell', 'Barbell Bench Press': 'barbell' }, unit, '2026-02-01').map((m) => [m.id, m.date]);
+    expect(run('lb')).toEqual(run('kg'));
+    expect(run('kg')).toHaveLength(3);
+  });
+
   it('the plate steps and the named lifts match the spec and the content', () => {
+    for (const n of EZ_BAR_LIFTS) expect((content as { meta: Record<string, { type: string }> }).meta[n]?.type).toBe('barbell');
     expect(PLATE_MILESTONES).toEqual({ kg: [60, 100, 140], lb: [135, 225, 315] });
     const meta = (content as { meta: Record<string, { type: string }> }).meta;
     for (const n of [...BENCH_LIFTS, ...SQUAT_LIFTS]) {
