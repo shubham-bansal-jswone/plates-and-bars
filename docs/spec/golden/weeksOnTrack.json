@@ -1,5 +1,5 @@
 {
- "description": "Weeks-on-track series (#1351 C5, new): per Monday-week for the weeks before the one holding end, oldest first; on track = at least goal sessions, goal = plan days minus 1, minimum 2 (habits()). The trailing run of on_track equals habits().weeks (a test asserts it). Sessions are dates; profile is { days }.",
+ "description": "Weeks-on-track series (#1351 C5, new): per Monday-week for the weeks before the one holding end, oldest first; on track = at least goal sessions, goal = plan days minus 1, minimum 2 (habits()). The trailing run of onTrack in expected equals habits().weeks (a test asserts it). Sessions are dates; profile is { days }.",
  "cases": [
   {
    "note": "days 4 (goal 3), run of 2 after a miss",
@@ -62,12 +62,37 @@
      "n": 5
     }
    },
-   "on_track": [
-    true,
-    true,
-    false,
-    true,
-    true
+   "expected": [
+    {
+     "weekStart": "2026-09-21",
+     "sessions": 3,
+     "goal": 3,
+     "onTrack": true
+    },
+    {
+     "weekStart": "2026-09-28",
+     "sessions": 3,
+     "goal": 3,
+     "onTrack": true
+    },
+    {
+     "weekStart": "2026-10-05",
+     "sessions": 1,
+     "goal": 3,
+     "onTrack": false
+    },
+    {
+     "weekStart": "2026-10-12",
+     "sessions": 3,
+     "goal": 3,
+     "onTrack": true
+    },
+    {
+     "weekStart": "2026-10-19",
+     "sessions": 3,
+     "goal": 3,
+     "onTrack": true
+    }
    ]
   },
   {
@@ -87,14 +112,29 @@
      "n": 5
     }
    },
-   "on_track": [
-    false,
-    false,
-    false
+   "expected": [
+    {
+     "weekStart": "2026-10-05",
+     "sessions": 1,
+     "goal": 2,
+     "onTrack": false
+    },
+    {
+     "weekStart": "2026-10-12",
+     "sessions": 0,
+     "goal": 2,
+     "onTrack": false
+    },
+    {
+     "weekStart": "2026-10-19",
+     "sessions": 1,
+     "goal": 2,
+     "onTrack": false
+    }
    ]
   },
   {
-   "note": "days 0 and no profile: goal 2 and 5",
+   "note": "days 0: goal 2 floor",
    "end": "2026-10-29",
    "weeks": 4,
    "profile": {
@@ -130,11 +170,31 @@
      "n": 5
     }
    },
-   "on_track": [
-    true,
-    true,
-    false,
-    true
+   "expected": [
+    {
+     "weekStart": "2026-09-28",
+     "sessions": 2,
+     "goal": 2,
+     "onTrack": true
+    },
+    {
+     "weekStart": "2026-10-05",
+     "sessions": 2,
+     "goal": 2,
+     "onTrack": true
+    },
+    {
+     "weekStart": "2026-10-12",
+     "sessions": 1,
+     "goal": 2,
+     "onTrack": false
+    },
+    {
+     "weekStart": "2026-10-19",
+     "sessions": 2,
+     "goal": 2,
+     "onTrack": true
+    }
    ]
   },
   {
@@ -188,11 +248,31 @@
      "n": 5
     }
    },
-   "on_track": [
-    false,
-    false,
-    true,
-    true
+   "expected": [
+    {
+     "weekStart": "2026-09-28",
+     "sessions": 0,
+     "goal": 5,
+     "onTrack": false
+    },
+    {
+     "weekStart": "2026-10-05",
+     "sessions": 0,
+     "goal": 5,
+     "onTrack": false
+    },
+    {
+     "weekStart": "2026-10-12",
+     "sessions": 5,
+     "goal": 5,
+     "onTrack": true
+    },
+    {
+     "weekStart": "2026-10-19",
+     "sessions": 6,
+     "goal": 5,
+     "onTrack": true
+    }
    ]
   },
   {
@@ -228,9 +308,19 @@
      "n": 5
     }
    },
-   "on_track": [
-    false,
-    true
+   "expected": [
+    {
+     "weekStart": "2026-10-12",
+     "sessions": 0,
+     "goal": 3,
+     "onTrack": false
+    },
+    {
+     "weekStart": "2026-10-19",
+     "sessions": 3,
+     "goal": 3,
+     "onTrack": true
+    }
    ]
   },
   {
@@ -262,9 +352,19 @@
      "n": 5
     }
    },
-   "on_track": [
-    true,
-    true
+   "expected": [
+    {
+     "weekStart": "2026-10-12",
+     "sessions": 2,
+     "goal": 2,
+     "onTrack": true
+    },
+    {
+     "weekStart": "2026-10-19",
+     "sessions": 2,
+     "goal": 2,
+     "onTrack": true
+    }
    ]
   }
  ]

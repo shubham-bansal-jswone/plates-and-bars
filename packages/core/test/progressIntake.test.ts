@@ -1,9 +1,10 @@
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
 import {
-  WEEKLY_INTAKE_MIN_DAYS, addDays, habits, mondayOf, weekOnTrack, weeklyIntake, weeklySessionGoal, weeksOnTrackSeries, weekSummary,
+  WEEKLY_INTAKE_MIN_DAYS, addDays, habits, weeklyIntake, weeksOnTrackSeries, weekSummary,
   type IntakeTargets, type ProgressDay, type WeekOnTrack, type WeeklyIntake,
 } from '../src/index';
+import { weekOnTrack, weeklySessionGoal } from '../src/progress';
 
 const golden = (n: string) => JSON.parse(readFileSync(resolve(__dirname, `../../../docs/spec/golden/${n}.json`), 'utf8'));
 type RawDay = { date: string; logs: { kcal: number; protein_g: number; qty: number; deleted_at: string | null }[] };
@@ -12,7 +13,7 @@ const gi = golden('weeklyIntake') as {
   weekly_intake: { note: string; end: string; weeks: number; targets: IntakeTargets; days: RawDay[]; expected: WeeklyIntake[] }[];
 };
 const go = golden('weeksOnTrack') as {
-  cases: { note: string; end: string; weeks: number; profile: { days: number } | null; sessions: Record<string, { t: string; n: number }>; on_track: boolean[] }[];
+  cases: { note: string; end: string; weeks: number; profile: { days: number } | null; sessions: Record<string, { t: string; n: number }>; expected: WeekOnTrack[] }[];
 };
 const toDays = (raw: RawDay[]): ProgressDay[] =>
   raw.map((d) => ({ date: d.date, trained: false, logs: d.logs.map((l) => ({ ...l, id: 'x', name: 'f', carbs_g: 0, fat_g: 0 })) as unknown as ProgressDay['logs'] }));
@@ -32,6 +33,13 @@ describe('weeklyIntake (#1351 C4)', () => {
     const d: ProgressDay = { ...toDays(gi.weekly_intake[0]!.days)[1]!, complete: false };
     expect(weeklyIntake([d], '2026-10-25', 1, { kcal: 1, protein_g: 1 })[0]!.loggedDays).toBe(1);
   });
+  it('a date given twice: the first copy wins, as in weekSummary, even when it has no live log', () => {
+    const [blank, full] = [{ ...toDays(gi.weekly_intake[0]!.days)[5]!, logs: [] }, toDays(gi.weekly_intake[0]!.days)[5]!];
+    const t = { kcal: 1, protein_g: 1 };
+    expect(weeklyIntake([blank, full], '2026-10-29', 1, t)[0]!.loggedDays).toBe(0);
+    expect(weeklyIntake([full, blank], '2026-10-29', 1, t)[0]!.loggedDays).toBe(1);
+    expect(weekSummary([blank, full], '2026-10-26', 1).days[6]!.logged).toBe(false);
+  });
   it('a date given twice counts once; weeks below 1 or NaN give none; fractions floor', () => {
     const days = toDays(gi.weekly_intake[0]!.days), t = { kcal: 1, protein_g: 1 };
     expect(weeklyIntake([...days, ...days], '2026-10-29', 3, t)).toEqual(weeklyIntake(days, '2026-10-29', 3, t));
@@ -44,9 +52,7 @@ describe('weeklyIntake (#1351 C4)', () => {
 describe('weeksOnTrackSeries (#1351 C5)', () => {
   it.each(go.cases.map((c) => [c.note, c] as const))('%s', (_n, c) => {
     const s = weeksOnTrackSeries(c.sessions, c.profile, c.end, c.weeks);
-    expect(s.map((w: WeekOnTrack) => w.onTrack)).toEqual(c.on_track);
-    expect(s.every((w) => w.goal === weeklySessionGoal(c.profile))).toBe(true);
-    expect(s.every((w) => mondayOf(w.weekStart) === w.weekStart)).toBe(true);
+    expect(s).toEqual(c.expected);
   });
   it.each(go.cases.map((c) => [c.note, c] as const))('trailing run equals habits().weeks: %s', (_n, c) => {
     const s = weeksOnTrackSeries(c.sessions, c.profile, c.end, 26);

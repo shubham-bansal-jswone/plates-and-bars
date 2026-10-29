@@ -93,9 +93,9 @@ export function weeklyIntake(days: readonly ProgressDay[], end: string, weeks: n
     const seen = new Set<string>();
     for (const d of days) {
       if (d.date < ws || d.date >= we || d.date > end || seen.has(d.date)) continue;
+      seen.add(d.date); // first copy of a date wins, as `weekSummary` (`daysEnding`, `find`) takes it
       const meals = live(d.logs);
       if (!meals.length) continue;
-      seen.add(d.date);
       logged++;
       for (const m of meals) {
         sk += m.kcal * m.qty;
