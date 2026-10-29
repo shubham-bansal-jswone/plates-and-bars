@@ -205,7 +205,7 @@ function MeasureSection({ p, isToday }: { p: Progress; isToday: boolean }) {
         {shown.map((m) => (
           <View key={m.key} style={styles.field}>
             <Caption>{`${m.label} (cm)`}</Caption>
-            <Field style={styles.measure} label={`${m.label} in cm`} inputMode="decimal" placeholder="cm" value={text[m.key] ?? ''} onChangeText={(v) => setText({ ...text, [m.key]: v })} />
+            <Field label={`${m.label} in cm`} inputMode="decimal" placeholder="cm" value={text[m.key] ?? ''} onChangeText={(v) => setText({ ...text, [m.key]: v })} />
           </View>
         ))}
       </View>
@@ -254,9 +254,8 @@ const styles = StyleSheet.create({
   hidden: { display: 'none' },
   section: { gap: 8, marginTop: 16 },
   inline: { gap: 8 },
-  fields: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 12, rowGap: 8 },
+  fields: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 12, rowGap: 8, alignItems: 'flex-start' },
   field: { gap: 4, flexBasis: '45%', minWidth: 130, flexGrow: 1 },
-  measure: { maxWidth: undefined },
   cols: { flexDirection: 'row', gap: 24, alignItems: 'flex-start' },
   col: { flex: 1, gap: 8 },
   row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },

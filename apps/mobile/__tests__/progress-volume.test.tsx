@@ -397,6 +397,18 @@ describe('VolumeSection', () => {
     expect(screen.getByRole('button', { name: 'Show as table' })).toBeTruthy();
   });
 
+  it('the muscle headline is read when there is no chart, and hidden (the chart says it) when there is one (#1393)', async () => {
+    const db = await openDb();
+    await history(db);
+    await show(db, { focus: ['calves'] });
+    await screen.findByText(VOL_MUSCLE_NONE('Calves'));
+    expect(screen.getByText(/^Calves 0 /)).toBeTruthy(); // no includeHiddenElements: it is accessible
+    await fireEvent.press(chip('Chest'));
+    await screen.findByRole('button', { name: 'Show as table' });
+    expect(screen.queryByText(/^Chest \d/)).toBeNull();
+    expect(screen.getByText(/^Chest \d/, hidden)).toBeTruthy();
+  });
+
   it('the table is named by muscle and weekly sets, not "sets values by date" (#1393)', async () => {
     const db = await openDb();
     await history(db);

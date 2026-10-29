@@ -109,8 +109,8 @@ function Body({ volume, date, today, focus, choice, onChoice }: { volume: NonNul
       <View accessibilityRole="group" accessibilityLabel={VOL_MUSCLE_GROUP} style={styles.chips}>
         {COVER_SHOW.map((m) => <Chip key={m} label={name(m)} pressed={m === muscle} onPress={() => onChoice(m)} />)}
       </View>
-      {/* The chart's spoken label says the same: hidden here so a screen reader reads it once. */}
-      <View aria-hidden accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+      {/* With a chart its spoken label says the same: hidden here so a screen reader reads it once. With no chart nothing else says it. */}
+      <View {...(none ? null : { 'aria-hidden': true, accessibilityElementsHidden: true, importantForAccessibility: 'no-hide-descendants' as const })}>
         <Text style={[typeScale.label, { color: c.ink }]}>{headline}</Text>
       </View>
       {none ? (

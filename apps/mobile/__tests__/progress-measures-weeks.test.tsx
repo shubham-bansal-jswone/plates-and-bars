@@ -268,5 +268,7 @@ describe('Section framing and measurement fields (#1393)', () => {
     await open(memoryDb());
     const wrap = above(screen.getByLabelText('Neck in cm').parent, (st) => st.flexWrap === 'wrap');
     expect(wrap?.flexDirection).toBe('row');
+    expect(wrap?.alignItems).toBe('flex-start'); // a wrapped label must not stretch the input beside it
+    expect(style(screen.getByLabelText('Neck in cm'))?.maxWidth).toBe(160); // Field's numeric cap, not overridden
   });
 });
