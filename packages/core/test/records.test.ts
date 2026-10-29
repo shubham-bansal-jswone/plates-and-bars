@@ -1,6 +1,6 @@
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
-import { isPrToday, mainLifts, personalRecords, priorBestOf, PR_THRESHOLD, PR_MIN_PRIOR_SESSIONS, MAIN_LIFT_WEEKS, MAIN_LIFT_MIN_POINTS, MAIN_LIFT_COUNT, type ExType, type PrSet } from '../src/index';
+import { updateLift, isPrToday, mainLifts, personalRecords, priorBestOf, PR_THRESHOLD, PR_MIN_PRIOR_SESSIONS, MAIN_LIFT_WEEKS, MAIN_LIFT_MIN_POINTS, MAIN_LIFT_COUNT, type ExType, type PrSet } from '../src/index';
 
 type Row = [string, string, number, number, string];
 interface Rec { lift: string; date: string; metric: string; score: number; set: { w: number; r: number }; previous_best: number; delta: number }
@@ -59,6 +59,15 @@ describe('personal records (#1351 C3)', () => {
     it('earlier days are rescored at the bodyweight passed in', () => {
       const s = mk([['D', '2026-03-01', 30, 10, ''], ['D', '2026-03-08', 30, 10, '']]);
       expect(priorBestOf(s.slice(0, 1), 'assisted', '2026-03-08', 80)).toEqual({ best: 500, sessions: 1 });
+      expect(isPrToday(priorBestOf(s, 'assisted', '2026-03-08', 80), s.slice(1), 'assisted', 80)).toBeNull();
+    });
+    it('difference (e): updateLift toasts on a weigh-in alone, isPrToday does not', () => {
+      const ex = { sets: [{ w: '30', r: '10', done: true }] };
+      const day1 = updateLift(null, ex, '2026-03-01', 'assisted', 75);
+      const day2 = updateLift(day1?.record, ex, '2026-03-08', 'assisted', 80);
+      expect(day2?.toast).toBe(true);
+      expect(day2?.record?.hist?.map((h) => h.e)).toEqual([450, 500]);
+      const s = mk([['D', '2026-03-01', 30, 10, ''], ['D', '2026-03-08', 30, 10, '']]);
       expect(isPrToday(priorBestOf(s, 'assisted', '2026-03-08', 80), s.slice(1), 'assisted', 80)).toBeNull();
     });
     it('a day of only 0/0 sets is not a session', () => {
