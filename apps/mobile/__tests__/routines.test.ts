@@ -1,8 +1,10 @@
 /** @jest-environment node */
 import { buildLocalExport } from '../src/account/exportLocal';
 import { readFileSync } from 'fs';
+import Ajv2020 from 'ajv/dist/2020';
+import addFormats from 'ajv-formats';
 import { resolve } from 'path';
-import { CI_CHOICE, MODS_VALUE_MAX, TEXT_MAX, WHERE, applyRestore, parseRestore, previewRestore } from '../src/account/restoreLocal';
+import { CI_CHOICE, MODS_VALUE_MAX, SET_EXERCISE_MAX, SET_KIND, SET_RATE, TEXT_MAX, WHERE, applyRestore, parseRestore, previewRestore } from '../src/account/restoreLocal';
 import { normalizeGroups, ROUTINE_EXERCISES_MAX, ROUTINE_MAX_LIVE, EXERCISE_NAME_MAX, ROUTINE_NAME_MAX, ROUTINE_SETS_MAX, ROUTINE_SETS_MIN } from '@plate-and-bar/core';
 import { RoutineError, createRoutine, deleteRoutine, loadRoutines, renameRoutine, undoDeleteRoutine, type RoutineExercise } from '../src/db/routines';
 import { pendingChanges } from '../src/db/outbox';
@@ -432,6 +434,131 @@ describe('routines in the device export and restore', () => {
       expect(workout.mods.properties.reentry).toMatchObject({ minimum: 0, maximum: 1 });
       expect((wex.properties as Obj).group.maxLength).toBe(36);
       expect(workout.exercises.maxItems).toBe(ROUTINE_EXERCISES_MAX);
+      const set = (schemas.WorkoutSet as Obj).allOf[1].properties as Obj;
+      expect(set.exercise.maxLength).toBe(SET_EXERCISE_MAX);
+      expect(set.kind.enum).toEqual(SET_KIND);
+      expect(set.rate.enum.filter((x: unknown) => x !== null)).toEqual(SET_RATE);
+      expect(set.rate.enum).toContain(null);
+      expect(set.set_index).toMatchObject({ type: 'integer', minimum: 0 });
+      expect(set.weight_kg).toMatchObject({ type: ['number', 'null'], minimum: 0 });
+      expect(set.reps).toMatchObject({ type: ['integer', 'null'], minimum: 0 });
+      expect(set.weight_kg.maximum).toBeUndefined(); // no upper bound to clamp to
+      expect(set.reps.maximum).toBeUndefined();
+      expect(set.done.type).toBe('boolean');
+    });
+
+    describe('workout sets (#1360)', () => {
+      const SID = (n: number) => `6666666${n}-6666-4666-8666-666666666666`;
+      /** A file with workout 0 and `sets` as its sets: each is a good set with these fields overridden (undefined removes a field). */
+      async function setsFile(sets: Row[], tombstone = false) {
+        const file = JSON.parse(await fileWith([], [[W({})]])) as { tables: { workout_sets: Row[] } };
+        const base = file.tables.workout_sets[0] as Row;
+        file.tables.workout_sets = sets.map((o, i) => {
+          const r: Row = { ...base, id: SID(i), set_index: i, ...(tombstone ? { deleted_at: '2026-10-09T01:00:00.000Z' } : {}), ...o };
+          for (const k of Object.keys(r)) if (r[k] === undefined) delete r[k];
+          return r;
+        });
+        return JSON.stringify(file);
+      }
+      const keptSets = async (db: Db) => (await db.getAllAsync<{ data: string }>('SELECT data FROM workout_sets ORDER BY key')).map((r) => JSON.parse(r.data) as Row);
+      const good = { weight_kg: 60, reps: 5, done: true, rate: 'right', t: '2026-10-08T06:30:00.000Z' };
+
+      it('a valid set is kept untouched and not counted as repaired', async () => {
+        const { dst, summary } = await restored(await setsFile([good]));
+        expect((await keptSets(dst))[0]).toMatchObject(good);
+        expect(summary.tables.workout_sets).toMatchObject({ added: 1 });
+        expect(summary.tables.workout_sets!.repaired).toBeUndefined();
+        expect(summary.tables.workout_sets!.invalid).toBeUndefined();
+      });
+
+      it.each([
+        ['missing rate and t become null', { ...good, rate: undefined, t: undefined }, { rate: null, t: null }],
+        ['an unknown rate becomes null', { ...good, rate: 'medium' }, { rate: null }],
+        ['a rate of the wrong type becomes null', { ...good, rate: 3 }, { rate: null }],
+        ['a t that is not a string becomes null', { ...good, t: 5 }, { t: null }],
+        ['missing weight_kg and reps become null', { ...good, weight_kg: undefined, reps: undefined }, { weight_kg: null, reps: null }],
+        ['weight_kg and reps of the wrong type become null', { ...good, weight_kg: '60', reps: '5' }, { weight_kg: null, reps: null }],
+        ['a negative weight_kg becomes null', { ...good, weight_kg: -2.5 }, { weight_kg: null }],
+        ['a negative reps becomes null', { ...good, reps: -1 }, { reps: null }],
+        ['a fractional reps is rounded', { ...good, reps: 7.6 }, { reps: 8 }],
+        ['a missing deleted_at becomes null', { ...good, deleted_at: undefined }, { deleted_at: null }],
+      ])('%s, counted as repaired', async (_n, over, expected) => {
+        const { dst, summary } = await restored(await setsFile([over]));
+        expect((await keptSets(dst))[0]).toMatchObject(expected);
+        expect(summary.tables.workout_sets).toMatchObject({ added: 1, repaired: 1 });
+        expect(summary.tables.workout_sets!.invalid).toBeUndefined();
+      });
+
+      it.each([
+        ['no exercise', { exercise: undefined }],
+        ['an empty exercise', { exercise: '' }],
+        ['a numeric exercise', { exercise: 4 }],
+        ['an exercise of 201 code points', { exercise: '🏋'.repeat(201) }],
+        ['an unknown kind', { kind: 'warmup' }],
+        ['a kind that is not a string', { kind: 3 }],
+        ['no kind', { kind: undefined }],
+        ['a done that is not a boolean', { done: 'yes' }],
+        ['no done', { done: undefined }],
+        ['no set_index', { set_index: undefined }],
+        ['a negative set_index', { set_index: -1 }],
+        ['a fractional set_index', { set_index: 1.5 }],
+        ['a string set_index', { set_index: '1' }],
+      ])('skipped and counted: %s', async (_n, over) => {
+        const { dst, summary } = await restored(await setsFile([good, { ...good, ...over }]));
+        expect(await keptSets(dst)).toHaveLength(1);
+        expect(summary.tables.workout_sets).toMatchObject({ added: 1, invalid: 1 });
+      });
+
+      it('an exercise of 200 code points and set_index 0 are at the limits and stay', async () => {
+        const { dst, summary } = await restored(await setsFile([{ ...good, exercise: '🏋'.repeat(SET_EXERCISE_MAX), set_index: 0 }]));
+        expect(await keptSets(dst)).toHaveLength(1);
+        expect(summary.tables.workout_sets!.invalid).toBeUndefined();
+      });
+
+      it('a mix of good and bad sets: good kept, repairable repaired, the rest skipped, with counts in the summary line', async () => {
+        const text = await setsFile([good, { ...good, rate: 'x' }, { ...good, kind: 'nope' }, { ...good, weight_kg: -1, reps: 2.2 }, { ...good, exercise: '' }]);
+        const preview = await previewRestore(await openDb(), await parseRestore(text), null);
+        expect(preview.tables.workout_sets).toMatchObject({ added: 3, invalid: 2, repaired: 2 });
+        const { dst, summary } = await restored(text);
+        expect(summary.tables.workout_sets).toMatchObject({ added: 3, invalid: 2, repaired: 2 });
+        expect(await keptSets(dst)).toHaveLength(3);
+        const line = RESTORE_COPY.table('Sets', summary.tables.workout_sets!);
+        expect(line).toContain('2 skipped (not valid)');
+        expect(line).toContain('2 repaired');
+      });
+
+      it('tombstones follow the same rules', async () => {
+        const { dst, summary } = await restored(await setsFile([{ ...good, rate: undefined }, { ...good, kind: 'nope' }, good], true));
+        expect(summary.tables.workout_sets).toMatchObject({ added: 2, invalid: 1, repaired: 1 });
+        expect((await keptSets(dst)).every((r) => typeof r.deleted_at === 'string')).toBe(true);
+      });
+
+      it('sets of a skipped workout are still dropped and counted once', async () => {
+        const text = JSON.parse(await fileWith([], [[W({ name: 'x'.repeat(201) })]])) as { tables: { workout_sets: Row[] } };
+        text.tables.workout_sets[0]!.kind = 'nope'; // would be skipped on its own too
+        const { summary } = await restored(JSON.stringify(text));
+        expect(summary.tables.workout_sets).toMatchObject({ added: 0, invalid: 1 });
+      });
+
+      // Every kept set is checked against the real contract schema.
+      it('every kept set (repaired ones too, tombstones too) validates against WorkoutSet in openapi.yaml', async () => {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const { load } = require('js-yaml') as { load: (s: string) => object };
+        const ajv = new Ajv2020({ strict: false, allErrors: true });
+        addFormats(ajv);
+        ajv.addSchema(load(readFileSync(resolve(__dirname, '../../../packages/api/openapi.yaml'), 'utf8')), 'openapi.json');
+        const validate = ajv.getSchema('openapi.json#/components/schemas/WorkoutSet')!;
+        const bad = [{ ...good, rate: undefined, t: undefined }, { ...good, weight_kg: -3, reps: -4.5 }, { ...good, weight_kg: 'x', reps: 'y', rate: 'z' }, { ...good, deleted_at: undefined }, { ...good, kind: 'ramp', t: null }];
+        for (const tomb of [false, true]) {
+          const { dst } = await restored(await setsFile([good, ...bad], tomb));
+          const kept = await keptSets(dst);
+          expect(kept).toHaveLength(bad.length + 1);
+          for (const r of kept) {
+            validate(r);
+            expect(validate.errors ?? []).toEqual([]);
+          }
+        }
+      });
     });
 
     it.each([['missing', undefined], ['not an object', 'x'], ['reentry 5', { reentry: 5 }], ['light not boolean', { light: 'yes' }], ['where not allowed', { where: 'home' }], ['key of 51 characters', { ['k'.repeat(51)]: 1 }], ['a nested object', { a: { b: 1 } }], ['21 keys', Object.fromEntries(Array.from({ length: 21 }, (_, i) => [`k${i}`, 1]))], ['a string value of 51 characters', { note: 'n'.repeat(51) }]])('a workout whose mods is %s is skipped with its sets and counted', async (_n, mods) => {
