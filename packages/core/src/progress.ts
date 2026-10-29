@@ -802,6 +802,50 @@ export function chartLayout(values: readonly number[], box: ChartBox): ChartLayo
   return { min: mn, max: mx, points: values.map((v, i) => ({ x: X(i), y: Y(v) })) };
 }
 
+/** Widest a bar is drawn, box units, so a chart of 1 or 2 bars does not make slabs. */
+export const BAR_MAX_WIDTH = 40;
+/** A target above this many times the tallest bar is not drawn: it would flatten every bar to a sliver. */
+export const BAR_TARGET_MAX_RATIO = 2;
+
+/** One bar of `barLayout`: a rectangle in box units, its bottom on the baseline. */
+export interface BarRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+/** Result of `barLayout`. */
+export interface BarLayout {
+  /** The value at the top grid line (y = `py`); the baseline (y = `H - py`) is 0. */
+  max: number;
+  /** One entry per value, in order; null where the value is null (a gap, never a zero-height bar). */
+  bars: (BarRect | null)[];
+  /** The target's y, or null when there is none or it is not drawn (see `BAR_TARGET_MAX_RATIO`). */
+  targetY: number | null;
+}
+
+/**
+ * Bar-chart layout: one slot per value from `px` to `W - 8`, each bar 70% of its slot (at most `BAR_MAX_WIDTH`) centred in it, rising from
+ * the baseline at 0. The y axis runs 0 to the tallest value, widened to include a target that is drawn, so a target moves the heights
+ * (as `chartLayout` does for a line) but never x or width. A target of 0 or less, or over `BAR_TARGET_MAX_RATIO` times the tallest bar, is
+ * not drawn (`targetY` null) and leaves the axis alone. Null with no values.
+ */
+export function barLayout(values: readonly (number | null)[], target: number | undefined, box: ChartBox): BarLayout | null {
+  if (values.length === 0) return null;
+  const { W, H, px, py } = box;
+  const tallest = Math.max(0, ...values.filter((v): v is number => v !== null));
+  const drawn = target !== undefined && target > 0 && target <= Math.max(tallest, 1) * BAR_TARGET_MAX_RATIO ? target : null;
+  const max = Math.max(tallest, drawn ?? 0) || 1;
+  const slot = (W - 8 - px) / values.length, width = Math.min(slot * 0.7, BAR_MAX_WIDTH), plot = H - py * 2;
+  const bars = values.map((v, i): BarRect | null => {
+    if (v === null) return null;
+    const height = (Math.max(v, 0) / max) * plot;
+    return { x: px + i * slot + (slot - width) / 2, y: H - py - height, width, height };
+  });
+  return { max, bars, targetY: drawn === null ? null : H - py - (drawn / max) * plot };
+}
+
 /** A rise at least this big over the last weigh-in triggers the scale-jump note, kg (prototype's 0.8). */
 export const SCALE_JUMP_KG = 0.8;
 /** How many days back the scale-jump note looks for the last weigh-in (prototype's 3). */

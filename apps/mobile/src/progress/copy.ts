@@ -114,3 +114,13 @@ export const WEEK_TARGET_HINT = 'The thin vertical line on each bar is your calo
 export const RAPID_TITLE = 'Weight is dropping fast';
 export const RAPID_BODY = (drop: number, twoWeeks: boolean, stalls: number, unit: WeightUnit = 'kg'): string =>
   `Your weekly average fell about ${drop} ${unit}${twoWeeks ? ', faster than 1% of your bodyweight a week for 2 weeks running' : `, and ${stalls} lifts have stalled`}. Losing faster than about 1% a week makes it harder to keep muscle. Adding about ${RAPID_LOSS_KCAL} kcal a day helps protect muscle.`;
+
+// Bar chart (#1351 A3).
+export const BAR_NOT_LOGGED = 'Not logged';
+export const BAR_PARTIAL = 'few days logged';
+export const BAR_BELOW = 'Below target';
+export const BAR_TARGET_ROW = (target: string, unit: string): string => `Target ${target} ${unit}`;
+export const BAR_DELTA = (amount: string, unit: string, dir: 'under' | 'over' | 'on'): string => (dir === 'on' ? 'On target' : `${amount} ${unit} ${dir}`);
+export const BAR_SUMMARY_NOT_LOGGED = (weeks: string): string => `Not logged: ${weeks}`;
+export const BAR_SUMMARY_PARTIAL = (weeks: string): string => `Few days logged: ${weeks}`;
+export const BAR_SUMMARY_BELOW = (weeks: string): string => `Below target: ${weeks}`;

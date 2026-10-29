@@ -535,6 +535,9 @@ export {
   measureSeries,
   trendChange,
   chartLayout,
+  barLayout,
+  BAR_MAX_WIDTH,
+  BAR_TARGET_MAX_RATIO,
   scaleJump,
   weightEntry,
   measurementRow,
@@ -552,7 +555,7 @@ export {
   SLEEP_MAX_H,
   weekSummary,
 } from './progress';
-export type { TrendPoint, TrendChange, ChartBox, ChartLayout, ScaleJump, WeightEntry, SleepEntry, WeekDay, WeekSummary } from './progress';
+export type { TrendPoint, TrendChange, ChartBox, ChartLayout, BarRect, BarLayout, ScaleJump, WeightEntry, SleepEntry, WeekDay, WeekSummary } from './progress';
 
 /**
  * Science cards (#488). The protein card's 1.6 g/kg floor, `Math.round(w * 1.6)` where

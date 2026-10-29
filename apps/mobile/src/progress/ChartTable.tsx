@@ -14,6 +14,8 @@ export interface ChartRow {
   date: string;
   /** Shown text, with its unit. */
   value: string;
+  /** Optional second line under the date and value, e.g. a target, the gap to it and a flag. */
+  note?: string;
 }
 
 /**
@@ -39,8 +41,11 @@ export function ChartTable({ rows, noun, valueHeader }: { rows: readonly ChartRo
             <Text style={[typeScale.small, { color: c.muted }]}>{valueHeader}</Text>
           </View>
           {shown.map((r) => (
-            <View key={r.date} style={[styles.row, { borderBottomColor: c.line }]} accessible accessibilityRole="text" accessibilityLabel={`${dateWithYear(r.date)}, ${r.value}`}>
-              <Text style={{ color: c.ink }}>{dateWithYear(r.date)}</Text>
+            <View key={r.date} style={[styles.row, { borderBottomColor: c.line }]} accessible accessibilityRole="text" accessibilityLabel={`${dateWithYear(r.date)}, ${r.value}${r.note ? `, ${r.note}` : ''}`}>
+              <View style={styles.dateCol}>
+                <Text style={{ color: c.ink }}>{dateWithYear(r.date)}</Text>
+                {r.note ? <Text style={[typeScale.small, { color: c.muted }]}>{r.note}</Text> : null}
+              </View>
               <Text style={[tabular, { color: c.ink, fontWeight: '700' }]}>{r.value}</Text>
             </View>
           ))}
@@ -59,4 +64,5 @@ const styles = StyleSheet.create({
   wrap: { width: '100%', maxWidth: CHART_MAX_WIDTH, gap: space.sm },
   button: { minHeight: 44, alignSelf: 'flex-start', justifyContent: 'center', paddingHorizontal: space.lg, borderWidth: 1, borderRadius: radius.full },
   row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', minHeight: 36, borderBottomWidth: 1 },
+  dateCol: { flexShrink: 1, paddingVertical: 2 },
 });
