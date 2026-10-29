@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "origin": "docs/prototype/plate-and-bar.html (MEASURES, measuresHtml)",
+  "origin": "imported once from the prototype (frozen at tag prototype-final) (MEASURES, measuresHtml); content is now the source of record",
   "unit": "cm",
   "measures": [
     {
