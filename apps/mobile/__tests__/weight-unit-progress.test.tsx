@@ -207,10 +207,10 @@ describe('History and trends in pounds (#1185)', () => {
   it('recent workouts show the volume in lb, and kg stays kg', async () => {
     const s = sessions();
     const { unmount } = await inUnit('lb', <RecentWorkouts sessions={s} onOpen={() => {}} />);
-    expect(await screen.findByLabelText(/Pull A, 2 sets, 2,161 lb$/)).toBeTruthy();
+    expect(await screen.findByLabelText(/^Pull A, 8 Oct, 2 sets, 2,161 lb$/)).toBeTruthy();
     await unmount();
     await inUnit('kg', <RecentWorkouts sessions={s} onOpen={() => {}} />);
-    expect(screen.getByLabelText(/Pull A, 2 sets, 980 kg$/)).toBeTruthy();
+    expect(screen.getByLabelText(/^Pull A, 8 Oct, 2 sets, 980 kg$/)).toBeTruthy();
   });
 
   it('the e1RM summary and set text take the unit, kg unchanged', () => {

@@ -126,14 +126,14 @@ const screens = {
     await label(page, 'Weight in kg').fill('82.1');
     await saved(page, () => label(page, 'Save weight').click());
     await label(page, 'Next day').click();
-    await label(page, 'Show as table').first().click();
-    const table = page.locator('[role=table] >> visible=true');
+    // Scoped to the weight chart's own button and table, so a chart added above it cannot be opened instead.
+    await page.locator('[aria-label="Show as table"]:below(:text("Body weight"))').filter({ visible: true }).first().click();
+    const table = page.locator('[role=table][aria-label="Weight values by date"] >> visible=true');
     await expect(table).toHaveCount(1);
     await expect(table.locator('[role=columnheader]')).toHaveCount(2);
-    // A header row plus one row per weigh-in, two cells each.
-    const rows = await table.locator('[role=row]').count();
-    expect(rows).toBeGreaterThanOrEqual(3);
-    await expect(table.locator('[role=cell]')).toHaveCount((rows - 1) * 2);
+    // A header row plus the two weigh-ins saved above (completeSetup stores none), two cells each.
+    await expect(table.locator('[role=row]')).toHaveCount(3);
+    await expect(table.locator('[role=cell]')).toHaveCount(4);
   },
   targets: async (page) => {
     await tab(page, 'Targets');
