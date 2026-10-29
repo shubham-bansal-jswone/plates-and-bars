@@ -1,4 +1,4 @@
-import { addFood, completeSetup, openApp, saved, tab } from '../support/app.mjs';
+import { addFood, completeSetup, openApp, tab } from '../support/app.mjs';
 import { expect, label, signIn, test } from '../support/sync.mjs';
 
 // Needs the backend stack (README.md, "Sync tests"). One account, two devices (browser contexts).

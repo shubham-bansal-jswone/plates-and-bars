@@ -1,4 +1,4 @@
-import { addFood, completeSetup, saved, tab } from '../support/app.mjs';
+import { addFood, completeSetup, tab } from '../support/app.mjs';
 import { badge, expect, label, newEmail, openedOn, signIn, test } from '../support/sync.mjs';
 
 // Needs the backend stack (README.md, "Sync tests"). Part of #688. Waits are on the badge and on screen text, never fixed sleeps:
