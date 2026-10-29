@@ -74,11 +74,7 @@ describe('groupWithNext', () => {
     expect(groups(result).slice(0, 3)).toEqual(['h', 'h', 'h']);
   });
 
-  it('refuses what core refuses and changes nothing: two groups, a finished exercise, the last exercise', async () => {
-    const two = await session(['g', 'g', 'h', 'h']);
-    expect(two.result.current.groupWithNext(1)).toBeNull();
-    expect(groups(two.result).slice(0, 4)).toEqual(['g', 'g', 'h', 'h']);
-
+  it('refuses what core refuses and changes nothing: a finished exercise, the last exercise', async () => {
     const done = await session();
     await act(async () => {
       for (let j = 0; j < done.result.current.day.exs[1]!.sets.length; j++) {

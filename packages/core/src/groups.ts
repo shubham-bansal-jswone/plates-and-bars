@@ -143,12 +143,16 @@ export function restAfterTick(exs: readonly GroupEx[], i: number, j: number, don
   return { kind: 'round', seconds: Math.max(...inRound.map((k) => restFor((exs[k] as GroupEx).name, o.tags))), next };
 }
 
-/** Why exercise `i` cannot be grouped with the one after it: `last` and `inner` mean the offer does not apply at all (no next exercise; `i` is not the last member of its group). */
-export type GroupWithNext = { ok: true } | { ok: false; why: 'last' | 'inner' | 'other' | 'full' | 'done' | 'same'; ex: number };
+/**
+ * Whether exercise `i` can be grouped with the one after it (`merge: true` when that joins two groups into one), or why not: `last` and `inner` mean
+ * the offer does not apply at all (no next exercise; `i` is not the last member of its group).
+ */
+export type GroupWithNext = { ok: true; merge?: true } | { ok: false; why: 'last' | 'inner' | 'full' | 'done' | 'same'; ex: number };
 
 /**
  * Whether exercise `i` may be grouped with exercise `i + 1`: two ungrouped exercises start a group; an ungrouped one joins the group that
- * starts at the next; the last member of a group takes an ungrouped next one. Not allowed: two groups (`other`, ex the next), the result over
+ * starts at the next; the last member of a group takes an ungrouped next one; the last member of a group and the first of the next group merge
+ * the two (`merge: true`; #1345). Not allowed: the result over
  * `GROUP_MAX` (`full`), `i` or the next one fully done (`done`, ex which), the result holding one name twice (`same`, ex the one that would join: the next, or `i` when `i` is not in a group). The first reason
  * in that order is returned; groups that are not valid runs count as ungrouped. Rules that need the app (parts of the session, the first-time ramp) are not here.
  *
@@ -162,7 +166,6 @@ export function canGroupWithNext(exs: readonly GroupEx[], i: number, done: IsDon
   const ra = all.find((r) => r.a <= i && i < r.b);
   const rb = all.find((r) => r.a <= i + 1 && i + 1 < r.b);
   if (ra && i !== ra.b - 1) return { ok: false, why: 'inner', ex: i };
-  if (ra && rb) return { ok: false, why: 'other', ex: i + 1 };
   const from = ra ? ra.a : i;
   const to = rb ? rb.b : i + 2;
   if (to - from > GROUP_MAX) return { ok: false, why: 'full', ex: i };
@@ -172,6 +175,88 @@ export function canGroupWithNext(exs: readonly GroupEx[], i: number, done: IsDon
   };
   for (const k of [i, i + 1]) if (finished(k)) return { ok: false, why: 'done', ex: k };
   const names = exs.slice(from, to).map((e) => e.name);
-  if (new Set(names).size !== names.length) return { ok: false, why: 'same', ex: ra ? i + 1 : i }; // the one that would join (a group's own names are unique)
-  return { ok: true };
+  if (new Set(names).size !== names.length) {
+    // The one that would join: for a merge the first of the second group whose name is in the first; else the next, or `i` when `i` is not in a group.
+    const clash = rb && ra ? exs.findIndex((e, k) => k >= rb.a && k < rb.b && exs.some((o, m) => m >= ra.a && m < ra.b && o.name === e.name)) : -1;
+    return { ok: false, why: 'same', ex: clash >= 0 ? clash : ra ? i + 1 : i };
+  }
+  return ra && rb ? { ok: true, merge: true } : { ok: true };
+}
+
+/** An exercise list after a group edit: `to` is the new index of the exercise that was acted on. */
+export type GroupEdit<E> = { exs: E[]; to: number };
+
+/** The unit holding index `k`: a valid group run, else just `k`. */
+const unitOf = (all: { a: number; b: number }[], k: number) => all.find((r) => r.a <= k && k < r.b) ?? { a: k, b: k + 1 };
+
+/**
+ * Groups exercise `i` with the next one when `canGroupWithNext` allows it, else null. Two ungrouped exercises get the id `make()`; joining
+ * or appending keeps the id of the group involved; merging two groups gives the second group's members the first group's id. Returns the new
+ * list (never mutates, order unchanged) and `members`, the [start, end) of the resulting group. A `make()` id that is not valid (`validId`) or is
+ * already on another exercise refuses (null), so a bad id can never join two runs.
+ *
+ * New (#1345, ADR 012), not a prototype port.
+ */
+export function joinWithNext<E extends GroupEx>(exs: readonly E[], i: number, done: IsDone, make: () => string): { exs: E[]; members: [number, number]; merged: boolean } | null {
+  const can = canGroupWithNext(exs, i, done);
+  if (!can.ok) return null;
+  const all = validRuns(exs);
+  const ra = all.find((r) => r.a <= i && i < r.b);
+  const rb = all.find((r) => r.a <= i + 1 && i + 1 < r.b);
+  const from = ra ? ra.a : i;
+  const to = rb ? rb.b : i + 2;
+  const id = ra || rb ? gid(exs[ra ? ra.a : (rb as { a: number }).a] as E) : make();
+  if (!validId(id) || (!ra && !rb && exs.some((e) => e.group === id))) return null;
+  return { exs: exs.map((e, k) => (k >= from && k < to && e.group !== id ? { ...e, group: id } : e)), members: [from, to], merged: !!(ra && rb) };
+}
+
+/**
+ * Moves exercise `i` one step (`dir` -1 up, +1 down) and keeps every group valid (2 to 6 members, contiguous); null when there is no step to take.
+ * - A member of a group swaps with its neighbour inside the group (the letters follow the order).
+ * - The first member moving up, or the last moving down, leaves the group (`group: null`) and hops over the whole unit next to the group (a lone exercise or another group).
+ *   A group left with one member is dissolved, its member gets an explicit null.
+ * - An ungrouped exercise hops over the whole unit next to it, so it never lands inside a group and never splits one.
+ * - Nothing crosses a part boundary (`part` differs): that is null, as at either end of the list.
+ * Returns `to`, the new index of the exercise. Never mutates. Expects a repaired list (call `normalizeGroups` first, as for `nextInRound`): stale singleton ids would otherwise form a group.
+ *
+ * New (#1345, ADR 012), not a prototype port. Vectors: golden/group-edits.json.
+ */
+export function moveExercise<E extends GroupEx & { part?: number }>(exs: readonly E[], i: number, dir: -1 | 1): GroupEdit<E> | null {
+  const e = exs[i];
+  if (!e || (dir !== -1 && dir !== 1)) return null;
+  const all = validRuns(exs);
+  const own = all.find((r) => r.a <= i && i < r.b);
+  const j = i + dir;
+  if (own && j >= own.a && j < own.b) {
+    const out = exs.slice();
+    out[i] = exs[j] as E;
+    out[j] = e;
+    return { exs: out, to: j };
+  }
+  const k = dir === -1 ? (own ? own.a : i) - 1 : own ? own.b : i + 1; // the exercise next to this one's unit
+  const near = exs[k];
+  if (!near) return null;
+  const unit = unitOf(all, k);
+  if (e.part !== undefined && near.part !== undefined && e.part !== near.part) return null;
+  const rest = exs.filter((_, x) => x !== i);
+  const to = dir === -1 ? unit.a : unit.b - 1;
+  rest.splice(to, 0, own ? { ...e, group: null } : e);
+  return { exs: normalizeGroups(rest), to };
+}
+
+/**
+ * Takes exercise `i` out of its group and keeps it in the session; null when it is in no valid group. The first member stays where it is; any
+ * other member goes right after the group (so the rest stays contiguous). The member gets an explicit `group: null`. A group of two is dissolved
+ * (`dissolved`: the other member gets an explicit null too). Never mutates.
+ *
+ * New (#1345, ADR 012), not a prototype port. Vectors: golden/group-edits.json.
+ */
+export function leaveGroup<E extends GroupEx>(exs: readonly E[], i: number): (GroupEdit<E> & { dissolved: boolean }) | null {
+  const own = validRuns(exs).find((r) => r.a <= i && i < r.b);
+  const e = exs[i];
+  if (!own || !e) return null;
+  const to = i === own.a ? i : own.b - 1;
+  const rest = exs.filter((_, x) => x !== i);
+  rest.splice(to, 0, { ...e, group: null });
+  return { exs: normalizeGroups(rest), to, dissolved: own.b - own.a === GROUP_MIN };
 }

@@ -50,8 +50,6 @@ export function groupReason(r: GroupWithNext, names: readonly string[]): string 
       return `A superset holds up to ${GROUP_MAX} exercises.`;
     case 'done':
       return `${n} is already done, so it can’t join a superset.`;
-    case 'other':
-      return `${n} is in another superset. Ungroup it first.`;
     case 'same':
       return `${n} would be in this superset twice.`;
     default:
@@ -69,4 +67,37 @@ export function removalNote(exs: Exs, name: string): { toast: string; said?: str
     return { toast: `${name} removed. ${other} is no longer in a superset.` };
   }
   return { toast: `${name} removed`, said: `Superset is now ${listJoin(u.labels.slice(0, -1))}.` };
+}
+
+/** The rows core's group edits (`moveExercise`, `leaveGroup`, `joinWithNext`) work on: `k` is the exercise's index, so the result maps back to it. */
+export const editRows = (exs: readonly Pick<ExState, 'name' | 'group' | 'sets' | 'part'>[]) => exs.map((e, k) => ({ name: e.name, sets: e.sets.length, group: e.group, part: e.part, k }));
+
+/** The screen's exercises in the order and with the group ids of a core edit's result (rows from `editRows`). Ungrouped ones are `group: null`; the write adds the explicit null only where a group was stored (ADR 012). */
+export const applyEdit = (exs: readonly ExState[], rows: readonly { k: number; group?: string | null }[]): ExState[] => rows.map((r) => ({ ...(exs[r.k] as ExState), group: r.group ?? null }));
+
+/**
+ * What a move says (a live region and, on iOS, an announcement): where the exercise is now, as `before` became `after`. In a superset: its letter; out of one:
+ * that it left, and when that dissolved a pair, who is now alone.
+ */
+export function moveNote(before: Exs, after: Exs, name: string, dir: -1 | 1): string {
+  const way = dir === -1 ? 'up' : 'down';
+  const at = after.findIndex((e) => e.name === name);
+  const from = before.findIndex((e) => e.name === name);
+  const was = groupUnits(before).find((x) => x.labels.length > 0 && x.start <= from && from < x.end);
+  const now = groupUnits(after).find((x) => x.start <= at && at < x.end);
+  if (was && now && now.labels.length > 0) return `${name} moved ${way}, now ${now.labels[at - now.start]} of ${now.labels.length} in the superset.`;
+  if (was) {
+    const other = was.labels.length === 2 ? before.slice(was.start, was.end).find((e) => e.name !== name)?.name : undefined;
+    return `${name} moved ${way} out of the superset, now ${at + 1} of ${after.length}.${other ? ` ${other} is no longer in a superset.` : ''}`;
+  }
+  return `${name} moved ${way}, now ${at + 1} of ${after.length}.`;
+}
+
+/** What taking `name` out of its superset says, as one toast: a superset left with 3 or more says its new letters, a pair says who is now alone. */
+export function leaveNote(before: Exs, name: string): string {
+  const i = before.findIndex((e) => e.name === name);
+  const u = groupUnits(before).find((x) => x.start <= i && i < x.end);
+  if (!u || u.labels.length < 2) return `${name} is not in a superset`;
+  if (u.labels.length === 2) return `${name} is out of the superset. ${before[i === u.start ? u.start + 1 : u.start]?.name ?? ''} is no longer in a superset.`;
+  return `${name} is out of the superset. Superset is now ${listJoin(u.labels.slice(0, -1))}.`;
 }
