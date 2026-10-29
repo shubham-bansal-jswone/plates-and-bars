@@ -55,6 +55,17 @@ describe('personal records (#1351 C3)', () => {
     it('bodyweight scores total reps (fail counts, deleted does not)', () => expect(priorBestOf(sets, 'bodyweight', '2026-03-11')).toEqual({ best: 10, sessions: 3 }));
   });
 
+  describe('assisted and zero sets', () => {
+    it('earlier days are rescored at the bodyweight passed in', () => {
+      const s = mk([['D', '2026-03-01', 30, 10, ''], ['D', '2026-03-08', 30, 10, '']]);
+      expect(priorBestOf(s.slice(0, 1), 'assisted', '2026-03-08', 80)).toEqual({ best: 500, sessions: 1 });
+      expect(isPrToday(priorBestOf(s, 'assisted', '2026-03-08', 80), s.slice(1), 'assisted', 80)).toBeNull();
+    });
+    it('a day of only 0/0 sets is not a session', () => {
+      expect(priorBestOf(mk([['P', '2026-03-01', 0, 0, '']]), 'bodyweight', '2026-03-10')).toEqual({ best: 0, sessions: 0 });
+    });
+  });
+
   describe('edge cases', () => {
     it('empty input', () => {
       expect(personalRecords([], {})).toEqual([]);
