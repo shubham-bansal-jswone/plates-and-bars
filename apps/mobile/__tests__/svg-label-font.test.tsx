@@ -31,7 +31,7 @@ describe('SVG labels use the body font (#908)', () => {
       </FontsProvider>,
     );
     const families = textFamilies();
-    expect(families).toHaveLength(2);
+    expect(families).toHaveLength(3); // max, min and the last point's value
     for (const f of families) expect(f).toContain('Inter_400Regular');
   });
 

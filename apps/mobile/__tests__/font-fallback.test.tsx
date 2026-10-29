@@ -57,7 +57,7 @@ describe.each(['web', 'ios', 'android'] as const)('font fallback on %s', (os) =>
     await renderAll();
     const expected = os === 'web' ? STACK : undefined;
     const labels = svgFamilies();
-    expect(labels).toHaveLength(2);
+    expect(labels).toHaveLength(3);
     // The SVG renderer keeps only the first family of a stack off web, so compare that one; Input shows the full string.
     for (const f of labels) expect(f).toBe(expected?.split(',')[0]);
     expect(StyleSheet.flatten(screen.getByLabelText('field').props.style).fontFamily).toBe(expected);

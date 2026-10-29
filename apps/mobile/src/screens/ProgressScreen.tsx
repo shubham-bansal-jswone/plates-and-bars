@@ -1,23 +1,23 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { WhyLink } from '../why/WhyLink';
 import { DailyRead } from '../why/DailyRead';
 import { useOptionalSettings } from '../state/SettingsProvider';
 import { profileWhyValues } from '../why/values';
 import { StyleSheet, View } from 'react-native';
-import { DEFAULT_KCAL_TARGET, formatWeight, round1, waterRetentionPhase, latestWeight, navyBodyFat, stepsTarget, trendChange, waistSeries, weightSeries, WAIST_CHART_BOX, WEIGHT_CHART_BOX, type MeasureKey } from '@plate-and-bar/core';
+import { DEFAULT_KCAL_TARGET, formatWeight, round1, waterRetentionPhase, latestWeight, navyBodyFat, stepsTarget, measureSeries, weightSeries, WAIST_CHART_BOX, WEIGHT_CHART_BOX, type MeasureKey } from '@plate-and-bar/core';
 import { useDataVersion } from '../sync/useDataVersion';
 import { useStepsVersion } from '../steps/DeviceStepsProvider';
 import { Text } from '../components/Text';
 import { Heading, Button, Caption, Card, Field, H1, Hint, Page } from '../components/ui';
 import type { WorkoutDb } from '../db/workouts';
 import { fmt, shortDate } from '../format';
-import { BF_HINT, BF_MISSING, BF_NO_PROFILE, HOW_TO_MEASURE, HOW_TO_MEASURE_HIPS, getMeasures, SCALE_JUMP_BODY, SCALE_JUMP_TITLE, TREND_NONE, WEIGHT_HINT } from '../progress/copy';
+import { BF_HINT, BF_MISSING, BF_NO_PROFILE, HOW_TO_MEASURE, HOW_TO_MEASURE_HIPS, getMeasures, SCALE_JUMP_BODY, SCALE_JUMP_TITLE, WEIGHT_HINT } from '../progress/copy';
 import { CheckinCard, RapidLossCard } from '../progress/CheckinCard';
 import { RecentWorkouts, WorkoutDay } from '../progress/history/History';
 import { useHistory } from '../progress/history/useHistory';
 import { WeekCard } from '../progress/WeekCard';
 import { useCheckin } from '../progress/useCheckin';
-import { TrendChart } from '../progress/TrendChart';
+import { RangedTrend } from '../progress/RangedTrend';
 import { useProgress } from '../progress/useProgress';
 import { useStoredText } from '../progress/useStoredText';
 import { useProfile } from '../state/ProfileProvider';
@@ -120,12 +120,7 @@ function WeightSection({ p }: { p: Progress }) {
   const [text, setText] = useStoredText(mine ? formatWeight(mine.weight_kg, unit) : '');
   const latest = latestWeight(p.weights, p.date);
   const recent = p.weights.filter((w) => !w.deleted_at && w.date <= p.date).sort((a, b) => b.date.localeCompare(a.date)).slice(0, RECENT_WEIGH_INS);
-  const kgSeries = weightSeries(p.weights, p.date);
-  const series = kgSeries.map((pt) => ({ ...pt, v: weightNumber(pt.v, unit) }));
-  // The change is taken in exact kg and converted once, so rounding each point first cannot drift it by 0.1.
-  const kgChange = trendChange(kgSeries);
-  const amount = kgChange ? weightNumber(Math.abs(kgChange.diff), unit) : 0;
-  const change = kgChange ? { amount, direction: amount === 0 ? 'none' : kgChange.diff < 0 ? 'down' : 'up', since: kgChange.since } : null;
+  const kgSeries = useMemo(() => weightSeries(p.weights, p.date, Infinity), [p.weights, p.date]);
   return (
     <Card style={styles.section}>
       <Heading level={2} style={[typeScale.heading, { color: c.ink }]}>Body weight</Heading>
@@ -134,14 +129,15 @@ function WeightSection({ p }: { p: Progress }) {
         <Button kind="ghost" label="Save weight" onPress={() => p.saveWeightText(text, unit)} />
       </View>
       {latest !== null ? <Text style={{ color: c.ink }} accessibilityLabel={`Latest weigh-in ${weightWithUnit(latest, unit)}`}>{`Latest: ${weightWithUnit(latest, unit)}`}</Text> : <Hint>Log a few weigh-ins to see them here.</Hint>}
-      {series.length >= 2 ? (
-        <>
-          <TrendChart points={series} box={WEIGHT_CHART_BOX} label={`Weight from ${series[0]?.v} to ${series[series.length - 1]?.v} ${unit}`} />
-          {change ? <Hint>{change.direction === 'none' ? `No change since ${shortDate(change.since)}.` : `${change.direction === 'down' ? 'Down' : 'Up'} ${change.amount} ${unit} since ${shortDate(change.since)}.`}</Hint> : null}
-        </>
-      ) : (
-        <Hint>{TREND_NONE}</Hint>
-      )}
+      <RangedTrend
+        series={kgSeries}
+        end={p.date}
+        convert={(kg) => weightNumber(kg, unit)}
+        unit={unit}
+        noun="Weight"
+        box={WEIGHT_CHART_BOX}
+        changeLine={(ch) => (ch.direction === 'none' ? `No change since ${shortDate(ch.since)}.` : `${ch.direction === 'down' ? 'Down' : 'Up'} ${ch.amount} ${unit} since ${shortDate(ch.since)}.`)}
+      />
       {recent.map((w) => (
         <Card key={w.date} style={[styles.row, { backgroundColor: c.surfaceSoft }]} accessible accessibilityLabel={`${shortDate(w.date)}, ${weightWithUnit(w.weight_kg, unit)}`}>
           <Text style={{ color: c.muted }}>{shortDate(w.date)}</Text>
@@ -173,8 +169,7 @@ function MeasureSection({ p, isToday }: { p: Progress; isToday: boolean }) {
   const shown = MEASURES.filter((m) => m.show === 'always' || hasRule(m) || (m.show.or_entered_that_day && !!mine?.[m.key]));
   const female = profile?.sex === 'female';
   const bf = navyBodyFat(profile, p.tapes, p.date);
-  const waist = waistSeries(p.tapes, p.date);
-  const waistChange = trendChange(waist);
+  const waist = useMemo(() => measureSeries(p.tapes, 'waist_cm', p.date, Infinity), [p.tapes, p.date]);
   return (
     <Card style={styles.section}>
       <Heading level={2} style={[typeScale.heading, { color: c.ink }]}>Measurements</Heading>
@@ -188,8 +183,15 @@ function MeasureSection({ p, isToday }: { p: Progress; isToday: boolean }) {
       {waist.length >= 2 ? (
         <>
           <Heading level={3} style={[typeScale.label, { color: c.ink }]}>Waist</Heading>
-          <TrendChart points={waist} box={WAIST_CHART_BOX} label={`Waist from ${waist[0]?.v} to ${waist[waist.length - 1]?.v} cm`} />
-          {waistChange ? <Hint>{waistChange.direction === 'none' ? `No change in waist since ${shortDate(waistChange.since)}.` : `Waist ${waistChange.direction} ${waistChange.amount} cm since ${shortDate(waistChange.since)}.`}</Hint> : null}
+          <RangedTrend
+            series={waist}
+            end={p.date}
+            convert={(cm) => cm}
+            unit="cm"
+            noun="Waist"
+            box={WAIST_CHART_BOX}
+            changeLine={(ch) => (ch.direction === 'none' ? `No change in waist since ${shortDate(ch.since)}.` : `Waist ${ch.direction} ${ch.amount} cm since ${shortDate(ch.since)}.`)}
+          />
         </>
       ) : null}
       {bf !== null ? (
