@@ -1,5 +1,6 @@
 import type { Schemas } from '@plate-and-bar/api';
-import { EXERCISE_NAME_MAX, ROUTINE_EXERCISES_MAX, ROUTINE_MAX_LIVE, ROUTINE_NAME_MAX, ROUTINE_SETS_MAX, ROUTINE_SETS_MIN, isBlank, normalizeGroups, validId } from '@plate-and-bar/core';
+import { ROUTINE_EXERCISES_MAX, ROUTINE_MAX_LIVE, normalizeGroups } from '@plate-and-bar/core';
+import { exerciseProblem, routineNameOk } from './routineRules';
 import { exclusive } from './exclusive';
 import { newId, type StoreDb } from './records';
 import type { WorkoutDb } from './workouts';
@@ -20,11 +21,9 @@ export class RoutineError extends Error {
   }
 }
 
-const len = (s: string) => [...s].length;
-
 function checkName(name: string): string {
   const n = name.trim();
-  if (isBlank(n) || len(n) > ROUTINE_NAME_MAX) throw new RoutineError('name');
+  if (!routineNameOk(n)) throw new RoutineError('name');
   return n;
 }
 
@@ -35,13 +34,9 @@ function checkExercises(list: RoutineExercise[]): RoutineExercise[] {
   for (const raw of list) {
     // JSON.stringify drops a key whose value is undefined, so it is dropped here too rather than refused.
     const e = Object.fromEntries(Object.entries(raw).filter(([, v]) => v !== undefined)) as RoutineExercise;
-    if (typeof e.name !== 'string' || isBlank(e.name) || len(e.name) > EXERCISE_NAME_MAX) throw new RoutineError('exercises');
-    // Bounded-open like the contract: at most 20 keys, each value a boolean, number, string up to 200, or null.
-    const keys = Object.entries(e);
-    if (keys.length > 20 || keys.some(([k, v]) => len(k) > 50 || (v !== null && !['boolean', 'number', 'string'].includes(typeof v)) || (typeof v === 'string' && len(v) > 200 && k !== 'name'))) throw new RoutineError('exercises');
-    // A group id outside the contract pattern is refused (routines.json); a group that is not a valid run is repaired below.
-    if (e.group != null && !validId(e.group)) throw new RoutineError('exercises');
-    if (!Number.isInteger(e.sets) || e.sets < ROUTINE_SETS_MIN || e.sets > ROUTINE_SETS_MAX) throw new RoutineError('sets');
+    // Name, bounded-open keys, group id and set count: the shared rules (routineRules.ts), refusing rather than repairing.
+    const bad = exerciseProblem(e, false);
+    if (bad) throw new RoutineError(bad);
     if (seen.has(e.name)) continue;
     seen.add(e.name);
     out.push(e);

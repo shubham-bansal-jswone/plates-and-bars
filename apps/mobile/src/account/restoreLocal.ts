@@ -4,10 +4,11 @@ import type { WorkoutDb } from '../db/workouts';
 import { loadCycle, saveCycle } from '../db/cycle';
 import { loadHold, loadReports, saveHold, saveReport } from '../db/labs';
 import { NO_USER, type LocalExport } from './exportLocal';
-import { InvalidRecord, normalizeTimestamps, storeRecord, type Doc } from '../sync/records';
+import { InvalidRecord, normalizeTimestamps, parseTimestamp, storeRecord, type Doc } from '../sync/records';
 import { naturalId } from '../sync/ids';
 import { getLiftVersion } from '../sync/store';
-import { ROUTINE_MAX_LIVE } from '@plate-and-bar/core';
+import { ROUTINE_EXERCISES_MAX, ROUTINE_MAX_LIVE, ROUTINE_SETS_MAX, ROUTINE_SETS_MIN, normalizeGroups } from '@plate-and-bar/core';
+import { KEY_MAX, MAX_KEYS, boundedOpenOk, exerciseProblem, len, routineNameOk } from '../db/routineRules';
 import { deleteKitchenPhoto } from '../photos/vault';
 
 // Restore from a device export file (#1177). It merges by record id using the record version and tombstones, the rule sync
@@ -39,7 +40,9 @@ export class RestoreError extends Error {
 export interface ParsedRestore {
   file: LocalExport;
   /** Rows with timestamps normalised and the workout date of each set resolved. */
-  rows: { tbl: SyncTableName; key: string; rec: Doc; setDate: string | null }[];
+  rows: { tbl: SyncTableName; key: string; rec: Doc; setDate: string | null; repaired: boolean }[];
+  /** Rows left out because they are structurally invalid (the server would refuse them), by table. Never stored. */
+  skipped: Partial<Record<SyncTableName, number>>;
 }
 
 const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
@@ -98,6 +101,92 @@ function shapeOk(tbl: SyncTableName, key: string, rec: Doc): boolean {
   return UUID.test(key);
 }
 
+type Fixed = { rec: Doc; repaired: boolean };
+type Groupable = Parameters<typeof normalizeGroups>[0];
+const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+
+/**
+ * A routine (live or tombstone: the server checks both against the full contract `Routine`) as the app would write it. The rules
+ * are the ones `createRoutine` uses (db/routineRules.ts). Structurally bad is null and the row is skipped: a blank or over-long
+ * name, no valid `created_at`, no exercise list or one outside 1..ROUTINE_EXERCISES_MAX, an exercise that is not an object, has a
+ * blank or over-long name, breaks the bounded-open key rule or has a set count that is not an integer. Repaired and kept, and
+ * counted as repaired: a set count outside the limits is clamped, and core's `normalizeGroups` nulls an invalid group id and
+ * dissolves a broken group. Duplicate exercise names stay: the server accepts them.
+ */
+function repairRoutine(rec: Doc): Fixed | null {
+  const list = rec.exercises;
+  if (!routineNameOk(rec.name) || typeof rec.created_at !== 'string' || !parseTimestamp(rec.created_at)) return null;
+  if (!Array.isArray(list) || list.length < 1 || list.length > ROUTINE_EXERCISES_MAX) return null;
+  const clamped: Record<string, unknown>[] = [];
+  for (const e of list) {
+    if (!isObj(e) || exerciseProblem(e, true)) return null;
+    clamped.push({ ...e, sets: Math.min(ROUTINE_SETS_MAX, Math.max(ROUTINE_SETS_MIN, e.sets as number)) });
+  }
+  const exercises = normalizeGroups(clamped as unknown as Groupable);
+  return { rec: { ...rec, exercises }, repaired: !same(exercises, list) };
+}
+
+const FEEL = /^(target|pain|[0-9]{1,2})$/;
+export const WHERE = ['gym', 'dumbbells', 'bodyweight'];
+export const CI_CHOICE = ['light', 'swap', 'orig'];
+export const TEXT_MAX = 200; // Workout.template and Workout.base
+export const MODS_VALUE_MAX = 50; // Workout.mods unknown-key string values
+
+/** Contract `Workout.mods`: an object of at most 20 keys (names up to 50), the listed keys typed, any other value a boolean, number, string up to 50 or null. */
+function modsOk(m: unknown): boolean {
+  if (!isObj(m)) return false;
+  const e = Object.entries(m);
+  if (e.length > MAX_KEYS) return false;
+  return e.every(([k, v]) => {
+    if (len(k) > KEY_MAX) return false;
+    if (k === 'light' || k === 'short' || k === 'deload') return typeof v === 'boolean';
+    if (k === 'where') return typeof v === 'string' && WHERE.includes(v);
+    if (k === 'reentry') return typeof v === 'number' && v >= 0 && v <= 1;
+    return v === null || typeof v === 'boolean' || typeof v === 'number' || (typeof v === 'string' && len(v) <= MODS_VALUE_MAX);
+  });
+}
+
+/**
+ * A workout (live or tombstone) as the contract `Workout` wants it. Structurally unrepairable is null, and the workout is skipped
+ * together with its sets: no valid `mods` (emptying it would silently drop `light` or `deload`), no exercise list, more than
+ * ROUTINE_EXERCISES_MAX exercises, or an exercise that is not an object, has a name over 200 characters (a string value of the
+ * bounded-open rule) or breaks the bounded-open key rule. Repaired and kept, and counted as repaired. Top-level fields, required
+ * and nullable, get null when invalid or missing: `template` and `base` (not a string of at most 200 code points), `where` (not
+ * gym, dumbbells or bodyweight), `cardio_min` (not a number from 0; a fraction is rounded) and `ci_choice` (not light, swap or orig). Exercises:
+ * `part` outside 1 or 2 becomes 1, a missing or mistyped `bridge` or `skip_ramp` becomes false, `form`, `found_kg` or `feel` become
+ * null, and `normalizeGroups` nulls an invalid group id or dissolves a broken group.
+ */
+function repairWorkout(rec: Doc): Fixed | null {
+  const list = rec.exercises;
+  if (!modsOk(rec.mods) || !Array.isArray(list) || list.length > ROUTINE_EXERCISES_MAX) return null;
+  const fixed: Record<string, unknown>[] = [];
+  for (const e of list) {
+    if (!isObj(e) || typeof e.name !== 'string' || !boundedOpenOk(e)) return null;
+    const f: Record<string, unknown> = {
+      ...e,
+      part: e.part === 1 || e.part === 2 ? e.part : 1,
+      bridge: typeof e.bridge === 'boolean' ? e.bridge : false,
+      form: e.form === 'yes' || e.form === 'no' ? e.form : null,
+      found_kg: typeof e.found_kg === 'number' ? e.found_kg : null,
+      skip_ramp: typeof e.skip_ramp === 'boolean' ? e.skip_ramp : false,
+    };
+    if (f.feel != null && !(typeof f.feel === 'string' && FEEL.test(f.feel))) f.feel = null;
+    if (!boundedOpenOk(f)) return null; // the neutral values added a key past the 20-key limit
+    fixed.push(f);
+  }
+  const text = (v: unknown) => (typeof v === 'string' && len(v) <= TEXT_MAX ? v : null);
+  const out: Doc = {
+    ...rec,
+    template: text(rec.template),
+    base: text(rec.base),
+    where: typeof rec.where === 'string' && WHERE.includes(rec.where) ? rec.where : null,
+    cardio_min: typeof rec.cardio_min === 'number' && Number.isFinite(rec.cardio_min) && rec.cardio_min >= 0 ? Math.round(rec.cardio_min) : null,
+    ci_choice: typeof rec.ci_choice === 'string' && CI_CHOICE.includes(rec.ci_choice) ? rec.ci_choice : null,
+    exercises: normalizeGroups(fixed as unknown as Groupable),
+  };
+  return { rec: out, repaired: !same(out, rec) };
+}
+
 /** Validates the text of an export file strictly. Throws `RestoreError`; touches nothing. */
 export async function parseRestore(text: string): Promise<ParsedRestore> {
   if (text.length > MAX_RESTORE_BYTES) throw new RestoreError('too_large');
@@ -115,6 +204,8 @@ export async function parseRestore(text: string): Promise<ParsedRestore> {
   if (Object.keys(tables).some((t) => !Object.hasOwn(SYNC_TABLES, t))) throw new RestoreError('bad_format');
   checkDeviceOnly(json.device_only);
   const rows: ParsedRestore['rows'] = [];
+  const skipped: ParsedRestore['skipped'] = {};
+  const lostWorkouts = new Set<string>(); // contract ids of workouts left out as invalid: their sets go with them
   const ns = (json.user_id as string | null) ?? NO_USER;
   const dates = new Map<string, string>(); // contract workout id -> date, from this file
   let count = 0;
@@ -136,16 +227,30 @@ export async function parseRestore(text: string): Promise<ParsedRestore> {
       const key = keyOf(tbl, rec);
       const sync = typeof rec.version === 'number' && Number.isInteger(rec.version) && rec.version >= 0 && rec.version <= MAX_VERSION && typeof rec.updated_at === 'string';
       if (!key || !sync || !shapeOk(tbl, key, rec) || (rec.deleted_at != null && typeof rec.deleted_at !== 'string')) throw new RestoreError('bad_rows');
+      let repaired = false;
+      if (tbl === 'routines' || tbl === 'workouts') {
+        const fixed = tbl === 'routines' ? repairRoutine(rec) : repairWorkout(rec);
+        if (!fixed) {
+          skipped[tbl] = (skipped[tbl] ?? 0) + 1;
+          if (tbl === 'workouts') lostWorkouts.add(await naturalId(ns, 'workouts', key));
+          continue;
+        }
+        ({ rec, repaired } = fixed);
+      }
       if (tbl === 'workouts') dates.set(await naturalId(ns, 'workouts', key), key);
       let setDate: string | null = null;
       if (tbl === 'workout_sets') {
+        if (lostWorkouts.has(String(rec.workout_id))) {
+          skipped[tbl] = (skipped[tbl] ?? 0) + 1;
+          continue;
+        }
         setDate = dates.get(String(rec.workout_id)) ?? null;
         if (!setDate) throw new RestoreError('bad_rows'); // a set whose workout is not in the file
       }
-      rows.push({ tbl, key, rec, setDate });
+      rows.push({ tbl, key, rec, setDate, repaired });
     }
   }
-  return { file: json as unknown as LocalExport, rows };
+  return { file: json as unknown as LocalExport, rows, skipped };
 }
 
 export interface TableCounts {
@@ -161,6 +266,10 @@ export interface TableCounts {
   same: number;
   /** Routines only: live routines that would take this device past 100. The first that fit are stored, these are skipped. */
   overCap?: number;
+  /** Routines, workouts and their sets: rows in the file that are not valid (the server would refuse them). Skipped, never stored. */
+  invalid?: number;
+  /** Routines and workouts: stored rows that were changed to fit the contract (a set count clamped, a group, part or flag corrected). */
+  repaired?: number;
   /** First and last day among the file's rows of this table that have a date. */
   from?: string;
   to?: string;
@@ -196,9 +305,10 @@ async function merge(db: WorkoutDb, parsed: ParsedRestore, apply: boolean, addOn
   // Live routines by key, kept up to date as rows are (or would be) stored, so the 100 cap holds for the whole file.
   const live = new Set<string>();
   for (const r of await db.getAllAsync<{ key: string; data: string }>("SELECT key, data FROM routines WHERE json_valid(data) AND json_extract(data, '$.deleted_at') IS NULL")) live.add(r.key);
+  for (const [t, n] of Object.entries(parsed.skipped)) (tables[t as SyncTableName] ??= zero()).invalid = n;
   // Routine tombstones go first, so one frees its slot before new routines are counted against the cap whatever the file order.
   const rows = [...parsed.rows].sort((a, b) => Number(b.tbl === 'routines' && !!b.rec.deleted_at) - Number(a.tbl === 'routines' && !!a.rec.deleted_at));
-  for (const { tbl, key, rec, setDate } of rows) {
+  for (const { tbl, key, rec, setDate, repaired } of rows) {
     if (SKIPPED.has(tbl)) continue;
     const c = (tables[tbl] ??= zero());
     if (typeof rec.date === 'string') {
@@ -223,6 +333,7 @@ async function merge(db: WorkoutDb, parsed: ParsedRestore, apply: boolean, addOn
       else live.add(key);
     }
     c[outcome]++;
+    if (repaired && (outcome === 'added' || outcome === 'newer')) c.repaired = (c.repaired ?? 0) + 1;
     // The table triggers queue the write, so it syncs up like any edit made here.
     if (apply && (outcome === 'added' || outcome === 'newer')) {
       await storeRecord(db, tbl, rec, setDate);
