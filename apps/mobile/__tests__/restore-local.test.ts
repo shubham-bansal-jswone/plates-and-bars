@@ -191,7 +191,6 @@ describe('restore from an export file (#1177)', () => {
       ['a workout key that is not a date', (t: Tables) => ({ ...t, workouts: [{ ...t.workouts?.[0], date: 'not-a-date' }] })],
       ['a food log without a date or a numeric qty', (t: Tables) => ({ ...t, food_logs: [{ ...t.food_logs?.[0], date: undefined, qty: 'lots' }] })],
       ['a food log id that is not a uuid', (t: Tables) => ({ ...t, food_logs: [{ ...t.food_logs?.[0], id: 'nope' }] })],
-      ['a set without a boolean done', (t: Tables) => ({ ...t, workout_sets: [{ ...t.workout_sets?.[0], done: 'yes' }] })],
       ['a version past the server range', (t: Tables) => ({ ...t, food_logs: [{ ...t.food_logs?.[0], version: 2 ** 31 }] })],
       ['a lift stat without updated_at', (t: Tables) => ({ ...t, lift_stats: [{ ...t.lift_stats?.find((r) => r.exercise === 'Bench'), updated_at: undefined }] })],
       ['a live lift stat with sets that are not a list', (t: Tables) => ({ ...t, lift_stats: [{ ...t.lift_stats?.find((r) => r.exercise === 'Bench'), sets: 'x' }] })],
@@ -200,6 +199,14 @@ describe('restore from an export file (#1177)', () => {
     ])('%s', async (_n, bad) => {
       const g = await good();
       expect((await code(JSON.stringify({ ...g, tables: bad(g.tables) })))?.code).toBe('bad_rows'.replace('bad_rows', _n === 'an inherited table name' ? 'bad_format' : 'bad_rows'));
+    });
+
+    it.each([['a done that is not a boolean', { done: 'yes' }], ['a kind that is not a string', { kind: 3 }]])('a set with %s is skipped and counted, not a refused file', async (_n, over) => {
+      const g = await good();
+      const tables = { ...g.tables, workout_sets: [{ ...g.tables.workout_sets?.[0], ...over }] };
+      const parsed = await parseRestore(JSON.stringify({ ...g, tables }));
+      const summary = await applyRestore(await openDb(), parsed, null);
+      expect(summary.tables.workout_sets).toMatchObject({ added: 0, invalid: 1 });
     });
 
     it('a failure part way rolls the whole restore back', async () => {

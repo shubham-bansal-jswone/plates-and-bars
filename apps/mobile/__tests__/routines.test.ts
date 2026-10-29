@@ -1,6 +1,8 @@
 /** @jest-environment node */
 import { buildLocalExport } from '../src/account/exportLocal';
-import { existsSync, readFileSync } from 'fs';
+import { readFileSync } from 'fs';
+import Ajv2020 from 'ajv/dist/2020';
+import addFormats from 'ajv-formats';
 import { resolve } from 'path';
 import { CI_CHOICE, MODS_VALUE_MAX, SET_EXERCISE_MAX, SET_KIND, SET_RATE, TEXT_MAX, WHERE, applyRestore, parseRestore, previewRestore } from '../src/account/restoreLocal';
 import { normalizeGroups, ROUTINE_EXERCISES_MAX, ROUTINE_MAX_LIVE, EXERCISE_NAME_MAX, ROUTINE_NAME_MAX, ROUTINE_SETS_MAX, ROUTINE_SETS_MIN } from '@plate-and-bar/core';
@@ -476,8 +478,8 @@ describe('routines in the device export and restore', () => {
         ['a t that is not a string becomes null', { ...good, t: 5 }, { t: null }],
         ['missing weight_kg and reps become null', { ...good, weight_kg: undefined, reps: undefined }, { weight_kg: null, reps: null }],
         ['weight_kg and reps of the wrong type become null', { ...good, weight_kg: '60', reps: '5' }, { weight_kg: null, reps: null }],
-        ['a negative weight_kg is clamped to 0', { ...good, weight_kg: -2.5 }, { weight_kg: 0 }],
-        ['a negative reps is clamped to 0', { ...good, reps: -1 }, { reps: 0 }],
+        ['a negative weight_kg becomes null', { ...good, weight_kg: -2.5 }, { weight_kg: null }],
+        ['a negative reps becomes null', { ...good, reps: -1 }, { reps: null }],
         ['a fractional reps is rounded', { ...good, reps: 7.6 }, { reps: 8 }],
         ['a missing deleted_at becomes null', { ...good, deleted_at: undefined }, { deleted_at: null }],
       ])('%s, counted as repaired', async (_n, over, expected) => {
@@ -493,6 +495,10 @@ describe('routines in the device export and restore', () => {
         ['a numeric exercise', { exercise: 4 }],
         ['an exercise of 201 code points', { exercise: '🏋'.repeat(201) }],
         ['an unknown kind', { kind: 'warmup' }],
+        ['a kind that is not a string', { kind: 3 }],
+        ['no kind', { kind: undefined }],
+        ['a done that is not a boolean', { done: 'yes' }],
+        ['no done', { done: undefined }],
         ['no set_index', { set_index: undefined }],
         ['a negative set_index', { set_index: -1 }],
         ['a fractional set_index', { set_index: 1.5 }],
@@ -534,20 +540,15 @@ describe('routines in the device export and restore', () => {
         expect(summary.tables.workout_sets).toMatchObject({ added: 0, invalid: 1 });
       });
 
-      // Every kept set is checked against the real contract schema. ajv is in packages/core, not in the app, so it is loaded from there.
-      const coreModules = resolve(__dirname, '../../../packages/core/node_modules');
-      const maybe = existsSync(resolve(coreModules, 'ajv-formats')) ? it : it.skip;
-      maybe('every kept set (repaired ones too, tombstones too) validates against WorkoutSet in openapi.yaml', async () => {
-        /* eslint-disable @typescript-eslint/no-require-imports */
-        const Ajv2020 = (require(resolve(coreModules, 'ajv/dist/2020')) as { default: new (o: object) => any }).default;
-        const addFormats = (require(resolve(coreModules, 'ajv-formats')) as { default: (a: unknown) => void }).default;
+      // Every kept set is checked against the real contract schema.
+      it('every kept set (repaired ones too, tombstones too) validates against WorkoutSet in openapi.yaml', async () => {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
         const { load } = require('js-yaml') as { load: (s: string) => object };
-        /* eslint-enable @typescript-eslint/no-require-imports */
         const ajv = new Ajv2020({ strict: false, allErrors: true });
         addFormats(ajv);
         ajv.addSchema(load(readFileSync(resolve(__dirname, '../../../packages/api/openapi.yaml'), 'utf8')), 'openapi.json');
-        const validate = ajv.getSchema('openapi.json#/components/schemas/WorkoutSet');
-        const bad = [{ ...good, rate: undefined, t: undefined }, { ...good, weight_kg: -3, reps: 4.5 }, { ...good, weight_kg: 'x', reps: 'y', rate: 'z' }, { ...good, deleted_at: undefined }, { ...good, kind: 'ramp', t: null }];
+        const validate = ajv.getSchema('openapi.json#/components/schemas/WorkoutSet')!;
+        const bad = [{ ...good, rate: undefined, t: undefined }, { ...good, weight_kg: -3, reps: -4.5 }, { ...good, weight_kg: 'x', reps: 'y', rate: 'z' }, { ...good, deleted_at: undefined }, { ...good, kind: 'ramp', t: null }];
         for (const tomb of [false, true]) {
           const { dst } = await restored(await setsFile([good, ...bad], tomb));
           const kept = await keptSets(dst);
