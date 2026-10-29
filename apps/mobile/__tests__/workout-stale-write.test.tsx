@@ -27,6 +27,15 @@ async function started() {
   return { db, ...view };
 }
 
+/** Earlier days of stored sets for a lift (the all-time prior best the personal-best toast reads, #1351). */
+async function seedDays(db: Awaited<ReturnType<typeof openDb>>, name: string, days: [string, number, number][]) {
+  const w = (await loadWorkout(db, DATE))!;
+  for (const [date, kg, reps] of days) {
+    await saveWorkout(db, { ...w, date });
+    await saveSet(db, date, { id: `seed-${date}`, version: 0, updated_at: `${date}T09:00:00Z`, deleted_at: null, workout_id: null, exercise: name, kind: 'work', set_index: 0, weight_kg: kg, reps, done: true, rate: null, t: null });
+  }
+}
+
 describe('an edit made before the reload keeps what a sync pull stored (#302)', () => {
   it('a set edit keeps the stored version of the set and of the workout', async () => {
     const { db, result } = await started();
@@ -271,12 +280,13 @@ describe('a lift record a sync pull stored after the screen loaded (#409)', () =
     const { db, result } = await started();
     const name = result.current.day.exs[0]!.name;
     await saveLift(db, name, { date: '2026-10-05', sets: [{ w: 400, r: 20, rate: null }], form: null, n: 3, first: '2026-09-01', prev: null, hist: [{ date: '2026-10-05', e: 9999 }] });
+    await seedDays(db, name, [['2026-09-28', 400, 20], ['2026-10-05', 400, 20]]);
     await act(async () => result.current.editSet(0, 'work', 0, 'w', '50'));
     await act(async () => result.current.editSet(0, 'work', 0, 'w', '50'));
     await act(async () => result.current.editSet(0, 'work', 0, 'r', '8'));
     await act(async () => result.current.tick(0, 0));
     await act(async () => void (await dayQueue.current));
-    expect(notify).not.toHaveBeenCalledWith(`New personal best on ${name}`);
+    expect(notify).not.toHaveBeenCalledWith(expect.stringContaining('New personal best'));
   });
 
   it('a personal-best toast when today beats the pulled history', async () => {
@@ -284,11 +294,12 @@ describe('a lift record a sync pull stored after the screen loaded (#409)', () =
     const { db, result } = await started();
     const name = result.current.day.exs[0]!.name;
     await saveLift(db, name, { date: '2026-10-05', sets: [{ w: 10, r: 5, rate: null }], form: null, n: 3, first: '2026-09-01', prev: null, hist: [{ date: '2026-09-28', e: 1 }, { date: '2026-10-05', e: 1 }] });
+    await seedDays(db, name, [['2026-09-28', 10, 5], ['2026-10-05', 10, 5]]);
     await act(async () => result.current.editSet(0, 'work', 0, 'w', '50'));
     await act(async () => result.current.editSet(0, 'work', 0, 'r', '8'));
     await act(async () => result.current.tick(0, 0));
     await act(async () => void (await dayQueue.current));
-    expect(notify).toHaveBeenCalledWith(`New personal best on ${name}`);
+    expect(notify).toHaveBeenCalledWith(expect.stringContaining(`New personal best: ${name} 50 kg x 8`));
   });
 });
 

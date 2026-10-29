@@ -2,7 +2,7 @@ import labels from '../../../../content/labels.json';
 import type { Schemas } from '@plate-and-bar/api';
 import { has, isProtoName, ownOr } from '../content/own';
 import { contentReader, isObj, isText } from '../content/reader';
-import { harder, kgLabel, num, repWord, type WeightUnit, type ModsNotePart, type Checkin, type CheckinReason, type ExInfo, type ExType, type Rate, isBlank } from '@plate-and-bar/core';
+import { formatWeight, harder, kgLabel, num, repWord, type WeightUnit, type ModsNotePart, type Checkin, type CheckinReason, type ExInfo, type ExType, type PrImprovement, type Rate, isBlank } from '@plate-and-bar/core';
 
 // Display text from the prototype's workout screen (TYPE_LABEL, MUSCLE, RATES, CI_Q).
 
@@ -166,3 +166,15 @@ export const MY_ROUTINES = {
   removeLabel: (name: string) => `Remove ${name} from this session`,
   remove: 'Remove',
 };
+
+/**
+ * The personal-best toast: what improved, in the user's unit (#1351 A4b). Loaded lifts say the set and the estimated 1RM;
+ * bodyweight and timed lifts the total; assisted lifts the set. Weights arrive in kg.
+ */
+export function pbToastText(name: string, pr: PrImprovement, unit: WeightUnit, type: ExType): string {
+  const w = (value: number) => `${formatWeight(value, unit)} ${unit}`;
+  const up = (value: number) => `+${formatWeight(value, unit)}${pr.metric === 'e1rm' ? ` ${unit}` : ''}`;
+  if (pr.metric === 'e1rm') return `New personal best: ${name} ${w(pr.set.w)} x ${pr.set.r}, estimated 1RM ${w(pr.score)} (${up(pr.delta)})`;
+  if (pr.metric === 'reps') return `New personal best: ${name}, ${pr.score} ${repWord(type)} in total (+${pr.delta})`;
+  return `New personal best: ${name}, ${pr.set.r} reps with ${w(pr.set.w)} of assistance`;
+}
