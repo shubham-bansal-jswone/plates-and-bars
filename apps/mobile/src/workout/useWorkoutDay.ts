@@ -31,6 +31,7 @@ import {
   type Checkin,
   type Exclusion,
   type LiftRecord,
+  type Milestone,
   type PriorBest,
   type PrSet,
   type Rate,
@@ -42,8 +43,9 @@ import { deleteLift, loadExerciseSets, loadLifts, loadSessionLog, loadSets, load
 import { inTransaction, type PullDb } from '../db/outbox';
 import { localDate } from '../setup/logic';
 import { parseCardio } from './cardio';
-import { pbToastText } from './copy';
+import { milestoneToastText, pbToastText } from './copy';
 import { freshRead } from '../state/freshRead';
+import { loadMilestoneData, takeNewMilestones, toastPick, type MilestoneData } from '../progress/milestoneStore';
 import type { Profile } from '../setup/types';
 import { displayRow, weightFromField } from './unitText';
 import { buildSession } from './buildSession';
@@ -100,6 +102,7 @@ export interface PickSeed {
   exercises: readonly { name: string; bridge?: boolean }[];
 }
 
+const NO_EARNED: Milestone[] = [];
 const NOT_READY: Day = { ready: false, workout: null, exs: [], lifts: {}, sessions: {} };
 const clone = (d: Day): Day => ({ ...d, exs: structuredClone(d.exs) });
 
@@ -113,6 +116,8 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
   /** The day the loaded session belongs to: while the viewed day is another one the screen is not ready, so no action runs against the old day's rows. */
   const [loaded, setLoaded] = useState<string | null>(null);
   const ref = useRef(day);
+  /** Milestones earned by ticks in this session of the viewed day (new since the last shown), for the completion panel; a remount starts it empty. */
+  const [earnedIn, setEarnedIn] = useState<{ date: string; list: Milestone[] }>({ date: '', list: [] });
   /** The day shown now: a start or second session that was reading history when the day changed must not commit. */
   const dateRef = useRef(date);
   useEffect(() => {
@@ -125,7 +130,12 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
 
   // Every save goes through one FIFO queue (shared with the avoid picker on Targets), so they finish in the order the
   // user acted, and each save reads the latest state from the ref when it runs (not the snapshot from when it was queued).
-  const enqueue = useCallback((write: () => Promise<void>) => enqueueDay(write, () => notify('Couldn’t save that. Try again.')), [notify]);
+  /** Writes queued by this hook: `dayWrites` moving beyond them means another screen (import, the avoid picker) wrote. */
+  const ownWrites = useRef(0);
+  const enqueue = useCallback((write: () => Promise<void>) => {
+    ownWrites.current++;
+    return enqueueDay(write, () => notify('Couldn’t save that. Try again.'));
+  }, [notify]);
   /** Start and second session build from stored history; a second tap while one runs is ignored. */
   const building = useRef(false);
   /** Settles when the running Start has saved; an "Add ..." tapped meanwhile waits for it instead of being dropped (#864). */
@@ -213,6 +223,40 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
     }
   };
 
+  // First run: the milestones already earned count as shown before any tick, so old history never toasts (#1351 A9). Queued, so a tick waits for it.
+  const unit = tune.unit ?? 'kg';
+  const msRef = useRef({ profile, unit, overrides: tune.overrides ?? {}, end: '' });
+  useEffect(() => {
+    const today = localDate(now());
+    msRef.current = { profile, unit, overrides: tune.overrides ?? {}, end: date > today ? date : today };
+  });
+  const hasProfile = !!profile;
+  /**
+   * Milestone state per reload (mount, the screen's reloadKey: a pull, restore, import or a return to the tab, another day): every done set
+   * and the session log without the viewed day, the weigh-ins and the shown ids. The same reload marks every milestone already earned as
+   * shown, silently: only a tick on the viewed day may announce one (#1351 A9). A tick reads nothing from the db.
+   */
+  const msChain = useRef<Promise<void>>(Promise.resolve());
+  const ms = useRef<{ data: Promise<MilestoneData | null>; foreign: number } | null>(null);
+  const foreignNow = () => dayWrites.current - ownWrites.current;
+  const loadMs = (): Promise<MilestoneData | null> => {
+    const m = msRef.current;
+    return loadMilestoneData(db, { profile: m.profile, overrides: m.overrides, unit: m.unit, end: m.end }, date).catch(() => null);
+  };
+  useEffect(() => {
+    if (!hasProfile) {
+      ms.current = null;
+      return;
+    }
+    // Not in the day queue, so a tick's queued writes never wait on a history read. It leaves the viewed day out, the only day this hook writes,
+    // so queued writes of its own cannot change what it reads.
+    // On `msChain` like every evaluation, so it reads the shown ids after the write of every earlier tick and a tick's new id is never overwritten.
+    const data = msChain.current.then(loadMs);
+    msChain.current = data.then(() => undefined, () => undefined);
+    ms.current = { data, foreign: foreignNow() };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- loadMs reads the latest values through refs
+  }, [db, hasProfile, reloadKey, date]);
+
   /** The all-time best before a viewed date, per lift: read once (not per tick) and dropped when the data may have changed. */
   const priorBests = useRef<{ name: string; date: string; bodyweight: number | null; prior: PriorBest }[]>([]);
   // A sync pull, an import or restore (the screen's reloadKey moves) can change any earlier day.
@@ -241,7 +285,7 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
   // Runs inside the day queue and builds on the stored lift records, not the screen's copy: a pull may have stored a
   // newer record (another device's session) since the screen loaded (#409).
   // `removed`: an exercise taken out of the session, recomputed as if it had no sets left.
-  const syncLift = async (name: string, removed?: ExState) => {
+  const syncLift = async (name: string, removed?: ExState, fromTick = false) => {
     if (!profile || !(removed ?? exNamed(name))) return;
     // This write is to `date`: the prior best of every later viewed day may have changed, whatever the rest of this does.
     priorBests.current = priorBests.current.filter((p) => p.name !== name || p.date <= date);
@@ -287,6 +331,37 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
       notify(pbToastText(ex.name, pr, unit, info.type));
       buzz(PB_BUZZ);
     }
+    // A milestone is looked for only on a tick (not a rate change, a form change or a removal; an untick earns none and un-shows none), in memory over
+    // the reload's cache plus today's sets. The queue never waits on it: this captures what the tick needs and chains the evaluation onto `msChain`,
+    // which keeps ticks in order. A history read (the reload's, or a reseed after a write by another screen) can finish a moment after the PR toast
+    // and the rest timer; that is accepted. Every new milestone is marked shown and listed for the completion panel; one is toasted, and not when this tick's personal best was.
+    // Known gap: done sets of the viewed day that arrive by a pull or an import (another device logged today) are left out of the reload seed on purpose,
+    // so the next tick here can toast at most one milestone they earned.
+    if (fromTick && ex.sets.some((s) => s.done) && dateRef.current === date) {
+      const w = ref.current;
+      const sets = w.exs.flatMap((e) => todaySets(e)).filter((x) => x.done);
+      const entry = sets.length > 0 ? { t: w.workout?.base || w.workout?.template || HAND_PICKED, n: sets.length } : null;
+      const snap = { date, sets, entry, pr: !!pr, m: msRef.current, cache: ms.current, foreign: foreignNow() };
+      msChain.current = msChain.current.then(() => evaluateMilestones(snap)).catch(() => undefined);
+    }
+  };
+  const evaluateMilestones = async (snap: { date: string; sets: PrSet[]; entry: { t: string; n: number } | null; pr: boolean; m: typeof msRef.current; cache: typeof ms.current; foreign: number }) => {
+    if (!snap.cache) return;
+    let data = await snap.cache.data;
+    if (!data) return;
+    if (snap.foreign !== snap.cache.foreign) {
+      // Another screen wrote since the reload (an import): read again, silently seeding what it brought, before this tick counts. Kept on the cache for the next tick.
+      data = (await loadMs()) ?? data;
+      snap.cache.data = Promise.resolve(data);
+      snap.cache.foreign = snap.foreign;
+    }
+    if (dateRef.current !== snap.date) return; // the day changed meanwhile: the cache and the sets belong to another day
+    const { m } = snap;
+    const fresh = await takeNewMilestones(db, data, { date: snap.date, sets: snap.sets, entry: snap.entry }, { profile: m.profile, overrides: m.overrides, unit: m.unit, end: m.end }).catch(() => []);
+    if (fresh.length === 0 || dateRef.current !== snap.date) return;
+    setEarnedIn((cur) => ({ date: snap.date, list: [...(cur.date === snap.date ? cur.list : []), ...fresh.filter((f) => !(cur.date === snap.date && cur.list.some((x) => x.id === f.id)))] }));
+    const pick = toastPick(fresh);
+    if (!snap.pr && pick) notify(milestoneToastText(pick));
   };
 
   /** Applies `fn` to a copy of today's exercise `i` and shows it at once; `persist` is queued and gets the exercise's name. */
@@ -551,7 +626,7 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
           await writeSets(name, 'work', [id], h);
           await writeWorkout(false, h);
         });
-        await syncLift(name);
+        await syncLift(name, undefined, true);
       },
     );
     return empty;
@@ -970,5 +1045,5 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
     notify(choice ? `Swapped in ${choice}` : gone);
   };
 
-  return { date, day: loaded === date ? day : NOT_READY, cant, setCardio, editSet, tick, rate, setForm, setFeel, skipRemaining, rampStart, rampSkip, rampAdd, rampTick, rampRated, addSet, removeSet, groupWithNext, ungroup, addExercise, removeExercise, finishEarly, start, startPicked, startFromRoutine, addSecond };
+  return { date, msSettled: () => msChain.current, earned: earnedIn.date === date ? earnedIn.list : NO_EARNED, day: loaded === date ? day : NOT_READY, cant, setCardio, editSet, tick, rate, setForm, setFeel, skipRemaining, rampStart, rampSkip, rampAdd, rampTick, rampRated, addSet, removeSet, groupWithNext, ungroup, addExercise, removeExercise, finishEarly, start, startPicked, startFromRoutine, addSecond };
 }

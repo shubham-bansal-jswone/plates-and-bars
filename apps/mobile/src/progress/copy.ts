@@ -150,6 +150,10 @@ export const WEEKS_TITLE = 'Weeks on track';
 export const WEEKS_COUNT = (on: number, of: number): string => `${on} of the last ${of} weeks on track`;
 export const WEEKS_EMPTY = 'Your weeks on track will show here after your first full week of workouts.';
 
+export const MILESTONES_TITLE = 'Milestones';
+/** One gentle line: no locked entries, no promise of a date. */
+export const MILESTONES_EMPTY = 'Milestones you earn will show up here.';
+
 // Training volume (Progress, A5 of #1351)
 export const VOL_TITLE = 'Training volume';
 export const VOL_MUSCLE_GROUP = 'Muscle';
