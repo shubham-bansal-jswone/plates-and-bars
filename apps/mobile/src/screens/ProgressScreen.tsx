@@ -15,6 +15,7 @@ import { BF_HINT, BF_MISSING, BF_NO_PROFILE, HOW_TO_MEASURE, HOW_TO_MEASURE_HIPS
 import { CheckinCard, RapidLossCard } from '../progress/CheckinCard';
 import { RecentWorkouts, WorkoutDay } from '../progress/history/History';
 import { useHistory } from '../progress/history/useHistory';
+import { StrengthSection } from '../progress/StrengthSection';
 import { WeekCard } from '../progress/WeekCard';
 import { useCheckin } from '../progress/useCheckin';
 import { RangedTrend } from '../progress/RangedTrend';
@@ -97,6 +98,7 @@ export function ProgressScreen({ db, now = () => new Date() }: Props) {
             <RapidLossCard c={ci} />
             <DailyRead sex={profile?.sex} values={profile ? profileWhyValues(profile, { date: p.date, flex: settings?.settings.flex, labHold: labs.holdOn }) : undefined} now={now} />
             <SummaryCard checkin={ci.checkin} profile={profile} />
+            <StrengthSection db={db} date={v.date} weights={p.weights} />
             <WeightSection p={p} />
             <MeasureSection p={p} isToday={v.isToday} />
             <PhotosSection db={db} date={v.today} weights={p.weights} tapes={p.tapes} notify={notify} />
