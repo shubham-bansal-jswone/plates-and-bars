@@ -1,0 +1,120 @@
+import { act, renderHook, waitFor } from '@testing-library/react-native';
+import { addDays, mainLifts, personalRecords } from '@plate-and-bar/core';
+import { loadDoneSets, saveSet, saveWorkout } from '../src/db/workouts';
+import { useProgressSets } from '../src/progress/useProgressSets';
+import type { Workout, WorkoutSet } from '../src/workout/types';
+import { openDb } from './sync-helpers';
+
+const meta = { version: 0, updated_at: '', deleted_at: null };
+const wset = (id: string, exercise: string, w: number | null, r: number | null, o: Partial<WorkoutSet> = {}): WorkoutSet => ({ ...meta, id, workout_id: null, exercise, kind: 'work', set_index: 0, weight_kg: w, reps: r, done: true, rate: null, t: null, ...o });
+const workout = (date: string, o: Partial<Workout> = {}): Workout => ({ ...meta, id: null, date, template: null, base: null, where: 'gym', cardio_min: null, mods: {}, exercises: [], ci_choice: null, ...o }) as Workout;
+type Db = Awaited<ReturnType<typeof openDb>>;
+const day = async (db: Db, date: string, sets: WorkoutSet[], w: Partial<Workout> = {}) => {
+  await saveWorkout(db, workout(date, w));
+  for (const s of sets) await saveSet(db, date, s);
+};
+
+describe('loadDoneSets', () => {
+  it('returns done work sets only: no deleted, undone, ramp, or sets of a deleted workout', async () => {
+    const db = await openDb();
+    await day(db, '2026-10-01', [wset('a', 'Squat', 100, 5), wset('b', 'Squat', 100, 5, { done: false }), wset('c', 'Squat', 60, 5, { kind: 'ramp' }), wset('d', 'Squat', 100, 5, { deleted_at: '2026-10-02T00:00:00Z' })]);
+    await day(db, '2026-10-02', [wset('e', 'Squat', 100, 5)], { deleted_at: '2026-10-03T00:00:00Z' });
+    expect(await loadDoneSets(db)).toEqual([{ date: '2026-10-01', exercise: 'Squat', kind: 'work', weight_kg: 100, reps: 5, done: true, rate: null, deleted_at: null }]);
+  });
+
+  it('bounds the dates inclusively, either side optional', async () => {
+    const db = await openDb();
+    for (const d of ['2026-09-30', '2026-10-01', '2026-10-05', '2026-10-06']) await day(db, d, [wset(`s${d}`, 'Row', 50, 8)]);
+    const dates = async (f?: string, t?: string) => (await loadDoneSets(db, f, t)).map((s) => s.date);
+    expect(await dates('2026-10-01', '2026-10-05')).toEqual(['2026-10-01', '2026-10-05']);
+    expect(await dates('2026-10-05')).toEqual(['2026-10-05', '2026-10-06']);
+    expect(await dates(undefined, '2026-09-30')).toEqual(['2026-09-30']);
+    expect(await dates()).toHaveLength(4);
+  });
+
+  it('uses the date index, not a table scan', async () => {
+    const db = await openDb();
+    const plan = await db.getAllAsync<{ detail: string }>("EXPLAIN QUERY PLAN SELECT workout_date, data FROM workout_sets WHERE kind = 'work' AND done = 1 AND deleted = 0 AND workout_date >= ? AND workout_date <= ?", '2026-01-01', '2026-02-01');
+    expect(plan.map((p) => p.detail).join(' ')).toContain('workout_sets_by_date');
+  });
+});
+
+describe('useProgressSets', () => {
+  it('loads after first render, then returns sets and types with overrides', async () => {
+    const db = await openDb();
+    await day(db, '2026-10-01', [wset('a', 'Bench Press', 80, 5), wset('b', 'My Lift', 20, 10)]);
+    const seen: boolean[] = [];
+    const { result } = await renderHook(() => {
+      const r = useProgressSets(db, 0, '2026-10-08', 'all', { 'My Lift': { type: 'bodyweight', step_kg: 0, rep_low: 5, rep_high: 10 } });
+      seen.push(r.loading);
+      return r;
+    });
+    expect(seen[0]).toBe(true); // first paint has no data and is not blocked
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.sets.map((s) => s.exercise)).toEqual(['Bench Press', 'My Lift']);
+    expect(result.current.types['My Lift']).toBe('bodyweight');
+    expect(result.current.types['Bench Press']).toBeDefined();
+    expect(result.current.error).toBeNull();
+  });
+
+  it('bounds the range by the end day and reloads after a dataVersion bump', async () => {
+    const db = await openDb();
+    await day(db, '2026-04-01', [wset('old', 'Row', 50, 8)]);
+    await day(db, '2026-10-01', [wset('a', 'Row', 60, 8)]);
+    const spy = jest.spyOn(db, 'getAllAsync');
+    const { result, rerender } = await renderHook((p: { v: number }) => useProgressSets(db, p.v, '2026-10-08', '12w'), { initialProps: { v: 0 } });
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.sets.map((s) => s.date)).toEqual(['2026-10-01']);
+    await rerender({ v: 0 });
+    expect(spy).toHaveBeenCalledTimes(1); // cached for the same version and range
+    await day(db, '2026-10-02', [wset('b', 'Row', 62, 8)]);
+    await rerender({ v: 1 });
+    await waitFor(() => expect(result.current.sets).toHaveLength(2));
+    expect(spy).toHaveBeenCalledTimes(2);
+  });
+
+  it('reports a failed read as error and keeps the last sets', async () => {
+    const db = await openDb();
+    await day(db, '2026-10-01', [wset('a', 'Row', 60, 8)]);
+    const { result, rerender } = await renderHook((p: { v: number }) => useProgressSets(db, p.v, '2026-10-08', 'all'), { initialProps: { v: 0 } });
+    await waitFor(() => expect(result.current.sets).toHaveLength(1));
+    jest.spyOn(db, 'getAllAsync').mockRejectedValueOnce(new Error('disk'));
+    await rerender({ v: 1 });
+    await waitFor(() => expect(result.current.error?.message).toBe('disk'));
+    expect(result.current.loading).toBe(false);
+    expect(result.current.sets).toHaveLength(1);
+  });
+});
+
+describe('performance: two years of sets', () => {
+  it('loads and runs core records within budget', async () => {
+    const db = await openDb();
+    const lifts = ['Bench Press', 'Back Squat', 'Deadlift', 'Overhead Press', 'Barbell Row'];
+    const start = '2024-10-28'; // a Monday
+    await db.execAsync('BEGIN');
+    let n = 0;
+    for (let wk = 0; wk < 104; wk++) {
+      for (const dow of [0, 1, 3, 4]) {
+        const date = addDays(start, wk * 7 + dow);
+        await saveWorkout(db, workout(date));
+        for (let i = 0; i < 20; i++) {
+          const ex = lifts[(i >> 2) % lifts.length]!;
+          await saveSet(db, date, wset(`s${n++}`, ex, 40 + wk * 0.5 + (i % 4) * 2.5, 5 + (i % 3), { set_index: i }));
+        }
+      }
+    }
+    await db.execAsync('COMMIT');
+    const t0 = performance.now();
+    const sets = await loadDoneSets(db);
+    const t1 = performance.now();
+    const types = Object.fromEntries(lifts.map((l) => [l, 'barbell' as const]));
+    const prs = personalRecords(sets, types);
+    const ml = mainLifts(sets, types, addDays(start, 104 * 7));
+    const t2 = performance.now();
+    // eslint-disable-next-line no-console
+    console.log(`perf: ${sets.length} sets; loadDoneSets ${(t1 - t0).toFixed(0)} ms; personalRecords+mainLifts ${(t2 - t1).toFixed(0)} ms; ${prs.length} PRs, ${ml.length} main lifts`);
+    expect(sets).toHaveLength(104 * 4 * 20);
+    expect(t1 - t0).toBeLessThan(1500);
+    expect(t2 - t1).toBeLessThan(1500);
+  });
+});

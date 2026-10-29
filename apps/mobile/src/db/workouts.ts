@@ -1,5 +1,5 @@
 import { HAND_PICKED } from '@plate-and-bar/core';
-import type { LiftRecord, SessionLog } from '@plate-and-bar/core';
+import type { LiftRecord, PrSet, SessionLog } from '@plate-and-bar/core';
 import type { StoreDb } from './records';
 import type { Workout, WorkoutSet } from '../workout/types';
 
@@ -29,6 +29,24 @@ export async function loadExerciseSets(db: WorkoutDb, exercise: string): Promise
     exercise,
   );
   return rows.map((r) => ({ ...(JSON.parse(r.data) as WorkoutSet), date: r.workout_date }));
+}
+
+/**
+ * Every done, live WORK set (ramp sets never) on days that have a live workout, oldest day first, in the shape core's
+ * records and e1RM functions read. `from` and `to` (`YYYY-MM-DD`) are inclusive and optional; they bound the date
+ * index (`workout_sets_by_date`), so a short range reads only its own days. One query for any range, so Progress does
+ * not need a read per day. Read on the device, nothing leaves it.
+ */
+export async function loadDoneSets(db: WorkoutDb, from?: string, to?: string): Promise<PrSet[]> {
+  const where = ["kind = 'work'", 'done = 1', 'deleted = 0', "workout_date IN (SELECT key FROM workouts WHERE json_extract(data, '$.deleted_at') IS NULL)"];
+  const params: string[] = [];
+  if (from !== undefined) { where.push('workout_date >= ?'); params.push(from); }
+  if (to !== undefined) { where.push('workout_date <= ?'); params.push(to); }
+  const rows = await db.getAllAsync<{ workout_date: string; data: string }>(`SELECT workout_date, data FROM workout_sets WHERE ${where.join(' AND ')} ORDER BY workout_date`, ...params);
+  return rows.map((r) => {
+    const s = JSON.parse(r.data) as WorkoutSet;
+    return { date: r.workout_date, exercise: s.exercise, kind: 'work', weight_kg: s.weight_kg, reps: s.reps, done: s.done, rate: s.rate, deleted_at: s.deleted_at ?? null };
+  });
 }
 
 export async function saveSet(db: StoreDb, date: string, s: WorkoutSet): Promise<void> {
