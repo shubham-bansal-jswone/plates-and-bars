@@ -29,6 +29,7 @@ import {
   type SessionLog,
   type Swap,
 } from '@plate-and-bar/core';
+import { newId } from '../db/records';
 import { deleteLift, loadLifts, loadSessionLog, loadSets, loadWorkout, saveLift, saveSet, saveWorkout, type WorkoutDb } from '../db/workouts';
 import { inTransaction, type PullDb } from '../db/outbox';
 import { localDate } from '../setup/logic';
@@ -359,15 +360,15 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
    * names and stored set counts; core's `startRoutine` applies only the deload and light steps. Exercises the library lacks or the
    * rules exclude stay in the session, and the screen flags them. Like every start, never overwrites a session already stored.
    */
-  const startFromRoutine = (routine: readonly { name: string; sets: number }[], override: Workout['where'] = null, ciChoice: Workout['ci_choice'] = null) =>
+  const startFromRoutine = (routine: readonly { name: string; sets: number; group?: string | null }[], override: Workout['where'] = null, ciChoice: Workout['ci_choice'] = null) =>
     begin(() => {
       const where = override ?? (profile as Profile).where;
       const { deload, reentry } = rangesOf(adjustments);
       const cat = getCatalog();
-      const made = startRoutine({ date, ciChoice, where, profile: profile as Profile, deload, reentry, tags: cat.tags, routine, catalogue: Object.keys(cat.tags), exclusions });
+      const made = startRoutine({ date, ciChoice, where, profile: profile as Profile, deload, reentry, tags: cat.tags, routine, catalogue: Object.keys(cat.tags), exclusions, newId });
       return {
         workout: { id: null, version: 0, updated_at: stamp(now()), deleted_at: null, date, template: HAND_PICKED, base: null, where: override, mods: made.mods, exercises: [], ci_choice: ciChoice },
-        exs: made.exercises.map((e) => ({ name: e.name, part: 1, bridge: false, form: null, found: null, skipRamp: false, feel: null, sets: Array.from({ length: e.sets }, blankRow), ramp: [] })),
+        exs: made.exercises.map((e) => ({ name: e.name, part: 1, bridge: false, form: null, found: null, skipRamp: false, feel: null, ...(e.group ? { group: e.group } : {}), sets: Array.from({ length: e.sets }, blankRow), ramp: [] })),
       };
     });
 
@@ -627,7 +628,7 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
       }
     }
     if (!kept.length) return false;
-    d.exs = kept;
+    d.exs = fixExGroups(kept); // a group left with under 2 members is dissolved, before the write and before the planned snapshot's signature
     commit(d);
     void enqueue(() =>
       atomic(async (h) => {

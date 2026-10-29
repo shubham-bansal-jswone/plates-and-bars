@@ -549,9 +549,9 @@ function SessionView({ now, db, reloadKey, w, profile, focus, rules, notify, tun
   // It stays valid only while the exercise list (names and set counts) is the one Complete left behind (`sig`, taken once the drop has landed);
   // any later change (add, swap, remove, second session, sync reload) discards it and the live session is saved.
   // v1 limit: the snapshot is component state, so after a remount (another day and back, app reload) the post-drop session is what gets saved.
-  const sig = JSON.stringify(day.exs.map((e) => [e.name, e.sets.length]));
+  const sig = JSON.stringify(day.exs.map((e) => [e.name, e.sets.length, e.group ?? null]));
   const [finished, setFinished] = useState<{ routine: ReturnType<typeof routineFromSession>; total: number; sig: string | null } | null>(null);
-  const live = { routine: routineFromSession(day.exs.map((e) => ({ name: e.name, sets: e.sets.length }))), total: day.exs.length };
+  const live = { routine: routineFromSession(day.exs.map((e) => ({ name: e.name, sets: e.sets.length, group: e.group }))), total: day.exs.length };
   const { routine, total } = complete && finished && (finished.sig === null || finished.sig === sig) ? finished : live;
   // Adjusting state during render (React's pattern for state derived from props): take the signature once the drop has landed, drop the snapshot when the list moves on.
   if (finished && finished.sig === null && complete) setFinished({ ...finished, sig });
