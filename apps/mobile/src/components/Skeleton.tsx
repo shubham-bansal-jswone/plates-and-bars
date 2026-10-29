@@ -11,7 +11,7 @@ export function Skeleton({ heights = [96, 64, 64] }: { heights?: number[] }) {
   const c = useTheme();
   return (
     <View testID="skeleton" style={{ gap: space.md, marginTop: space.md }}>
-      <Text style={styles.srOnly}>Loading…</Text>
+      <Text role="status" accessibilityLiveRegion="polite" style={styles.srOnly}>Loading…</Text>
       <View aria-hidden style={{ gap: space.md }}>
         {heights.map((h, i) => (
           <View key={i} style={{ height: h, borderRadius: radius.lg, backgroundColor: c.surface }} />
