@@ -682,12 +682,27 @@ export function weightSeries(weighIns: readonly WeighIn[], upTo: string): TrendP
  * Mirrors `waistPts` in prototype `measuresHtml()`.
  */
 export function waistSeries(measurements: readonly MeasurementFacts[], upTo: string): TrendPoint[] {
-  return live(measurements)
-    .filter((m) => m.waist_cm && m.date <= upTo)
-    .map((m) => [m.date, m.waist_cm as number] as const)
+  return measureSeries(measurements, 'waist_cm', upTo);
+}
+
+/**
+ * The points for any tape part: the last `limit` (default 20, `WAIST_CHART_POINTS`) days with a nonzero value for
+ * `key` on or before `date`, oldest first. Pass `Infinity` for no cap. Deleted rows are ignored.
+ *
+ * New rule (#1351 C1), the general form of `waistSeries`; `waistSeries` calls it with `'waist_cm'`.
+ */
+export function measureSeries(
+  tapes: readonly MeasurementFacts[],
+  key: MeasureKey,
+  date: string,
+  limit: number = WAIST_CHART_POINTS,
+): TrendPoint[] {
+  const pts = live(tapes)
+    .filter((m) => m[key] && m.date <= date)
+    .map((m) => [m.date, m[key] as number] as const)
     .sort(byDate)
-    .slice(-WAIST_CHART_POINTS)
-    .map(([date, v]) => ({ date, v }));
+    .map(([d, v]) => ({ date: d, v }));
+  return limit >= pts.length ? pts : pts.slice(-limit);
 }
 
 /**
