@@ -10,7 +10,12 @@ import { fmt } from '../src/format';
 import { buildShareCard, CARD_H, CARD_MAX_ROWS, CARD_PAD, CARD_W, HEADER_H, MORE_H, ROW_H, STATS_H } from '../src/workout/shareModel';
 import { memoryDb } from './helpers';
 
-const mockCapture = jest.fn(async () => 'file:///cache/ReactNative-snapshot-image-1.png');
+/** Whether the PR text was on screen (the hidden card included) at each capture. */
+const prAtCapture: boolean[] = [];
+const mockCapture = jest.fn(async () => {
+  prAtCapture.push(screen.queryAllByText('PR', { includeHiddenElements: true }).length > 0);
+  return 'file:///cache/ReactNative-snapshot-image-1.png';
+});
 const mockShare = jest.fn(async () => undefined);
 const mockCopied: string[] = [];
 jest.mock('react-native-view-shot', () => ({ captureRef: (...a: unknown[]) => (mockCapture as (...x: unknown[]) => Promise<string>)(...a) }));
@@ -40,6 +45,7 @@ afterEach(() => {
   Platform.OS = original;
   jest.clearAllMocks();
   mockCopied.length = 0;
+  prAtCapture.length = 0;
 });
 
 describe('the panel passes prs to its own share card', () => {
@@ -51,14 +57,14 @@ describe('the panel passes prs to its own share card', () => {
     expect(screen.queryByText('PR', { includeHiddenElements: true })).toBeNull();
   });
 
-  it('Share waits for the pending prs, so the picture still has the PR', async () => {
+  it('Share waits for the pending prs: the PR is on screen when the picture is captured, and it is shared once', async () => {
     let release: () => void = () => undefined;
     const gate = new Promise<void>((r) => (release = r));
     let setPrs: (p: ReadonlySet<string>) => void = () => undefined;
-    // Like the hook: the names are set first, then the promise resolves.
+    // Like the hook: the names are set, then the promise resolves (no act, no wait for the render).
     const settle = async () => {
       await gate;
-      await act(async () => setPrs(new Set(['Barbell Bench Press'])));
+      setPrs(new Set(['Barbell Bench Press']));
     };
     const Host = () => {
       const [prs, set] = useState<ReadonlySet<string>>(new Set());
@@ -66,13 +72,25 @@ describe('the panel passes prs to its own share card', () => {
       return <CompletionPanel db={memoryDb()} date="2026-10-08" profileKg={83.7} exs={exs} cardio={null} prs={prs} settlePrs={settle} reloadKey={0} />;
     };
     await render(<Host />);
-    fireEvent.press(screen.getByLabelText('Share workout summary picture')); // before the prs are known
+    await fireEvent.press(screen.getByLabelText('Share workout summary picture')); // before the prs are known
+    await fireEvent.press(screen.getByLabelText('Share workout summary picture')); // a second tap changes nothing
     await new Promise((r) => setTimeout(r, 30));
-    expect(mockShare).not.toHaveBeenCalled(); // still waiting
+    expect(mockCapture).not.toHaveBeenCalled(); // still waiting
     release();
     await waitFor(() => expect(mockShare).toHaveBeenCalledTimes(1));
-    expect(screen.getByText('PR', { includeHiddenElements: true })).toBeTruthy();
-    expect(mockCapture).toHaveBeenCalledTimes(1);
+    expect(prAtCapture).toEqual([true]);
+    await act(async () => undefined); // settle anything left
+  });
+
+  it('does not share after the panel is gone', async () => {
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((r) => (release = r));
+    await render(<CompletionPanel db={memoryDb()} date="2026-10-08" profileKg={83.7} exs={exs} cardio={null} prs={new Set(['Barbell Bench Press'])} settlePrs={() => gate} reloadKey={0} />);
+    await fireEvent.press(screen.getByLabelText('Share workout summary picture'));
+    await screen.unmount();
+    release();
+    await new Promise((r) => setTimeout(r, 30));
+    expect(mockCapture).not.toHaveBeenCalled();
   });
 });
 
@@ -88,7 +106,7 @@ describe('share the workout summary picture', () => {
 
   it('captures the card as a 1080x1350 PNG and hands the file to the share sheet, nothing else', async () => {
     await panel();
-    fireEvent.press(screen.getByLabelText('Share workout summary picture'));
+    await fireEvent.press(screen.getByLabelText('Share workout summary picture'));
     await waitFor(() => expect(mockShare).toHaveBeenCalledTimes(1));
     expect(mockCapture).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ format: 'png', width: 1080, height: 1350, result: 'tmpfile' }));
     const [uri, opts] = mockShare.mock.calls[0] as unknown as [string, { mimeType: string }];
@@ -100,7 +118,7 @@ describe('share the workout summary picture', () => {
   it('says so when the capture fails, and does not open the share sheet', async () => {
     mockCapture.mockRejectedValueOnce(new Error('boom'));
     await panel();
-    fireEvent.press(screen.getByLabelText('Share workout summary picture'));
+    await fireEvent.press(screen.getByLabelText('Share workout summary picture'));
     await waitFor(() => expect(screen.getByText('Could not share the picture. Try again.')).toBeTruthy());
     expect(mockShare).not.toHaveBeenCalled();
   });
@@ -163,9 +181,9 @@ describe('share the workout summary picture', () => {
     let release: () => void = () => undefined;
     mockShare.mockImplementationOnce(() => new Promise<undefined>((ok) => (release = () => ok(undefined))));
     await panel();
-    fireEvent.press(screen.getByLabelText('Share workout summary picture'));
+    await fireEvent.press(screen.getByLabelText('Share workout summary picture'));
     await waitFor(() => expect(mockShare).toHaveBeenCalledTimes(1));
-    fireEvent.press(screen.getByLabelText('Share workout summary picture'));
+    await fireEvent.press(screen.getByLabelText('Share workout summary picture'));
     expect(mockCapture).toHaveBeenCalledTimes(1);
     release();
     await waitFor(() => expect(screen.getByLabelText('Share workout summary picture').props.accessibilityState?.disabled).toBeFalsy());

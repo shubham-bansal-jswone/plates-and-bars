@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ComponentRef, type Ref } from 'react';
+import { useEffect, useRef, useState, type ComponentRef, type Ref } from 'react';
 import { Platform, StyleSheet, Text as RNText, View } from 'react-native';
 import { type Milestone } from '@plate-and-bar/core';
 import { Text } from '../components/Text';
@@ -23,11 +23,32 @@ export function CompletionPanel({ earned = [], db, date, profileKg, exs, cardio,
   const c = useTheme();
   const { unit } = useWeightUnit();
   const { cardRef, busy, note: shareNote, share } = useShareCard();
-  // What the picture is built from, as of the last commit: Share reads it after waiting for `prs`, not the render it was tapped in.
-  const latest = useRef({ date, exs, cardio, prs, unit });
+  // Share waits for the pending `prs`: a tap asks for the settle, and the share runs from an effect once the render that has the settled `prs`
+  // is committed (`ticket` moves after `settlePrs()` resolves, so that render includes them). `asked` stops a second tap; `alive` a share after unmount.
+  const [ticket, setTicket] = useState(0);
+  const asked = useRef(false);
+  const alive = useRef(true);
   useEffect(() => {
-    latest.current = { date, exs, cardio, prs, unit };
-  });
+    alive.current = true;
+    return () => {
+      alive.current = false;
+    };
+  }, []);
+  useEffect(() => {
+    if (ticket === 0 || !asked.current) return;
+    asked.current = false;
+    share(buildShareCard({ date, exs, cardio, prs, unit }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- runs once per ticket, with the props of that render
+  }, [ticket]);
+  const tapShare = (card: ReturnType<typeof buildShareCard>) => {
+    if (!settlePrs) return share(card);
+    if (asked.current) return;
+    asked.current = true;
+    settlePrs().catch(() => undefined).then(() => {
+      if (alive.current) setTicket((n) => n + 1);
+      else asked.current = false;
+    });
+  };
   const sets = exs.flatMap((e) => e.sets);
   const done = sets.filter((s) => s.done).length;
   if (sets.length === 0 || done !== sets.length) return null;
@@ -60,7 +81,7 @@ export function CompletionPanel({ earned = [], db, date, profileKg, exs, cardio,
         <Text key={m.id} testID="completion-milestone" accessibilityLabel={`Milestone: ${milestoneLine(m)}`} style={[type.caption, { color: c.body }]}>{`Milestone: ${milestoneLine(m)}`}</Text>
       ))}
       <BurnLine db={db} date={date} profileKg={profileKg} exs={exs} cardio={cardio} reloadKey={reloadKey} />
-      <Button kind="ghost" label="Share" a11yLabel="Share workout summary picture" onPress={() => void (settlePrs ? settlePrs().then(() => new Promise((r) => setTimeout(r, 16))).catch(() => undefined).then(() => share(buildShareCard(latest.current))) : share(card))} disabled={busy} busy={busy} />
+      <Button kind="ghost" label="Share" a11yLabel="Share workout summary picture" onPress={() => tapShare(card)} disabled={busy} busy={busy} />
       {onSaveRoutine ? <Button kind="ghost" label={ROUTINE_COPY.action} onPress={onSaveRoutine} /> : null}
       {shareNote ? <Note>{shareNote}</Note> : null}
       {Platform.OS === 'web' ? null : <ShareCard model={card} cardRef={cardRef} />}

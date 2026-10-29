@@ -19,6 +19,7 @@ export function memoryDb(): WorkoutDb & PullDb & { rows: Map<string, string>; se
     async getAllAsync<T>(sql: string, ...p: (string | number)[]) {
       if (sql.includes('FROM workout_sets WHERE workout_date')) return [...sets.values()].filter((s) => s.date === p[0]).map((s) => ({ data: s.data })) as T[];
       if (sql.includes('SELECT workout_date, data FROM workout_sets')) {
+        // Per-exercise reads (not DONE_SETS_SQL) are unordered here: no caller depends on their order.
         const all = sql.includes('workout_date >= ?'); // DONE_SETS_SQL: every exercise, between the date bounds, oldest day first
         const live = (d: string) => { const w = rows.get(`workouts:${d}`); return w !== undefined && ((JSON.parse(w) as { deleted_at?: string | null }).deleted_at ?? null) === null; };
         return [...sets.values()].filter((s) => s.kind === 'work' && s.done === 1 && s.deleted === 0 && live(s.date) && (all ? s.date >= String(p[0]) && s.date <= String(p[1]) : (JSON.parse(s.data) as { exercise: string }).exercise === p[0])).sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0)).map((s) => ({ workout_date: s.date, data: s.data })) as T[];

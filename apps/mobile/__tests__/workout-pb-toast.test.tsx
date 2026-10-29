@@ -354,6 +354,36 @@ describe('the personal-best toast uses the all-time rule (#1351 A4b)', () => {
     expect((await badges(db, name, result)).history).toEqual([]);
   });
 
+  it('settlePrs resolves only once prs has the lift (a slow prior-best read after a reload)', async () => {
+    const { db, name, props, result } = await started();
+    await seedDay(db, name, '2026-09-01', [[80, 5]]);
+    await seedDay(db, name, '2026-09-20', [[90, 5]], true);
+    await completeWith(result, name, '100', '5');
+    await waitFor(() => expect(result.current.prs.has(name)).toBe(true));
+    const real = db.getAllAsync.bind(db);
+    let release: () => void = () => {};
+    const gate = new Promise<void>((r) => (release = r));
+    let held = false;
+    db.getAllAsync = (async (sql: string, ...args: (string | number)[]) => {
+      const rows = await real(sql, ...args);
+      if (/json_extract\(data, '\$\.exercise'\)/.test(sql)) {
+        held = true;
+        await gate;
+      }
+      return rows;
+    }) as typeof db.getAllAsync;
+    await act(async () => void (await props({ k: 1 }))); // a pull: the cached prior best is dropped, the read is slow
+    await waitFor(() => expect(held).toBe(true));
+    let settled = false;
+    const p = result.current.settlePrs().then(() => void (settled = true));
+    await act(async () => void (await new Promise((r) => setTimeout(r, 20))));
+    expect(settled).toBe(false);
+    expect(result.current.prs.size).toBe(0);
+    await act(async () => release());
+    await act(async () => void (await p));
+    expect(result.current.prs.has(name)).toBe(true);
+  });
+
   it('an untick removes the badge', async () => {
     const { db, name, result } = await started();
     await seedDay(db, name, '2026-09-01', [[80, 5]]);
