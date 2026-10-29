@@ -279,6 +279,15 @@ describe('TrendChart additions', () => {
     expect(cx[2]).toBeCloseTo(312, 6);
   });
 
+  it('two points on one date both render, at the same x (#1370)', async () => {
+    const same = [{ date: '2026-10-01', v: 80 }, { date: '2026-10-05', v: 79 }, { date: '2026-10-05', v: 81 }];
+    await render(<TrendChart points={same} box={box} label="e1RM" />);
+    const cx = walk('RNSVGCircle').map((n) => Number(JSON.stringify(n.props).match(/"cx":([\d.]+)/)?.[1]));
+    expect(cx).toHaveLength(3);
+    expect(cx[1]).toBeCloseTo(cx[2] as number, 9);
+    expect(cx[2]).toBeCloseTo(312, 6);
+  });
+
   it('the dates row is hidden from assistive tech, as the label carries them', async () => {
     await render(<TrendChart points={pts} box={box} label="Weight" unit="kg" />);
     const first = screen.getByText(shortDate('2026-09-01'), { includeHiddenElements: true });

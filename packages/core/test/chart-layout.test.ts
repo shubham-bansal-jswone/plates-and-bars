@@ -33,6 +33,15 @@ describe('chartLayout spacing rules', () => {
   it('falls back to index spacing when the dates run backwards', () => {
     expect(chartLayout(vals, box, [...dates].reverse())!.points.map((p) => p.x)).toEqual([34, 173, 312]);
   });
+  it.each([
+    ['a middle date out of order', ['2026-10-01', '2026-10-15', '2026-10-10']],
+    ['a middle date before the first', ['2026-10-10', '2026-09-01', '2026-10-20']],
+    ['a malformed middle date', ['2026-10-01', 'not-a-date', '2026-10-11']],
+  ])('falls back to index spacing for %s, all x inside the box', (_n, ds) => {
+    const xs = chartLayout(vals, box, ds)!.points.map((p) => p.x);
+    expect(xs).toEqual([34, 173, 312]);
+    for (const x of xs) expect(x).toBeGreaterThanOrEqual(34), expect(x).toBeLessThanOrEqual(312);
+  });
   it('still needs 2 points', () => {
     expect(chartLayout([80], box, ['2026-10-01'])).toBeNull();
     expect(chartLayout([], box, [])).toBeNull();

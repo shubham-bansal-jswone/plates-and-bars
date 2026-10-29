@@ -56,7 +56,7 @@ export function TrendChart({ points, box, label, unit, target }: Props) {
           <SvgText x={0} y={H - py + 4} fill={c.muted} fontSize={fs} fontFamily={fontFamily}>{String(round1(layout.min))}</SvgText>
           <Polyline points={line} fill="none" stroke={c.brand} strokeWidth={2} strokeLinejoin="round" />
           {drawn.map((p, i) => (
-            <Circle key={points[i]?.date} cx={p.x} cy={p.y} r={3} fill={c.brand} />
+            <Circle key={`${i}-${points[i]?.date}`} cx={p.x} cy={p.y} r={3} fill={c.brand} />
           ))}
         </Svg>
         <View style={styles.dates} aria-hidden accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
