@@ -268,6 +268,62 @@ describe('VolumeSection', () => {
     expect(screen.queryByRole('button', { name: 'Chest' })).toBeNull();
   });
 
+  it('only the section\'s own read fails (workouts or lifts): the error shows, not a bare card', async () => {
+    for (const table of ['SELECT key, data FROM workouts', 'lift_stats']) {
+      const db = await openDb();
+      await history(db);
+      const real = db.getAllAsync.bind(db);
+      jest.spyOn(db, 'getAllAsync').mockImplementation((async (sql: string, ...a: (string | number)[]) => {
+        if (sql.includes(table)) throw new Error('disk');
+        return real(sql, ...a);
+      }) as never);
+      const r = await show(db, { focus: ['chest'] });
+      await screen.findByText(VOL_ERROR);
+      expect(screen.queryByTestId('skeleton')).toBeNull();
+      expect(screen.queryByRole('button', { name: 'Chest' })).toBeNull();
+      await r.unmount();
+    }
+  });
+
+  it('the workouts read still pending after the sets read finished: a skeleton, then the chart', async () => {
+    const db = await openDb();
+    await history(db);
+    const real = db.getAllAsync.bind(db);
+    let open: () => void = () => undefined;
+    const gate = new Promise<void>((r) => { open = r; });
+    jest.spyOn(db, 'getAllAsync').mockImplementation((async (sql: string, ...a: (string | number)[]) => {
+      if (sql.includes('SELECT key, data FROM workouts')) await gate;
+      return real(sql, ...a);
+    }) as never);
+    await show(db, { focus: ['chest'] });
+    await new Promise((r) => setTimeout(r, 20)); // the sets read is long done
+    expect(screen.getByTestId('skeleton')).toBeTruthy();
+    expect(screen.queryByText(VOL_EMPTY)).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Chest' })).toBeNull();
+    await act(async () => open());
+    await screen.findByRole('button', { name: 'Chest' });
+    expect(screen.queryByTestId('skeleton')).toBeNull();
+  });
+
+  it('a reload for a user with no done sets does not bring the skeleton back', async () => {
+    const db = await openDb();
+    await train(db, '2026-10-26', {}); // a workout, nothing ticked: the empty state
+    const { v, rerender } = await show(db);
+    await screen.findByText(VOL_EMPTY);
+    const seen: boolean[] = [];
+    const real = db.getAllAsync.bind(db);
+    jest.spyOn(db, 'getAllAsync').mockImplementation((async (...a: Parameters<typeof real>) => {
+      seen.push(!!screen.queryByTestId('skeleton'));
+      return real(...a);
+    }) as never);
+    await rerender(v.ui(1));
+    await waitFor(() => expect(seen.length).toBeGreaterThan(0));
+    await act(async () => { await new Promise((r) => setTimeout(r, 20)); });
+    expect(seen.every((x) => !x)).toBe(true);
+    expect(screen.queryByTestId('skeleton')).toBeNull();
+    expect(screen.getByText(VOL_EMPTY)).toBeTruthy();
+  });
+
   it('the headline is hidden from the accessibility tree; the chart label carries it', async () => {
     const db = await openDb();
     await history(db);

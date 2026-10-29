@@ -69,6 +69,9 @@ export function useProgressVolume(db: WorkoutDb, sets: ProgressSets, end: string
       live = false;
     };
   }, [db, dataVersion, shown]);
+  // The first sets read has finished once (a reload after it keeps the sets, so it never brings the skeleton back).
+  const [setsSeen, setSetsSeen] = useState(false);
+  if (!sets.loading && !setsSeen) setSetsSeen(true);
   const rows = state?.rows ?? null;
   const byDate = useMemo(() => indexSets(sets.all), [sets.all]);
   const since = useMemo(() => (rows ? firstLogged(rows.workouts) : null), [rows]);
@@ -82,6 +85,6 @@ export function useProgressVolume(db: WorkoutDb, sets: ProgressSets, end: string
   const weeks = useMemo(() => (days ? weeklyDoneSets(days, end, VOLUME_WEEKS, getCatalog().tags) : null), [days, end]);
   const volume = useMemo((): ProgressVolume | null => (weeks ? { weeks, planned, since, result: volumeVsPlan(weeks, planned, since) } : null), [weeks, planned, since]);
   const error = state?.error ?? sets.error;
-  const loading = !error && (state === null || (sets.loading && sets.all.length === 0));
+  const loading = !error && (state === null || !setsSeen);
   return { volume: error || loading ? null : volume, loading, error };
 }
