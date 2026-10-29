@@ -852,6 +852,8 @@ export type { ImportSource, ImportError, ImportSet, ImportDay, ImportSkipped, Im
  * Exercise groups (supersets; #1182, ADR 012). New, not a prototype port: no prototype behaviour, no golden fixture.
  * - `GROUP_MAX` 6, `GROUP_MIN` 2, `GROUP_TRANSITION_SEC` 15.
  * - `groupLabels` member letters, `normalizeGroups` repair, `nextInRound` alternating order, `restAfterTick` round and transition rest (reuses `restFor`).
+ * - Edits (#1345): `joinWithNext` groups an exercise with the next (new group, join, append, or merge two groups), `moveExercise` moves one step keeping groups
+ *   valid, `leaveGroup` takes one member out. Vectors: golden/group-edits.json.
  */
-export { GROUP_MAX, GROUP_MIN, GROUP_TRANSITION_SEC, groupLabels, normalizeGroups, validId, nextInRound, restAfterTick, canGroupWithNext } from './groups';
-export type { GroupEx, GroupWithNext, IsDone, RestAfterTick } from './groups';
+export { GROUP_MAX, GROUP_MIN, GROUP_TRANSITION_SEC, groupLabels, normalizeGroups, validId, nextInRound, restAfterTick, canGroupWithNext, joinWithNext, moveExercise, leaveGroup } from './groups';
+export type { GroupEdit, GroupEx, GroupWithNext, IsDone, RestAfterTick } from './groups';

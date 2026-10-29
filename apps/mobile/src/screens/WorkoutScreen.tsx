@@ -5,7 +5,7 @@ import { useFocusEffect } from 'expo-router';
 import { AccessibilityInfo, Platform, StyleSheet, Text as RNText, useWindowDimensions, View } from 'react-native';
 import { useDataVersion } from '../sync/useDataVersion';
 import { Text } from '../components/Text';
-import { HAND_PICKED, ROUTINE_EXERCISES_MAX, routineFromSession, modsNote, overridesFromSettings, missingExercises, plannedCoverage, type WeekPlan, secondSessionChoices, sessionVolume, beginnerRamp, checkinFlags, isFocus, nextInList, coverageTemplates, mondayOf, planned, warmupRamp, type Checkin, isLearning, exInfo, fromKg, canGroupWithNext, infoForUnit, priorSessions, REST_EXTEND_SEC, type ExclusionReason } from '@plate-and-bar/core';
+import { HAND_PICKED, ROUTINE_EXERCISES_MAX, routineFromSession, modsNote, overridesFromSettings, missingExercises, plannedCoverage, type WeekPlan, secondSessionChoices, sessionVolume, beginnerRamp, checkinFlags, isFocus, nextInList, coverageTemplates, mondayOf, planned, warmupRamp, type Checkin, isLearning, exInfo, fromKg, canGroupWithNext, moveExercise as coreMove, infoForUnit, priorSessions, REST_EXTEND_SEC, type ExclusionReason } from '@plate-and-bar/core';
 import { fmt } from '../format';
 import { ClearanceCard } from '../components/ClearanceCard';
 import { Button, Card, Chip, Disclosure, H1, Hint, MetricRow, Note, Page, useScrollToTopOn } from '../components/ui';
@@ -21,7 +21,7 @@ import { CHECKIN, REASON_TEXT, listJoin, modsNoteText, muscleName, ROUTINE_COPY,
 import { ExerciseCard, type Actions } from '../workout/ExerciseCard';
 import { ringUntilBlur } from '../workout/focusRing';
 import { SupersetBlock } from '../workout/SupersetBlock';
-import { groupEx, groupReason, groupRounds, groupUnits, removalNote, upNext, type Unit } from '../workout/groupUnits';
+import { editRows, groupEx, groupReason, groupRounds, groupUnits, leaveNote, moveNote, removalNote, upNext, type Unit } from '../workout/groupUnits';
 import { AddExerciseFlow } from '../workout/AddExerciseFlow';
 import { BodyMap } from '../workout/BodyMap';
 import { musclesOf } from '../workout/muscles';
@@ -596,14 +596,15 @@ function SessionView({ reveal, dockH, now, db, reloadKey, w, profile, focus, rul
     if (Platform.OS === 'ios') AccessibilityInfo.announceForAccessibility(msg);
   };
   // Focus lands on a node (the block header, an exercise heading) once the render that shows it is done; nodes register by key.
-  const [nodes] = useState(() => new Map<string, ComponentRef<typeof RNText>>());
-  const [focusOn, setFocusOn] = useState<{ key: string } | null>(null);
-  const reg = (key: string) => (n: ComponentRef<typeof RNText> | null) => void (n ? nodes.set(key, n) : nodes.delete(key));
+  const [nodes] = useState(() => new Map<string, ComponentRef<typeof View>>());
+  // `alt`: where focus goes when `key` is gone (a Move chip that has no step left after the move).
+  const [focusOn, setFocusOn] = useState<{ key: string; alt?: string } | null>(null);
+  const reg = (key: string) => (n: ComponentRef<typeof View> | null) => void (n ? nodes.set(key, n) : nodes.delete(key));
   // The ring colour is read when focus is applied, not a dependency: a theme change must not move focus again.
   const ring = useRef(c.focus);
   useEffect(() => void (ring.current = c.focus));
   useEffect(() => {
-    const node = focusOn ? nodes.get(focusOn.key) : null;
+    const node = focusOn ? (nodes.get(focusOn.key) ?? (focusOn.alt ? nodes.get(focusOn.alt) : undefined)) : null;
     if (!node) return;
     focusNode(node);
     // After a click the browser draws no ring on a script-focused node (:focus-visible); the user must see where focus went, as after a key press.
@@ -620,8 +621,9 @@ function SessionView({ reveal, dockH, now, db, reloadKey, w, profile, focus, rul
   useEffect(() => {
     const before = lastMarker.current;
     lastMarker.current = markerKey;
+    // The block is done (or closed): an old "Up next" must not stay in the live region. What an action said as it closed it (a move out of it) stays.
+    if (before && !markerKey) setSaid((s) => (s.startsWith('Up next') ? '' : s));
     // Same unit, same members (a member just added is announced as a new superset, not as a move of the marker).
-    if (before && !markerKey) setSaid(''); // the block is done (or closed): an old "Up next" must not stay in the live region
     if (!before || !markerKey || before === markerKey || before.split(':')[0] !== markerKey.split(':')[0] || !open0 || !marker) return;
     say(`Up next: ${day.exs[marker.ex]?.name}, ${String.fromCharCode(65 + marker.ex - open0.start)}${marker.set + 1}.`);
     // The up-next row may be off-screen (a block of 3 or more, long cards): scroll it into view, only when it is not already.
@@ -655,11 +657,30 @@ function SessionView({ reveal, dockH, now, db, reloadKey, w, profile, focus, rul
     notify('Superset ungrouped');
   };
   const group = (i: number) => {
+    const rule = canGroupWithNext(groupEx(day.exs), i, (k, s) => !!day.exs[k]?.sets[s]?.done);
     const names = w.groupWithNext(i);
     if (!names) return;
     setPinned((day.exs[i] as ExState).name);
     setFocusOn({ key: `header:${names[0]}` });
-    say(`${listJoin(names)} are now a superset.`);
+    say(rule.ok && rule.merge ? `Supersets merged: ${listJoin(names)} are now one superset.` : `${listJoin(names)} are now a superset.`);
+  };
+  // Move up / down and "Remove from superset" (#1345): the move is said in the live region; focus stays on the chip that was pressed (or its twin when that has no step left), and after leaving a superset goes to the exercise's heading (the chip is gone).
+  const rows = editRows(day.exs);
+  const move = (i: number, dir: -1 | 1) => {
+    const name = (day.exs[i] as ExState).name;
+    const r = w.moveExercise(i, dir);
+    if (!r) return;
+    setPinned(name);
+    setFocusOn({ key: `${dir < 0 ? 'up' : 'down'}:${name}`, alt: `${dir < 0 ? 'down' : 'up'}:${name}` });
+    say(moveNote(day.exs, r.exs, name, dir));
+  };
+  const leave = (i: number) => {
+    const name = (day.exs[i] as ExState).name;
+    const note = leaveNote(day.exs, name);
+    if (!w.leaveGroup(i)) return;
+    setPinned(name);
+    setFocusOn({ key: `ex:${name}` });
+    notify(note); // one toast: the superset it left is closed now (this exercise is the open one), so the live region would be cleared
   };
   /** One exercise's card: a lone exercise, or a member of the superset `m.unit` (then `m.next` is the set up next in it). */
   const card = (i: number, expanded: boolean, m?: { unit: Unit; next: { ex: number; set: number } | null }) => {
@@ -695,13 +716,21 @@ function SessionView({ reveal, dockH, now, db, reloadKey, w, profile, focus, rul
     if (expanded && nx && nx.part === ex.part && !hidden) {
       const ramping = (e: ExState) => guidance(e, ctx, wk).sug.mode === 'new' && !e.skipRamp && e.found === null && !e.sets.some((x) => x.done);
       const pending = [ex, nx].find(ramping);
-      superset = { next: nx.name, reason: groupReason(rule, day.exs.map((e) => e.name)) ?? (pending ? `Finish the first-time ramp for ${pending.name} first.` : null), onPress: () => group(i) };
+      superset = { next: nx.name, reason: groupReason(rule, day.exs.map((e) => e.name)) ?? (pending ? `Finish the first-time ramp for ${pending.name} first.` : null), merge: rule.ok && !!rule.merge, onPress: () => group(i) };
     }
+    const step = (dir: -1 | 1) => {
+      if (!coreMove(rows, i, dir)) return null;
+      return { onPress: () => move(i, dir), out: !!m && i === (dir < 0 ? m.unit.start : m.unit.end - 1) };
+    };
+    const reorder: ComponentProps<typeof ExerciseCard>['reorder'] = { up: step(-1), down: step(1), ...(m ? { leave: () => leave(i) } : {}) };
     const lead = m ? (m.next ? m.next.ex : expanded ? inUnit(m.unit) : -1) : -1;
     return (
       <ExerciseCard
         key={ex.name}
         {...(superset ? { superset } : {})}
+        reorder={reorder}
+        moveUpRef={reg(`up:${ex.name}`)}
+        moveDownRef={reg(`down:${ex.name}`)}
         {...(m ? { member: { letter: String.fromCharCode(65 + i - m.unit.start), upNext: !!m.next && m.next.ex === i }, compact: expanded && lead !== i, currentSet: m.next && m.next.ex === i ? m.next.set : -1 } : {})}
         headingRef={reg(`ex:${ex.name}`)}
         upNextRef={upRow}
@@ -733,7 +762,7 @@ function SessionView({ reveal, dockH, now, db, reloadKey, w, profile, focus, rul
         const members = day.exs.slice(u.start, u.end);
         const next = upNext(day.exs, u.start, u.end);
         return (
-          <View key={`g:${first.name}`} style={{ gap: 8 }}>
+          <View key={`g:${first.group}`} style={{ gap: 8 }}>
             {second}
             <SupersetBlock names={members.map((e) => e.name)} rounds={groupRounds(members)} open={open} headerRef={reg(`header:${first.name}`)} onUngroup={() => ungroup(u)}>
               {members.map((_, k) => card(u.start + k, open, { unit: u, next }))}

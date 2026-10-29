@@ -3,8 +3,9 @@ import { buzz, PB_BUZZ } from '../haptics';
 import {
   cantRule,
   restAfterTick,
-  canGroupWithNext,
-  groupLabels,
+  joinWithNext,
+  moveExercise as coreMove,
+  leaveGroup as coreLeave,
   restFor,
   noLoad,
   num,
@@ -52,7 +53,7 @@ import { buildSession } from './buildSession';
 import { getCatalog } from './catalog';
 import { rangesOf } from './adjust';
 import { restTarget } from './restNext';
-import { groupEx, removalNote } from './groupUnits';
+import { applyEdit, editRows, removalNote } from './groupUnits';
 import type { RestNext } from './parts';
 import { guidance, progressionContext, type Tuning } from './guidance';
 import { cantChange, persistCant } from './cantApply';
@@ -864,23 +865,50 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
   };
 
   /**
-   * Groups exercise `i` with the next one (core's `canGroupWithNext` decides; a refused one changes nothing): a new group id for two ungrouped
-   * exercises, else the id of the group the other one is in. Returns the names of the group's members in order, or null when refused.
+   * Groups exercise `i` with the next one (core's `joinWithNext` decides; a refused one changes nothing): a new group id for two ungrouped
+   * exercises, the id of the group the other one is in, or, for two groups, the first group's id for both. Returns the names of the group's members in order, or null when refused.
    */
   const groupWithNext = (i: number): string[] | null => {
     const d = clone(ref.current);
-    const a = d.exs[i];
-    const b = d.exs[i + 1];
-    if (!d.workout || !a || !b || !canGroupWithNext(groupEx(d.exs), i, (k, s) => !!d.exs[k]?.sets[s]?.done).ok) return null;
-    // The id of a valid run (core's labels), never a raw field: a broken id on a lone exercise is not joined.
-    const valid = groupLabels(groupEx(d.exs));
-    const id = (valid[i] ? a.group : null) || (valid[i + 1] ? b.group : null) || newId();
-    a.group = id;
-    b.group = id;
-    const members = d.exs.filter((e) => e.group === id).map((e) => e.name);
+    if (!d.workout) return null;
+    const out = joinWithNext(editRows(d.exs), i, (k, s) => !!d.exs[k]?.sets[s]?.done, newId);
+    if (!out) return null;
+    d.exs = applyEdit(d.exs, out.exs);
+    const members = d.exs.slice(out.members[0], out.members[1]).map((e) => e.name);
     commit(d);
     void enqueue(() => writeWorkout());
     return members;
+  };
+
+  /**
+   * Moves exercise `i` one step up (-1) or down (+1); core's `moveExercise` keeps the groups valid (a member at the edge leaves its group; an
+   * ungrouped exercise hops a whole superset) and null refuses (list end, other session part). Returns the exercise list as it is now and the
+   * exercise's new index, or null when refused.
+   */
+  const moveExercise = (i: number, dir: -1 | 1): { exs: readonly ExState[]; to: number } | null => {
+    const d = clone(ref.current);
+    if (!d.workout) return null;
+    const out = coreMove(editRows(d.exs), i, dir);
+    if (!out) return null;
+    d.exs = applyEdit(d.exs, out.exs);
+    commit(d);
+    void enqueue(() => writeWorkout());
+    return { exs: d.exs, to: out.to };
+  };
+
+  /**
+   * Takes exercise `i` out of its superset and keeps it in the session (core's `leaveGroup`): explicit `group: null` on it, and on the other member when a pair
+   * dissolves (ADR 012). Returns the exercise list as it is now and the exercise's new index, or null when `i` is in no superset.
+   */
+  const leaveGroup = (i: number): { exs: readonly ExState[]; to: number } | null => {
+    const d = clone(ref.current);
+    if (!d.workout) return null;
+    const out = coreLeave(editRows(d.exs), i);
+    if (!out) return null;
+    d.exs = applyEdit(d.exs, out.exs);
+    commit(d);
+    void enqueue(() => writeWorkout());
+    return { exs: d.exs, to: out.to };
   };
 
   /** Dissolves the group of exercise `i`: every member gets an explicit `group: null` (ADR 012: the three-way merge must see the ungroup). Returns the former members' names, or null when `i` is in no group. */
@@ -1091,5 +1119,5 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
     notify(choice ? `Swapped in ${choice}` : gone);
   };
 
-  return { date, msSettled: () => msChain.current, earned: earnedIn.date === date ? earnedIn.list : NO_EARNED, prs: loaded === date && prState.for === day.exs ? prState.names : NO_PRS, settlePrs: () => prPending.current, day: loaded === date ? day : NOT_READY, cant, setCardio, editSet, tick, rate, setForm, setFeel, skipRemaining, rampStart, rampSkip, rampAdd, rampTick, rampRated, addSet, removeSet, groupWithNext, ungroup, addExercise, removeExercise, finishEarly, start, startPicked, startFromRoutine, addSecond };
+  return { date, msSettled: () => msChain.current, earned: earnedIn.date === date ? earnedIn.list : NO_EARNED, prs: loaded === date && prState.for === day.exs ? prState.names : NO_PRS, settlePrs: () => prPending.current, day: loaded === date ? day : NOT_READY, cant, setCardio, editSet, tick, rate, setForm, setFeel, skipRemaining, rampStart, rampSkip, rampAdd, rampTick, rampRated, addSet, removeSet, groupWithNext, moveExercise, leaveGroup, ungroup, addExercise, removeExercise, finishEarly, start, startPicked, startFromRoutine, addSecond };
 }
