@@ -7,7 +7,7 @@ import { defaultSettings } from '../src/settings/types';
 import { buildProfile, emptyDraft } from '../src/setup/logic';
 import type { Workout } from '../src/workout/types';
 import { focusNode } from '../src/labelscan/focus';
-import { press } from './disclosure-helpers';
+import { press, reveal } from './disclosure-helpers';
 import { memoryDb, withProfile } from './helpers';
 
 // Reorder, remove one member and merge two supersets on the active workout screen (#1345; rules and vectors in core: golden/group-edits.json).
@@ -47,7 +47,6 @@ async function mount(groups: (string | null)[] = [], o: { secondFrom?: number } 
   await screen.findAllByLabelText(`Add set to ${names[0]}`);
   return { db, names };
 }
-/** Opens a collapsed exercise (a member shows its letter in the name). */
 /** Types a weight and reps into set `j` (0-based) of `name` (label `{name} set {j+1}, {tag}`) and ticks it. */
 async function tick(name: string, j: number, tag: string) {
   const [w, r] = screen.getAllByLabelText(new RegExp(`^${name} set ${j + 1}, ${tag} `));
@@ -55,6 +54,7 @@ async function tick(name: string, j: number, tag: string) {
   await fireEvent.changeText(r!, '10');
   await press(new RegExp(`^Mark ${name} set ${j + 1}, ${tag} done`));
 }
+/** Opens a collapsed exercise (a member shows its letter in the name). */
 const open = (name: string) => press(new RegExp(`^${name}, \\d+/\\d+ sets(, [A-Z])?(, up next)?\\. Show sets`));
 
 describe('Move up and Move down', () => {
@@ -133,6 +133,19 @@ describe('Move up and Move down', () => {
     await tick(names[0]!, 0, 'A1'); // the marker is on B1; the move below swaps A and B
     await press(`Move down: ${names[0]}`);
     expect(live()).toBe(`${names[0]} moved down, now B of 3 in the superset.`);
+  });
+
+  it('the marker is keyed by member name: swapping the up-next member through Can\'t do announces its replacement', async () => {
+    const { names } = await mount(['g', 'g']);
+    await tick(names[0]!, 0, 'A1'); // the marker is on B1
+    await reveal(names[1]!);
+    await press(`Can’t do ${names[1]}`);
+    await press('Equipment isn’t available');
+    await press('Just today');
+    const rows = screen.getAllByRole('button').filter((b) => /Works your/.test(String(b.props.accessibilityLabel ?? '')));
+    const pick = String(rows[0]?.props.accessibilityLabel).split('. ')[0] as string;
+    await fireEvent.press(rows[0] as never);
+    await waitFor(() => expect(live()).toBe(`Up next: ${pick}, B1.`));
   });
 
   it('a member of a pair leaving by a move dissolves the pair: both get an explicit null and the one left is named', async () => {

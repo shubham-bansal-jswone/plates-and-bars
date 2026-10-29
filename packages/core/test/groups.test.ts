@@ -320,9 +320,7 @@ describe('group edits (#1345, golden/group-edits.json)', () => {
         const out = moveExercise(ex, i, dir);
         if (!out) continue;
         const others = (l: typeof ex) => l.filter((e) => e.name !== (ex[i] as GroupEx).name).map((e) => e.name);
-        // Grouped movers too: a member leaving or swapping moves only itself, the rest keep their order (a swap inside the group moves its neighbour by one).
-        const swapped = (ex[i] as GroupEx).group && out.exs.every((e, k) => e.group === ex[k]?.group || e.name === (ex[i] as GroupEx).name) && out.exs.filter((e, k) => e.name !== ex[k]?.name).length === 2;
-        if (!swapped) expect(others(out.exs)).toEqual(others(ex));
+        expect(others(out.exs)).toEqual(others(ex)); // grouped movers too: only the mover changes place
       }
   });
 });
