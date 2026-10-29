@@ -4,20 +4,22 @@ import { DailyRead } from '../why/DailyRead';
 import { useOptionalSettings } from '../state/SettingsProvider';
 import { profileWhyValues } from '../why/values';
 import { StyleSheet, View } from 'react-native';
-import { DEFAULT_KCAL_TARGET, formatWeight, round1, waterRetentionPhase, latestWeight, navyBodyFat, stepsTarget, measureSeries, weightSeries, WAIST_CHART_BOX, WEIGHT_CHART_BOX, type MeasureKey } from '@plate-and-bar/core';
+import { DEFAULT_KCAL_TARGET, formatWeight, round1, waterRetentionPhase, latestWeight, navyBodyFat, stepsTarget, weightSeries, WEIGHT_CHART_BOX, type MeasureKey } from '@plate-and-bar/core';
 import { useDataVersion } from '../sync/useDataVersion';
 import { useStepsVersion } from '../steps/DeviceStepsProvider';
 import { Text } from '../components/Text';
 import { Heading, Button, Caption, Card, Field, H1, Hint, Page } from '../components/ui';
 import type { WorkoutDb } from '../db/workouts';
 import { fmt, shortDate } from '../format';
-import { BF_HINT, BF_MISSING, BF_NO_PROFILE, HOW_TO_MEASURE, HOW_TO_MEASURE_HIPS, getMeasures, SCALE_JUMP_BODY, RECENT_WEIGH_INS_TITLE, SCALE_JUMP_TITLE, WAIST_TREND_NONE, WEIGHT_HINT } from '../progress/copy';
+import { BF_HINT, BF_MISSING, BF_NO_PROFILE, HOW_TO_MEASURE, HOW_TO_MEASURE_HIPS, getMeasures, SCALE_JUMP_BODY, RECENT_WEIGH_INS_TITLE, SCALE_JUMP_TITLE, WEIGHT_HINT } from '../progress/copy';
 import { CheckinCard, RapidLossCard } from '../progress/CheckinCard';
 import { RecentWorkouts, WorkoutDay } from '../progress/history/History';
 import { useHistory } from '../progress/history/useHistory';
 import { WeekCard } from '../progress/WeekCard';
 import { useCheckin } from '../progress/useCheckin';
 import { RangedTrend } from '../progress/RangedTrend';
+import { MeasureTrend } from '../progress/MeasureTrend';
+import { WeeksOnTrack } from '../progress/WeeksOnTrack';
 import { useProgress } from '../progress/useProgress';
 import { useStoredText } from '../progress/useStoredText';
 import { useProfile } from '../state/ProfileProvider';
@@ -42,7 +44,6 @@ interface Props {
 }
 
 const RECENT_WEIGH_INS = 7;
-const sameCm = (cm: number): number => cm;
 const r1 = (n: number): string => round1(n).toString();
 
 /** Progress tab, body data: weight entry, tape measurements with the navy body-fat estimate, and steps and sleep. */
@@ -100,6 +101,7 @@ export function ProgressScreen({ db, now = () => new Date() }: Props) {
             <LabsSection labs={labs} today={v.today} />
             <StepsSleepSection key={`steps-${p.date}`} p={p} />
             <WeekCard date={v.today} pastDay={!v.isToday} days={ci.weekDays} kcalTarget={profile?.targets.kcal ?? DEFAULT_KCAL_TARGET} />
+            <WeeksOnTrack sessions={ci.sessions} date={p.date} profile={profile} />
           </>
         ) : (
           <Hint>Loading…</Hint>
@@ -172,7 +174,6 @@ function MeasureSection({ p, isToday }: { p: Progress; isToday: boolean }) {
   const shown = MEASURES.filter((m) => m.show === 'always' || hasRule(m) || (m.show.or_entered_that_day && !!mine?.[m.key]));
   const female = profile?.sex === 'female';
   const bf = navyBodyFat(profile, p.tapes, p.date);
-  const waist = useMemo(() => measureSeries(p.tapes, 'waist_cm', p.date, Infinity), [p.tapes, p.date]);
   return (
     <Card style={styles.section}>
       <Heading level={2} style={[typeScale.heading, { color: c.ink }]}>Measurements</Heading>
@@ -183,29 +184,19 @@ function MeasureSection({ p, isToday }: { p: Progress; isToday: boolean }) {
         </View>
       ))}
       <Button kind="ghost" disabled={!Object.values(text).some((t) => t?.trim())} label={isToday ? 'Save for today' : `Save for ${shortDate(p.date)}`} onPress={() => p.saveTape(text)} />
-      {waist.length >= 1 ? (
-        <>
-          <Heading level={3} style={[typeScale.label, { color: c.ink }]}>Waist</Heading>
-          <RangedTrend
-            series={waist}
-            end={p.date}
-            convert={sameCm}
-            unit="cm"
-            noun="Waist"
-            box={WAIST_CHART_BOX}
-            none={WAIST_TREND_NONE}
-            changeLine={(ch) => (ch.direction === 'none' ? `No change in waist since ${shortDate(ch.since)}.` : `Waist ${ch.direction} ${ch.amount} cm since ${shortDate(ch.since)}.`)}
-          />
-        </>
-      ) : null}
-      {bf !== null ? (
-        <>
-          <Text style={{ color: c.ink, fontWeight: '700' }}>{`Estimated body fat: about ${fmt(bf)}%`}</Text>
-          <Hint>{BF_HINT(female)}</Hint>
-        </>
-      ) : (
-        <Hint>{profile ? BF_MISSING(female) : BF_NO_PROFILE}</Hint>
-      )}
+      <MeasureTrend
+        tapes={p.tapes}
+        end={p.date}
+        estimate={
+          bf !== null ? (
+            <>
+              <Text style={{ color: c.ink, fontWeight: '700' }}>{`Estimated body fat: about ${fmt(bf)}%`}</Text>
+              <Hint>{BF_HINT(female)}</Hint>
+            </>
+          ) : null
+        }
+        missing={bf === null ? <Hint>{profile ? BF_MISSING(female) : BF_NO_PROFILE}</Hint> : null}
+      />
       <Hint>{`How to measure. ${HOW_TO_MEASURE}${shown.some((m) => m.key === 'hips_cm') ? ` ${HOW_TO_MEASURE_HIPS}` : ''}`}</Hint>
     </Card>
   );
