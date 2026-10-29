@@ -1,5 +1,6 @@
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
+import { normalizeGroups } from '../src/groups';
 import { adjustSets, BALANCE_EXERCISE, isBlank, ROUTINE_EXERCISES_MAX, ROUTINE_MAX_LIVE, ROUTINE_NAME_MAX, ROUTINE_SETS_MAX, ROUTINE_SETS_MIN, missingExercises, routineFromSession, seededSession, startRoutine, type Exclusion, type StartRoutineInput } from '../src/index';
 
 type Rec = { name: string; exercises: Record<string, unknown>[] };
@@ -46,10 +47,15 @@ describe('routineFromSession (#1184)', () => {
     expect(routineFromSession([e])).toEqual([{ name: 'A', sets: 3 }]);
     expect(Object.keys(routineFromSession([e])[0] as object)).toEqual(['name', 'sets']);
   });
-  it.each(vectors.valid)('vector valid: $note', ({ record }) => {
+  it.each(vectors.valid)('vector valid: $note', ({ note, record }) => {
     expect(nameValid(record.name)).toBe(true);
     expect(exercisesValid(record.exercises)).toBe(true);
-    expect(routineFromSession(record.exercises as { name: string; sets: number }[])).toEqual(record.exercises.map((e) => ({ name: e.name, sets: e.sets })));
+    // group ids are remapped (g1, ...): a run of 2+ gets g1, a null or single member gets no key
+    const out = routineFromSession(record.exercises as { name: string; sets: number }[]);
+    expect(out.map((e) => ({ name: e.name, sets: e.sets }))).toEqual(record.exercises.map((e) => ({ name: e.name, sets: e.sets })));
+    const expected = note === 'group id of 36 characters' ? ['g1', 'g1'] : record.exercises.map(() => undefined);
+    expect(out.map((e) => ('group' in e ? e.group : undefined))).toEqual(expected);
+    expect(out.every((e) => !('group' in e) || e.group !== null)).toBe(true);
   });
   it.each(vectors.invalid.filter((v) => v.field === 'name'))('vector invalid name: $note', ({ record }) => {
     expect(nameValid(record.name)).toBe(false);
@@ -174,5 +180,95 @@ describe('missingExercises', () => {
     const rule: Exclusion[] = [{ scope: 'exercise', key: 'Gone', reason: 'pain', to: {}, done: false }];
     expect(missingExercises(['Gone'], { catalogue: new Set(['Row']), exclusions: rule, tags })).toEqual([{ name: 'Gone', reason: 'unknown' }]);
     expect(missingExercises(['Curl'], { catalogue: ['Curl'], tags })).toEqual([]);
+  });
+});
+
+describe('routine groups (#1182 S6a, ADR 012)', () => {
+  const ex = (name: string, group?: string | null) => (group === undefined ? { name, sets: 3 } : { name, sets: 3, group });
+  it('keeps groups as local ids g1, g2 in order of first appearance; ungrouped get no key', () => {
+    const out = routineFromSession([ex('A', 'zz'), ex('B', 'zz'), ex('C'), ex('D', 'qq'), ex('E', 'qq')]);
+    expect(out.map((e) => e.group)).toEqual(['g1', 'g1', undefined, 'g2', 'g2']);
+    expect('group' in (out[2] as object)).toBe(false);
+  });
+  it('is byte-identical to the old output for ungrouped sessions, and ignores group null', () => {
+    expect(JSON.stringify(routineFromSession([ex('A'), ex('B', null)]))).toBe('[{"name":"A","sets":3},{"name":"B","sets":3}]');
+  });
+  it('drops a broken group (singleton, bad id, split id)', () => {
+    expect(routineFromSession([ex('A', 'x'), ex('B'), ex('C', 'bad id'), ex('D', 'y'), ex('E'), ex('F', 'y')]).some((e) => 'group' in e)).toBe(false);
+  });
+  it('a dedupe or cap that breaks a group dissolves it', () => {
+    expect(routineFromSession([ex('A', 'x'), ex('A', 'x'), ex('B')]).some((e) => 'group' in e)).toBe(false);
+    const many = [...Array.from({ length: 49 }, (_, i) => ex(`E${i}`)), ex('L1', 'x'), ex('L2', 'x')];
+    expect(routineFromSession(many).some((e) => 'group' in e)).toBe(false);
+    expect(routineFromSession([ex('A', 'x'), ex('', 'x'), ex('B', 'x')]).map((e) => e.group)).toEqual(['g1', 'g1']);
+  });
+  it('a group split by an exercise that is later dropped stays dissolved', () => {
+    expect(routineFromSession([ex('A', 'x'), ex('', 'y'), ex('B', 'x')]).some((e) => 'group' in e)).toBe(false);
+  });
+  it('output groups match the contract pattern', () => {
+    for (const e of routineFromSession([ex('A', 'x'), ex('B', 'x')])) expect(e.group).toMatch(/^[A-Za-z0-9_-]{1,36}$/);
+  });
+  describe('startRoutine', () => {
+    const input = (routine: StartRoutineInput['routine'], newId?: () => string): StartRoutineInput => ({
+      date: '2026-01-05', ciChoice: 'ok', where: 'gym', deload: false, reentry: false, tags: {}, catalogue: ['A', 'B', 'C', 'D'], routine, ...(newId ? { newId } : {}),
+    } as unknown as StartRoutineInput);
+    const routine = [ex('A', 'g1'), ex('B', 'g1'), ex('C'), ex('D', 'g1')];
+    it('gives each start fresh ids, never the stored one', () => {
+      let n = 0;
+      const gen = () => `s${++n}`;
+      const r = [ex('A', 'g1'), ex('B', 'g1'), ex('C', 'g2'), ex('D', 'g2')];
+      const a = startRoutine(input(r, gen)).exercises.map((e) => e.group);
+      const b = startRoutine(input(r, gen)).exercises.map((e) => e.group);
+      expect(a).toEqual(['s1', 's1', 's2', 's2']);
+      expect(b).toEqual(['s3', 's3', 's4', 's4']);
+    });
+    it('drops invalid stored groups (split id) and ungrouped keep no key', () => {
+      const out = startRoutine(input(routine, () => 'n')).exercises;
+      expect(out.some((e) => 'group' in e)).toBe(false);
+    });
+    describe('guards newId', () => {
+      const r = [ex('A', 'x'), ex('B', 'x'), ex('C', 'y'), ex('D', 'y'), ex('E', 'z'), ex('F', 'z'), ex('G', 'z'), ex('H', 'z')];
+      const cat = (id: () => string) => ({ ...input(r, id), catalogue: ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'] }) as StartRoutineInput;
+      const groups = (id: () => string) => startRoutine(cat(id)).exercises.map((e) => ('group' in e ? e.group : undefined));
+      const none = Array(8).fill(undefined);
+      it.each([['empty', ''], ['a space', 'a b'], ['37 characters', 'a'.repeat(37)], ['not a string', 5 as unknown as string]])('an id that is %s leaves every group ungrouped', (_n, bad) => {
+        const out = startRoutine(cat(() => bad)).exercises;
+        expect(groups(() => bad)).toEqual(none);
+        expect(out.some((e) => 'group' in e)).toBe(false);
+      });
+      it('a repeated id keeps the first group and ungroups the next, so runs never merge', () => {
+        expect(groups(() => 'same')).toEqual(['same', 'same', ...Array(6).fill(undefined)]);
+      });
+      it('an id that comes back later (q, p, q) ungroups only the repeat', () => {
+        const q = ['q', 'p', 'q'];
+        let n = 0;
+        expect(groups(() => q[n++] as string)).toEqual(['q', 'q', 'p', 'p', undefined, undefined, undefined, undefined]);
+      });
+      it('a newId that throws leaves that group ungrouped, the others keep theirs', () => {
+        let n = 0;
+        expect(
+          groups(() => {
+            if (++n === 2) throw new Error('boom');
+            return `s${n}`;
+          }),
+        ).toEqual(['s1', 's1', undefined, undefined, 's3', 's3', 's3', 's3']);
+      });
+      it('a 36-character UUID-shaped id works', () => {
+        const id = '123e4567-e89b-12d3-a456-426614174000';
+        expect(id).toHaveLength(36);
+        let n = 0;
+        const out = groups(() => (n++ === 0 ? id : `s${n}`));
+        expect(out.slice(0, 2)).toEqual([id, id]);
+      });
+      it('the output stays a fixed point of normalizeGroups', () => {
+        const out = startRoutine(cat(() => 'same')).exercises;
+        expect(normalizeGroups(out)).toEqual(out);
+      });
+    });
+    it('without newId, or for an ungrouped routine, output is unchanged', () => {
+      const r = [ex('A', 'g1'), ex('B', 'g1')];
+      expect(startRoutine(input(r)).exercises.some((e) => 'group' in e)).toBe(false);
+      expect(startRoutine(input([ex('A'), ex('B')], () => 'n')).exercises[0]).toEqual({ name: 'A', sets: 3, bridge: false });
+    });
   });
 });
