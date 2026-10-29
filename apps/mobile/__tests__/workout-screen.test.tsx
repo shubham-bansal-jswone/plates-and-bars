@@ -1,4 +1,4 @@
-import { AccessibilityInfo, Platform, StyleSheet, TextInput, Vibration, View } from 'react-native';
+import { AccessibilityInfo, Platform, StyleSheet, TextInput, Vibration } from 'react-native';
 import { expand, press, pressDay, reveal, tickFirstSets } from './disclosure-helpers';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { WorkoutScreen } from '../src/screens/WorkoutScreen';
@@ -13,6 +13,8 @@ import { getCatalog } from '../src/workout/catalog';
 import { HAND_PICKED } from '@plate-and-bar/core';
 import type { ExType, LiftRecord } from '@plate-and-bar/core';
 import type { Workout, WorkoutSet } from '../src/workout/types';
+import { focusNode } from '../src/labelscan/focus';
+import { SyncContext, type SyncState } from '../src/sync/SyncProvider';
 import { memoryDb, withProfile } from './helpers';
 
 jest.mock('expo-router', () => ({ useRouter: () => ({ replace: jest.fn(), push: jest.fn() }), useFocusEffect: (cb: () => void) => jest.requireActual('react').useEffect(cb, []) }));
@@ -114,6 +116,8 @@ afterEach(() => {
   fake = false;
   jest.useRealTimers();
 });
+
+jest.mock('../src/labelscan/focus', () => ({ ...jest.requireActual('../src/labelscan/focus'), focusNode: jest.fn() }));
 
 describe('Workout tab: preview and Start', () => {
   it('shows today’s planned session from core with a Start button', async () => {
@@ -829,35 +833,67 @@ describe('Workout tab: logging sets', () => {
   });
 
   describe('focus follows the rating control (#1408)', () => {
-    // react-native's jest mock puts one shared jest.fn `focus` on View's prototype; Press renders a View.
-    const viewFocus = () => (View as unknown as { prototype: { focus: jest.Mock } }).prototype.focus;
-    const focused = () => viewFocus().mock.contexts.map((n) => (n as { props: { accessibilityLabel?: string } }).props.accessibilityLabel);
+    const CHANGE = 'Barbell Bench Press set 1 rated Hard. Change rating';
+    // focusNode is the shared helper (native: setAccessibilityFocus, web: element.focus()); what it was given says which control took focus.
+    const spy = () => jest.mocked(focusNode).mockClear();
+    const target = (focus: jest.Mock, n: number) => (focus.mock.calls[n]?.[0] as { props?: { accessibilityLabel?: string } } | undefined)?.props?.accessibilityLabel;
 
     it('rating a set moves focus to its "Change rating" button', async () => {
+      const focus = jest.mocked(focusNode); spy();
       await started();
       await press('Mark Barbell Bench Press set 1 done');
-      viewFocus().mockClear();
+      focus.mockClear();
       await press('Barbell Bench Press set 1: Hard');
-      await screen.findByLabelText('Barbell Bench Press set 1 rated Hard. Change rating');
-      await waitFor(() => expect(focused()).toEqual(['Barbell Bench Press set 1 rated Hard. Change rating']));
+      await screen.findByLabelText(CHANGE);
+      await waitFor(() => expect(focus).toHaveBeenCalledTimes(1));
+      expect(target(focus, 0)).toBe(CHANGE);
     });
 
     it('pressing "Change rating" moves focus to the first rating chip', async () => {
+      const focus = jest.mocked(focusNode); spy();
       await started();
       await press('Mark Barbell Bench Press set 1 done');
       await press('Barbell Bench Press set 1: Hard');
-      await screen.findByLabelText('Barbell Bench Press set 1 rated Hard. Change rating');
-      viewFocus().mockClear();
-      await press('Barbell Bench Press set 1 rated Hard. Change rating');
+      await screen.findByLabelText(CHANGE);
+      await waitFor(() => expect(focus).toHaveBeenCalledTimes(1));
+      focus.mockClear();
+      await press(CHANGE);
       await screen.findByLabelText('Barbell Bench Press set 1: Easy');
-      await waitFor(() => expect(focused()).toEqual(['Barbell Bench Press set 1: Easy']));
+      await waitFor(() => expect(focus).toHaveBeenCalledTimes(1));
+      expect(target(focus, 0)).toBe('Barbell Bench Press set 1: Easy');
     });
 
-    it('does not take focus when a rated set is only shown', async () => {
-      await started();
-      viewFocus().mockClear();
+    it('takes no focus when a rated set is shown again after a remount', async () => {
+      const focus = jest.mocked(focusNode); spy();
+      const db = await started();
       await press('Mark Barbell Bench Press set 1 done');
-      expect(focused()).not.toContain('Barbell Bench Press set 1: Easy');
+      await press('Barbell Bench Press set 1: Hard');
+      await screen.findByLabelText(CHANGE);
+      await waitFor(() => expect(storedSets(db).find((x) => x.rate)?.rate).toBe('hard'));
+      await screen.unmount();
+      focus.mockClear();
+      await mount(db);
+      await screen.findByLabelText(CHANGE);
+      expect(focus).not.toHaveBeenCalled();
+    });
+
+    it('takes no focus when a sync pull rates the set', async () => {
+      const focus = jest.mocked(focusNode); spy();
+      const db = await setup({ lifts });
+      await screen.unmount();
+      const ui = (v: number) => withProfile(db, <SyncContext.Provider value={{ dataVersion: v } as SyncState}><WorkoutScreen db={db} now={THURSDAY} /></SyncContext.Provider>);
+      const { rerender } = await render(ui(0));
+      await press('Start Push B');
+      await screen.findByText('Push B');
+      await press('Mark Barbell Bench Press set 1 done');
+      await screen.findByLabelText('Barbell Bench Press set 1: Hard');
+      await waitFor(() => expect(storedSets(db).some((x) => x.exercise === 'Barbell Bench Press' && x.done)).toBe(true));
+      const row = storedSets(db).find((x) => x.exercise === 'Barbell Bench Press' && x.done)!;
+      await saveSet(db, '2026-10-08', { ...row, rate: 'hard' });
+      focus.mockClear();
+      await rerender(ui(1));
+      await screen.findByLabelText(CHANGE);
+      expect(focus).not.toHaveBeenCalled();
     });
   });
 

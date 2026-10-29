@@ -284,7 +284,7 @@ export function Choice({
  * A toggle chip: filter, rating and quick-answer buttons. `label` is the spoken name, `text` (default the label) what shows.
  * Selected = lime fill with dark text. One component for the whole app.
  */
-export function Chip({ ref, label, text, pressed, danger, disabled, hint, onPress }: { ref?: Ref<ComponentRef<typeof View>>; label: string; text?: string; pressed?: boolean; danger?: boolean; /** Not pressable and drawn faded; announced as disabled. Give the reason as `hint` and as visible text near the chip. */ disabled?: boolean; /** Spoken after the label (the reason a chip is disabled). */ hint?: string; onPress: () => void }) {
+export function Chip({ label, text, pressed, danger, disabled, hint, onPress, ref }: { ref?: Ref<ComponentRef<typeof View>>; label: string; text?: string; pressed?: boolean; danger?: boolean; /** Not pressable and drawn faded; announced as disabled. Give the reason as `hint` and as visible text near the chip. */ disabled?: boolean; /** Spoken after the label (the reason a chip is disabled). */ hint?: string; onPress: () => void }) {
   const c = useTheme();
   return (
     <Press

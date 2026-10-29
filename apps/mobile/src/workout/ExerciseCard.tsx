@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ComponentRef, type ReactNode, type Ref } from 'react';
+import { focusNode } from '../labelscan/focus';
 import { WhyLink } from '../why/WhyLink';
 import { StyleSheet, Text as RNText, View } from 'react-native';
 import { radius, tabular, type } from '../theme/tokens';
@@ -86,19 +87,21 @@ interface Props {
 
 function RateRow({ row, label, onRate }: { row: Row; label: string; onRate: (v: Rate | null) => void }) {
   const c = useTheme();
-  // The control that was pressed is replaced, so focus would fall to the page: after a press, the replacement takes it (#1408).
-  const moved = useRef(false);
+  // The control that was pressed is replaced, so focus would fall to the page: the rating asked for by a press moves focus to the replacement (#1408).
+  // Any other change of the rating (a sync, a remount) leaves focus alone.
+  const asked = useRef<Rate | null | undefined>(undefined);
   const rated = useRef<ComponentRef<typeof View>>(null);
   const first = useRef<ComponentRef<typeof View>>(null);
   const rate = row.rate;
   useEffect(() => {
-    if (!moved.current) return;
-    moved.current = false;
-    (rate ? rated : first).current?.focus();
+    const want = asked.current;
+    asked.current = undefined;
+    if (want === undefined || want !== rate) return;
+    focusNode((rate ? rated : first).current);
   }, [rate]);
   if (!row.done) return null;
   const choose = (v: Rate | null) => {
-    moved.current = true;
+    asked.current = v;
     onRate(v);
   };
   if (row.rate)
