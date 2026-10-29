@@ -29,7 +29,7 @@ async function seed(db: Db) {
   await putFood(db, food('22222222-2222-4222-8222-222222222222', { name: 'Rice' }));
   await putFood(db, food('33333333-3333-4333-8333-333333333333', { deleted_at: '2026-10-09T01:00:00.000Z', name: 'gone' }));
   await db.runAsync('INSERT INTO weights (key, data) VALUES (?, ?)', '2026-10-08', JSON.stringify({ ...meta, id: null, date: '2026-10-08', weight_kg: 80 }));
-  await db.runAsync('INSERT INTO workouts (key, data) VALUES (?, ?)', '2026-10-08', JSON.stringify({ ...meta, id: null, date: '2026-10-08' }));
+  await db.runAsync('INSERT INTO workouts (key, data) VALUES (?, ?)', '2026-10-08', JSON.stringify({ ...meta, id: null, date: '2026-10-08', exercises: [] }));
   await db.runAsync('INSERT INTO workout_sets (key, workout_date, kind, done, deleted, data) VALUES (?, ?, ?, ?, ?, ?)', '55555555-5555-4555-8555-555555555555', '2026-10-08', 'work', 0, 0, JSON.stringify({ ...meta, id: '55555555-5555-4555-8555-555555555555', workout_id: null, kind: 'work', done: false }));
   await db.runAsync('INSERT INTO lift_stats (key, data) VALUES (?, ?)', 'Squat', JSON.stringify({ deleted_at: '2026-10-09T02:00:00.000Z' }));
   await db.runAsync('INSERT INTO lift_stats (key, data) VALUES (?, ?)', 'Bench', JSON.stringify({ date: '2026-10-05', sets: [{ w: 60, r: 5 }], form: null, n: 1, first: 60, prev: null, hist: [{ date: '2026-10-05', e: 70 }], pbToast: null }));

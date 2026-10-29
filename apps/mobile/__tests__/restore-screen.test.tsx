@@ -74,6 +74,16 @@ describe('restore from a file on the data screen (#1177)', () => {
     expect(screen.queryByLabelText(rc.confirm)).toBeNull();
   });
 
+  it('says the rows are not valid, not that nothing is newer, when every changing row was skipped as invalid', async () => {
+    mockTables.current = { routines: { added: 0, newer: 0, older: 0, conflicts: 0, same: 0, invalid: 2 } };
+    mockPick.mockResolvedValue('{}');
+    mockParse.mockResolvedValue({});
+    await show();
+    await fireEvent.press(screen.getByLabelText(rc.action));
+    expect(await screen.findByText(rc.nothingInvalid)).toBeTruthy();
+    expect(screen.queryByText(rc.nothing)).toBeNull();
+  });
+
   it('keeps the plain message when nothing is newer and nothing was skipped', async () => {
     mockTables.current = { food_logs: { added: 0, newer: 0, older: 2, conflicts: 0, same: 0 } };
     mockPick.mockResolvedValue('{}');

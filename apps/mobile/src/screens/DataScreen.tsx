@@ -153,7 +153,7 @@ export function DataScreen({ db, now = () => new Date() }: { db: WorkoutDb & Pul
         {restoring.summary.differentAccount ? <Note>{rc.differentAccount}</Note> : null}
         {rows.map(([name, c]) => <Hint key={name}>{rc.table(name, c, restoring.summary.differentAccount)}</Hint>)}
         {cycle || labReports > 0 || hold ? <Hint>{rc.deviceOnly(cycle, labReports, hold)}</Hint> : null}
-        {changes ? null : <Note>{rows.some(([, c]) => c.overCap) ? rc.nothingOverCap : rc.nothing}</Note>}
+        {changes ? null : <Note>{rows.some(([, c]) => c.overCap) ? rc.nothingOverCap : rows.some(([, c]) => c.invalid) ? rc.nothingInvalid : rc.nothing}</Note>}
         <View style={{ gap: 12 }}>
           {changes ? <Button label={busy ? rc.restoring : rc.confirm} onPress={() => void confirmRestore()} /> : null}
           <Button kind="ghost" label={rc.cancel} onPress={() => { setRestoring(null); setStep('home'); }} />
