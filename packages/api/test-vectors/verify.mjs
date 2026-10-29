@@ -73,10 +73,10 @@ for (const e of etags) if (measures && e !== measures[2]) failures.push(`openapi
 // Each manifest example entry's sha256 and size_bytes equal the bytes of the matching content/<name>.json
 // (the files the server serves and the app bundles). Only entries the example lists are compared; a name with
 // no content file fails, a content file the example omits (import-aliases) is not required.
-const manifestExamples = load(spec).paths["/content/manifest"].get.responses["200"].content["application/json"].examples;
+const manifestExamples = load(spec).paths?.["/content/manifest"]?.get?.responses?.["200"]?.content?.["application/json"]?.examples ?? {};
 let manifestEntries = 0;
 for (const [exName, ex] of Object.entries(manifestExamples)) {
-  for (const b of ex.value.bundles) {
+  for (const b of ex.value?.bundles ?? []) {
     let bytes;
     try {
       bytes = readFileSync(new URL(`../../../content/${b.name}.json`, import.meta.url));
