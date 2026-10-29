@@ -1,4 +1,4 @@
-import { completeSetup, expect, label, reloadTo, saved, settled, tab, test } from '../support/app.mjs';
+import { addFood, completeSetup, expect, label, reloadTo, saved, tab, test } from '../support/app.mjs';
 
 // All logging runs with the network off, then the page is reloaded online: what comes back was read from SQLite.
 test.beforeEach(async ({ page }) => {
@@ -7,14 +7,7 @@ test.beforeEach(async ({ page }) => {
 });
 
 test('log a food: it counts toward the day and is still there after a reload', async ({ page }) => {
-  await tab(page, 'Food');
-  await settled(label(page, '+ Add to breakfast'));
-  await label(page, '+ Add to breakfast').click();
-  // The sheet slides in; a tap while it moves is dropped on a slow runner (#1315, #1411), so wait until the row is still.
-  const roti = page.locator('[aria-label^="Roti / chapati"]').first();
-  await settled(roti);
-  await roti.click();
-  await label(page, 'Done').click();
+  await addFood(page, 'breakfast', 'Roti / chapati');
   await expect(label(page, '102 of 1,990 kcal eaten')).toBeVisible();
   await saved(page, () => label(page, 'I’ve logged everything I ate today').click());
   await expect(label(page, 'I’ve logged everything I ate today')).toHaveAttribute('aria-checked', 'true');

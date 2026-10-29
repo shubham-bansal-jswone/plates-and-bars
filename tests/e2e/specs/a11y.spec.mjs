@@ -1,5 +1,5 @@
 import { triage } from '../support/axe.mjs';
-import { answerSetup, axeSource, completeSetup, expect, label, openApp, reloadTo, saved, settled, tab, test } from '../support/app.mjs';
+import { addFood, answerSetup, axeSource, completeSetup, expect, label, openApp, reloadTo, saved, settled, tab, test } from '../support/app.mjs';
 
 // axe-core on the main screens, in light and dark: the WCAG 2.0/2.1 A and AA rules (which include colour contrast) plus
 // the landmark and heading best-practice rules. Every violation fails the test. A failure caused by a filed bug goes in
@@ -107,14 +107,7 @@ const screens = {
   progress: async (page) => {
     // Log one food first so the Seven days card has a logged day: a kcal and protein chip over a fill, which a blank
     // week never draws (#1204). Today is Monday (the pinned test clock), and a bar's label has a "kcal" figure only when logged; hidden tabs are filtered out.
-    await tab(page, 'Food');
-    await settled(label(page, '+ Add to breakfast'));
-    await label(page, '+ Add to breakfast').click();
-    // The sheet slides in; a tap while it moves is dropped on a slow runner (#1315), so wait until the row and Done are still.
-    const roti = page.locator('[aria-label^="Roti / chapati"]').first();
-    await settled(roti);
-    await roti.click();
-    await label(page, 'Done').click();
+    await addFood(page, 'breakfast', 'Roti / chapati');
     await expect(label(page, '102 of 1,990 kcal eaten')).toBeVisible();
     await tab(page, 'Progress');
     await expect(label(page, 'Save weight')).toBeVisible();
