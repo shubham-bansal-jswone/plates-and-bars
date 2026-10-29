@@ -16,15 +16,21 @@ export const e1rmPoints = (sets: readonly TrendSet[], type?: ExType): E1rmPoint[
 const DAY = 86_400_000;
 const days = (a: string, b: string): number => Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / DAY);
 
+/** The change from `first` to `last` (kg, taken exactly, converted once) as words: `move` "up 3 kg", "down 3 kg" or "unchanged", and `span` "6 weeks", "10 days" or "1 day". */
+export function e1rmChange(first: { date: string; kg: number }, last: { date: string; kg: number }, unit: WeightUnit = 'kg'): { move: string; span: string } {
+  const d = Number(formatWeight(Math.abs(last.kg - first.kg), unit));
+  const n = days(first.date, last.date);
+  const span = n >= 14 ? `${Math.round(n / 7)} weeks` : n === 1 ? '1 day' : `${n} days`;
+  const move = d === 0 ? 'unchanged' : last.kg > first.kg ? `up ${d} ${unit}` : `down ${d} ${unit}`;
+  return { move, span };
+}
+
 /** "Estimated 1-rep max: 82 kg, up 3 kg over 6 weeks" for screen readers; null under 2 points. */
 export function e1rmSummary(points: readonly E1rmPoint[], type: ExType, unit: WeightUnit = 'kg'): string | null {
   const first = points[0];
   const last = points[points.length - 1];
   if (!first || !last || points.length < 2) return null;
-  const d = Number(formatWeight(last.e1rm - first.e1rm, unit));
-  const n = days(first.date, last.date);
-  const span = n >= 14 ? `${Math.round(n / 7)} weeks` : n === 1 ? '1 day' : `${n} days`;
-  const move = d > 0 ? `up ${d} ${unit}` : d < 0 ? `down ${-d} ${unit}` : 'unchanged';
+  const { move, span } = e1rmChange({ date: first.date, kg: first.e1rm }, { date: last.date, kg: last.e1rm }, unit);
   return `Estimated 1-rep max: ${kgLabel(last.e1rm, { type, lo: 0, hi: 0, step: 0 }, unit)}, ${move} over ${span}`;
 }
 
