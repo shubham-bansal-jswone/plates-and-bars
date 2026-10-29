@@ -66,7 +66,7 @@ describe('exercise library screen', () => {
     await render(<ExerciseLibraryScreen onBack={() => {}} />);
     await fireEvent.changeText(screen.getByLabelText('Search exercises'), 'zzzz');
     expect(screen.getByText(/No exercises match/)).toBeTruthy();
-    expect(screen.getByText('0 of 71 exercises')).toBeTruthy();
+    expect(screen.queryByText(/0 of 71 exercises/)).toBeNull();
   });
 
   it('opens a detail with tags and notes, and goes back', async () => {

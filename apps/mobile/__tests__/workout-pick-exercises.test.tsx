@@ -99,6 +99,31 @@ describe('Workout start: Pick exercises', () => {
   });
 });
 
+describe('Enter in the custom exercise field', () => {
+  it('adds the typed name like the Add button, including a long one', async () => {
+    const db = await setup(0);
+    await screen.findByText('Rest day');
+    await pressDay('Pick exercises');
+    const field = screen.getByLabelText('Your own exercise');
+    await fireEvent.changeText(field, 'barbell bench press');
+    await fireEvent(field, 'submitEditing');
+    await press('Start this exercise');
+    await screen.findByText('Session');
+    expect(stored<Workout>(db, `workouts:${DATE}`).exercises.map((e) => e.name)).toEqual(['Barbell Bench Press']);
+  });
+
+  it('a long new name goes to the muscle sheet on Enter', async () => {
+    await setup(0);
+    await screen.findByText('Rest day');
+    await pressDay('Pick exercises');
+    const long = 'Z'.repeat(60);
+    const field = screen.getByLabelText('Your own exercise');
+    await fireEvent.changeText(field, long);
+    await fireEvent(field, 'submitEditing');
+    await screen.findByLabelText('Main muscle: biceps');
+  });
+});
+
 describe('Start-screen pick of a new name', () => {
   it('saves from the tag sheet, starts the session and shows no toast', async () => {
     const db = await setup(0);

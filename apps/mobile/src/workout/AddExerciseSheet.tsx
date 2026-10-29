@@ -24,7 +24,7 @@ export function AddExerciseSheet({ inSession, workouts = [], onPick, onCustom, o
           <LibraryEntryButton onBeforeOpen={onClose} />
           <View style={styles.own}>
             <View style={{ flex: 1 }}>
-              <Field label="Your own exercise" placeholder="Type a name" value={typed} onChangeText={setTyped} />
+              <Field label="Your own exercise" placeholder="Type a name" value={typed} onChangeText={setTyped} onSubmitEditing={() => onCustom(typed)} returnKeyType="done" />
             </View>
             <Button label="Add" a11yLabel="Add the exercise you typed" kind="ghost" onPress={() => onCustom(typed)} />
           </View>

@@ -129,7 +129,7 @@ export function ExerciseLibraryScreen({ onBack, list: given, session }: { onBack
             </View>
           ) : null}
           {isFiltered(f) ? <Button label="Clear filters" kind="ghost" onPress={() => setF(NO_FILTER)} /> : null}
-          <Hint>{`${shown.length} of ${list.length} exercises`}</Hint>
+          {shown.length ? <Hint>{`${shown.length} of ${list.length} exercises`}</Hint> : null}
         </View>
       }
       ListEmptyComponent={<Hint>No exercises match. Try fewer filters or a different word.</Hint>}
