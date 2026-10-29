@@ -28,6 +28,7 @@ export function memoryDb(): WorkoutDb & PullDb & { rows: Map<string, string>; se
         return [...n].map(([workout_date, c]) => ({ workout_date, n: c })) as T[];
       }
       if (sql.includes('FROM water_logs WHERE log_date')) return [...rows].filter(([k, d]) => k.startsWith('water_logs:') && (JSON.parse(d) as { date: string }).date === p[0]).map(([, data]) => ({ data })) as T[];
+      if (sql.includes('FROM food_logs WHERE log_date >=')) return [...rows].filter(([k, d]) => k.startsWith('food_logs:') && (JSON.parse(d) as { date: string }).date >= String(p[0]) && (JSON.parse(d) as { date: string }).date <= String(p[1])).map(([, data]) => ({ data })) as T[];
       if (sql.includes('FROM food_logs WHERE log_date')) return [...rows].filter(([k, d]) => k.startsWith('food_logs:') && (JSON.parse(d) as { date: string }).date === p[0]).map(([, data]) => ({ data })) as T[];
       const table = /FROM (\w+)/.exec(sql)![1];
       return [...rows].filter(([k]) => k.startsWith(`${table}:`)).map(([k, data]) => ({ key: k.slice(table!.length + 1), data })) as T[];
