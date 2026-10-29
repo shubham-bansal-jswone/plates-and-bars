@@ -244,3 +244,29 @@ describe('Weeks on track strip', () => {
     expect(screen.queryByText(/of the last 12 weeks/)).toBeNull();
   });
 });
+
+describe('Section framing and measurement fields (#1393)', () => {
+  type Node = ReturnType<typeof screen.getByText> | null;
+  const style = (n: NonNullable<Node>) => StyleSheet.flatten(n.props.style) as Record<string, unknown> | undefined;
+  const above = (from: Node, pick: (st: Record<string, unknown>) => boolean): Record<string, unknown> | undefined => {
+    for (let n = from; n; n = n.parent) {
+      const st = style(n);
+      if (st && pick(st)) return st;
+    }
+    return undefined;
+  };
+  const surface = (title: string) => above(screen.getByRole('header', { name: title, includeHiddenElements: true }).parent, (st) => !!st.backgroundColor)?.backgroundColor;
+  it('Seven days and Weeks on track sit on a card like the sections around them', async () => {
+    await open(memoryDb());
+    const { light } = jest.requireActual('../src/theme/tokens');
+    expect(surface('Measurements')).toBe(light.surface);
+    expect(surface('Weeks on track')).toBe(light.surface);
+    expect(surface('Seven days to 8 Oct')).toBe(light.surface);
+  });
+
+  it('the part fields wrap in rows instead of stacking one per row', async () => {
+    await open(memoryDb());
+    const wrap = above(screen.getByLabelText('Neck in cm').parent, (st) => st.flexWrap === 'wrap');
+    expect(wrap?.flexDirection).toBe('row');
+  });
+});

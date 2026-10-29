@@ -24,6 +24,7 @@ import {
   VOL_ERROR,
   VOL_HEADLINE,
   VOL_LOW,
+  VOL_MUSCLE_NONE,
   VOL_MUSCLE_GROUP,
   VOL_NO_FULL_WEEK,
   VOL_NO_MUSCLE_TARGET,
@@ -100,6 +101,8 @@ function Body({ volume, date, today, focus, choice, onChoice }: { volume: NonNul
   const week = weeks[weeks.length - 1];
   const when = mondayOf(date) === mondayOf(today) ? VOL_THIS_WEEK : VOL_WEEK_OF(shortDate(mondayOf(date)));
   const headline = VOL_HEADLINE(label, num(week?.sets[muscle] || 0), targetText, when);
+  // No set of this muscle in any week drawn: a flat plan line over empty space says nothing, so say so in words.
+  const none = bars.every((b) => !b.value);
   const hasPlan = Object.keys(planned).some((m) => (planned[m] || 0) > 0);
   return (
     <View style={styles.body}>
@@ -110,17 +113,21 @@ function Body({ volume, date, today, focus, choice, onChoice }: { volume: NonNul
       <View aria-hidden accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
         <Text style={[typeScale.label, { color: c.ink }]}>{headline}</Text>
       </View>
+      {none ? (
+        <Hint>{VOL_MUSCLE_NONE(label)}</Hint>
+      ) : (
       <BarChart
         bars={bars}
         box={VOLUME_BOX}
         label={`${VOL_CHART_LABEL(label)}. ${headline}`}
         unit="sets"
-        noun={`${label} sets`}
+        noun={`${label} weekly sets`}
         valueHeader="Sets"
         target={target > 0 ? { value: target, caption: VOL_PLAN_LINE(num(target)) } : undefined}
         wording={WORDING}
       />
-      {target > 0 ? <Hint>{VOL_PLAN_NOTE}</Hint> : <Hint>{hasPlan ? VOL_NO_MUSCLE_TARGET(label) : VOL_NO_SETUP}</Hint>}
+      )}
+      {target > 0 ? (none ? null : <Hint>{VOL_PLAN_NOTE}</Hint>) : <Hint>{hasPlan ? VOL_NO_MUSCLE_TARGET(label) : VOL_NO_SETUP}</Hint>}
       <Ranked rows={result.rows} weeksUsed={result.weeksUsed} />
     </View>
   );

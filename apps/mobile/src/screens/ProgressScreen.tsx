@@ -8,7 +8,7 @@ import { DEFAULT_KCAL_TARGET, formatWeight, round1, waterRetentionPhase, latestW
 import { useDataVersion } from '../sync/useDataVersion';
 import { useStepsVersion } from '../steps/DeviceStepsProvider';
 import { Text } from '../components/Text';
-import { Heading, Button, Caption, Card, Field, H1, Hint, Page } from '../components/ui';
+import { Heading, Button, Caption, Card, Field, H1, Hint, Page, useWide } from '../components/ui';
 import type { WorkoutDb } from '../db/workouts';
 import { fmt, shortDate } from '../format';
 import { BF_HINT, BF_MISSING, BF_NO_PROFILE, HOW_TO_MEASURE, HOW_TO_MEASURE_HIPS, getMeasures, SCALE_JUMP_BODY, RECENT_WEIGH_INS_TITLE, SCALE_JUMP_TITLE, WEIGHT_HINT } from '../progress/copy';
@@ -89,12 +89,13 @@ export function ProgressScreen({ db, now = () => new Date() }: Props) {
   }
   // The open day's personal bests: core's `personalRecords` over the shared all-history read, the same rule as the toast and the Recent PRs list (bodyweight as the toast has it).
   const dayPrs = useMemo(() => (opened ? prLiftsOn(personalRecords(sets.all, sets.types, profile?.weight_kg ?? null), opened.date) : NO_PRS), [opened, sets.all, sets.types, profile?.weight_kg]);
+  const wide = useWide();
   const ready = status === 'ready' && p.ready;
   const showDay = ready && !!hist && !!opened;
   return (
     <View style={styles.fill}>
       <DateAnnouncer v={v} />
-      <Page resetKey={openDay}>
+      <Page resetKey={openDay} wide={!showDay}>
         {showDay && hist && opened ? <WorkoutDay session={opened} sessions={hist.sessions} prs={dayPrs} onBack={() => { setClosedDay(openDay); setOpenDay(null); }} /> : null}
         {/* Hidden, not unmounted, while a day is open: typed weights and the sections' state survive going back. */}
         <View style={showDay ? styles.hidden : styles.body}>
@@ -102,22 +103,28 @@ export function ProgressScreen({ db, now = () => new Date() }: Props) {
         <DateBar v={v} />
         {ready ? (
           <>
-            {hist ? <RecentWorkouts sessions={hist.sessions} onOpen={(d) => { setClosedDay(null); setOpenDay(d); }} focusDate={closedDay} /> : null}
-            <CheckinCard date={p.date} c={ci} cycleNote={!!cycle.info && waterRetentionPhase(cycle.info)} />
-            <RapidLossCard c={ci} />
-            <DailyRead sex={profile?.sex} values={profile ? profileWhyValues(profile, { date: p.date, flex: settings?.settings.flex, labHold: labs.holdOn }) : undefined} now={now} />
-            <SummaryCard checkin={ci.checkin} profile={profile} />
-            <StrengthSection sets={sets} date={v.date} weights={p.weights} sessions={ci.sessions} />
-            <WeightSection p={p} />
-            <VolumeSection db={db} sets={sets} date={v.date} today={v.today} profile={profile} settings={settings?.settings ?? null} />
-            <MeasureSection p={p} isToday={v.isToday} />
-            <PhotosSection db={db} date={v.today} weights={p.weights} tapes={p.tapes} notify={notify} />
-            <CycleSection key={`cycle-${v.date}`} cycle={cycle} date={v.date} today={v.today} weights={p.weights} female={profile?.sex === 'female'} notify={notify} />
-            <LabsSection labs={labs} today={v.today} />
-            <StepsSleepSection key={`steps-${p.date}`} p={p} />
-            <WeekCard date={v.today} pastDay={!v.isToday} days={ci.weekDays} kcalTarget={profile?.targets.kcal ?? DEFAULT_KCAL_TARGET} />
-            <EatingByWeek days={eating.days} failed={eating.failed} date={p.date} kcalTarget={profile?.targets.kcal ?? DEFAULT_KCAL_TARGET} proteinTarget={profile?.targets.protein_g ?? 0} />
-            <WeeksOnTrack sessions={ci.sessions} date={p.date} profile={profile} />
+            <View style={wide ? styles.cols : styles.stack}>
+              <View style={wide ? styles.col : styles.stack}>
+                {hist ? <RecentWorkouts sessions={hist.sessions} onOpen={(d) => { setClosedDay(null); setOpenDay(d); }} focusDate={closedDay} /> : null}
+                <CheckinCard date={p.date} c={ci} cycleNote={!!cycle.info && waterRetentionPhase(cycle.info)} />
+                <RapidLossCard c={ci} />
+                <DailyRead sex={profile?.sex} values={profile ? profileWhyValues(profile, { date: p.date, flex: settings?.settings.flex, labHold: labs.holdOn }) : undefined} now={now} />
+                <SummaryCard checkin={ci.checkin} profile={profile} />
+                <StrengthSection sets={sets} date={v.date} weights={p.weights} sessions={ci.sessions} />
+                <WeightSection p={p} />
+              </View>
+              <View style={wide ? styles.col : styles.stack}>
+                <VolumeSection db={db} sets={sets} date={v.date} today={v.today} profile={profile} settings={settings?.settings ?? null} />
+                <MeasureSection p={p} isToday={v.isToday} />
+                <PhotosSection db={db} date={v.today} weights={p.weights} tapes={p.tapes} notify={notify} />
+                <CycleSection key={`cycle-${v.date}`} cycle={cycle} date={v.date} today={v.today} weights={p.weights} female={profile?.sex === 'female'} notify={notify} />
+                <LabsSection labs={labs} today={v.today} />
+                <StepsSleepSection key={`steps-${p.date}`} p={p} />
+                <WeekCard date={v.today} pastDay={!v.isToday} days={ci.weekDays} kcalTarget={profile?.targets.kcal ?? DEFAULT_KCAL_TARGET} />
+                <EatingByWeek days={eating.days} failed={eating.failed} date={p.date} kcalTarget={profile?.targets.kcal ?? DEFAULT_KCAL_TARGET} proteinTarget={profile?.targets.protein_g ?? 0} />
+                <WeeksOnTrack sessions={ci.sessions} date={p.date} profile={profile} />
+              </View>
+            </View>
           </>
         ) : (
           <Hint>Loading…</Hint>
@@ -193,12 +200,15 @@ function MeasureSection({ p, isToday }: { p: Progress; isToday: boolean }) {
   return (
     <Card style={styles.section}>
       <Heading level={2} style={[typeScale.heading, { color: c.ink }]}>Measurements</Heading>
-      {shown.map((m) => (
-        <View key={m.key} style={styles.field}>
-          <Caption>{`${m.label} (cm)`}</Caption>
-          <Field label={`${m.label} in cm`} inputMode="decimal" placeholder="cm" value={text[m.key] ?? ''} onChangeText={(v) => setText({ ...text, [m.key]: v })} />
-        </View>
-      ))}
+      {/* Two to a row where there is room, so five parts are not five full-height rows at 375px. */}
+      <View style={styles.fields}>
+        {shown.map((m) => (
+          <View key={m.key} style={styles.field}>
+            <Caption>{`${m.label} (cm)`}</Caption>
+            <Field style={styles.measure} label={`${m.label} in cm`} inputMode="decimal" placeholder="cm" value={text[m.key] ?? ''} onChangeText={(v) => setText({ ...text, [m.key]: v })} />
+          </View>
+        ))}
+      </View>
       <Button kind="ghost" disabled={!Object.values(text).some((t) => t?.trim())} label={isToday ? 'Save for today' : `Save for ${shortDate(p.date)}`} onPress={() => p.saveTape(text)} />
       <MeasureTrend
         tapes={p.tapes}
@@ -239,10 +249,15 @@ function StepsSleepSection({ p }: { p: Progress }) {
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
+  stack: { gap: 8 },
   body: { gap: 8 },
   hidden: { display: 'none' },
   section: { gap: 8, marginTop: 16 },
   inline: { gap: 8 },
-  field: { gap: 4 },
+  fields: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 12, rowGap: 8 },
+  field: { gap: 4, flexBasis: '45%', minWidth: 130, flexGrow: 1 },
+  measure: { maxWidth: undefined },
+  cols: { flexDirection: 'row', gap: 24, alignItems: 'flex-start' },
+  col: { flex: 1, gap: 8 },
   row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
 });

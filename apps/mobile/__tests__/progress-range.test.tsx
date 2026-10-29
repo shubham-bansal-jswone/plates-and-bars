@@ -182,7 +182,7 @@ describe('ChartTable', () => {
       visit(toJSON());
       expect(found).toMatchObject({ table: 1, row: 3, columnheader: 2, cell: 4 });
       expect(found.legacy).toBeUndefined();
-      expect(table?.['aria-label']).toBe('Weight values by date');
+      expect(table?.['aria-label']).toBe('Weight: table, newest first');
       // Show all is a sibling of the table, not a child: a table may only hold rows (axe aria-required-children).
       await screen.unmount();
       const big = await render(<ChartTable rows={rows(14)} noun="Weight" valueHeader="kg" />);

@@ -1,7 +1,7 @@
 import { StyleSheet, View } from 'react-native';
 import { weekSummary, type ProgressDay } from '@plate-and-bar/core';
 import { Text } from '../components/Text';
-import { Heading, Hint } from '../components/ui';
+import { Card, Heading, Hint } from '../components/ui';
 import { dayName, fmt, shortDate } from '../format';
 import { type as typeScale } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
@@ -21,7 +21,7 @@ export function WeekCard({ date, days, kcalTarget, pastDay = false }: Props) {
   const c = useTheme();
   const w = days ? weekSummary(days, date, kcalTarget) : null;
   return (
-    <View style={styles.section}>
+    <Card style={styles.section}>
       <Heading level={2} style={[typeScale.heading, { color: c.ink }]}>{WEEK_TITLE(shortDate(date))}</Heading>
       {pastDay ? <Hint>{WEEK_CURRENT}</Hint> : null}
       {!w ? (
@@ -59,7 +59,7 @@ export function WeekCard({ date, days, kcalTarget, pastDay = false }: Props) {
           <Hint>{WEEK_TARGET_HINT}</Hint>
         </>
       )}
-    </View>
+    </Card>
   );
 }
 
