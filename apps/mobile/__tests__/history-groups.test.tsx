@@ -63,6 +63,10 @@ describe('history session labels', () => {
     const names = (rows: string[], st = stored) => buildSessions({ [DATE]: { t: 'Pull' } } as never, { [DATE]: rows.map((n) => wset(n, 0)) }, {}, { [DATE]: st })[0]!.exercises.map((e) => e.name);
     it('shuffled rows, every first set at set_index 0', () => expect(names(['Squat', 'Barbell Row', 'Pull-up'])).toEqual(['Barbell Row', 'Pull-up', 'Squat']));
     it('a re-saved set (row last) does not move its exercise', () => expect(names(['Pull-up', 'Squat', 'Barbell Row'])).toEqual(['Barbell Row', 'Pull-up', 'Squat']));
+    it('a repeated stored name sits at its first stored position (#1329 plan)', () => {
+      const plan = ['Machine Chest Press', 'Lat Pulldown', 'Seated Dumbbell Press', 'Seated Cable Row', 'Machine Chest Press'].map((name) => ({ name, group: null }));
+      expect(names(['Seated Cable Row', 'Machine Chest Press', 'Lat Pulldown'], plan)).toEqual(['Machine Chest Press', 'Lat Pulldown', 'Seated Cable Row']);
+    });
     it('names missing from the stored list keep row order, after the stored ones', () =>
       expect(names(['Zottman', 'Squat', 'Face pull', 'Barbell Row'], stored)).toEqual(['Barbell Row', 'Squat', 'Zottman', 'Face pull']));
   });
