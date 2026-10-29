@@ -10,6 +10,7 @@ import { radius, space, type as typeScale } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { PR_LABEL, prText } from '../workout/copy';
 import { weightNumber } from '../workout/unitText';
+import { bodyweightOn } from './bodyweight';
 import { Milestones } from './Milestones';
 import { E1RM_NOTE } from './E1rmTrend';
 import { RangedTrend } from './RangedTrend';
@@ -41,7 +42,7 @@ export function StrengthSection({ sets, date, weights, sessions = null }: Props)
   const c = useTheme();
   const { profile } = useProfile();
   const { all, types, inRange, loading, error } = sets;
-  const bodyweight = latestWeight(weights, date) ?? profile?.weight_kg ?? null;
+  const bodyweight = bodyweightOn(weights, date, profile?.weight_kg);
   return (
     <Card style={styles.section}>
       <Heading level={2} style={[typeScale.heading, { color: c.ink }]}>{STRENGTH_TITLE}</Heading>
