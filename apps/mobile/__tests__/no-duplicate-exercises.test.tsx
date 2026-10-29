@@ -209,4 +209,21 @@ describe('legacy rows of a repeated name share set numbers', () => {
     expect(result.current.day.exs[0]?.sets[1]?.done).toBe(true);
     expect((await loadSets(db, DATE)).filter((s) => !s.deleted_at).map((s) => s.set_index).sort()).toEqual([0, 1, 2, 3, 4, 5, 6]);
   });
+  it('ramp rows with clashing numbers keep their order, and a ticked ramp set stays put after a reload', async () => {
+    // Clashing ramp rows only (the work rows are numbered cleanly): the renumber has to read the ramp rows, not the work rows.
+    const { db, result, rerender } = await hook(async (d) => {
+      await saveWorkout(d, row([ex('Row'), ex('Row')]));
+      await saveSet(d, DATE, set('w0', 'Row', 0));
+      for (const [id, i] of [['rb1', 1], ['rb0', 0], ['ra1', 1], ['ra0', 0]] as const) await saveSet(d, DATE, { ...set(id, 'Row', i), kind: 'ramp' });
+    });
+    const ramp = () => result.current.day.exs[0]?.ramp.map((s) => s.id);
+    expect(ramp()).toEqual(['ra0', 'rb0', 'ra1', 'rb1']);
+    await act(async () => void result.current.rampTick(0, 1));
+    await act(async () => void (await dayQueue.current));
+    await rerender({ k: 1 });
+    await waitFor(() => expect(result.current.day.exs[0]?.ramp.some((s) => s.done)).toBe(true));
+    expect(ramp()).toEqual(['ra0', 'rb0', 'ra1', 'rb1']);
+    expect(result.current.day.exs[0]?.ramp[1]?.done).toBe(true);
+    expect((await loadSets(db, DATE)).filter((s) => s.kind === 'ramp').map((s) => s.set_index).sort()).toEqual([0, 1, 2, 3]);
+  });
 });
