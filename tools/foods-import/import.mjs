@@ -46,7 +46,7 @@ export const SOURCES = {
   },
 };
 
-// Source per golden food. Basis: the prototype note (docs/prototype/plate-and-bar.html, food list hint):
+// Source per golden food. Basis: the prototype note (tag prototype-final, food list hint):
 // "calculated from USDA public-domain ingredient data using standard home recipes; paneer, curd and milk
 // follow FSSAI composition standards; packaged foods (whey, Greek yogurt, makhana) use typical label
 // values", plus ADR 005 (USDA for plain foods, own recipes for dishes). Single plain foods are usda_fdc and
