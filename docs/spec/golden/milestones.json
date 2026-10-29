@@ -259,7 +259,7 @@
    "milestones": []
   },
   {
-   "note": "lb plates: 61.2 kg counts as 135 lb (lb tolerance), 100 kg meets the kg step, 102.1 kg adds nothing new",
+   "note": "lb plates: 61.2 kg is one plate, 100 kg adds the second, 102.1 kg adds nothing new (kg steps in every unit)",
    "unit": "lb",
    "end": "2026-06-30",
    "types": {
@@ -1452,6 +1452,43 @@
      "kind": "bodyweight",
      "title": "Bench press at your bodyweight",
      "detail": "Barbell Bench Press, 60 kg",
+     "date": "2026-01-05"
+    }
+   ]
+  },
+  {
+   "note": "plates: two lifts at the same weight on the same day, the detail takes the name that sorts first",
+   "unit": "kg",
+   "end": "2026-06-30",
+   "types": {
+    "Barbell Row": "barbell",
+    "Deadlift": "barbell"
+   },
+   "weights": [],
+   "profile": null,
+   "sets": [
+    [
+     "Deadlift",
+     "2026-01-05",
+     60,
+     5,
+     ""
+    ],
+    [
+     "Barbell Row",
+     "2026-01-05",
+     60,
+     5,
+     ""
+    ]
+   ],
+   "sessions": [],
+   "milestones": [
+    {
+     "id": "plates-1",
+     "kind": "plates",
+     "title": "One plate a side",
+     "detail": "Barbell Row, 60 kg",
      "date": "2026-01-05"
     }
    ]

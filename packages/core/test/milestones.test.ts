@@ -75,7 +75,7 @@ describe('milestones (#1351 C6)', () => {
 
   it('the plate steps and the named lifts match the spec and the content', () => {
     for (const n of EZ_BAR_LIFTS) expect((content as { meta: Record<string, { type: string }> }).meta[n]?.type).toBe('barbell');
-    expect(PLATE_MILESTONES).toEqual({ kg: [60, 100, 140], lb: [135, 225, 315] });
+    expect(PLATE_MILESTONES).toEqual([60, 100, 140]);
     const meta = (content as { meta: Record<string, { type: string }> }).meta;
     for (const n of [...BENCH_LIFTS, ...SQUAT_LIFTS]) {
       expect(meta[n]).toBeDefined();

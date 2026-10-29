@@ -814,7 +814,7 @@ export type { PrSet, PrSetRef, PrMetric, PrImprovement, PersonalRecord, PriorBes
  * ones with the date first earned, newest first: 1/2/3 plates a side (barbell), bench at bodyweight, squat at 1.5 x bodyweight, the 10th/50th/100th
  * workout (`sessionDates`) and the first 4 on-track weeks (`habits`). Derived from stored data, never stored. New best 1RM is not one (Recent PRs).
  */
-export { PLATE_MILESTONES, PLATE_TOLERANCE_LB, KG_EPSILON, EZ_BAR_LIFTS, BENCH_LIFTS, SQUAT_LIFTS, BENCH_BODYWEIGHT_X, SQUAT_BODYWEIGHT_X, WORKOUT_MILESTONES, PLAN_BLOCK_WEEKS, milestones } from './milestones';
+export { PLATE_MILESTONES, KG_EPSILON, EZ_BAR_LIFTS, BENCH_LIFTS, SQUAT_LIFTS, BENCH_BODYWEIGHT_X, SQUAT_BODYWEIGHT_X, WORKOUT_MILESTONES, PLAN_BLOCK_WEEKS, milestones } from './milestones';
 export type { Milestone, MilestoneKind, MilestoneProfile } from './milestones';
 
 /**

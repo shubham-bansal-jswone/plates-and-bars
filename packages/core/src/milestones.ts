@@ -3,7 +3,7 @@ import { habits, latestWeight, type WeighIn } from './progress';
 import { sessionDates, type PlanProfile, type SessionLog } from './plan';
 import type { ExType } from './progression';
 import type { PrSet } from './records';
-import { formatWeight, fromKg, unitLabel, type WeightUnit } from './weightUnit';
+import { formatWeight, unitLabel, type WeightUnit } from './weightUnit';
 
 /**
  * Milestones (#1351 C6). A new rule set, not prototype ports (the prototype has no milestones). Earned
@@ -15,20 +15,18 @@ import { formatWeight, fromKg, unitLabel, type WeightUnit } from './weightUnit';
  * (`personalRecords`, records.ts), and a second place for it would disagree with the list.
  *
  * Weights are kg in storage; `unit` only picks the wording. Every threshold is unit-independent, so switching
- * kg and lb never moves or removes a milestone (plates: a set earns a step by meeting the kg step OR the lb step).
+ * kg and lb never moves or removes a milestone (plates are earned by the kg steps only; every lb step is heavier than its kg step, so an lb clause would never change a result).
  *
  * For the app (A9): decide "newly earned" from a stored set of the ids already shown, not from `date === today`.
  * A date check would never toast the plan block, which is dated the Sunday before `habits` first reports it.
  */
 
-/** Plate steps assumed by the plates milestones: a 20 kg / 45 lb bar and 20 kg / 45 lb plates, 1 to 3 a side. */
-export const PLATE_MILESTONES: Readonly<Record<WeightUnit, readonly [number, number, number]>> = {
-  kg: [60, 100, 140],
-  lb: [135, 225, 315],
-};
+/**
+ * Plate steps in kg: 1, 2 and 3 plates a side on a 20 kg bar with 20 kg plates. Used for every unit. An lb user
+ * earns "One plate a side" at 132.3 lb (60 kg of 20 kg plates), so the wording must not imply 45 lb plates.
+ */
+export const PLATE_MILESTONES: readonly [number, number, number] = [60, 100, 140];
 
-/** A weight meets an lb plate step within this many lb: absorbs lb to kg to lb rounding (61.2 kg stored for 135 lb is 134.9 lb). Not used for kg steps. */
-export const PLATE_TOLERANCE_LB = 0.1;
 /** Float epsilon (kg) for kg comparisons: 59.9 kg is not a plate and 79.9 kg is not an 80 kg bodyweight. */
 export const KG_EPSILON = 1e-6;
 
@@ -102,8 +100,9 @@ const show = (kg: number, unit: WeightUnit): string => `${formatWeight(kg, unit)
  * 6-day plan, `days: 0` has no plan and never earns the plan block).
  *
  * 1. Plates: first done work set of a barbell lift (not an `EZ_BAR_LIFTS` one) at 1, 2 or 3 plates a side:
- *    at least the kg step (60, 100, 140; float epsilon only) OR the lb step (135, 225, 315; within
- *    `PLATE_TOLERANCE_LB`), whatever the `unit`. The detail shows the lightest set of that day that meets it.
+ *    at least the kg step (60, 100, 140; float epsilon only), whatever the `unit`, which only changes the
+ *    wording. The detail shows the lightest set of that day that meets it. A9: the wording must not imply 45 lb
+ *    plates; an lb user earns "One plate a side" at 132.3 lb (20 kg plates).
  * 2. Bench at bodyweight / 3. squat at 1.5 x bodyweight: first such set of a `BENCH_LIFTS` / `SQUAT_LIFTS`
  *    lift at or above the bodyweight of that day (heaviest set of the day shown) (latest weigh-in on or before it, else the profile weight;
  *    none known, no milestone).
@@ -129,10 +128,8 @@ export function milestones(
 
   // 1. Plates
   const barbell = live.filter((s) => types[s.exercise] === 'barbell' && !EZ_BAR_LIFTS.includes(s.exercise));
-  PLATE_MILESTONES.kg.forEach((kgStep, i) => {
-    const lbStep = PLATE_MILESTONES.lb[i] as number;
-    const meets = (kg: number): boolean => kg >= kgStep - KG_EPSILON || fromKg(kg, 'lb') >= lbStep - PLATE_TOLERANCE_LB;
-    const hit = earliest(barbell.filter((s) => meets(s.weight_kg as number)).map((s) => ({ date: s.date, lift: s.exercise, w: s.weight_kg as number })), true);
+  PLATE_MILESTONES.forEach((kgStep, i) => {
+    const hit = earliest(barbell.filter((s) => (s.weight_kg as number) >= kgStep - KG_EPSILON).map((s) => ({ date: s.date, lift: s.exercise, w: s.weight_kg as number })), true);
     if (!hit) return;
     const n = i + 1;
     out.push({ id: `plates-${n}`, kind: 'plates', title: `${WORDS[n]} ${n === 1 ? 'plate' : 'plates'} a side`, detail: `${hit.lift}, ${show(hit.w, unit)}`, date: hit.date });
