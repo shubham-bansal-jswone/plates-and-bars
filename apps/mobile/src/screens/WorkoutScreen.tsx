@@ -37,10 +37,11 @@ import { CompletionPanel } from '../workout/CompletionPanel';
 import { SaveRoutineSheet } from '../workout/SaveRoutineSheet';
 import { RoutinesSection, type PendingUndo } from '../workout/RoutinesSection';
 import { FinishWorkout } from '../workout/FinishWorkout';
+import { useScrollIntoView } from '../workout/scrollIntoView';
 import { focusNode } from '../labelscan/focus';
 import { LibraryEntryButton } from '../library/LibraryEntryButton';
 import { Hero, IndexThumb, SegmentBar, StartButton } from '../workout/SessionHeader';
-import { HowToSheet, RestBar, ToastBar, type GroupNext, type RestNext, type RestState } from '../workout/parts';
+import { DOCK_FALLBACK_H, DOCK_SPACER_MARGIN, HowToSheet, RestBar, ToastBar, type GroupNext, type RestNext, type RestState } from '../workout/parts';
 import { restRetarget } from '../workout/restNext';
 import { useRestNotification } from '../reminders/useRestNotification';
 import { usePersistedRest } from '../workout/restStore';
@@ -114,7 +115,29 @@ export function WorkoutScreen({ db, now = () => new Date() }: Props) {
   const addRest = () => setRest((r) => (r ? { ...r, end: r.end + REST_EXTEND_SEC * 1000, total: r.total + REST_EXTEND_SEC } : r));
   const [cantName, setCantName] = useState<{ i: number; name: string; reason?: ExclusionReason } | null>(null);
 
-  const restBar = <RestBar rest={rest} onAdd={addRest} onSkip={() => setRest(null)} />;
+  // Brings a node into view above the rest dock (when one is up). One mechanism for the session: the up-next set of a superset, the finish question.
+  const [measuredDock, setMeasuredDock] = useState<number | null>(null);
+  const dockH = measuredDock ?? DOCK_FALLBACK_H;
+  const scroll = useScrollIntoView();
+  // Each rest mounts a new dock, whose height is only known after its first layout (its label can be longer than the last one's), and a tick's rest can
+  // start after the render that moved the marker. So the node revealed for a tick (`last`, cleared by the next tick: `reveal(null)`) is scrolled to again,
+  // once, on the first layout of a new rest's dock. A later height change never scrolls (the user may have scrolled), and nothing is timed.
+  const dock = useRef<{ id: number; h: number } | null>(null); // the last dock laid out: its rest and height
+  const last = useRef<ComponentRef<typeof View> | null>(null);
+  const reveal = (node: ComponentRef<typeof View> | null | undefined) => {
+    last.current = node ?? null;
+    if (!node) return;
+    if (!rest) scroll.reveal(node, 0);
+    else if (dock.current?.id === rest.id) scroll.reveal(node, dock.current.h);
+    // else: this rest's dock has no height yet; its first layout reveals the node
+  };
+  const onDockHeight = (h: number, id: number) => {
+    setMeasuredDock(h); // for the page spacer
+    const first = dock.current?.id !== id;
+    dock.current = { id, h };
+    if (first && last.current) scroll.reveal(last.current, h);
+  };
+  const restBar = <RestBar rest={rest} onAdd={addRest} onSkip={() => setRest(null)} onHeight={onDockHeight} />;
   // One tree for every state, the state's content in the one body slot: the rest bar and toast keep their place (and so are not remounted,
   // which would repeat "Rest done, go!" and re-read the toast) while a day is read. They sit outside it as the prototype's #restbar and #toast sit outside #view.
   // The date bar is in the one Page for every state, so it is not remounted when a day finishes loading (a tap that spans the remount is lost, #1032).
@@ -138,7 +161,7 @@ export function WorkoutScreen({ db, now = () => new Date() }: Props) {
       day.exs.length === 0 ? (
         <StartView key={w.date} now={now} db={db} w={w} labHold={labHold === true} profile={profile} focus={focus} rules={rulesApi} notify={notify} tune={tune} />
       ) : (
-        <SessionView key={w.date} now={now} db={db} reloadKey={shown + dataVersion} w={w} profile={profile} focus={focus} rules={rulesApi} notify={notify} tune={tune} onHowTo={setHowTo} onCant={(i, name, reason) => setCantName(reason ? { i, name, reason } : { i, name })} />
+        <SessionView key={w.date} reveal={reveal} dockH={dockH} now={now} db={db} reloadKey={shown + dataVersion} w={w} profile={profile} focus={focus} rules={rulesApi} notify={notify} tune={tune} onHowTo={setHowTo} onCant={(i, name, reason) => setCantName(reason ? { i, name, reason } : { i, name })} />
       );
     const where = day.workout?.where ?? profile.where;
     const planned = () => plannedCoverage({ date: w.date, profile, weekPlan: settings.adjustments.weekPlan as WeekPlan | undefined, exclusions: rules.exclusions, swaps: rules.swaps, lifts: day.lifts }, getCatalog());
@@ -168,7 +191,7 @@ export function WorkoutScreen({ db, now = () => new Date() }: Props) {
   return (
     <View style={styles.fill}>
       <DateAnnouncer v={v} />
-      <Page resetKey={day.exs.length > 0} wide={wide}>
+      <Page resetKey={day.exs.length > 0} wide={wide} scroller={scroll.scroller}>
         {/* On a wide screen the content is two columns in Page's wide container, the same one Food and Targets use. */}
         <View style={styles.body}>
           <DateBar v={v} />
@@ -513,7 +536,7 @@ function StartView({ now, db, w, labHold, profile, focus, rules, notify, tune }:
   );
 }
 
-function SessionView({ now, db, reloadKey, w, profile, focus, rules, notify, tune, onHowTo, onCant }: { now: () => Date; db: WorkoutDb; reloadKey: number; w: W; profile: Prof; focus: readonly string[]; rules: ReturnType<typeof useRules>; notify: (msg: string) => void; tune: Tuning; onHowTo: (n: string) => void; onCant: (i: number, name: string, reason?: ExclusionReason) => void }) {
+function SessionView({ reveal, dockH, now, db, reloadKey, w, profile, focus, rules, notify, tune, onHowTo, onCant }: { reveal: (node: ComponentRef<typeof View> | null | undefined) => void; dockH: number; now: () => Date; db: WorkoutDb; reloadKey: number; w: W; profile: Prof; focus: readonly string[]; rules: ReturnType<typeof useRules>; notify: (msg: string) => void; tune: Tuning; onHowTo: (n: string) => void; onCant: (i: number, name: string, reason?: ExclusionReason) => void }) {
   const c = useTheme();
   const { date, day } = w;
   const { settings } = useSettings();
@@ -593,6 +616,7 @@ function SessionView({ now, db, reloadKey, w, profile, focus, rules, notify, tun
   const marker = open0 ? upNext(day.exs, open0.start, open0.end) : null;
   const markerKey = open0 && marker ? `${open0.start}.${open0.end}:${marker.ex}:${marker.set}` : null;
   const lastMarker = useRef<string | null>(null);
+  const upRow = useRef<ComponentRef<typeof View>>(null);
   useEffect(() => {
     const before = lastMarker.current;
     lastMarker.current = markerKey;
@@ -600,6 +624,8 @@ function SessionView({ now, db, reloadKey, w, profile, focus, rules, notify, tun
     if (before && !markerKey) setSaid(''); // the block is done (or closed): an old "Up next" must not stay in the live region
     if (!before || !markerKey || before === markerKey || before.split(':')[0] !== markerKey.split(':')[0] || !open0 || !marker) return;
     say(`Up next: ${day.exs[marker.ex]?.name}, ${String.fromCharCode(65 + marker.ex - open0.start)}${marker.set + 1}.`);
+    // The up-next row may be off-screen (a block of 3 or more, long cards): scroll it into view, only when it is not already.
+    reveal(upRow.current);
   }, [markerKey]); // eslint-disable-line react-hooks/exhaustive-deps -- says once per move
   const removeNamed = (n: string) => {
     const note = removalNote(day.exs, n);
@@ -642,7 +668,7 @@ function SessionView({ now, db, reloadKey, w, profile, focus, rules, notify, tun
     const pin = () => setPinned(ex.name);
     const act: Actions = {
       edit: (kind, j, f, v) => (pin(), w.editSet(i, kind, j, f, v)),
-      tick: (j) => (pin(), w.tick(i, j)),
+      tick: (j) => (pin(), reveal(null), w.tick(i, j)),
       rate: (j, v) => (pin(), w.rate(i, j, v)),
       form: (v) => (pin(), w.setForm(i, v)),
       rampStart: () => (pin(), w.rampStart(i)),
@@ -678,6 +704,7 @@ function SessionView({ now, db, reloadKey, w, profile, focus, rules, notify, tun
         {...(superset ? { superset } : {})}
         {...(m ? { member: { letter: String.fromCharCode(65 + i - m.unit.start), upNext: !!m.next && m.next.ex === i }, compact: expanded && lead !== i, currentSet: m.next && m.next.ex === i ? m.next.set : -1 } : {})}
         headingRef={reg(`ex:${ex.name}`)}
+        upNextRef={upRow}
         expanded={expanded}
         onToggle={pin}
         notify={notify}
@@ -735,7 +762,7 @@ function SessionView({ now, db, reloadKey, w, profile, focus, rules, notify, tun
         </Card>
       ) : null}
       <CardioBlock value={wk.cardio_min} onSave={w.setCardio} />
-      {done > 0 && !complete ? <FinishWorkout done={done} all={all} onFinish={() => {
+      {done > 0 && !complete ? <FinishWorkout done={done} all={all} onAsk={reveal} onFinish={() => {
           if (!w.finishEarly()) return;
           setFinished({ routine, total, sig: null });
           focusPanel.current = true;
@@ -769,8 +796,8 @@ function SessionView({ now, db, reloadKey, w, profile, focus, rules, notify, tun
     </>
   );
 
-  // Under the rest dock (about 150 high) the last controls stay reachable.
-  const spacer = <View style={{ height: 184 }} />;
+  // Under the rest dock the last controls stay reachable.
+  const spacer = <View testID="dock-spacer" style={{ height: dockH + DOCK_SPACER_MARGIN }} />;
   if (wide)
     return (
       <>

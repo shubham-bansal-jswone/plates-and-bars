@@ -10,20 +10,25 @@ import { useTheme } from '../theme/useTheme';
  * "Complete workout" at the bottom of the session: finish early with the ticked sets. Two steps in the page (no browser dialog):
  * the button, then a question with Confirm / Keep going. The caller hides it with no tick or every set ticked.
  */
-export function FinishWorkout({ done, all, onFinish }: { done: number; all: number; onFinish: () => void }) {
+export function FinishWorkout({ done, all, onFinish, onAsk }: { done: number; all: number; onFinish: () => void; /** Called with the question's node once it is open, so the screen can scroll it clear of the rest dock. */ onAsk?: (node: ComponentRef<typeof View> | null) => void }) {
   const c = useTheme();
   const [asking, setAsking] = useState(false);
   const button = useRef<ComponentRef<typeof View>>(null);
   const prompt = useRef<ComponentRef<typeof View>>(null);
+  const panel = useRef<ComponentRef<typeof View>>(null);
   const back = useRef(false);
   // Focus follows the swap: to the question when it opens, back to the button when the user keeps going.
   useEffect(() => {
-    if (asking) focusNode(prompt.current);
+    if (asking) {
+      focusNode(prompt.current);
+      onAsk?.(panel.current);
+    }
     else if (back.current) focusNode(button.current);
     back.current = false;
-  }, [asking]);
+  }, [asking]); // eslint-disable-line react-hooks/exhaustive-deps -- once per opening
   if (!asking) return <Button ref={button} kind="ghost" label="Complete workout" onPress={() => setAsking(true)} />;
   return (
+    <View ref={panel}>
     <Card>
       <View ref={prompt} accessible testID="finish-prompt">
         <Text style={[type.bodyStrong, { color: c.ink }]}>{`Finish with ${done} of ${all} sets?`}</Text>
@@ -45,6 +50,7 @@ export function FinishWorkout({ done, all, onFinish }: { done: number; all: numb
         </View>
       </View>
     </Card>
+    </View>
   );
 }
 
