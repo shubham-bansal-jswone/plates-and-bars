@@ -78,7 +78,7 @@ export const TABLE_HIDE = 'Hide table';
 export const TABLE_SHOW_ALL = 'Show all';
 export const TABLE_SHOW_RECENT = (n: number): string => `Show last ${n}`;
 export const TABLE_DATE = 'Date';
-export const TABLE_LABEL = (noun: string): string => `${noun} values by date`;
+export const TABLE_LABEL = (noun: string): string => `${noun}: table, newest first`;
 export const TREND_SUMMARY = (noun: string, first: number, last: number, unit: string): string => `${noun} from ${first} to ${last} ${unit}`;
 
 // Weekly check-in, burn card and habits (prototype `renderCheckin`, `consistencyHtml`).
@@ -169,6 +169,7 @@ export const VOL_PLAN_NOTE = 'The line is your plan today, drawn across every we
 export const VOL_PLAN_ROW = (target: string, unit: string): string => `Your current plan: ${target} ${unit}`;
 export const VOL_BELOW_PLAN = 'Below your current plan';
 export const VOL_COUNT_BELOW_PLAN = (n: number): string => `${n} below your current plan`;
+export const VOL_MUSCLE_NONE = (muscle: string): string => `No ${muscle.toLowerCase()} sets in the last 12 weeks. The chart shows up once you log some.`;
 export const VOL_NO_SETUP = 'Run setup (Targets tab) to see your plan’s weekly sets as a line.';
 export const VOL_NO_MUSCLE_TARGET = (muscle: string): string => `Your current plan has no sets for ${muscle.toLowerCase()}.`;
 export const VOL_RANK_TITLE = 'All muscles, weekly average';

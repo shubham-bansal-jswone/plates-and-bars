@@ -1,3 +1,4 @@
+import { StyleSheet } from 'react-native';
 import { render, screen, fireEvent } from '@testing-library/react-native';
 import * as workoutsDb from '../src/db/workouts';
 import { saveSet, saveWorkout } from '../src/db/workouts';
@@ -65,6 +66,16 @@ describe('Milestones on Progress (#1351 A9)', () => {
     expect(rows()[5]).toBe('One plate a side, Barbell Back Squat, 60 kg, 1 Sept');
     await fireEvent.press(screen.getByRole('button', { name: 'Show fewer' }));
     expect(rows()).toHaveLength(5);
+  });
+
+  it('each row sits on the soft surface, not the card colour it is inside, with compact padding (#1393)', async () => {
+    await open(history);
+    await screen.findByRole('header', { name: 'Milestones' });
+    const row = screen.getByLabelText('10th workout, 10 workouts completed, 10 Sept');
+    const st = StyleSheet.flatten(row.props.style);
+    const { light } = jest.requireActual('../src/theme/tokens');
+    expect(st.backgroundColor).toBe(light.surfaceSoft);
+    expect(st.paddingVertical).toBeLessThan(16);
   });
 
   it('with no milestone yet it says one gentle line, with no locked entries and no Show all', async () => {
