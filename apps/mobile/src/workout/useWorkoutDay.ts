@@ -283,7 +283,8 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
     await saveLift(db, ex.name, record);
     if (pr) {
       toastedToday.current.add(key);
-      notify(pbToastText(ex.name, pr, tune.unit ?? 'kg', info.type));
+      const unit = tune.unit ?? 'kg';
+      notify(pbToastText(ex.name, pr, unit, info.type));
       buzz(PB_BUZZ);
     }
   };

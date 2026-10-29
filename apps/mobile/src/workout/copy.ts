@@ -172,8 +172,8 @@ export const MY_ROUTINES = {
  * bodyweight and timed lifts the total; assisted lifts the set. Weights arrive in kg.
  */
 export function pbToastText(name: string, pr: PrImprovement, unit: WeightUnit, type: ExType): string {
-  const w = (kg: number) => `${formatWeight(kg, unit)} ${unit}`;
-  const up = (kg: number) => `+${formatWeight(kg, unit)}${pr.metric === 'e1rm' ? ` ${unit}` : ''}`;
+  const w = (value: number) => `${formatWeight(value, unit)} ${unit}`;
+  const up = (value: number) => `+${formatWeight(value, unit)}${pr.metric === 'e1rm' ? ` ${unit}` : ''}`;
   if (pr.metric === 'e1rm') return `New personal best: ${name} ${w(pr.set.w)} x ${pr.set.r}, estimated 1RM ${w(pr.score)} (${up(pr.delta)})`;
   if (pr.metric === 'reps') return `New personal best: ${name}, ${pr.score} ${repWord(type)} in total (+${pr.delta})`;
   return `New personal best: ${name}, ${pr.set.r} reps with ${w(pr.set.w)} of assistance`;
