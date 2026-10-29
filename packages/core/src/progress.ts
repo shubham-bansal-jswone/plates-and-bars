@@ -70,8 +70,9 @@ export function latestWeight(weighIns: readonly WeighIn[], upTo?: string): numbe
  * The bodyweight for `date`: the latest live weigh-in on or before it, else the profile weight, else null (#1404).
  * One lookup for the app (assisted lifts, PR toast, History, Recent PRs) and for milestones.
  *
- * A profile weight of 0 or a negative value is invalid and counts as no weight (null), so the lookup never hands back a bodyweight that scores
- * every lift as zero times bodyweight. This is the `||` the milestones lookup used; the app helper's `??` differed only for such invalid profiles.
+ * A profile weight of 0 or less counts as no weight (null). This only affects invalid data: the contract requires `exclusiveMinimum: 0`
+ * and setup only accepts 30 to 300 kg. It matches the old milestones `||` for 0; a negative weight used to pass through `||` and the app's `??`, and now gives null.
+ * Callers that need a number (burn) use `?? 0`, as the burn maths treats 0 as "no weight".
  * A weigh-in is returned as stored. Not a prototype port; built on `latestWeight`.
  */
 export function bodyweightOn(weighIns: readonly WeighIn[], date: string, profileKg?: number | null): number | null {
