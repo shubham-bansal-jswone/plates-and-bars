@@ -3,6 +3,7 @@ import { View } from 'react-native';
 import { matchAll, parseWorkoutCsv, planImport, type ImportMatches, type ImportParsed, type ImportSource, type WeightUnit } from '@plate-and-bar/core';
 import { Button, Card, Choice, Chip, ErrorText, Group, H1, Hint, Label, Note, Page } from '../components/ui';
 import type { PullDb } from '../db/outbox';
+import { newId } from '../db/records';
 import type { WorkoutDb } from '../db/workouts';
 import { useWeightUnit } from '../settings/weightUnit';
 import { useOptionalSettings } from '../state/SettingsProvider';
@@ -89,7 +90,7 @@ export function ImportWorkouts({ db, onClose }: { db: WorkoutDb & PullDb; onClos
         if (settings && (await settings.addCustomTags(name, FALLBACK_TAGS))) custom++;
         else mapping[name] = exerciseNamed(name) ?? null;
       }
-      const plan = planImport(preview.parsed.days, mapping, preview.occupied);
+      const plan = planImport(preview.parsed.days, mapping, preview.occupied, newId);
       const w = await writeImport(db, plan);
       setSummary({ days: w.days, sets: w.sets, custom, leftOut: plan.skippedExercise, occupied: plan.occupied.length + w.occupied.length });
     } catch {
