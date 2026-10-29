@@ -52,9 +52,11 @@ describe('history session labels', () => {
       const split = [{ name: 'Barbell Row', group: 'g' }, { name: 'Squat', group: null }, { name: 'Pull-up', group: 'g' }];
       expect(day(['Barbell Row', 'Pull-up'], split).map((x) => x[1])).toEqual([undefined, undefined]);
     });
-    it('a stored group of 7 stays invalid when one member is not done', () => {
+    it('a stored group of 7 reads as the workout screen does: the first 6 are a superset, the 7th is not', () => {
       const seven = Array.from({ length: 7 }, (_, i) => ({ name: `Ex${i}`, group: 'g' }));
-      expect(day(seven.slice(1).map((e) => e.name), seven).map((x) => x[1])).toEqual(Array(6).fill(undefined));
+      const names = seven.map((e) => e.name);
+      expect(day(names.slice(1), seven).map((x) => x[1])).toEqual(['A', 'B', 'C', 'D', 'E', undefined]);
+      expect(day(names, seven).map((x) => x[1])).toEqual(['A', 'B', 'C', 'D', 'E', 'F', undefined]);
     });
   });
   it('ungrouped sessions carry no label key at all', () => {

@@ -1,4 +1,4 @@
-import { HAND_PICKED, groupLabels, sessionVolume, type ExType, type LiftRecord, type SessionLog, type WeightUnit } from '@plate-and-bar/core';
+import { HAND_PICKED, groupLabels, normalizeGroups, sessionVolume, type ExType, type LiftRecord, type SessionLog, type WeightUnit } from '@plate-and-bar/core';
 import type { WorkoutExercise, WorkoutSet } from '../../workout/types';
 import { weightFieldText } from '../../workout/unitText';
 import { e1rmPoints, sessionTimeLine } from '../e1rm';
@@ -44,12 +44,12 @@ export function buildSessions(log: SessionLog, setsByDate: Readonly<Record<strin
     if (!done.length) return [];
     const by = new Map<string, WorkoutSet[]>();
     for (const s of [...done].sort((a, b) => a.set_index - b.set_index)) by.set(s.exercise, [...(by.get(s.exercise) ?? []), s]);
-    // Letters follow the STORED exercise order, never the order the set rows come back in. Core's `groupLabels` on the stored list
-    // decides which groups are valid (a split group or one over the limit stays invalid even if a member was not done); then only
-    // the exercises listed for the day are labelled, again by core, so a group with fewer than 2 listed members gets no label and the letters restart at A.
+    // Letters follow the STORED exercise order, never the order the set rows come back in. Group validity is core's `normalizeGroups` on the
+    // stored list (as the workout screen reads it); then only the exercises listed for the day are labelled by core's `groupLabels`, so a group
+    // with fewer than 2 listed members gets no label and the letters restart at A.
     const stored = storedByDate[date] ?? [];
-    const valid = groupLabels(stored.map((e) => ({ name: e.name, sets: 1, group: e.group })));
-    const listed = stored.flatMap((e, i) => (by.has(e.name) ? [{ name: e.name, sets: 1, group: valid[i] ? e.group : null }] : []));
+    const valid = normalizeGroups(stored.map((e) => ({ name: e.name, sets: 1, group: e.group }))).map((e) => e.group ?? null);
+    const listed = stored.flatMap((e, i) => (by.has(e.name) ? [{ name: e.name, sets: 1, group: valid[i] }] : []));
     const listedLetters = groupLabels(listed);
     const letters = new Map(listed.flatMap((e, i) => (listedLetters[i] ? [[e.name, listedLetters[i]!] as const] : [])));
     const exercises = [...by].map(([name, sets]): HistoryExercise => {
