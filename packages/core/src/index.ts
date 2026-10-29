@@ -501,6 +501,16 @@ export { rangeSeries, downsampleWeekly, DOWNSAMPLE_THRESHOLD, RANGE_DAYS } from 
 export type { SeriesRange, DownsampleMode } from './progressSeries';
 
 /**
+ * Weekly intake and weeks-on-track series (#1351 C4, C5, new rules). `weeklyIntake` is the average kcal and protein per Monday-week over
+ * the days with a live food log (the `weekSummary` rule), null for a week with none, `partial` under `WEEKLY_INTAKE_MIN_DAYS` (4) days.
+ * `weeksOnTrackSeries` is the per-week form of `habits().weeks`; `weeklySessionGoal` and `weekOnTrack` are the goal rule both share
+ * (mirroring the goal and per-week test of prototype `consistencyHtml()`).
+ */
+export { weeklyIntake, weeksOnTrackSeries, WEEKLY_INTAKE_MIN_DAYS } from './progressSeries';
+export type { IntakeTargets, WeeklyIntake, WeekOnTrack } from './progressSeries';
+export { weeklySessionGoal, weekOnTrack } from './progress';
+
+/**
  * Progress: weight and waist trend, the scale-jump note and entry limits (#233).
  * - `weightSeries` mirrors the series in prototype `weightChart()`; `waistSeries` mirrors `waistPts` in `measuresHtml()`;
  *   `WEIGHT_CHART_POINTS` and `WAIST_CHART_POINTS` are their 30 and 20.
