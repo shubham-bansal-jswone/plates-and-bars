@@ -59,9 +59,9 @@ export type HeadingLevel = 1 | 2 | 3;
  * A heading at an explicit level. react-native-web renders `accessibilityRole="header"` as `<h1 role="heading">` and an
  * explicit role without `aria-level` counts as level 2, so the level is always passed (#382). Native ignores it.
  */
-export function Heading({ level, style, children, ref }: { level: HeadingLevel; style?: TextProps['style']; children: ReactNode; ref?: Ref<ComponentRef<typeof RNText>> }) {
+export function Heading({ level, style, children, ref, a11yLabel }: { level: HeadingLevel; style?: TextProps['style']; children: ReactNode; ref?: Ref<ComponentRef<typeof RNText>>; a11yLabel?: string }) {
   return (
-    <Text ref={ref} accessibilityRole="header" aria-level={level} style={style}>
+    <Text ref={ref} accessibilityRole="header" accessibilityLabel={a11yLabel} aria-level={level} style={style}>
       {children}
     </Text>
   );

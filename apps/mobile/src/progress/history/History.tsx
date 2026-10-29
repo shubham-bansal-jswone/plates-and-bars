@@ -80,7 +80,7 @@ export function WorkoutDay({ session, sessions, lifts, onBack }: { session: Hist
     name: e.name, part: 1, bridge: false, form: null, found: null, skipRamp: true, feel: null, ramp: [],
     sets: e.sets.map((s) => ({ ...blankRow(), w: s.w ? String(s.w) : '', r: s.r ? String(s.r) : '', done: true })),
   }));
-  const card = session.finished ? buildShareCard({ date: session.date, exs, cardio: session.cardio, lifts, unit }) : null;
+  const card = session.finished ? buildShareCard({ date: session.date, exs, cardio: session.cardio, lifts, unit, labels: session.exercises.map((e) => e.label) }) : null;
   return (
     <View style={styles.section}>
       <Button kind="link" label="Back to progress" onPress={onBack} />
@@ -108,8 +108,11 @@ export function WorkoutDay({ session, sessions, lifts, onBack }: { session: Hist
         const e1 = exerciseE1rm(sessions, e.name, typeOf(e.name));
         const max = Math.max(...t.points.map((p) => p.volume), 0);
         return (
-          <Card key={e.name} style={styles.gap}>
-            <Heading level={3} style={[typeScale.label, { color: c.ink }]}>{e.name}</Heading>
+          <Card key={e.name} style={e.label ? [styles.gap, styles.member, { borderLeftColor: c.brand }] : styles.gap}>
+            {e.label ? (
+              <Text aria-hidden accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={[typeScale.small, { color: c.brand }]}>{`Superset ${e.label}`}</Text>
+            ) : null}
+            <Heading level={3} style={[typeScale.label, { color: c.ink }]} a11yLabel={e.label ? `Superset ${e.label}: ${e.name}` : undefined}>{e.name}</Heading>
             {e.sets.map((s, i) => (
               <Text key={i} style={[typeScale.textBody, tabular, { color: c.body }]}>{`Set ${i + 1}: ${setText(s, unit)}`}</Text>
             ))}
@@ -140,6 +143,7 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: space.sm, minHeight: 56 },
   grow: { flex: 1 },
   gap: { gap: space.xs },
+  member: { borderLeftWidth: 4 },
   bars: { flexDirection: 'row', gap: 4, height: 56, alignItems: 'flex-end' },
   bar: { flex: 1, maxWidth: 28, height: '100%', borderRadius: 6, overflow: 'hidden', justifyContent: 'flex-end' },
 });

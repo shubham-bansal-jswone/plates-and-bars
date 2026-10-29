@@ -1,4 +1,4 @@
-import { formatWeight, fromKg, sessionVolume, type LiftRecord, type WeightUnit } from '@plate-and-bar/core';
+import { formatWeight, fromKg, groupLabels, sessionVolume, type LiftRecord, type WeightUnit } from '@plate-and-bar/core';
 import { fmt, shortDate, weekdayLong } from '../format';
 import type { ExState, Row } from './model';
 
@@ -26,6 +26,9 @@ export const MORE_H = 21;
 /** Exercise rows on the card; the rest are counted in "+N more" so the picture keeps its fixed size. */
 export const CARD_MAX_ROWS = Math.floor((CARD_H - 2 * CARD_PAD - HEADER_H - STATS_H - MORE_H) / ROW_H);
 
+/** The exercise name as drawn on the picture: the superset letter first when grouped. */
+export const rowName = (r: { name: string; label?: string }): string => (r.label ? `${r.label}. ${r.name}` : r.name);
+
 const compact = (x: number): string => (Math.abs(x) >= 10000 ? `${r1(x / 1000)}k` : fmt(x));
 
 export interface ShareCardModel {
@@ -37,7 +40,7 @@ export interface ShareCardModel {
   cardStats: { label: string; value: string }[];
   /** Best set of every exercise, in order (the panel shows all; the card only the first CARD_MAX_ROWS). */
   bests: string[];
-  rows: { name: string; best: string; pr: boolean }[];
+  rows: { name: string; best: string; pr: boolean; /** Superset letter, only on a grouped exercise. */ label?: string }[];
   more: number;
 }
 
@@ -46,7 +49,7 @@ export interface ShareCardModel {
  * best set and personal records. Built only from the ticked sets, so it cannot carry body weight, health answers, how a set
  * felt, calories (they depend on body weight), photos or any identifier.
  */
-export function buildShareCard(p: { date: string; exs: readonly ExState[]; cardio: number | null; lifts: Readonly<Record<string, LiftRecord>>; unit?: WeightUnit }): ShareCardModel {
+export function buildShareCard(p: { date: string; exs: readonly ExState[]; cardio: number | null; lifts: Readonly<Record<string, LiftRecord>>; unit?: WeightUnit; /** Superset letter per exercise; default: from the exercises' `group` (core's `groupLabels`). */ labels?: readonly (string | null | undefined)[] }): ShareCardModel {
   const unit = p.unit ?? 'kg';
   const sets = p.exs.flatMap((e) => e.sets);
   const done = sets.filter((s) => s.done).length;
@@ -64,9 +67,11 @@ export function buildShareCard(p: { date: string; exs: readonly ExState[]; cardi
     { label: 'Exercises', value: String(p.exs.length) },
     ...(p.cardio ? [{ label: 'Cardio min', value: compact(p.cardio) }] : []),
   ];
-  const rows = p.exs.map((e) => {
+  const labels = p.labels ?? groupLabels(p.exs.map((e) => ({ name: e.name, sets: e.sets.length, group: e.group })));
+  const rows = p.exs.map((e, i) => {
     const b = bestSet(e.sets);
-    return { name: e.name, best: !b ? '' : n(b.w) ? `${formatWeight(n(b.w), unit)} x ${n(b.r)}` : `${n(b.r)} reps`, pr: p.lifts[e.name]?.pbToast === p.date };
+    const label = labels[i];
+    return { name: e.name, ...(label ? { label } : {}), best: !b ? '' : n(b.w) ? `${formatWeight(n(b.w), unit)} x ${n(b.r)}` : `${n(b.r)} reps`, pr: p.lifts[e.name]?.pbToast === p.date };
   });
   const title = `${weekdayLong(p.date)} workout`;
   const dateLabel = `${shortDate(p.date)} ${p.date.slice(0, 4)}`;
