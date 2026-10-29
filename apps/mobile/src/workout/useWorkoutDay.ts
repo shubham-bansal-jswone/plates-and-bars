@@ -7,6 +7,9 @@ import {
   groupLabels,
   restFor,
   noLoad,
+  num,
+  type ExType,
+  type PrImprovement,
   rampRate,
   infoForUnit,
   rampTickFill,
@@ -14,6 +17,8 @@ import {
   setTarget,
   tickFill,
   updateLift,
+  isPrToday,
+  priorBestOf,
   newExercise,
   lastFor,
   seededSession,
@@ -26,15 +31,18 @@ import {
   type Checkin,
   type Exclusion,
   type LiftRecord,
+  type PriorBest,
+  type PrSet,
   type Rate,
   type SessionLog,
   type Swap,
 } from '@plate-and-bar/core';
 import { newId } from '../db/records';
-import { deleteLift, loadLifts, loadSessionLog, loadSets, loadWorkout, saveLift, saveSet, saveWorkout, type WorkoutDb } from '../db/workouts';
+import { deleteLift, loadExerciseSets, loadLifts, loadSessionLog, loadSets, loadWorkout, saveLift, saveSet, saveWorkout, type WorkoutDb } from '../db/workouts';
 import { inTransaction, type PullDb } from '../db/outbox';
 import { localDate } from '../setup/logic';
 import { parseCardio } from './cardio';
+import { pbToastText } from './copy';
 import { freshRead } from '../state/freshRead';
 import type { Profile } from '../setup/types';
 import { displayRow, weightFromField } from './unitText';
@@ -205,6 +213,24 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
     }
   };
 
+  /** The all-time best before a viewed date, per lift: read once (not per tick) and dropped when the data may have changed. */
+  const priorBests = useRef<{ name: string; date: string; bodyweight: number | null; prior: PriorBest }[]>([]);
+  // A sync pull, an import or restore (the screen's reloadKey moves) can change any earlier day.
+  useEffect(() => {
+    priorBests.current = [];
+  }, [reloadKey]);
+  const priorBestFor = async (name: string, type: ExType, bodyweight: number | null): Promise<PriorBest> => {
+    // A new weigh-in is a different bodyweight: assisted lifts rescore the earlier days at it.
+    const hit = priorBests.current.find((p) => p.name === name && p.date === date && p.bodyweight === bodyweight);
+    if (hit) return hit.prior;
+    const prior = priorBestOf(await loadExerciseSets(db, name), type, date, bodyweight);
+    priorBests.current = [...priorBests.current.filter((p) => p.name !== name || p.date !== date), { name, date, bodyweight, prior }];
+    return prior;
+  };
+  /** Today's ticked and unticked work sets of an exercise as core's record rules read them. */
+  const todaySets = (ex: ExState): PrSet[] =>
+    ex.sets.map((r) => ({ date, exercise: ex.name, kind: 'work', weight_kg: r.w === '' ? null : num(r.w), reps: r.r === '' ? null : Math.round(num(r.r)), done: r.done, rate: r.rate }));
+
   /** Recomputes the exercise's lift record from its ticked sets; shows the personal-best toast when core says so. */
   // Runs inside the day queue and builds on the stored lift records, not the screen's copy: a pull may have stored a
   // newer record (another device's session) since the screen loaded (#409).
@@ -225,13 +251,32 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
       ref.current = { ...ref.current, lifts: rest };
       setDay(ref.current);
       await deleteLift(db, ex.name, stamp(now()));
+      priorBests.current = priorBests.current.filter((p) => p.name !== ex.name || p.date <= date);
       return;
     }
-    ref.current = { ...ref.current, lifts: { ...lifts, [ex.name]: res.record } };
+    // The toast follows the all-time rule (core `isPrToday`), not `updateLift`'s last-8 `checkBest`. updateLift stays as it is
+    // and the record it returns is corrected here: `pbToast` is `date` once a PR has toasted today (kept as before, so it shows at
+    // most once a day and History, the completion panel and the share picture read it), and otherwise whatever updateLift carried.
+    const was = lifts[ex.name];
+    const toasted = was?.pbToast === date;
+    let pr: PrImprovement | null = null;
+    if (!toasted && ex.sets.some((s) => s.done)) {
+      const prior = await priorBestFor(ex.name, info.type, profile.weight_kg);
+      pr = isPrToday(prior, todaySets(ex), info.type, profile.weight_kg);
+    }
+    const record = { ...res.record };
+    if (pr) record.pbToast = date;
+    else if (!toasted) {
+      if (was?.pbToast !== undefined && was.date === date) record.pbToast = was.pbToast;
+      else delete record.pbToast;
+    }
+    ref.current = { ...ref.current, lifts: { ...lifts, [ex.name]: record } };
     setDay(ref.current);
-    await saveLift(db, ex.name, res.record);
-    if (res.toast) {
-      notify(`New personal best on ${ex.name}`);
+    await saveLift(db, ex.name, record);
+    // An edit to this day changes the prior best of every later day viewed from this screen.
+    priorBests.current = priorBests.current.filter((p) => p.name !== ex.name || p.date <= date);
+    if (pr) {
+      notify(pbToastText(ex.name, pr, tune.unit ?? 'kg', info.type));
       buzz(PB_BUZZ);
     }
   };
