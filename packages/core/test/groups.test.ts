@@ -6,7 +6,7 @@ type Row = [string, number, unknown];
 const v = JSON.parse(readFileSync(resolve(__dirname, '../../../docs/spec/golden/groups.json'), 'utf8')) as {
   limits: { group_min: number; group_max: number; transition_sec: number };
   configs: { note: string; ex: Row[]; labels: (string | null)[]; normalized: (string | null)[] }[];
-  order: { note: string; ex: Row[]; sequence: [number, number][] }[];
+  order: { note: string; ex: Row[]; done?: [number, number][]; sequence: [number, number][] }[];
 };
 const mk = (rows: Row[]): GroupEx[] => rows.map(([name, sets, group]) => ({ name, sets, group: group as string | null }));
 const tg = (pattern: string) => ({ pattern, family: '', equipment: '', difficulty: 1, primary: [], secondary: [], joints: [] });
@@ -26,7 +26,7 @@ describe('groups (#1182)', () => {
   it.each(v.order.map((c) => [c.note, c] as const))('order: %s', (_n, c) => {
     const ex = mk(c.ex);
     const seq: [number, number][] = [[0, 0]];
-    const d = new Set(['0,0']);
+    const d = new Set(['0,0', ...(c.done ?? []).map(([k, s]) => `${k},${s}`)]);
     for (let n = nextInRound(ex, 0, 0, (k, s) => d.has(`${k},${s}`)); n; n = nextInRound(ex, n.ex, n.set, (k, s) => d.has(`${k},${s}`))) {
       seq.push([n.ex, n.set]);
       d.add(`${n.ex},${n.set}`);
@@ -180,6 +180,19 @@ describe('groups (#1182)', () => {
       const ex = mk([['curl', 2, ''], ['ext', 2, '']]);
       expect(nextInRound(ex, 0, 0, fin())).toEqual({ ex: 0, set: 1 });
       expect(groupLabels(ex)).toEqual([null, null]);
+    });
+    it('entering a group from outside uses round order, also after a finished group', () => {
+      const ex = mk([['x', 1, null], ['a', 2, 'g'], ['b', 2, 'g']]);
+      expect(nextInRound(ex, 0, 0, fin([[1, 0]]))).toEqual({ ex: 2, set: 0 });
+      expect(nextInRound(ex, 2, 0, fin([[0, 0], [1, 0]]))).toEqual({ ex: 1, set: 1 });
+      const two = mk([['a', 1, 'g'], ['b', 1, 'g'], ['c', 2, 'h'], ['d', 2, 'h']]);
+      expect(nextInRound(two, 1, 0, fin([[0, 0], [2, 0]]))).toEqual({ ex: 3, set: 0 });
+    });
+    it('a set index that exists on another member but not on the ticked one is treated as a normal round', () => {
+      const ex = mk([['curl', 1, 'g'], ['sq', 3, 'g']]);
+      expect(restAfterTick(ex, 0, 2, fin([[0, 0]]), on)).toEqual({ kind: 'transition', seconds: 15, next: { ex: 1, set: 0 } });
+      expect(restAfterTick(ex, 0, 2, fin([[1, 2]]), on)).toEqual({ kind: 'transition', seconds: 15, next: { ex: 0, set: 0 } });
+      expect(restAfterTick(mk([['a', 1, null], ['b', 3, null]]), 0, 2, fin(), on)).toEqual({ ...none, next: { ex: 0, set: 0 } });
     });
     it('a set index past every member gives kind none, never -Infinity', () => {
       const ex = mk([['a', 1, 'g'], ['b', 1, 'g']]);

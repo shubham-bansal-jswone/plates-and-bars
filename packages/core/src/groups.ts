@@ -101,10 +101,19 @@ function scope(exs: readonly GroupEx[], i: number, j: number, done: IsDone) {
 export function nextInRound(exs: readonly GroupEx[], i: number, j: number, done: IsDone): Pos | null {
   if (!exs[i]) return null;
   const c = scope(exs, i, j, done);
-  for (let s = 0; s < c.rounds; s++) for (let k = c.a; k < c.b; k++) if (c.open(k, s)) return { ex: k, set: s };
+  // First open set of the run [a, b) in round order (a lone exercise is a run of one).
+  const first = (a: number, b: number): Pos | null => {
+    const rounds = Math.max(...exs.slice(a, b).map((e) => e.sets));
+    for (let s = 0; s < rounds; s++) for (let k = a; k < b; k++) if (c.open(k, s)) return { ex: k, set: s };
+    return null;
+  };
+  const here = first(c.a, c.b);
+  if (here) return here;
+  const runList = validRuns(exs);
   for (let k = c.b; k < exs.length; k++) {
-    const s = Array.from({ length: (exs[k] as GroupEx).sets }, (_, x) => x).find((x) => c.open(k, x));
-    if (s !== undefined) return { ex: k, set: s };
+    const g = runList.find((x) => x.a <= k && k < x.b);
+    const n = g ? first(g.a, g.b) : first(k, k + 1);
+    if (n) return n;
   }
   return null;
 }
@@ -114,7 +123,7 @@ export type RestAfterTick = { kind: 'none' | 'transition' | 'round'; seconds: nu
 /**
  * The rest to start when set `j` of exercise `i` is ticked, given the done state (`done`, the ticked set counts as done).
  * Kind 'none', 0 seconds when: `restOff` (the global rest setting; `next` still reported), nothing undone is left from `i` onward
- * (`next` null: the app starts no rest then), or `j` is not a set of any member of the round. Otherwise ungrouped: kind 'round', the
+ * (`next` null: the app starts no rest then), or `j` is not a set of any member of the group (for an ungrouped exercise: of the exercise). Otherwise ungrouped: kind 'round', the
  * normal `restFor`. In a group the round is open while another member still has an undone set at index `j` or earlier: then kind
  * 'transition', `GROUP_TRANSITION_SEC` (so ticking B1 before A1 is a transition); the tick that closes the round is kind 'round', the
  * longest `restFor` among the members still in that round. Warm-up and ramp ticks start no rest and are not part of rounds.
@@ -127,7 +136,7 @@ export function restAfterTick(exs: readonly GroupEx[], i: number, j: number, don
   const c = scope(exs, i, j, done);
   const inRound: number[] = [];
   for (let k = c.a; k < c.b; k++) if ((exs[k] as GroupEx).sets > j) inRound.push(k);
-  if (inRound.length === 0 || !inRound.includes(i)) return { kind: 'none', seconds: 0, next };
+  if (inRound.length === 0) return { kind: 'none', seconds: 0, next };
   if (c.group) {
     for (let s = 0; s <= j; s++) for (let k = c.a; k < c.b; k++) if (c.open(k, s)) return { kind: 'transition', seconds: GROUP_TRANSITION_SEC, next };
   }
