@@ -48,6 +48,18 @@ describe('lead lift and chips', () => {
     for (const n of ['Squat', 'Row']) expect(screen.getByRole('button', { name: n })).toBeTruthy();
   });
 
+  it('the shown sentence keeps each number with its unit (non-breaking space); the spoken label keeps plain spaces (#1409)', async () => {
+    mockHook = hook([...weekly('Bench Press', 8, 60)]);
+    await show();
+    const top = Math.round(e1rm(60 + 7 * 2.5) * 10) / 10;
+    const shown = screen.getByText(/^Bench Press estimated 1-rep max/, hidden);
+    const raw = (shown.props.children as string[] | string);
+    const text = Array.isArray(raw) ? raw.join('') : raw;
+    expect(text).toContain(`${top}\u00a0kg`);
+    expect(text).not.toMatch(/\d kg/);
+    expect(screen.getByLabelText(new RegExp(`max ${top} kg, up`))).toBeTruthy();
+  });
+
   it('chips switch the lift and the choice is held while the section stays mounted', async () => {
     mockHook = hook([...weekly('Bench Press', 8, 60), ...weekly('Squat', 4, 100)]);
     await show();

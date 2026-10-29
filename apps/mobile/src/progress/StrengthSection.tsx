@@ -15,7 +15,7 @@ import { Milestones } from './Milestones';
 import { E1RM_NOTE } from './E1rmTrend';
 import { RangedTrend } from './RangedTrend';
 import { leadLift, liftChoices, liftSeries } from './strength';
-import { CHOOSE_LIFT, CHOOSE_LIFT_LIST, LIFT_CHIPS, PR_NONE, PR_TITLE, STRENGTH_EMPTY, STRENGTH_ERROR, STRENGTH_LOADING, STRENGTH_TITLE, strengthSentence } from './strengthCopy';
+import { CHOOSE_LIFT, CHOOSE_LIFT_LIST, LIFT_CHIPS, PR_NONE, PR_TITLE, STRENGTH_EMPTY, STRENGTH_ERROR, STRENGTH_LOADING, STRENGTH_TITLE, strengthSentence, unitTogether } from './strengthCopy';
 import type { ProgressSets } from './useProgressSets';
 
 /** Rows of recent personal bests: fewer on a phone-width screen. */
@@ -123,7 +123,7 @@ function StrengthBody({ all, types, inRange, date, bodyweight, weights, sessions
               summary={summary}
             />
           ) : (
-            <Text style={[typeScale.textBody, { color: c.body }]}>{sentence}</Text>
+            <Text style={[typeScale.textBody, { color: c.body }]}>{unitTogether(sentence)}</Text>
           )}
           <Text style={[typeScale.caption, { color: c.muted }]}>{E1RM_NOTE}</Text>
         </View>

@@ -1,7 +1,7 @@
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
 import {
-  COVER_SHOW, VOLUME_AVG_WEEKS, addDays, doneCoverage, mondayOf, volumeVsPlan, weeklyDoneSets,
+  COVER_SHOW, VOLUME_AVG_WEEKS, addDays, doneCoverage, mondayOf, recentVolumeMuscle, volumeVsPlan, weeklyDoneSets,
   type CoverageDay, type MuscleSets, type WeekSets,
 } from '../src/index';
 
@@ -82,5 +82,23 @@ describe('volumeVsPlan (#1351 C2)', () => {
   it('exactly on target is not below; half sets average through', () => {
     const r = volumeVsPlan([{ week: 'a', partial: false, sets: { chest: 5.5 } }, { week: 'b', partial: false, sets: { chest: 6 } }], { chest: 5.75 }, '2026-10-01');
     expect(r.rows[0]).toMatchObject({ avg: 5.75, below: false, low: true });
+  });
+});
+
+describe('recentVolumeMuscle (#1409)', () => {
+  const w = (week: string, sets: MuscleSets): WeekSets => ({ week, partial: false, sets });
+  it('is the muscle with the most sets in the latest week that has any', () => {
+    expect(recentVolumeMuscle([w('a', { quads: 9 }), w('b', { chest: 3, lats: 5 }), w('c', { chest: 0, lats: 0 })])).toBe('lats');
+  });
+  it('takes the first of COVER_SHOW on a tie, and counts half sets', () => {
+    expect(recentVolumeMuscle([w('a', { lats: 4, chest: 4 })])).toBe('chest');
+    expect(recentVolumeMuscle([w('a', { chest: 0.5 })])).toBe('chest');
+  });
+  it('is null with no set in any week, or no weeks', () => {
+    expect(recentVolumeMuscle([w('a', { chest: 0 }), w('b', {})])).toBeNull();
+    expect(recentVolumeMuscle([])).toBeNull();
+  });
+  it('ignores a muscle that is not shown', () => {
+    expect(recentVolumeMuscle([w('a', { 'front-delt': 8 })])).toBeNull();
   });
 });

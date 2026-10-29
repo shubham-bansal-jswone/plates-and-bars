@@ -6,6 +6,7 @@ import { RANGE_NO_DATA, TREND_NONE, TREND_SUMMARY } from './copy';
 import { ChartTable } from './ChartTable';
 import { RANGES, RangeControl } from './RangeControl';
 import { TrendChart } from './TrendChart';
+import { unitTogether } from './strengthCopy';
 
 const DEFAULT_RANGE: SeriesRange = '12w';
 
@@ -60,9 +61,9 @@ export function RangedTrend({ series, end, convert, unit, noun, box, changeLine,
       <RangeControl value={range} disabled={disabled} onChange={setChoice} noun={noun} />
       {RANGES.filter((r) => disabled.has(r)).map((r) => <Hint key={r}>{RANGE_NO_DATA(r)}</Hint>)}
       {/* The image label below says the same: hidden here so a screen reader reads it once. */}
-      <View aria-hidden accessibilityElementsHidden importantForAccessibility="no-hide-descendants"><Hint>{summary}</Hint></View>
+      <View aria-hidden accessibilityElementsHidden importantForAccessibility="no-hide-descendants"><Hint>{unitTogether(summary)}</Hint></View>
       <TrendChart points={shown} box={box} label={summary} unit={unit} />
-      {t && changeLine ? <Hint>{changeLine({ direction: amount === 0 ? 'none' : t.diff < 0 ? 'down' : 'up', amount, since: t.since })}</Hint> : null}
+      {t && changeLine ? <Hint>{unitTogether(changeLine({ direction: amount === 0 ? 'none' : t.diff < 0 ? 'down' : 'up', amount, since: t.since }))}</Hint> : null}
       <ChartTable rows={rows} noun={noun} valueHeader={unit} />
     </View>
   );

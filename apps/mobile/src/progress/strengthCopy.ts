@@ -19,3 +19,6 @@ export function strengthSentence(lift: string, last: { date: string; kg: number 
   const { move, span } = e1rmChange(first, last, unit);
   return `${now}, ${move} in ${span}`;
 }
+
+/** Shown text: a number and its unit joined by a non-breaking space, so a wrapped line never leaves the unit alone (#1409). The spoken label keeps plain spaces. */
+export const unitTogether = (text: string): string => text.replace(/(\d) (kg|lb)\b/g, '$1\u00a0$2');

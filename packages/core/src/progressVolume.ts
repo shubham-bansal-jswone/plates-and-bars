@@ -58,6 +58,22 @@ export function weeklyDoneSets(days: readonly CoverageDay[], end: string, weeks:
   return out;
 }
 
+/**
+ * The muscle to show first on the volume chart: in the most recent week of `weeks` (oldest first, as `weeklyDoneSets` gives them) that holds any
+ * done set of a `COVER_SHOW` muscle, the muscle with the most sets; the first of `COVER_SHOW` on a tie. Null when no week holds a set.
+ *
+ * New rule (#1409): the chart opens on something the user trained, not an empty muscle.
+ */
+export function recentVolumeMuscle(weeks: readonly WeekSets[]): string | null {
+  for (let i = weeks.length - 1; i >= 0; i--) {
+    const sets = weeks[i]?.sets ?? {};
+    let best: string | null = null;
+    for (const m of COVER_SHOW) if ((sets[m] || 0) > (best === null ? 0 : sets[best] || 0)) best = m;
+    if (best !== null) return best;
+  }
+  return null;
+}
+
 /** One muscle's row of `volumeVsPlan`. */
 export interface VolumeVsPlan {
   muscle: string;

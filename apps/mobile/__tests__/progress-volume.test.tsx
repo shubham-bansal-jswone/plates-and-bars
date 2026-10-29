@@ -143,6 +143,14 @@ describe('volumeView', () => {
     expect(defaultMuscle([], [row('chest', 9, 0), row('lats', 3, 0)])).toBe('lats');
     expect(defaultMuscle([], [])).toBe('chest');
   });
+  it('with sets drawn, the focus muscle leads only when it has some; else the most recent muscle; none drawn falls back to focus then the gap', () => {
+    const rows = [row('chest', 5, 10), row('lats', 1, 10)];
+    const w = (sets: Record<string, number>) => ({ week: 'w', partial: false, sets });
+    expect(defaultMuscle(['quads'], rows, [w({ chest: 2 })])).toBe('chest');
+    expect(defaultMuscle(['chest'], rows, [w({ chest: 2, lats: 9 })])).toBe('chest');
+    expect(defaultMuscle(['quads'], rows, [w({ chest: 0 })])).toBe('quads');
+    expect(defaultMuscle([], rows, [w({})])).toBe('lats');
+  });
   it('ranks below-plan rows by gap, then low rows, then the rest by average', () => {
     const rows = [row('a', 14, 10), row('b', 2, 0), row('c', 9, 12), row('d', 4, 12), row('e', 8, 0)];
     expect(rankRows(rows).map((r) => r.muscle)).toEqual(['d', 'c', 'b', 'e', 'a']);
@@ -168,13 +176,24 @@ describe('volumeView', () => {
 });
 
 describe('VolumeSection', () => {
-  it('the focus muscle leads', async () => {
+  it('the focus muscle leads when it has sets in the weeks drawn', async () => {
     const db = await openDb();
-    await history(db);
-    await show(db, { focus: ['quads'] });
-    await screen.findByRole('button', { name: 'Quads' });
-    expect(pressedOf('Quads')).toBe(true);
+    await history(db); // lats have sets in earlier weeks, chest in the latest
+    await show(db, { focus: ['lats'] });
+    await screen.findByRole('button', { name: 'Lats' });
+    expect(pressedOf('Lats')).toBe(true);
     expect(pressedOf('Chest')).toBe(false);
+  });
+
+  it('a focus muscle with no sets does not open an empty chart: the most recent muscle does (#1409)', async () => {
+    const db = await openDb();
+    await history(db); // only chest and lats have sets; chest has the latest week
+    await show(db, { focus: ['quads'] });
+    await screen.findByRole('button', { name: 'Chest' });
+    expect(pressedOf('Chest')).toBe(true);
+    expect(pressedOf('Quads')).toBe(false);
+    expect(screen.queryByText(VOL_MUSCLE_NONE('Quads'))).toBeNull();
+    expect(screen.getByRole('button', { name: 'Show as table' })).toBeTruthy();
   });
 
   it('loading: a skeleton and no chips or numbers until the read finishes', async () => {
@@ -197,13 +216,15 @@ describe('VolumeSection', () => {
     expect(screen.queryByTestId('skeleton')).toBeNull();
   });
 
-  it('without focus starts on the muscle furthest below its plan', async () => {
+  it('without focus starts on the muscle with the most sets in the latest week that has any (#1409)', async () => {
     const db = await openDb();
-    await history(db); // only chest, back and arms have sets: legs and abs are 0 of a plan
+    await history(db); // only chest and lats have sets; this week has chest only
     await show(db);
     await waitFor(() => expect(screen.queryByTestId('skeleton')).toBeNull());
-    const rows = volumeVsPlan(weeklyDoneSets(await daysFor(db, TODAY), TODAY, 12, getCatalog().tags), planned, '2026-08-03').rows;
-    const expected = defaultMuscle([], rows);
+    const weeks = weeklyDoneSets(await daysFor(db, TODAY), TODAY, 12, getCatalog().tags);
+    const rows = volumeVsPlan(weeks, planned, '2026-08-03').rows;
+    expect(defaultMuscle([], rows, weeks)).toBe('chest');
+    const expected = 'chest';
     const label = expected.charAt(0).toUpperCase() + expected.slice(1);
     expect(screen.getAllByRole('button').filter((b) => b.props.accessibilityState?.selected).map((b) => b.props.accessibilityLabel)).toEqual([expect.stringContaining(label.split('-')[0]!)]);
   });
@@ -375,8 +396,8 @@ describe('VolumeSection', () => {
   it('no target for the chosen muscle: chart without a line and a plain headline', async () => {
     const db = await openDb();
     await history(db);
-    await show(db, { focus: ['calves'] });
-    await screen.findByRole('button', { name: 'Calves' });
+    await show(db);
+    await fireEvent.press(await screen.findByRole('button', { name: 'Calves' }));
     const target = planned['calves'] || 0;
     if (target === 0) {
       expect(screen.getByText(/Your current plan has no sets for calves/)).toBeTruthy();
@@ -387,7 +408,8 @@ describe('VolumeSection', () => {
   it('a muscle with no sets in the 12 weeks shows a sentence, no chart, no plan line and no table; one with sets keeps the chart (#1393)', async () => {
     const db = await openDb();
     await history(db);
-    await show(db, { focus: ['calves'] });
+    await show(db);
+    await fireEvent.press(await screen.findByRole('button', { name: 'Calves' }));
     await screen.findByText(VOL_MUSCLE_NONE('Calves'));
     expect(screen.queryByRole('image')).toBeNull();
     expect(screen.queryByRole('button', { name: 'Show as table' })).toBeNull();
@@ -400,7 +422,8 @@ describe('VolumeSection', () => {
   it('the muscle headline is read when there is no chart, and hidden (the chart says it) when there is one (#1393)', async () => {
     const db = await openDb();
     await history(db);
-    await show(db, { focus: ['calves'] });
+    await show(db);
+    await fireEvent.press(await screen.findByRole('button', { name: 'Calves' }));
     await screen.findByText(VOL_MUSCLE_NONE('Calves'));
     expect(screen.getByText(/^Calves 0 /)).toBeTruthy(); // no includeHiddenElements: it is accessible
     await fireEvent.press(chip('Chest'));

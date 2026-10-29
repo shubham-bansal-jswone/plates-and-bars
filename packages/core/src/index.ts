@@ -503,8 +503,9 @@ export type { SeriesRange, DownsampleMode } from './progressSeries';
 /**
  * Progress volume (#1351 C2, new rules): `weeklyDoneSets` is `doneCoverage`'s counting per Monday-week (shared `addDoneSets`),
  * `volumeVsPlan` is the 4-week average per `COVER_SHOW` muscle against the current plan's `plannedCoverage`.
+ * `recentVolumeMuscle` (#1409) is the muscle the chart opens on: the one with most sets in the latest week that has any.
  */
-export { weeklyDoneSets, volumeVsPlan, VOLUME_AVG_WEEKS } from './progressVolume';
+export { weeklyDoneSets, volumeVsPlan, recentVolumeMuscle, VOLUME_AVG_WEEKS } from './progressVolume';
 export type { WeekSets, VolumeVsPlan, VolumeVsPlanResult } from './progressVolume';
 
 /**

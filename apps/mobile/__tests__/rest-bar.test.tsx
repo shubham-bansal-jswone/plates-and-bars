@@ -19,6 +19,16 @@ describe('RestBar live region', () => {
     expect(screen.getByTestId('rest-announce').props.accessibilityLiveRegion).toBe('polite');
   });
 
+  it('caps a long "Next:" line at two lines with an ellipsis and keeps the whole name in the spoken label (#1409)', async () => {
+    const label = `Next: set 2 of ${'Single-arm cable crossover with a long pause at the bottom '.trim()} variation`;
+    await render(<RestBar rest={{ id: 1, end: Date.now() + 5000, total: 5, label }} onAdd={() => {}} onSkip={() => {}} />);
+    const next = screen.getByTestId('rest-next');
+    expect(next.props.numberOfLines).toBe(2);
+    expect(next.props.ellipsizeMode).toBe('tail');
+    expect(next.props.accessibilityLabel).toBe(label);
+    expect(next.props.accessibilityLiveRegion).toBe('polite');
+  });
+
   it('draws a decorative ring with the percentage as its accessible label, 100 wide with a 7 stroke', async () => {
     await render(<RestBar rest={{ id: 1, end: Date.now() + 1000, total: 2, label: 'Next: set 2' }} onAdd={() => {}} onSkip={() => {}} />);
     const ring = screen.getByLabelText(/^Rest \d+% done$/);
