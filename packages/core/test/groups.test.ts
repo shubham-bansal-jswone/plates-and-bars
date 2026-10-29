@@ -1,6 +1,6 @@
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
-import { canGroupWithNext, GROUP_MAX, GROUP_MIN, GROUP_TRANSITION_SEC, groupLabels, nextInRound, normalizeGroups, restAfterTick, restFor, type GroupEx } from '../src/index';
+import { canGroupWithNext, GROUP_MAX, GROUP_MIN, GROUP_TRANSITION_SEC, groupLabels, joinWithNext, leaveGroup, moveExercise, nextInRound, normalizeGroups, restAfterTick, restFor, type GroupEx } from '../src/index';
 
 type Row = [string, number, unknown];
 const v = JSON.parse(readFileSync(resolve(__dirname, '../../../docs/spec/golden/groups.json'), 'utf8')) as {
@@ -215,7 +215,13 @@ describe('canGroupWithNext (#1182 S5)', () => {
   it('an ungrouped exercise joins the group that starts at the next one', () => expect(can(ex(['a', 3], ['b', 3, 'g'], ['c', 3, 'g']), 0)).toEqual({ ok: true }));
   it('the last member takes an ungrouped next exercise', () => expect(can(ex(['a', 3, 'g'], ['b', 3, 'g'], ['c', 3]), 1)).toEqual({ ok: true }));
   it('a member that is not the last has no offer', () => expect(can(ex(['a', 3, 'g'], ['b', 3, 'g'], ['c', 3]), 0)).toEqual({ ok: false, why: 'inner', ex: 0 }));
-  it('two groups are not merged', () => expect(can(ex(['a', 3, 'g'], ['b', 3, 'g'], ['c', 3, 'h'], ['d', 3, 'h']), 1)).toEqual({ ok: false, why: 'other', ex: 2 }));
+  it('two groups merge (#1345)', () => expect(can(ex(['a', 3, 'g'], ['b', 3, 'g'], ['c', 3, 'h'], ['d', 3, 'h']), 1)).toEqual({ ok: true, merge: true }));
+  it('a merge past the cap, with a finished boundary exercise or a shared name is refused', () => {
+    expect(can(ex(['a', 3, 'g'], ['b', 3, 'g'], ['c', 3, 'g'], ['d', 3, 'g'], ['e', 3, 'h'], ['f', 3, 'h'], ['z', 3, 'h']), 3)).toEqual({ ok: false, why: 'full', ex: 3 });
+    expect(can(ex(['a', 3, 'g'], ['b', 2, 'g'], ['c', 3, 'h'], ['d', 3, 'h']), 1, (k) => k === 1)).toEqual({ ok: false, why: 'done', ex: 1 });
+    expect(can(ex(['a', 3, 'g'], ['b', 2, 'g'], ['a', 3, 'h'], ['d', 3, 'h']), 1)).toEqual({ ok: false, why: 'same', ex: 2 });
+    expect(can(ex(['a', 3, 'g'], ['b', 2, 'g'], ['c', 3, 'h'], ['a', 3, 'h']), 1)).toEqual({ ok: false, why: 'same', ex: 3 }); // the repeat deeper in the second group
+  });
   it('the cap counts the result: 5 + 1 fits, 5 + 2 and 6 + 1 do not', () => {
     const five = (): [string, number, string][] => ['a', 'b', 'c', 'd', 'e'].map((n) => [n, 3, 'g']);
     expect(can(ex(...five(), ['f', 3]), 4)).toEqual({ ok: true });
@@ -241,4 +247,80 @@ describe('canGroupWithNext (#1182 S5)', () => {
   });
   it('an exercise with no sets is not finished', () => expect(can(ex(['a', 0], ['b', 2]), 0)).toEqual({ ok: true }));
   it('a singleton id is no group: the next valid group can still be joined', () => expect(can(ex(['a', 3, 'g'], ['b', 3, 'h'], ['c', 3, 'h']), 0)).toEqual({ ok: true }));
+});
+
+type Edit = [string, number, string | null, number?];
+type Vec<T> = { note: string; ex: Edit[]; result: T | null };
+const ge = JSON.parse(readFileSync(resolve(__dirname, '../../../docs/spec/golden/group-edits.json'), 'utf8')) as {
+  move: (Vec<{ list: [string, string | null][]; to: number }> & { i: number; dir: -1 | 1 })[];
+  leave: (Vec<{ list: [string, string | null][]; to: number; dissolved: boolean }> & { i: number })[];
+  join: (Vec<{ list: [string, string | null][]; members: [number, number]; merged: boolean }> & { i: number; make_id: string; done?: [number, number][]; why?: string })[];
+};
+const mkp = (rows: Edit[]) => rows.map(([name, sets, group, part]) => ({ name, sets, group, ...(part === undefined ? {} : { part }) }));
+const view = (l: { name: string; group?: string | null }[]) => l.map((e) => [e.name, e.group]);
+
+describe('group edits (#1345, golden/group-edits.json)', () => {
+  it.each(ge.move.map((c) => [c.note, c] as const))('move: %s', (_n, c) => {
+    const ex = mkp(c.ex);
+    const before = JSON.stringify(ex);
+    const out = moveExercise(ex, c.i, c.dir);
+    expect(JSON.stringify(ex)).toBe(before);
+    if (c.result === null) return expect(out).toBeNull();
+    expect(out && view(out.exs)).toEqual(c.result.list);
+    expect(out?.to).toBe(c.result.to);
+    expect(out && (out.exs[out.to] as GroupEx).name).toBe((ex[c.i] as GroupEx).name);
+  });
+  it.each(ge.leave.map((c) => [c.note, c] as const))('leave: %s', (_n, c) => {
+    const ex = mkp(c.ex);
+    const before = JSON.stringify(ex);
+    const out = leaveGroup(ex, c.i);
+    expect(JSON.stringify(ex)).toBe(before);
+    if (c.result === null) return expect(out).toBeNull();
+    expect(out && view(out.exs)).toEqual(c.result.list);
+    expect(out?.to).toBe(c.result.to);
+    expect(out?.dissolved).toBe(c.result.dissolved);
+  });
+  it.each(ge.join.map((c) => [c.note, c] as const))('join: %s', (_n, c) => {
+    const ex = mkp(c.ex);
+    const d = new Set((c.done ?? []).map(([k, s]) => `${k},${s}`));
+    const before = JSON.stringify(ex);
+    const out = joinWithNext(ex, c.i, (k, s) => d.has(`${k},${s}`), () => c.make_id);
+    expect(JSON.stringify(ex)).toBe(before);
+    if (c.result === null) {
+      expect(out).toBeNull();
+      if (c.why) expect(canGroupWithNext(ex, c.i, (k, s) => d.has(`${k},${s}`))).toMatchObject({ ok: false, why: c.why });
+      return;
+    }
+    expect(out && view(out.exs)).toEqual(c.result.list);
+    expect(out?.members).toEqual(c.result.members);
+    expect(out?.merged).toBe(c.result.merged);
+  });
+
+  it('every edit of random sessions leaves groups valid, names and order intact, and the moved exercise where `to` says', () => {
+    let seed = 11;
+    const rnd = (n: number) => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) % n;
+    for (let t = 0; t < 400; t++) {
+      const n = 2 + rnd(9);
+      const ex = normalizeGroups(Array.from({ length: n }, (_, k) => ({ name: `e${k}`, sets: 3, part: 1, group: rnd(3) === 0 ? null : 'abc'[rnd(3)] as string })));
+      const i = rnd(n);
+      const names = ex.map((e) => e.name).sort();
+      for (const out of [moveExercise(ex, i, rnd(2) ? 1 : -1), leaveGroup(ex, i), joinWithNext(ex, i, () => false, () => 'new')]) {
+        if (!out) continue;
+        const list = out.exs;
+        expect(list.map((e) => e.name).sort()).toEqual(names);
+        expect(normalizeGroups(list)).toEqual(list); // already valid: repair changes nothing
+        if ('to' in out) expect((list[out.to] as GroupEx).name).toBe((ex[i] as GroupEx).name);
+      }
+    }
+  });
+  it('a move never changes the other exercises relative order, grouped or not', () => {
+    const ex = mkp([['a', 3, 'g', 1], ['b', 3, 'g', 1], ['c', 3, 'g', 1], ['d', 3, null, 1], ['e', 3, 'h', 1], ['f', 3, 'h', 1]]);
+    for (let i = 0; i < ex.length; i++)
+      for (const dir of [-1, 1] as const) {
+        const out = moveExercise(ex, i, dir);
+        if (!out) continue;
+        const others = (l: typeof ex) => l.filter((e) => e.name !== (ex[i] as GroupEx).name).map((e) => e.name);
+        expect(others(out.exs)).toEqual(others(ex)); // grouped movers too: only the mover changes place
+      }
+  });
 });

@@ -1,4 +1,5 @@
-import { useEffect, useState, type ComponentRef, type ReactNode, type Ref } from 'react';
+import { useEffect, useRef, useState, type ComponentRef, type ReactNode, type Ref } from 'react';
+import { focusNode } from '../labelscan/focus';
 import { WhyLink } from '../why/WhyLink';
 import { StyleSheet, Text as RNText, View } from 'react-native';
 import { radius, tabular, type } from '../theme/tokens';
@@ -77,7 +78,15 @@ interface Props {
   /** A member that is not up next: its warm-up, Learn mode, stall and ladder cards, Guide and tools and Remove sit behind "More for {name}". */
   compact?: boolean;
   /** The "Superset with next" chip: `next` is the next exercise's name; a `reason` disables it and shows as text under the chip row. Absent: no offer. */
-  superset?: { next: string; reason: string | null; onPress: () => void };
+  superset?: { next: string; reason: string | null; /** The next exercise starts another superset: the chip merges the two. */ merge?: boolean; onPress: () => void };
+  /**
+   * Move up / down and, in a superset, "Remove from superset" (#1345). A step is null when it cannot be taken (list end, other session part): no chip then.
+   * `out`: that step takes the exercise out of its superset (said in the hint).
+   */
+  /** The Move chips' nodes, so the screen can put focus back on the chip after the card moved. */
+  moveUpRef?: Ref<ComponentRef<typeof View>>;
+  moveDownRef?: Ref<ComponentRef<typeof View>>;
+  reorder?: { up: { onPress: () => void; out: boolean } | null; down: { onPress: () => void; out: boolean } | null; leave?: () => void };
   /** Where focus goes to this exercise's heading (after an ungroup). */
   headingRef?: Ref<ComponentRef<typeof RNText>>;
   /** On the up-next set's row in a superset: the node the screen scrolls into view after a tick. */
@@ -86,16 +95,32 @@ interface Props {
 
 function RateRow({ row, label, onRate }: { row: Row; label: string; onRate: (v: Rate | null) => void }) {
   const c = useTheme();
+  // The control that was pressed is replaced, so focus would fall to the page: the rating asked for by a press moves focus to the replacement (#1408).
+  // Any other change of the rating (a sync, a remount) leaves focus alone.
+  const asked = useRef<Rate | null | undefined>(undefined);
+  const rated = useRef<ComponentRef<typeof View>>(null);
+  const first = useRef<ComponentRef<typeof View>>(null);
+  const rate = row.rate;
+  useEffect(() => {
+    const want = asked.current;
+    asked.current = undefined;
+    if (want === undefined || want !== rate) return;
+    focusNode((rate ? rated : first).current);
+  }, [rate]);
   if (!row.done) return null;
+  const choose = (v: Rate | null) => {
+    asked.current = v;
+    onRate(v);
+  };
   if (row.rate)
-    return <Chip label={`${label} rated ${RATE_LABEL[row.rate]}. Change rating`} text={RATE_LABEL[row.rate]} pressed onPress={() => onRate(null)} />;
+    return <Chip ref={rated} label={`${label} rated ${RATE_LABEL[row.rate]}. Change rating`} text={RATE_LABEL[row.rate]} pressed onPress={() => choose(null)} />;
   return (
     <View style={{ gap: 4 }}>
       <Text style={{ color: c.muted, fontSize: 14 }}>How did that feel?</Text>
       <WhyLink id="rir" />
       <View style={styles.wrap}>
-        {RATE_ORDER.map((k) => (
-          <Chip key={k} label={`${label}: ${RATE_LABEL[k]}`} text={RATE_LABEL[k]} onPress={() => onRate(k)} />
+        {RATE_ORDER.map((k, i) => (
+          <Chip key={k} ref={i === 0 ? first : undefined} label={`${label}: ${RATE_LABEL[k]}`} text={RATE_LABEL[k]} onPress={() => choose(k)} />
         ))}
       </View>
     </View>
@@ -180,7 +205,7 @@ function plateTarget(typed: string, suggested: string | number | undefined): num
 }
 
 /** One exercise: suggestion, warm-up line, ramp or working sets, ratings and the form question. */
-export function ExerciseCard({ ex, info, sug, focus, warm, act, cards, learning, lifts, infoOf, prior, notify, expanded = true, onToggle, member, currentSet, compact, superset, headingRef, upNextRef }: Props) {
+export function ExerciseCard({ ex, info, sug, focus, warm, act, cards, learning, lifts, infoOf, prior, notify, expanded = true, onToggle, member, currentSet, compact, superset, headingRef, upNextRef, moveUpRef, moveDownRef, reorder }: Props) {
   const [skipped, setSkipped] = useState(false); // "I know my weight" was pressed: the first working set's weight field takes focus
   const [armed, setArmed] = useState(false); // removing an exercise takes a second tap: its logged sets go with it
   useEffect(() => {
@@ -412,7 +437,10 @@ export function ExerciseCard({ ex, info, sug, focus, warm, act, cards, learning,
       <View style={styles.setRow}>
         <Chip label={`Add set to ${ex.name}`} text="Add set" onPress={act.addSet} />
         {ex.sets.length > 1 ? <Chip label={`Remove last set of ${ex.name}`} text="Remove last set" onPress={act.removeSet} /> : null}
-        {superset ? <Chip label={`Superset with next: ${superset.next}`} text="Superset with next" disabled={superset.reason !== null} {...(superset.reason ? { hint: superset.reason } : {})} onPress={superset.onPress} /> : null}
+        {reorder?.up ? <Chip ref={moveUpRef} label={`Move up: ${ex.name}`} text="Move up" {...(reorder.up.out ? { hint: 'Takes it out of the superset.' } : {})} onPress={reorder.up.onPress} /> : null}
+        {reorder?.down ? <Chip ref={moveDownRef} label={`Move down: ${ex.name}`} text="Move down" {...(reorder.down.out ? { hint: 'Takes it out of the superset.' } : {})} onPress={reorder.down.onPress} /> : null}
+        {reorder?.leave ? <Chip label={`Remove from superset: ${ex.name}`} text="Remove from superset" onPress={reorder.leave} /> : null}
+        {superset ? <Chip label={superset.merge ? `Merge with next superset: ${superset.next}` : `Superset with next: ${superset.next}`} text={superset.merge ? 'Merge with next superset' : 'Superset with next'} disabled={superset.reason !== null} {...(superset.reason ? { hint: superset.reason } : {})} onPress={superset.onPress} /> : null}
       </View>
       {superset?.reason ? <Hint>{superset.reason}</Hint> : null}
 

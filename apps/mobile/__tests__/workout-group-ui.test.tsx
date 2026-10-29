@@ -83,14 +83,7 @@ describe('the "Superset with next" chip', () => {
     expect(screen.getByLabelText(`Superset with next: ${names[2]}`)).toBeTruthy();
   });
 
-  it('is disabled with the reason as visible text and as the accessibility hint: another superset, a finished exercise, the first-time ramp', async () => {
-    const other = await mount(['g', 'g', 'h', 'h']);
-    const chip = screen.getByLabelText(`Superset with next: ${other.names[2]}`);
-    expect(chip.props.accessibilityState).toMatchObject({ disabled: true });
-    expect(chip.props.accessibilityHint).toBe(`${other.names[2]} is in another superset. Ungroup it first.`);
-    expect(screen.getByText(`${other.names[2]} is in another superset. Ungroup it first.`)).toBeTruthy();
-    await screen.unmount();
-
+  it('is disabled with the reason as visible text and as the accessibility hint: a finished exercise, the first-time ramp', async () => {
     const ramp = await mount([], { ramp: true });
     const rc = screen.getByLabelText(`Superset with next: ${ramp.names[1]}`);
     expect(rc.props.accessibilityState).toMatchObject({ disabled: true });
@@ -303,11 +296,12 @@ describe('review round 2', () => {
     expect(screen.getByText(`Next: ${names[2]}`)).toBeTruthy();
   });
 
-  it('the chip is hidden on a finished last member even when another rule would also apply', async () => {
+  it('the chip is hidden on a finished last member even when it would otherwise offer a merge', async () => {
     const { names } = await mount(['g', 'g', 'h', 'h']);
-    expect(screen.getByLabelText(`Superset with next: ${names[2]}`)).toBeTruthy(); // disabled: another superset
+    const merge = new RegExp(`^Merge with next superset: ${names[2]}`);
+    expect(screen.getByLabelText(merge)).toBeTruthy(); // the merge offer, on the last member
     for (let j = 0; j < 3; j++) await tick(names[1]!, j, `B${j + 1}`);
-    expect(screen.queryByLabelText(`Superset with next: ${names[2]}`)).toBeNull();
+    expect(screen.queryByLabelText(merge)).toBeNull();
   });
 
   it('a member that joins a ticked group is announced as joining, not as a move of the marker', async () => {
