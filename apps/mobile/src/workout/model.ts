@@ -40,11 +40,12 @@ export const stamp = (d: Date): string => d.toISOString().replace(/\.\d{3}Z$/, '
  * The stored exercise for `e`. Keys this client does not know (added by a newer one) are carried through from the
  * `stored` copy, as `mods` is; the known keys always come from the screen, and `feel` is dropped when it is cleared.
  */
-export function exerciseRecord(e: ExState, stored?: WorkoutExercise): WorkoutExercise {
-  const { feel: _f, group: was, ...extra } = stored ?? ({} as WorkoutExercise);
-  // `group`: the id when set; an explicit null when the stored copy had a value (even an invalid one) or null, so the three-way merge
-  // sees the ungroup; the key is never added for an exercise that never had one.
-  const group = e.group ? { group: e.group } : was !== undefined ? { group: null } : {};
+export function exerciseRecord(e: ExState, stored?: WorkoutExercise, base: WorkoutExercise | undefined = stored): WorkoutExercise {
+  const { feel: _f, group: _g, ...extra } = stored ?? ({} as WorkoutExercise);
+  // `group`: the id when set; an explicit null only when `base` (the copy this screen loaded, the merge's base) had a value (even an
+  // invalid one) or null, so the three-way merge sees the ungroup. Never decided from `stored`: a group a pull stored since the
+  // load would be wiped by an unrelated edit. The key is never added for an exercise that never had one.
+  const group = e.group ? { group: e.group } : base?.group !== undefined ? { group: null } : {};
   return { ...extra, name: e.name, part: e.part, bridge: e.bridge, form: e.form, found_kg: e.found, skip_ramp: e.skipRamp, ...(e.feel ? { feel: e.feel } : {}), ...group };
 }
 

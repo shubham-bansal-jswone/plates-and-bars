@@ -23,7 +23,7 @@ export interface CantChange {
  * A swap keeps the group: a new exercise takes the group of the one it replaced (paired in order when as many left as came in), or, when
  * the old one stayed because it had ticked sets, of the exercise before it. Groups that no longer hold are dissolved by `fixGroups`.
  */
-function keepGroups(before: Workout['exercises'], after: Workout['exercises']): Workout['exercises'] {
+export function keepGroups(before: Workout['exercises'], after: Workout['exercises']): Workout['exercises'] {
   const was = new Set(before.map((e) => e.name));
   const left = before.filter((e) => !after.some((x) => x.name === e.name));
   const fresh = after.filter((e) => !was.has(e.name));

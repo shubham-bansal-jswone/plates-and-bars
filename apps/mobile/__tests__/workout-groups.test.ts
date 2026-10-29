@@ -1,6 +1,6 @@
-import { cantChange } from '../src/workout/cantApply';
+import { cantChange, keepGroups } from '../src/workout/cantApply';
 import { carryOnto, exerciseRecord, exercisesFrom, mergeWorkout, unionWorkout, type ExState } from '../src/workout/model';
-import type { Workout, WorkoutExercise } from '../src/workout/types';
+import type { Workout, WorkoutExercise, WorkoutSet } from '../src/workout/types';
 
 const ex = (name: string, o: Partial<WorkoutExercise> = {}): WorkoutExercise => ({ name, part: 1, bridge: false, form: null, found_kg: null, skip_ramp: false, ...o });
 const g = (name: string, group: string | null | undefined) => ex(name, group === undefined ? {} : { group });
@@ -101,5 +101,36 @@ describe('can\'t-do swap keeps the group', () => {
     const w = row([g('Barbell Bench Press', 'x'), g('Barbell Row', 'x'), g('Barbell Curl', undefined)]);
     const ch = cantChange(w, [], 0, { name: 'Barbell Bench Press', reason: 'dislike', dur: 'today' }, 'Dumbbell Bench Press', 'gym', [], {}, '2026-10-08', '2026-10-08T08:00:00Z');
     expect(ch.exercises.map((e) => [e.name, e.group ?? null])).toEqual([['Dumbbell Bench Press', 'x'], ['Barbell Row', 'x'], ['Barbell Curl', null]]);
+  });
+  const set = (exercise: string, o: Partial<WorkoutSet> = {}): WorkoutSet => ({
+    id: `${exercise}-${o.set_index ?? 0}`, version: 1, updated_at: '2026-10-08T08:00:00Z', deleted_at: null, workout_id: null,
+    exercise, kind: 'work', set_index: 0, weight_kg: 60, reps: 8, done: false, rate: null, t: null, ...o,
+  });
+  const swap = (w: Workout, sets: WorkoutSet[], name: string, choice: string | null, dur: 'today' | 'perm' = 'today') =>
+    cantChange(w, sets, w.exercises.findIndex((e) => e.name === name), { name, reason: 'dislike', dur }, choice, 'gym', [], {}, '2026-10-08', '2026-10-08T08:00:00Z');
+  const groups = (c: { exercises: WorkoutExercise[] }) => c.exercises.map((e) => [e.name, e.group ?? null]);
+
+  it('a swap of an exercise with ticked sets keeps it and the replacement joins its group (right after it)', () => {
+    const w = row([g('Barbell Bench Press', 'x'), g('Barbell Row', 'x'), g('Barbell Curl', undefined)]);
+    const out = swap(w, [set('Barbell Bench Press', { done: true })], 'Barbell Bench Press', 'Dumbbell Bench Press');
+    expect(groups(out)).toEqual([['Barbell Bench Press', 'x'], ['Dumbbell Bench Press', 'x'], ['Barbell Row', 'x'], ['Barbell Curl', null]]);
+  });
+  it('two replacements for two removed exercises are paired in order', () => {
+    const before = [ex('Barbell Bench Press', { group: 'x' }), ex('Barbell Row', { group: 'y' }), ex('Barbell Curl', { group: 'y' })];
+    const out = keepGroups(before, [ex('Dumbbell Bench Press'), ex('Cable Row'), ex('Barbell Curl', { group: 'y' })]);
+    expect(out.map((e) => [e.name, e.group ?? null])).toEqual([['Dumbbell Bench Press', 'x'], ['Cable Row', 'y'], ['Barbell Curl', 'y']]);
+  });
+  it('one removed exercise, two new ones: the pairing is unknown, so neither takes the group', () => {
+    const before = [ex('Barbell Bench Press', { group: 'x' }), ex('Barbell Row', { group: 'x' })];
+    const out = keepGroups(before, [ex('Dumbbell Bench Press'), ex('Cable Row'), ex('Barbell Row', { group: 'x' })]);
+    expect(out.map((e) => [e.name, e.group ?? null])).toEqual([['Dumbbell Bench Press', null], ['Cable Row', null], ['Barbell Row', 'x']]);
+  });
+});
+
+describe('pick: an explicit null is a change', () => {
+  it('base absent, this device null, server a group: null wins (ADR 012, explicit null beats the server value)', () => {
+    const b = row([g('A', undefined), g('B', undefined)]);
+    const out = mergeWorkout(b, row([g('A', null), g('B', null)]), row([g('A', 'x'), g('B', 'x')]));
+    expect(names(out)).toEqual([['A', null], ['B', null]]);
   });
 });

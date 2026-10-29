@@ -343,6 +343,40 @@ describe('add and remove exercises (#147)', () => {
     expect((await loadWorkout(db, DATE))!.exercises.find((e) => e.name === b!.name)).toHaveProperty('group', null);
   });
 
+  describe('the screen state carries the group, so an unrelated edit never writes a null (#1182)', () => {
+    const grouped = async (n: number) => {
+      const { db } = await started();
+      const w = (await loadWorkout(db, DATE))!;
+      await saveWorkout(db, { ...w, exercises: w.exercises.map((e, i) => (i < n ? { ...e, group: 'g1' } : e)), updated_at: '2026-10-08T09:30:00Z' });
+      const opts = { db, profile, now: NOW, focus: [], adjustments: {}, notify: jest.fn(), startRest: jest.fn(), exclusions: [], swaps: [], saveRule: jest.fn(), tune: {} } as unknown as Parameters<typeof useWorkoutDay>[0];
+      const fresh = await renderHook(() => useWorkoutDay({ ...opts, reloadKey: 0 }));
+      await waitFor(() => expect(fresh.result.current.day.exs[0]?.group).toBe('g1'));
+      return { db, result: fresh.result };
+    };
+    const stored = async (db: Awaited<ReturnType<typeof started>>['db']) => (await loadWorkout(db, DATE))!.exercises.map((e) => e.group ?? null);
+
+    it('after a can\'t-do swap, removing an unrelated exercise keeps the group on every member', async () => {
+      const { db, result } = await grouped(3);
+      const first = result.current.day.exs[0]!.name;
+      await act(async () => result.current.cant(0, { name: first, reason: 'dislike', dur: 'today', scope: 'exercise', key: first }, 'Dumbbell Bench Press'));
+      await settle();
+      expect(result.current.day.exs.slice(0, 3).map((e) => e.group)).toEqual(['g1', 'g1', 'g1']);
+      const last = result.current.day.exs[result.current.day.exs.length - 1]!.name;
+      await act(async () => void result.current.removeExercise(last));
+      await settle();
+      expect((await stored(db)).slice(0, 3)).toEqual(['g1', 'g1', 'g1']);
+    });
+
+    it('a group stored by a pull since the screen loaded is not wiped by an unrelated edit', async () => {
+      const { db, result } = await started();
+      const w = (await loadWorkout(db, DATE))!;
+      await saveWorkout(db, { ...w, version: w.version + 1, exercises: w.exercises.map((e, i) => (i < 2 ? { ...e, group: 'g1' } : e)) });
+      await act(async () => result.current.setForm(3, 'yes'));
+      await settle();
+      expect((await stored(db)).slice(0, 2)).toEqual(['g1', 'g1']);
+    });
+  });
+
   it('removing the last exercise deletes today\'s workout so a new session can start', async () => {
     const { db, result } = await started();
     for (const e of [...result.current.day.exs]) await act(async () => void result.current.removeExercise(e.name));
