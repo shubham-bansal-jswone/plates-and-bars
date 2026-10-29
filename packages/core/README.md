@@ -73,7 +73,7 @@ earlier `exp`), a missing `where` is `gym` (what prototype `homeWhere` reads), a
 Stalls and personal bests read each lift's `hist` (scores rounded to 0.1, last 8) and `pbToast`
 (contract `LiftStat.history` with `score`, and `pb_toast_date`). `updateLift` writes both, as the
 prototype does after every tick, rating or form change, except that a same-day record keeps its
-`pbToast` so the best toast shows at most once a day (#121; the prototype follows in a spec-change PR). Cards come back as facts (key, names, rep
+`pbToast` so the best toast shows at most once a day (#121). Cards come back as facts (key, names, rep
 range), not HTML. Save "Switch to lo–hi" with `stallRangeOverride`, which returns the contract
 `Settings.exercise_overrides[name]` entry (#128). The stall card's "Or switch to …" button shows when
 `sidewaysOf` returns a name; pass where the user trains today (the day's override, else the

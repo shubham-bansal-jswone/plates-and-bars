@@ -1,4 +1,4 @@
-// Parametric figure rig ported from the prototype's AN (docs/prototype/plate-and-bar.html, "code-built exercise
+// Parametric figure rig ported from the prototype's AN (tag prototype-final, "code-built exercise
 // animations"): same joint maths, same output for the same colours. The first 31 poses in D are the prototype's, ported
 // unchanged; later entries are our own additions (batch 2 onwards, #653). Changes from the prototype:
 // ES module, the colour map is a parameter of frame(), and it is exported without the browser globals, and
