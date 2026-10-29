@@ -86,9 +86,11 @@ describe('Starting a routine with a group', () => {
 describe('Save as routine after Complete workout, with groups', () => {
   async function tick(name: string) {
     await expand(name);
-    await fireEvent.changeText(screen.getByLabelText(`${name} set 1 kg`), '10');
-    await fireEvent.changeText(screen.getByLabelText(`${name} set 1 reps`), '10');
-    await press(`Mark ${name} set 1 done`);
+    // A member of a superset names its set with the letter ("Lat Pulldown set 1, A1 kg").
+    const set = `${name} set 1(, [A-Z]1)?`;
+    await fireEvent.changeText(screen.getByLabelText(new RegExp(`^${set} kg`)), '10');
+    await fireEvent.changeText(screen.getByLabelText(new RegExp(`^${set} reps`)), '10');
+    await press(new RegExp(`^Mark ${set} done`));
   }
   async function setup(ticked: string[]) {
     const db = await openDb();

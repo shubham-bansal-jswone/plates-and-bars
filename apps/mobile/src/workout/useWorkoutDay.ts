@@ -33,7 +33,6 @@ import { newId } from '../db/records';
 import { deleteLift, loadLifts, loadSessionLog, loadSets, loadWorkout, saveLift, saveSet, saveWorkout, type WorkoutDb } from '../db/workouts';
 import { inTransaction, type PullDb } from '../db/outbox';
 import { localDate } from '../setup/logic';
-import { newId } from '../db/records';
 import { parseCardio } from './cardio';
 import { freshRead } from '../state/freshRead';
 import type { Profile } from '../setup/types';
