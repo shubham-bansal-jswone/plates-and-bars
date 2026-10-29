@@ -7,7 +7,7 @@ import { NO_USER, type LocalExport } from './exportLocal';
 import { InvalidRecord, normalizeTimestamps, storeRecord, type Doc } from '../sync/records';
 import { naturalId } from '../sync/ids';
 import { getLiftVersion } from '../sync/store';
-import { ROUTINE_MAX_LIVE } from '@plate-and-bar/core';
+import { EXERCISE_NAME_MAX, ROUTINE_EXERCISES_MAX, ROUTINE_MAX_LIVE, ROUTINE_SETS_MAX, ROUTINE_SETS_MIN, isBlank, normalizeGroups, validId } from '@plate-and-bar/core';
 import { deleteKitchenPhoto } from '../photos/vault';
 
 // Restore from a device export file (#1177). It merges by record id using the record version and tombstones, the rule sync
@@ -40,6 +40,8 @@ export interface ParsedRestore {
   file: LocalExport;
   /** Rows with timestamps normalised and the workout date of each set resolved. */
   rows: { tbl: SyncTableName; key: string; rec: Doc; setDate: string | null }[];
+  /** Rows left out because they are structurally invalid (the server would refuse them), by table. Never stored. */
+  skipped: Partial<Record<SyncTableName, number>>;
 }
 
 const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
@@ -98,6 +100,33 @@ function shapeOk(tbl: SyncTableName, key: string, rec: Doc): boolean {
   return UUID.test(key);
 }
 
+/**
+ * A live routine as the app would write it (same core limits as `createRoutine`; the contract is the source of the numbers).
+ * Structurally bad is null and the row is skipped: no exercise list, a list outside 1..ROUTINE_EXERCISES_MAX, an exercise that
+ * is not an object, has a blank or too long name, or a set count that is not an integer. Repaired, the row kept: a set count
+ * outside the limits is clamped, an invalid group id becomes null, and core's `normalizeGroups` dissolves any broken group.
+ */
+function repairRoutine(rec: Doc): Doc | null {
+  const list = rec.exercises;
+  if (!Array.isArray(list) || list.length < 1 || list.length > ROUTINE_EXERCISES_MAX) return null;
+  const out: Record<string, unknown>[] = [];
+  for (const e of list) {
+    if (!isObj(e) || typeof e.name !== 'string' || isBlank(e.name) || [...e.name].length > EXERCISE_NAME_MAX) return null;
+    if (typeof e.sets !== 'number' || !Number.isInteger(e.sets)) return null;
+    const sets = Math.min(ROUTINE_SETS_MAX, Math.max(ROUTINE_SETS_MIN, e.sets));
+    out.push({ ...e, sets, ...(e.group != null && !validId(e.group) ? { group: null } : {}) });
+  }
+  return { ...rec, exercises: normalizeGroups(out as { name: string; sets: number; group?: string | null }[]) };
+}
+
+/** A live workout with its exercise groups repaired (invalid id or a broken group becomes null); nothing else is touched. */
+function repairWorkout(rec: Doc): Doc {
+  const list = rec.exercises;
+  if (!Array.isArray(list) || !list.every(isObj)) return rec;
+  const kept = normalizeGroups(list.map((e) => ({ name: '', sets: 1, group: e.group as string | null | undefined })));
+  return { ...rec, exercises: list.map((e, i) => (e.group != null && (kept[i] as { group?: string | null }).group == null ? { ...e, group: null } : e)) };
+}
+
 /** Validates the text of an export file strictly. Throws `RestoreError`; touches nothing. */
 export async function parseRestore(text: string): Promise<ParsedRestore> {
   if (text.length > MAX_RESTORE_BYTES) throw new RestoreError('too_large');
@@ -115,6 +144,7 @@ export async function parseRestore(text: string): Promise<ParsedRestore> {
   if (Object.keys(tables).some((t) => !Object.hasOwn(SYNC_TABLES, t))) throw new RestoreError('bad_format');
   checkDeviceOnly(json.device_only);
   const rows: ParsedRestore['rows'] = [];
+  const skipped: ParsedRestore['skipped'] = {};
   const ns = (json.user_id as string | null) ?? NO_USER;
   const dates = new Map<string, string>(); // contract workout id -> date, from this file
   let count = 0;
@@ -136,6 +166,14 @@ export async function parseRestore(text: string): Promise<ParsedRestore> {
       const key = keyOf(tbl, rec);
       const sync = typeof rec.version === 'number' && Number.isInteger(rec.version) && rec.version >= 0 && rec.version <= MAX_VERSION && typeof rec.updated_at === 'string';
       if (!key || !sync || !shapeOk(tbl, key, rec) || (rec.deleted_at != null && typeof rec.deleted_at !== 'string')) throw new RestoreError('bad_rows');
+      if (!rec.deleted_at && (tbl === 'routines' || tbl === 'workouts')) {
+        const fixed = tbl === 'routines' ? repairRoutine(rec) : repairWorkout(rec);
+        if (!fixed) {
+          skipped[tbl] = (skipped[tbl] ?? 0) + 1;
+          continue;
+        }
+        rec = fixed;
+      }
       if (tbl === 'workouts') dates.set(await naturalId(ns, 'workouts', key), key);
       let setDate: string | null = null;
       if (tbl === 'workout_sets') {
@@ -145,7 +183,7 @@ export async function parseRestore(text: string): Promise<ParsedRestore> {
       rows.push({ tbl, key, rec, setDate });
     }
   }
-  return { file: json as unknown as LocalExport, rows };
+  return { file: json as unknown as LocalExport, rows, skipped };
 }
 
 export interface TableCounts {
@@ -161,6 +199,8 @@ export interface TableCounts {
   same: number;
   /** Routines only: live routines that would take this device past 100. The first that fit are stored, these are skipped. */
   overCap?: number;
+  /** Routines only: rows in the file that are not valid (the server would refuse them). Skipped, never stored. */
+  invalid?: number;
   /** First and last day among the file's rows of this table that have a date. */
   from?: string;
   to?: string;
@@ -197,6 +237,7 @@ async function merge(db: WorkoutDb, parsed: ParsedRestore, apply: boolean, addOn
   const live = new Set<string>();
   for (const r of await db.getAllAsync<{ key: string; data: string }>("SELECT key, data FROM routines WHERE json_valid(data) AND json_extract(data, '$.deleted_at') IS NULL")) live.add(r.key);
   // Routine tombstones go first, so one frees its slot before new routines are counted against the cap whatever the file order.
+  for (const [t, n] of Object.entries(parsed.skipped)) (tables[t as SyncTableName] ??= zero()).invalid = n;
   const rows = [...parsed.rows].sort((a, b) => Number(b.tbl === 'routines' && !!b.rec.deleted_at) - Number(a.tbl === 'routines' && !!a.rec.deleted_at));
   for (const { tbl, key, rec, setDate } of rows) {
     if (SKIPPED.has(tbl)) continue;

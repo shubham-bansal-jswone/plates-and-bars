@@ -215,6 +215,77 @@ describe('routines in the device export and restore', () => {
     expect((await queue(dst)).map((e) => e.key)).toEqual([b.id]);
   });
 
+  describe('restore validates routine and workout rows like the app does (#1336)', () => {
+    type Ex = Record<string, unknown>;
+    const G = (n: number) => Array.from({ length: n }, (_, i) => ({ name: `E${i}`, sets: 3, group: 'big' }));
+    /** A file with one routine per case, built from a real export so every other field is valid. */
+    async function fileWith(cases: Record<string, Ex[]>, workoutExercises?: Ex[]) {
+      const src = await openDb();
+      for (const name of Object.keys(cases)) await createRoutine(src, name, squat, T(1));
+      if (workoutExercises) await src.runAsync('INSERT INTO workouts (key, data) VALUES (?, ?)', '2026-10-08', JSON.stringify({ id: null, date: '2026-10-08', version: 1, updated_at: '2026-10-08T06:00:00.000Z', deleted_at: null, exercises: workoutExercises }));
+      const file = JSON.parse(JSON.stringify((await buildLocalExport(src)).file)) as { tables: { routines: { name: string; exercises: Ex[] }[]; workouts?: { exercises: Ex[] }[] } };
+      for (const r of file.tables.routines) r.exercises = cases[r.name] as Ex[];
+      return JSON.stringify(file);
+    }
+    const restored = async (text: string) => {
+      const dst = await openDb();
+      const summary = await applyRestore(dst, await parseRestore(text), null);
+      return { summary, list: await loadRoutines(dst), dst };
+    };
+
+    it('a bad group id is dropped to null and the row is kept', async () => {
+      const { list, summary } = await restored(await fileWith({ A: [{ name: 'Squat', sets: 3, group: 'bad id!' }, { name: 'Bench press', sets: 3, group: 'x'.repeat(37) }] }));
+      expect(list).toHaveLength(1);
+      expect(list[0]!.exercises.map((e) => e.group ?? null)).toEqual([null, null]);
+      expect(summary.tables.routines!.invalid).toBeUndefined();
+    });
+
+    it('an oversize group keeps the first members and dissolves the rest', async () => {
+      const { list } = await restored(await fileWith({ A: G(8) }));
+      expect(list[0]!.exercises.map((e) => e.group ?? null)).toEqual(['big', 'big', 'big', 'big', 'big', 'big', null, null]);
+    });
+
+    it('an out-of-range set count is clamped to the limits; one that is not an integer skips the row', async () => {
+      const { list, summary } = await restored(await fileWith({ A: [{ name: 'Squat', sets: 99 }, { name: 'Bench press', sets: 0 }], B: [{ name: 'Squat', sets: 2.5 }], C: [{ name: 'Squat', sets: '3' }] }));
+      expect(list.map((r) => r.name)).toEqual(['A']);
+      expect(list[0]!.exercises.map((e) => e.sets)).toEqual([ROUTINE_SETS_MAX, ROUTINE_SETS_MIN]);
+      expect(summary.tables.routines).toMatchObject({ added: 1, invalid: 2 });
+    });
+
+    it('a valid row is stored unchanged', async () => {
+      const ex = [{ name: 'Squat', sets: 3, group: 'ss-1' }, { name: 'Bench press', sets: 4, group: 'ss-1' }, { name: 'Row', sets: 3, group: null }, { name: 'Curl', sets: 2, note: 'x' }];
+      const { list, summary } = await restored(await fileWith({ A: ex }));
+      expect(list[0]!.exercises).toEqual(ex);
+      expect(summary.tables.routines).toMatchObject({ added: 1 });
+      expect(summary.tables.routines!.invalid).toBeUndefined();
+    });
+
+    it('a mix of good and bad rows stores the good, repairs the fixable and reports the skipped', async () => {
+      const text = await fileWith({
+        Good: [{ name: 'Squat', sets: 3 }],
+        Fixable: [{ name: 'Squat', sets: 3, group: '??' }, { name: 'Bench press', sets: 3 }],
+        NoExercises: [],
+        TooMany: Array.from({ length: ROUTINE_EXERCISES_MAX + 1 }, (_, i) => ({ name: `E${i}`, sets: 3 })),
+        BlankName: [{ name: '  ', sets: 3 }],
+      });
+      const preview = await previewRestore(await openDb(), await parseRestore(text), null);
+      expect(preview.tables.routines).toMatchObject({ added: 2, invalid: 3 });
+      const { list, summary } = await restored(text);
+      expect(list.map((r) => r.name).sort()).toEqual(['Fixable', 'Good']);
+      expect(summary.tables.routines).toMatchObject({ added: 2, invalid: 3 });
+      expect(RESTORE_COPY.table('Routines', summary.tables.routines!)).toContain('3 skipped (not valid)');
+    });
+
+    it('a workout row has an invalid or oversize exercise group repaired, not refused', async () => {
+      const text = await fileWith({ A: [{ name: 'Squat', sets: 3 }] }, [...G(8), { name: 'Z', group: 'bad id!' }].map((e) => ({ part: 1, bridge: false, form: null, found_kg: null, skip_ramp: false, ...e })));
+      const dst = await openDb();
+      await applyRestore(dst, await parseRestore(text), null);
+      const row = await dst.getFirstAsync<{ data: string }>("SELECT data FROM workouts WHERE key = '2026-10-08'");
+      const groups = (JSON.parse(row!.data) as { exercises: { group?: string | null }[] }).exercises.map((e) => e.group ?? null);
+      expect(groups).toEqual(['big', 'big', 'big', 'big', 'big', 'big', null, null, null]);
+    });
+  });
+
   it('restore does not take the live routines past 100: the first that fit are kept, the rest counted as over', async () => {
     const src = await openDb();
     for (let i = 0; i < 5; i++) await createRoutine(src, `S${i}`, squat, T(1));
