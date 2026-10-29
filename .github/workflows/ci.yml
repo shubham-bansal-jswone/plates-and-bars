@@ -32,6 +32,7 @@ jobs:
       run_content_meta: ${{ steps.d.outputs.run_content_meta }}
       run_e2e: ${{ steps.d.outputs.run_e2e }}
       run_e2e_sync: ${{ steps.d.outputs.run_e2e_sync }}
+      run_opencode_agents: ${{ steps.d.outputs.run_opencode_agents }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -136,6 +137,25 @@ jobs:
   # on main would turn main red after every content merge. A stale
   # (older) updated_at is harmless apart from one redundant download on some devices; see infra/README.md.
   # Regenerate with `node scripts/content-meta.mjs` on a full-history checkout of main before each mobile release.
+  # .opencode/agents is generated from .claude/agents (#1352): regenerate and fail on any drift
+  opencode-agents:
+    name: opencode-agents (in sync with .claude/agents)
+    needs: changes
+    if: needs.changes.outputs.run_opencode_agents == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - run: node .opencode/generate-agents.mjs
+      - name: Generated agents match the committed ones
+        # intent-to-add on untracked files only, so a newly generated file shows up in the diff
+        # (a plain `git add -N <dir>` would also stage deletions and hide them)
+        run: |
+          git ls-files --others --exclude-standard -z .opencode/agents | xargs -0 -r git add --intent-to-add --
+          git diff --exit-code .opencode/agents
+
   content-meta:
     name: content-meta (bundled.json)
     needs: changes
