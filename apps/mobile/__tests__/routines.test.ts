@@ -132,11 +132,23 @@ describe('routines store (#1184)', () => {
 
   it('a rename keeps the exercises, including keys this app does not know', async () => {
     const db = await openDb();
-    const r = await createRoutine(db, 'A', [{ name: 'Squat', sets: 3, group: 'ss1', note: null }], T(1));
+    const r = await createRoutine(db, 'A', [{ name: 'Squat', sets: 3, group: 'ss1', note: null, tempo: 'slow' }, { name: 'Row', sets: 3, group: 'ss1' }], T(1));
     await renameRoutine(db, r.id as string, 'B', T(2));
     await deleteRoutine(db, r.id as string, T(3));
     await undoDeleteRoutine(db, r.id as string, T(4));
-    expect((await loadRoutines(db))[0]).toMatchObject({ name: 'B', exercises: [{ name: 'Squat', sets: 3, group: 'ss1', note: null }] });
+    expect((await loadRoutines(db))[0]).toMatchObject({ name: 'B', exercises: [{ name: 'Squat', sets: 3, group: 'ss1', note: null, tempo: 'slow' }, { name: 'Row', sets: 3, group: 'ss1' }] });
+  });
+
+  it('a group that is not a valid run is dissolved to an explicit null; a valid one is kept', async () => {
+    const db = await openDb();
+    const one = await createRoutine(db, 'A', [{ name: 'Squat', sets: 3, group: 'ss1' }, { name: 'Row', sets: 3 }]);
+    expect(one.exercises.map((e) => e.group)).toEqual([null, undefined]);
+    const split = await createRoutine(db, 'B', [{ name: 'A', sets: 3, group: 'x' }, { name: 'B', sets: 3 }, { name: 'C', sets: 3, group: 'x' }]);
+    expect(split.exercises.map((e) => e.group)).toEqual([null, undefined, null]);
+    const deduped = await createRoutine(db, 'C', [{ name: 'A', sets: 3, group: 'x' }, { name: 'A', sets: 3, group: 'x' }, { name: 'B', sets: 3 }]);
+    expect(deduped.exercises.map((e) => e.group)).toEqual([null, undefined]);
+    const ok = await createRoutine(db, 'D', [{ name: 'A', sets: 3, group: 'x' }, { name: 'B', sets: 3, group: 'x' }]);
+    expect(ok.exercises.map((e) => e.group)).toEqual(['x', 'x']);
   });
 
   it('a repeated exercise name is dropped, the first stays', async () => {

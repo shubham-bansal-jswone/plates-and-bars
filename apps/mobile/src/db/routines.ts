@@ -1,5 +1,5 @@
 import type { Schemas } from '@plate-and-bar/api';
-import { EXERCISE_NAME_MAX, ROUTINE_EXERCISES_MAX, ROUTINE_MAX_LIVE, ROUTINE_NAME_MAX, ROUTINE_SETS_MAX, ROUTINE_SETS_MIN, isBlank } from '@plate-and-bar/core';
+import { EXERCISE_NAME_MAX, ROUTINE_EXERCISES_MAX, ROUTINE_MAX_LIVE, ROUTINE_NAME_MAX, ROUTINE_SETS_MAX, ROUTINE_SETS_MIN, isBlank, normalizeGroups } from '@plate-and-bar/core';
 import { exclusive } from './exclusive';
 import { newId, type StoreDb } from './records';
 import type { WorkoutDb } from './workouts';
@@ -28,7 +28,7 @@ function checkName(name: string): string {
   return n;
 }
 
-/** The exercises as they will be stored: a repeat of a name is dropped (the first stays), every other key is untouched. */
+/** The exercises as they will be stored: a repeat of a name is dropped (the first stays), a broken group is dissolved, every other key is untouched. */
 function checkExercises(list: RoutineExercise[]): RoutineExercise[] {
   const seen = new Set<string>();
   const out: RoutineExercise[] = [];
@@ -39,13 +39,16 @@ function checkExercises(list: RoutineExercise[]): RoutineExercise[] {
     // Bounded-open like the contract: at most 20 keys, each value a boolean, number, string up to 200, or null.
     const keys = Object.entries(e);
     if (keys.length > 20 || keys.some(([k, v]) => len(k) > 50 || (v !== null && !['boolean', 'number', 'string'].includes(typeof v)) || (typeof v === 'string' && len(v) > 200 && k !== 'name'))) throw new RoutineError('exercises');
+    // A group id outside the contract pattern is refused (routines.json); a group that is not a valid run is repaired below.
+    if (e.group != null && !(typeof e.group === 'string' && /^[A-Za-z0-9_-]{1,36}$/u.test(e.group))) throw new RoutineError('exercises');
     if (!Number.isInteger(e.sets) || e.sets < ROUTINE_SETS_MIN || e.sets > ROUTINE_SETS_MAX) throw new RoutineError('sets');
     if (seen.has(e.name)) continue;
     seen.add(e.name);
     out.push(e);
   }
   if (out.length < 1 || out.length > ROUTINE_EXERCISES_MAX) throw new RoutineError('exercises');
-  return out;
+  // Dedupe can leave a group under 2 members, an id in two runs or a run over 6: core dissolves those (explicit null).
+  return normalizeGroups(out);
 }
 
 const parse = (data: string): Routine | null => {
