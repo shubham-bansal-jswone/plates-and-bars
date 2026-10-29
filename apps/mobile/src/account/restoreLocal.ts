@@ -7,7 +7,7 @@ import { NO_USER, type LocalExport } from './exportLocal';
 import { InvalidRecord, normalizeTimestamps, storeRecord, type Doc } from '../sync/records';
 import { naturalId } from '../sync/ids';
 import { getLiftVersion } from '../sync/store';
-import { ROUTINE_LIMITS } from '../db/routines';
+import { ROUTINE_MAX_LIVE } from '@plate-and-bar/core';
 import { deleteKitchenPhoto } from '../photos/vault';
 
 // Restore from a device export file (#1177). It merges by record id using the record version and tombstones, the rule sync
@@ -215,7 +215,7 @@ async function merge(db: WorkoutDb, parsed: ParsedRestore, apply: boolean, addOn
       outcome = compare(rec, { version: tbl === 'lift_stats' ? await getLiftVersion(db, key) : Number(doc.version ?? 0), at: tbl === 'lift_stats' ? null : stamp(doc) });
     }
     if (tbl === 'routines' && (outcome === 'added' || outcome === 'newer')) {
-      if (!rec.deleted_at && !live.has(key) && live.size >= ROUTINE_LIMITS.maxLive) {
+      if (!rec.deleted_at && !live.has(key) && live.size >= ROUTINE_MAX_LIVE) {
         c.overCap = (c.overCap ?? 0) + 1; // ADR 011: the server would refuse it; skipped here instead
         continue;
       }

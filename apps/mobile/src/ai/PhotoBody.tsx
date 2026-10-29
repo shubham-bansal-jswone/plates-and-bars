@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Image, StyleSheet, View } from 'react-native';
-import { PHOTO_ADJ_MAX, PHOTO_ADJ_MIN, photoMacros, searchFoods, stepPhotoAdj } from '@plate-and-bar/core';
+import { PHOTO_ADJ_MAX, PHOTO_ADJ_MIN, photoMacros, isBlank, searchFoods, stepPhotoAdj } from '@plate-and-bar/core';
 import { Text } from '../components/Text';
 import { a11yState, Button, Card, ErrorText, Field, Hint, Label, Press } from '../components/ui';
 import type { CatalogFood } from '../food/catalog';
@@ -8,7 +8,6 @@ import { CUSTOM_MESSAGE } from '../food/copy';
 import { fmt } from '../format';
 import { CameraDenied } from '../photos/capture';
 import { useTheme } from '../theme/useTheme';
-import { isBlank } from '../text/blank';
 import type { NewLog } from '../food/useFoodDay';
 import { useAi } from './AiProvider';
 import type { AiImage } from './client';
