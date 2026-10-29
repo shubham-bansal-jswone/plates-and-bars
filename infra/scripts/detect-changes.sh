@@ -57,3 +57,5 @@ if has_npm tests/e2e && want tests/e2e/ apps/mobile/ packages/core/ packages/api
 if has_npm tests/e2e && want tests/e2e/ apps/mobile/ packages/core/ packages/api/ content/ backend/; then emit e2e_sync true; else emit e2e_sync false; fi
 # the Play listing text must stay within Google's limits and carry the setup disclaimer word for word (needs only node, no install)
 if [ -f docs/check-play-listing.mjs ] && want docs/PLAY-STORE-LISTING.md docs/check-play-listing.mjs apps/mobile/src/setup/copy.ts; then emit play_listing true; else emit play_listing false; fi
+# .opencode/agents is generated from .claude/agents; regenerate and diff (needs only node, no install)
+if [ -f .opencode/generate-agents.mjs ] && want .claude/agents/ .opencode/; then emit opencode_agents true; else emit opencode_agents false; fi

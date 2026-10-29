@@ -22,7 +22,7 @@ expect() {
   git add -A && git commit -qm "change $file"
   : > out
   GITHUB_OUTPUT="$tmp/out" "$script" HEAD~1 > /dev/null
-  for j in api core mobile backend tools play_listing site content_meta e2e e2e_sync; do
+  for j in api core mobile backend tools play_listing site content_meta e2e e2e_sync opencode_agents; do
     got="$(sed -n "s/^run_$j=//p" out)"
     if [[ "$want" == *" $j "* ]]; then [ "$got" = true ] || { echo "FAIL: $file should run $j"; fail=1; }
     else [ "$got" = false ] || { echo "FAIL: $file should not run $j"; fail=1; }; fi
@@ -54,6 +54,8 @@ expect apps/mobile/src/about/licences.json "mobile tools e2e e2e_sync"
 expect apps/site/src/pages/index.astro "site tools"
 expect backend/src/main/java/A.java "backend e2e_sync"
 expect tests/e2e/store/demo-seed.json "tools e2e e2e_sync"
+expect .claude/agents/app.md "opencode_agents"
+expect .opencode/generate-agents.mjs "opencode_agents"
 expect docs/other.md ""
 [ "$fail" = 0 ] && echo "detect-changes: all sample diffs OK"
 exit "$fail"
