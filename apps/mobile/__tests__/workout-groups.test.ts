@@ -13,29 +13,32 @@ const names = (w: Workout) => w.exercises.map((e) => [e.name, e.group ?? null]);
 
 describe('group on the exercise record (#1182)', () => {
   it('round trips a set group', () => {
-    const rec = exerciseRecord(state('Bench', 'g1'));
+    const rec = exerciseRecord(state('Bench', 'g1'), undefined, undefined);
     expect(rec.group).toBe('g1');
     expect(exercisesFrom(row([rec, g('Row', 'g1')]), [])[0]?.group).toBe('g1');
   });
   it('a cleared group is written as an explicit null', () => {
-    const out = exerciseRecord(state('Bench', null), g('Bench', 'g1'));
+    const out = exerciseRecord(state('Bench', null), g('Bench', 'g1'), g('Bench', 'g1'));
     expect('group' in out && out.group === null).toBe(true);
   });
   it('an exercise that never had a group gets no key; the record is byte-identical to before', () => {
     const stored = ex('Bench');
-    expect(JSON.stringify(exerciseRecord(state('Bench'), stored))).toBe(JSON.stringify(exerciseRecord(state('Bench'))));
-    expect('group' in exerciseRecord(state('Bench', null), stored)).toBe(false);
-    expect('group' in exerciseRecord(state('Bench', null))).toBe(false);
+    expect(JSON.stringify(exerciseRecord(state('Bench'), stored, stored))).toBe(JSON.stringify(exerciseRecord(state('Bench'), undefined, undefined)));
+    expect('group' in exerciseRecord(state('Bench', null), stored, stored)).toBe(false);
+    expect('group' in exerciseRecord(state('Bench', null), undefined, undefined)).toBe(false);
+  });
+  it('no base copy: no explicit null, whatever the stored row says (the screen never had that exercise)', () => {
+    expect('group' in exerciseRecord(state('Bench', null), g('Bench', 'g2'), undefined)).toBe(false);
   });
   it('a stored null stays an explicit null', () => {
-    expect(exerciseRecord(state('Bench', null), g('Bench', null))).toHaveProperty('group', null);
+    expect(exerciseRecord(state('Bench', null), g('Bench', null), g('Bench', null))).toHaveProperty('group', null);
   });
   it('an invalid stored group reads as ungrouped and is rewritten as null', () => {
     for (const bad of [5, 'has space', '']) {
       const stored = { ...ex('A'), group: bad } as unknown as WorkoutExercise;
       const [a] = exercisesFrom(row([stored, g('B', 'x')]), []);
       expect(a?.group).toBeNull();
-      expect(exerciseRecord(a as ExState, stored)).toHaveProperty('group', null);
+      expect(exerciseRecord(a as ExState, stored, stored)).toHaveProperty('group', null);
     }
   });
   it('a group of one reads as ungrouped', () => {
@@ -43,7 +46,7 @@ describe('group on the exercise record (#1182)', () => {
   });
   it('other unknown keys are still carried', () => {
     const stored = { ...ex('A'), future: 1 } as WorkoutExercise;
-    expect(exerciseRecord(state('A', 'g'), stored)).toMatchObject({ future: 1, group: 'g' });
+    expect(exerciseRecord(state('A', 'g'), stored, stored)).toMatchObject({ future: 1, group: 'g' });
   });
 });
 
@@ -81,7 +84,7 @@ describe('group in the three-way merge', () => {
     expect(out.exercises.map((e) => e.group)).toEqual(['x', 'x', 'x', 'x', 'x', 'x', null]);
   });
   it('a group id survives the export and restore path', () => {
-    const list = [state('A', 'g1'), state('B', 'g1')].map((e) => exerciseRecord(e));
+    const list = [state('A', 'g1'), state('B', 'g1')].map((e) => exerciseRecord(e, undefined, undefined));
     expect(exercisesFrom(row(JSON.parse(JSON.stringify(list))), []).map((e) => e.group)).toEqual(['g1', 'g1']);
   });
 });

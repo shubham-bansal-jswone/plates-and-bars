@@ -377,6 +377,35 @@ describe('add and remove exercises (#147)', () => {
     });
   });
 
+  it('a group a pull stored on an exercise this screen did not have survives addExercise of that exercise (#1182)', async () => {
+    const { db, result } = await started();
+    const w = (await loadWorkout(db, DATE))!;
+    const rope = w.exercises[w.exercises.length - 1]!; // adjacent to the appended Cable Fly, so the pair is a valid group
+    const fly = { ...rope, name: 'Cable Fly', group: 'g2' };
+    await saveWorkout(db, { ...w, version: w.version + 1, exercises: [...w.exercises.map((e) => (e.name === rope.name ? { ...e, group: 'g2' } : e)), fly] });
+    await act(async () => void result.current.addExercise('Cable Fly'));
+    await settle();
+    const got = (await loadWorkout(db, DATE))!.exercises;
+    expect(got.find((e) => e.name === rope.name)?.group).toBe('g2');
+    expect(got.find((e) => e.name === 'Cable Fly')?.group).toBe('g2');
+  });
+
+  it('a new session over a tombstoned row adds no group key to exercises matching its grouped names', async () => {
+    const { db } = await started();
+    const w = (await loadWorkout(db, DATE))!;
+    const dead = { ...w, version: w.version + 1, deleted_at: '2026-10-08T09:40:00Z', updated_at: '2026-10-08T09:40:00Z', exercises: w.exercises.map((e, i) => (i < 2 ? { ...e, group: 'g1' } : e)) };
+    await saveWorkout(db, dead);
+    const opts = { db, profile, now: NOW, focus: [], adjustments: {}, notify: jest.fn(), startRest: jest.fn(), exclusions: [], swaps: [], saveRule: jest.fn(), tune: {} } as unknown as Parameters<typeof useWorkoutDay>[0];
+    const fresh = await renderHook(() => useWorkoutDay({ ...opts, reloadKey: 0 }));
+    await waitFor(() => expect(fresh.result.current.day.ready).toBe(true));
+    await act(async () => void (await fresh.result.current.start('Upper A', {}, null)));
+    await settle();
+    const got = (await loadWorkout(db, DATE))!;
+    expect(got.deleted_at).toBeNull();
+    expect(got.exercises.length).toBeGreaterThan(1);
+    expect(got.exercises.some((e) => 'group' in e)).toBe(false);
+  });
+
   it('removing the last exercise deletes today\'s workout so a new session can start', async () => {
     const { db, result } = await started();
     for (const e of [...result.current.day.exs]) await act(async () => void result.current.removeExercise(e.name));

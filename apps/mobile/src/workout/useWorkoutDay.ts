@@ -162,7 +162,8 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
     if (!overTombstone && stored?.deleted_at && Date.parse(stored.updated_at) > Date.parse(d.workout.updated_at)) return;
     const keep = new Map((stored && !stored.deleted_at ? stored.exercises : d.workout.exercises).map((x) => [x.name, x]));
     const base = synced.current;
-    const was = new Map((base ?? d.workout).exercises.map((x) => [x.name, x]));
+    // A tombstoned row is no base: a new session over it must not add `group: null` to exercises that match its grouped names.
+    const was = new Map((base && !base.deleted_at ? base : d.workout).exercises.map((x) => [x.name, x]));
     const mine = { ...d.workout, exercises: d.exs.map((e) => exerciseRecord(e, keep.get(e.name), was.get(e.name))) };
     // Changed since this screen loaded or wrote it (a pull, or a rule saved on Targets): merge rather than overwrite (#410).
     // Compared by content, not by the stamp (whole seconds); a sync push only patches `version`.
@@ -841,6 +842,7 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
         for (const r of [...e.sets, ...e.ramp]) rows.set(r.id, r);
         return [...e.sets.keys()].map((j) => setRecord(e, 'work', j, now())).concat([...e.ramp.keys()].map((j) => setRecord(e, 'ramp', j, now())));
       });
+      // ponytail: `(synced.current ?? w)` vs `w` cannot differ yet: with no ungroup UI, a base group is never absent from `w` while null on screen. Revisit with ungroup (S4).
       const ch = cantChange({ ...w, exercises: d.exs.map((e) => exerciseRecord(e, w.exercises.find((x) => x.name === e.name), (synced.current ?? w).exercises.find((x) => x.name === e.name))) }, records, i, draft, choice, w.where ?? profile?.where ?? 'gym', exclusions, d.lifts, date, at);
       d.exs = ch.exercises.map((x) => {
         const pick = (kind: 'work' | 'ramp'): Row[] =>
