@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "origin": "docs/prototype/plate-and-bar.html (MUSCLE, JOINT, FAMILY, PATTERN, candidates)",
+  "origin": "imported once from the prototype (frozen at tag prototype-final) (MUSCLE, JOINT, FAMILY, PATTERN, candidates); content is now the source of record",
   "muscles": {
     "chest": "chest",
     "front-delt": "front shoulders",
