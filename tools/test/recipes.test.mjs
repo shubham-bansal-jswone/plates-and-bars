@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { validateRaw, validateRecipes, validatePlanning } from '../validate/recipes.mjs';
+import { assertIds, pinned } from './pinned-ids.mjs';
 
 // The one deliberate content-over-prototype value (#576): FDC 171314 instead of the prototype's 876 kcal row.
 const VALUE_OVERRIDE = { Ghee: { from: [876, 0.3, 0, 99.5], set: [900, 0, 0, 100] } };
@@ -24,7 +25,13 @@ test('content files pass validation', () => {
   assert.deepEqual(validatePlanning(load('meal-planning.json'), foodNames()), []);
 });
 
-test('raw ingredient: Toor dal values, the fatty ones and the stable id', () => {
+test('raw ingredient, library and preset ids equal the pinned snapshot', () => {
+  assertIds(load('raw-ingredients.json').ingredients, pinned.raw, 'raw');
+  assertIds(load('recipes.json').library, pinned.recipes.library, 'library');
+  assertIds(load('recipes.json').presets, pinned.recipes.presets, 'presets');
+});
+
+test('raw ingredient: Toor dal values and the fatty ones', () => {
   const c = load('raw-ingredients.json');
   const toor = c.ingredients.find((i) => i.name === 'Toor dal (dry)');
   assert.deepEqual(toor.per_100g, { kcal: 343, protein_g: 21.7, carbs_g: 62.8, fibre_g: 15, fat_g: 1.5 });

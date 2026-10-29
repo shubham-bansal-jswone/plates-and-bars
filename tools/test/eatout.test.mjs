@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { validateEatOut } from '../validate/foods.mjs';
+import { assertIds, pinned } from './pinned-ids.mjs';
 
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const load = () => JSON.parse(readFileSync(`${repo}/content/eatout.json`, 'utf8'));
@@ -14,10 +15,14 @@ test('content/eatout.json passes validation', () => {
   assert.deepEqual(validateEatOut(load()), []);
 });
 
-test('cuisines are in the expected order and a dish keeps its values and stable id', () => {
+test('cuisines are in the expected order and a dish keeps its values', () => {
   const c = load();
   assert.deepEqual(c.cuisines.map((x) => x.name), ['North Indian', 'South Indian', 'Indo-Chinese', 'Fast food', 'Biryani', 'Drinks']);
   assert.deepEqual(dish(c, 'Butter naan').per_serving, { kcal: 300, protein_g: 8, carbs_g: 45, fibre_g: null, added_sugar_g: null, fat_g: 10 });
+});
+
+test('every eat-out dish id equals the pinned snapshot', () => {
+  assertIds(load().cuisines.flatMap((x) => x.dishes), pinned.eatout, 'eatout');
 });
 
 test('#824: fibre and added sugar are set only for Cola, which counts 35 g added sugar', () => {

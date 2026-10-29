@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { validateCards, validateLabels, validateMeasures } from '../validate/cards.mjs';
+import { pinned } from './pinned-ids.mjs';
 
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const load = (f) => JSON.parse(readFileSync(`${repo}/content/${f}`, 'utf8'));
@@ -12,6 +13,10 @@ test('content files validate', () => {
   assert.deepEqual(validateCards(load('cards.json')), []);
   assert.deepEqual(validateMeasures(load('measures.json')), []);
   assert.deepEqual(validateLabels(load('labels.json'), load('exercises.json')), []);
+});
+
+test('card ids equal the pinned snapshot', () => {
+  assert.deepEqual(load('cards.json').cards.map((c) => c.id), pinned.cards);
 });
 
 test('#549 overrides: exactly the five weak-source cards, honest evidence labels', () => {
