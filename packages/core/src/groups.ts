@@ -175,7 +175,11 @@ export function canGroupWithNext(exs: readonly GroupEx[], i: number, done: IsDon
   };
   for (const k of [i, i + 1]) if (finished(k)) return { ok: false, why: 'done', ex: k };
   const names = exs.slice(from, to).map((e) => e.name);
-  if (new Set(names).size !== names.length) return { ok: false, why: 'same', ex: ra ? i + 1 : i }; // the one that would join (a group's own names are unique)
+  if (new Set(names).size !== names.length) {
+    // The one that would join: for a merge the first of the second group whose name is in the first; else the next, or `i` when `i` is not in a group.
+    const clash = rb && ra ? exs.findIndex((e, k) => k >= rb.a && k < rb.b && exs.some((o, m) => m >= ra.a && m < ra.b && o.name === e.name)) : -1;
+    return { ok: false, why: 'same', ex: clash >= 0 ? clash : ra ? i + 1 : i };
+  }
   return ra && rb ? { ok: true, merge: true } : { ok: true };
 }
 
@@ -213,7 +217,7 @@ export function joinWithNext<E extends GroupEx>(exs: readonly E[], i: number, do
  *   A group left with one member is dissolved, its member gets an explicit null.
  * - An ungrouped exercise hops over the whole unit next to it, so it never lands inside a group and never splits one.
  * - Nothing crosses a part boundary (`part` differs): that is null, as at either end of the list.
- * Returns `to`, the new index of the exercise. Never mutates.
+ * Returns `to`, the new index of the exercise. Never mutates. Expects a repaired list (call `normalizeGroups` first, as for `nextInRound`): stale singleton ids would otherwise form a group.
  *
  * New (#1345, ADR 012), not a prototype port. Vectors: golden/group-edits.json.
  */

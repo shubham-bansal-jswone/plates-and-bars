@@ -220,6 +220,7 @@ describe('canGroupWithNext (#1182 S5)', () => {
     expect(can(ex(['a', 3, 'g'], ['b', 3, 'g'], ['c', 3, 'g'], ['d', 3, 'g'], ['e', 3, 'h'], ['f', 3, 'h'], ['z', 3, 'h']), 3)).toEqual({ ok: false, why: 'full', ex: 3 });
     expect(can(ex(['a', 3, 'g'], ['b', 2, 'g'], ['c', 3, 'h'], ['d', 3, 'h']), 1, (k) => k === 1)).toEqual({ ok: false, why: 'done', ex: 1 });
     expect(can(ex(['a', 3, 'g'], ['b', 2, 'g'], ['a', 3, 'h'], ['d', 3, 'h']), 1)).toEqual({ ok: false, why: 'same', ex: 2 });
+    expect(can(ex(['a', 3, 'g'], ['b', 2, 'g'], ['c', 3, 'h'], ['a', 3, 'h']), 1)).toEqual({ ok: false, why: 'same', ex: 3 }); // the repeat deeper in the second group
   });
   it('the cap counts the result: 5 + 1 fits, 5 + 2 and 6 + 1 do not', () => {
     const five = (): [string, number, string][] => ['a', 'b', 'c', 'd', 'e'].map((n) => [n, 3, 'g']);
@@ -312,14 +313,16 @@ describe('group edits (#1345, golden/group-edits.json)', () => {
       }
     }
   });
-  it('a move never changes the other exercises relative order or their groups', () => {
+  it('a move never changes the other exercises relative order, grouped or not', () => {
     const ex = mkp([['a', 3, 'g', 1], ['b', 3, 'g', 1], ['c', 3, 'g', 1], ['d', 3, null, 1], ['e', 3, 'h', 1], ['f', 3, 'h', 1]]);
     for (let i = 0; i < ex.length; i++)
       for (const dir of [-1, 1] as const) {
         const out = moveExercise(ex, i, dir);
         if (!out) continue;
         const others = (l: typeof ex) => l.filter((e) => e.name !== (ex[i] as GroupEx).name).map((e) => e.name);
-        if (!(ex[i] as GroupEx).group) expect(others(out.exs)).toEqual(others(ex));
+        // Grouped movers too: a member leaving or swapping moves only itself, the rest keep their order (a swap inside the group moves its neighbour by one).
+        const swapped = (ex[i] as GroupEx).group && out.exs.every((e, k) => e.group === ex[k]?.group || e.name === (ex[i] as GroupEx).name) && out.exs.filter((e, k) => e.name !== ex[k]?.name).length === 2;
+        if (!swapped) expect(others(out.exs)).toEqual(others(ex));
       }
   });
 });

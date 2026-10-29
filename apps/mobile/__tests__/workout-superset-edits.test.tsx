@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react-native';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react-native';
 import { AccessibilityInfo } from 'react-native';
 import { WorkoutScreen } from '../src/screens/WorkoutScreen';
 import { saveProfile } from '../src/db/records';
@@ -48,42 +48,51 @@ async function mount(groups: (string | null)[] = [], o: { secondFrom?: number } 
   return { db, names };
 }
 /** Opens a collapsed exercise (a member shows its letter in the name). */
+/** Types a weight and reps into set `j` (0-based) of `name` (label `{name} set {j+1}, {tag}`) and ticks it. */
+async function tick(name: string, j: number, tag: string) {
+  const [w, r] = screen.getAllByLabelText(new RegExp(`^${name} set ${j + 1}, ${tag} `));
+  await fireEvent.changeText(w!, '40');
+  await fireEvent.changeText(r!, '10');
+  await press(new RegExp(`^Mark ${name} set ${j + 1}, ${tag} done`));
+}
 const open = (name: string) => press(new RegExp(`^${name}, \\d+/\\d+ sets(, [A-Z])?(, up next)?\\. Show sets`));
 
 describe('Move up and Move down', () => {
   it('moves an ungrouped exercise, stores the new order, says where it is and keeps focus on the chip', async () => {
     const { db, names } = await mount();
-    await press(`Move ${names[0]} down`);
+    await press(`Move down: ${names[0]}`);
     await waitFor(() => expect(order(db).slice(0, 3)).toEqual([names[1], names[0], names[2]]));
     expect(live()).toBe(`${names[0]} moved down, now 2 of ${names.length}.`);
-    expect(focusedLabel()).toBe(`Move ${names[0]} down`);
-    expect(screen.getByLabelText(`Move ${names[0]} up`)).toBeTruthy();
-    await press(`Move ${names[0]} down`);
+    expect(focusedLabel()).toBe(`Move down: ${names[0]}`);
+    expect(screen.getByLabelText(`Move up: ${names[0]}`)).toBeTruthy();
+    await press(`Move down: ${names[0]}`);
     await waitFor(() => expect(order(db).slice(0, 3)).toEqual([names[1], names[2], names[0]]));
-    await press(`Move ${names[0]} up`);
+    await press(`Move up: ${names[0]}`);
     await waitFor(() => expect(order(db).slice(0, 3)).toEqual([names[1], names[0], names[2]]));
     expect(live()).toBe(`${names[0]} moved up, now 2 of ${names.length}.`);
-    expect(focusedLabel()).toBe(`Move ${names[0]} up`);
+    expect(focusedLabel()).toBe(`Move up: ${names[0]}`);
   });
 
   it('has no chip where there is no step: the first exercise has no Move up, and focus goes to Move down when it was the last step up', async () => {
     const { names } = await mount();
-    expect(screen.queryByLabelText(`Move ${names[0]} up`)).toBeNull();
-    expect(screen.getByLabelText(`Move ${names[0]} down`)).toBeTruthy();
-    await press(`Move ${names[0]} down`);
-    await press(`Move ${names[0]} up`); // back at the top: its Move up is gone
-    expect(screen.queryByLabelText(`Move ${names[0]} up`)).toBeNull();
-    expect(focusedLabel()).toBe(`Move ${names[0]} down`);
+    expect(screen.queryByLabelText(`Move up: ${names[0]}`)).toBeNull();
+    expect(screen.getByLabelText(`Move down: ${names[0]}`)).toBeTruthy();
+    await press(`Move down: ${names[0]}`);
+    (focusNode as jest.Mock).mockClear();
+    await press(`Move up: ${names[0]}`); // back at the top: its Move up is gone
+    expect(screen.queryByLabelText(`Move up: ${names[0]}`)).toBeNull();
+    expect(focusNode as jest.Mock).toHaveBeenCalledTimes(1);
+    expect(focusedLabel()).toBe(`Move down: ${names[0]}`);
   });
 
   it('is refused across the session parts: no chip', async () => {
     const { names } = await mount([], { secondFrom: 1 });
-    expect(screen.queryByLabelText(`Move ${names[0]} down`)).toBeNull();
+    expect(screen.queryByLabelText(`Move down: ${names[0]}`)).toBeNull();
   });
 
   it('an ungrouped exercise hops the whole superset', async () => {
     const { db, names } = await mount([null, 'g', 'g', 'g']);
-    await press(`Move ${names[0]} down`);
+    await press(`Move down: ${names[0]}`);
     await waitFor(() => expect(order(db)).toEqual([names[1], names[2], names[3], names[0], names[4]]));
     expect(groupsOf(db)).toEqual(['g', 'g', 'g', null, null]);
     expect(live()).toBe(`${names[0]} moved down, now 4 of 5.`);
@@ -91,7 +100,7 @@ describe('Move up and Move down', () => {
 
   it('a member swaps with its neighbour in the superset and is announced with its new letter', async () => {
     const { db, names } = await mount(['g', 'g', 'g']);
-    await press(`Move ${names[0]} down`);
+    await press(`Move down: ${names[0]}`);
     await waitFor(() => expect(order(db).slice(0, 3)).toEqual([names[1], names[0], names[2]]));
     expect(groupsOf(db).slice(0, 3)).toEqual(['g', 'g', 'g']);
     expect(live()).toBe(`${names[0]} moved down, now B of 3 in the superset.`);
@@ -104,25 +113,32 @@ describe('Move up and Move down', () => {
     if (!screen.queryByLabelText(`Remove exercise ${names[2]} from today`)) await press(`More for ${names[2]}`); // a member that is not up next keeps Remove behind this
     await press(`Remove exercise ${names[2]} from today`);
     expect(screen.getByText('Tap again to remove')).toBeTruthy();
-    await press(`Move ${names[0]} down`);
+    await press(`Move down: ${names[0]}`);
     expect(screen.getByText('Tap again to remove')).toBeTruthy();
   });
 
   it('the last member moving down leaves the superset: explicit null, the hint says so, the rest stays a superset', async () => {
     const { db, names } = await mount(['g', 'g', 'g']);
-    expect(screen.getByLabelText(`Move ${names[2]} down`).props.accessibilityHint).toBe('Takes it out of the superset.');
-    expect(screen.getByLabelText(`Move ${names[0]} down`).props.accessibilityHint).toBeUndefined();
-    await press(`Move ${names[2]} down`);
+    expect(screen.getByLabelText(`Move down: ${names[2]}`).props.accessibilityHint).toBe('Takes it out of the superset.');
+    expect(screen.getByLabelText(`Move down: ${names[0]}`).props.accessibilityHint).toBeUndefined();
+    await press(`Move down: ${names[2]}`);
     await waitFor(() => expect(order(db).slice(0, 4)).toEqual([names[0], names[1], names[3], names[2]]));
     expect(groupsOf(db).slice(0, 4)).toEqual(['g', 'g', null, null]);
     expect(stored(db).exercises[3]).toHaveProperty('group', null);
     expect(live()).toBe(`${names[2]} moved down out of the superset, now 4 of ${names.length}.`);
   });
 
+  it('a member move after a tick keeps its note: the up-next marker did not move, so nothing re-announces or scrolls', async () => {
+    const { names } = await mount(['g', 'g', 'g']);
+    await tick(names[0]!, 0, 'A1'); // the marker is on B1; the move below swaps A and B
+    await press(`Move down: ${names[0]}`);
+    expect(live()).toBe(`${names[0]} moved down, now B of 3 in the superset.`);
+  });
+
   it('a member of a pair leaving by a move dissolves the pair: both get an explicit null and the one left is named', async () => {
     const { db, names } = await mount([null, 'g', 'g']);
     await open(names[1]!);
-    await press(`Move ${names[1]} up`);
+    await press(`Move up: ${names[1]}`);
     await waitFor(() => expect(order(db).slice(0, 3)).toEqual([names[1], names[0], names[2]]));
     expect(groupsOf(db).slice(0, 3)).toEqual([null, null, null]);
     expect(stored(db).exercises[2]).toHaveProperty('group', null);
@@ -134,24 +150,42 @@ describe('Move up and Move down', () => {
     Platform.OS = 'ios';
     const spy = jest.spyOn(AccessibilityInfo, 'announceForAccessibility').mockImplementation(() => {});
     const { names } = await mount();
-    await press(`Move ${names[0]} down`);
+    await press(`Move down: ${names[0]}`);
     expect(spy).toHaveBeenCalledWith(`${names[0]} moved down, now 2 of ${names.length}.`);
     spy.mockRestore();
   });
 
   it('controls have 44px targets', async () => {
     const { names } = await mount();
-    const chip = screen.getByLabelText(`Move ${names[0]} down`);
+    const chip = screen.getByLabelText(`Move down: ${names[0]}`);
     const style = [chip.props.style].flat(Infinity).reduce((a, s) => ({ ...a, ...(typeof s === 'function' ? s({ pressed: false }) : s) }), {} as Record<string, number>);
     expect(style.minHeight).toBeGreaterThanOrEqual(44);
     expect(style.minWidth).toBeGreaterThanOrEqual(44);
   });
 });
 
+describe('chip names (WCAG 2.5.3 label in name)', () => {
+  it('every new chip\'s accessible name starts with its visible text', async () => {
+    const { names } = await mount(['g', 'g', 'h', 'h']);
+    const chips: [string, string][] = [
+      [`Move up: ${names[1]}`, 'Move up'],
+      [`Move down: ${names[1]}`, 'Move down'],
+      [`Remove from superset: ${names[1]}`, 'Remove from superset'],
+      [`Merge with next superset: ${names[2]}`, 'Merge with next superset'],
+    ];
+    for (const [label, text] of chips) {
+      const chip = screen.getByLabelText(label);
+      const shown = within(chip).queryAllByText(/.+/).map((n) => n.props.children as string);
+      expect(shown).toEqual([text]);
+      expect((chip.props.accessibilityLabel as string).startsWith(text)).toBe(true);
+    }
+  });
+});
+
 describe('Remove from superset', () => {
   it('from 3: the member stays in the session, the rest stays grouped and is re-lettered, and focus goes to its heading', async () => {
     const { db, names } = await mount(['g', 'g', 'g']);
-    await press(`Remove ${names[0]} from superset`);
+    await press(`Remove from superset: ${names[0]}`);
     await waitFor(() => expect(groupsOf(db).slice(0, 3)).toEqual([null, 'g', 'g']));
     expect(stored(db).exercises[0]).toHaveProperty('group', null);
     expect(order(db)).toEqual(names);
@@ -162,14 +196,14 @@ describe('Remove from superset', () => {
 
   it('from 3, a middle member goes below the group', async () => {
     const { db, names } = await mount(['g', 'g', 'g']);
-    await press(`Remove ${names[1]} from superset`);
+    await press(`Remove from superset: ${names[1]}`);
     await waitFor(() => expect(order(db).slice(0, 3)).toEqual([names[0], names[2], names[1]]));
     expect(groupsOf(db).slice(0, 3)).toEqual(['g', 'g', null]);
   });
 
   it('from 2: the group dissolves, both get an explicit null, the toast names the one left', async () => {
     const { db, names } = await mount(['g', 'g']);
-    await press(`Remove ${names[0]} from superset`);
+    await press(`Remove from superset: ${names[0]}`);
     await waitFor(() => expect(groupsOf(db).slice(0, 2)).toEqual([null, null]));
     expect(stored(db).exercises[1]).toHaveProperty('group', null);
     expect(screen.getByText(`${names[0]} is out of the superset. ${names[1]} is no longer in a superset.`)).toBeTruthy();
@@ -178,20 +212,20 @@ describe('Remove from superset', () => {
 
   it('is offered on members only', async () => {
     const { names } = await mount([null, 'g', 'g']);
-    expect(screen.queryByLabelText(`Remove ${names[0]} from superset`)).toBeNull();
+    expect(screen.queryByLabelText(`Remove from superset: ${names[0]}`)).toBeNull();
     await open(names[1]!);
-    expect(screen.getByLabelText(`Remove ${names[1]} from superset`)).toBeTruthy();
+    expect(screen.getByLabelText(`Remove from superset: ${names[1]}`)).toBeTruthy();
   });
 });
 
 describe('Merge two supersets', () => {
   it('the chip on the last member merges the next superset in under the first id, says so and focuses the header', async () => {
     const { db, names } = await mount(['g', 'g', 'h', 'h']);
-    const chip = screen.getByLabelText(`Merge with the next superset, which starts with ${names[2]}`);
+    const chip = screen.getByLabelText(`Merge with next superset: ${names[2]}`);
     expect(chip.props.accessibilityState?.disabled).toBeFalsy();
     expect(screen.getByText('Merge with next superset')).toBeTruthy();
     expect(screen.queryByText(`${names[2]} is in another superset. Ungroup it first.`)).toBeNull();
-    await press(`Merge with the next superset, which starts with ${names[2]}`);
+    await press(`Merge with next superset: ${names[2]}`);
     await waitFor(() => expect(groupsOf(db).slice(0, 4)).toEqual(['g', 'g', 'g', 'g']));
     expect(order(db)).toEqual(names);
     expect(live()).toBe(`Supersets merged: ${names[0]}, ${names[1]}, ${names[2]} and ${names[3]} are now one superset.`);
@@ -202,8 +236,8 @@ describe('Merge two supersets', () => {
 
   it('the merge is one group: Remove from superset on the merged block still keeps the rest valid', async () => {
     const { db, names } = await mount(['g', 'g', 'h', 'h']);
-    await press(`Merge with the next superset, which starts with ${names[2]}`);
-    await press(`Remove ${names[0]} from superset`);
+    await press(`Merge with next superset: ${names[2]}`);
+    await press(`Remove from superset: ${names[0]}`);
     await waitFor(() => expect(groupsOf(db).slice(0, 4)).toEqual([null, 'g', 'g', 'g']));
   });
 });

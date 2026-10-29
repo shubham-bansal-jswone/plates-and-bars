@@ -633,8 +633,10 @@ function SessionView({ reveal, dockH, now, db, reloadKey, w, profile, focus, rul
   // The marker moved inside the open superset (a tick): say where. Not on first show, and not when another unit opened.
   const open0 = units.find((u) => u.labels.length > 0 && inUnit(u) >= 0);
   const marker = open0 ? upNext(day.exs, open0.start, open0.end) : null;
-  const markerKey = open0 && marker ? `${open0.start}.${open0.end}:${marker.ex}:${marker.set}` : null;
+  const markerKey = open0 && marker ? `${open0.start}.${open0.end}:${day.exs[marker.ex]?.name}:${marker.set}` : null;
   const lastMarker = useRef<string | null>(null);
+  const lastOrder = useRef<string[] | null>(null);
+  const order = day.exs.map((e) => e.name).join('\u0000');
   const upRow = useRef<ComponentRef<typeof View>>(null);
   useEffect(() => {
     const before = lastMarker.current;
@@ -642,11 +644,16 @@ function SessionView({ reveal, dockH, now, db, reloadKey, w, profile, focus, rul
     // The block is done (or closed): an old "Up next" must not stay in the live region. What an action said as it closed it (a move out of it) stays.
     if (before && !markerKey) setSaid((s) => (s.startsWith('Up next') ? '' : s));
     // Same unit, same members (a member just added is announced as a new superset, not as a move of the marker).
+    // A reorder (same exercises, new order) moves the marker, not the user: the move's own note stays, and the view stays on the chip.
+    const was = lastOrder.current;
+    const names = day.exs.map((e) => e.name);
+    lastOrder.current = names;
+    if (was && was.length === names.length && was.some((n, k) => n !== names[k]) && was.every((n) => names.includes(n))) return;
     if (!before || !markerKey || before === markerKey || before.split(':')[0] !== markerKey.split(':')[0] || !open0 || !marker) return;
     say(`Up next: ${day.exs[marker.ex]?.name}, ${String.fromCharCode(65 + marker.ex - open0.start)}${marker.set + 1}.`);
     // The up-next row may be off-screen (a block of 3 or more, long cards): scroll it into view, only when it is not already.
     reveal(upRow.current);
-  }, [markerKey]); // eslint-disable-line react-hooks/exhaustive-deps -- says once per move
+  }, [markerKey, order]); // eslint-disable-line react-hooks/exhaustive-deps -- says once per move
   const removeNamed = (n: string) => {
     const note = removalNote(day.exs, n);
     if (!w.removeExercise(n)) return;

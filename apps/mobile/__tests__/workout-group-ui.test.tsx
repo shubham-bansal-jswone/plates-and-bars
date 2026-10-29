@@ -298,7 +298,7 @@ describe('review round 2', () => {
 
   it('the chip is hidden on a finished last member even when it would otherwise offer a merge', async () => {
     const { names } = await mount(['g', 'g', 'h', 'h']);
-    const merge = new RegExp(`^Merge with the next superset, which starts with ${names[2]}`);
+    const merge = new RegExp(`^Merge with next superset: ${names[2]}`);
     expect(screen.getByLabelText(merge)).toBeTruthy(); // the merge offer, on the last member
     for (let j = 0; j < 3; j++) await tick(names[1]!, j, `B${j + 1}`);
     expect(screen.queryByLabelText(merge)).toBeNull();

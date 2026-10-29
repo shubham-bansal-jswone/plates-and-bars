@@ -420,10 +420,10 @@ export function ExerciseCard({ ex, info, sug, focus, warm, act, cards, learning,
       <View style={styles.setRow}>
         <Chip label={`Add set to ${ex.name}`} text="Add set" onPress={act.addSet} />
         {ex.sets.length > 1 ? <Chip label={`Remove last set of ${ex.name}`} text="Remove last set" onPress={act.removeSet} /> : null}
-        {reorder?.up ? <Chip ref={moveUpRef} label={`Move ${ex.name} up`} text="Move up" {...(reorder.up.out ? { hint: 'Takes it out of the superset.' } : {})} onPress={reorder.up.onPress} /> : null}
-        {reorder?.down ? <Chip ref={moveDownRef} label={`Move ${ex.name} down`} text="Move down" {...(reorder.down.out ? { hint: 'Takes it out of the superset.' } : {})} onPress={reorder.down.onPress} /> : null}
-        {reorder?.leave ? <Chip label={`Remove ${ex.name} from superset`} text="Remove from superset" onPress={reorder.leave} /> : null}
-        {superset ? <Chip label={superset.merge ? `Merge with the next superset, which starts with ${superset.next}` : `Superset with next: ${superset.next}`} text={superset.merge ? 'Merge with next superset' : 'Superset with next'} disabled={superset.reason !== null} {...(superset.reason ? { hint: superset.reason } : {})} onPress={superset.onPress} /> : null}
+        {reorder?.up ? <Chip ref={moveUpRef} label={`Move up: ${ex.name}`} text="Move up" {...(reorder.up.out ? { hint: 'Takes it out of the superset.' } : {})} onPress={reorder.up.onPress} /> : null}
+        {reorder?.down ? <Chip ref={moveDownRef} label={`Move down: ${ex.name}`} text="Move down" {...(reorder.down.out ? { hint: 'Takes it out of the superset.' } : {})} onPress={reorder.down.onPress} /> : null}
+        {reorder?.leave ? <Chip label={`Remove from superset: ${ex.name}`} text="Remove from superset" onPress={reorder.leave} /> : null}
+        {superset ? <Chip label={superset.merge ? `Merge with next superset: ${superset.next}` : `Superset with next: ${superset.next}`} text={superset.merge ? 'Merge with next superset' : 'Superset with next'} disabled={superset.reason !== null} {...(superset.reason ? { hint: superset.reason } : {})} onPress={superset.onPress} /> : null}
       </View>
       {superset?.reason ? <Hint>{superset.reason}</Hint> : null}
 
