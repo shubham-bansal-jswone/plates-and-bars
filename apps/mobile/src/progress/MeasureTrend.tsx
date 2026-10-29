@@ -14,7 +14,6 @@ const sameCm = (cm: number): number => cm;
 
 /**
  * The Measurements card's chart: chips for every tape part with a reading (the row is hidden when only one part has data), and the chosen part as a `RangedTrend`.
- * The row is hidden when only one part has data; the range choice stays when the part changes.
  * The part is held in memory only; waist is shown whenever it has data. The estimate shows only for waist; the missing-data hint always shows.
  * The range choice stays when the part changes.
  */

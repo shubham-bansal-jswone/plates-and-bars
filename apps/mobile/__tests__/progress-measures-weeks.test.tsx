@@ -175,6 +175,9 @@ describe('choosePart', () => {
   ] as never;
   const keys = ['waist_cm', 'chest_cm'] as const;
   it('keeps a choice that has a reading', () => expect(choosePart(rows, keys, '2026-10-08', 'chest_cm').shown).toBe('chest_cm'));
+  it('defaults to waist when it has a reading even if another part comes first in the keys', () => {
+    expect(choosePart(rows, ['chest_cm', 'waist_cm'] as const, '2026-10-08', null).shown).toBe('waist_cm');
+  });
   it('falls back to waist when the choice has no reading on that day', () => {
     const r = choosePart(rows, keys, '2026-10-05', 'chest_cm');
     expect(r.shown).toBe('waist_cm');
