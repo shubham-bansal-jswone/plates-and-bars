@@ -1,4 +1,4 @@
-import { AccessibilityInfo, Platform, StyleSheet, TextInput, Vibration } from 'react-native';
+import { AccessibilityInfo, Platform, StyleSheet, TextInput, Vibration, View } from 'react-native';
 import { expand, press, pressDay, reveal, tickFirstSets } from './disclosure-helpers';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { WorkoutScreen } from '../src/screens/WorkoutScreen';
@@ -826,6 +826,39 @@ describe('Workout tab: logging sets', () => {
     expect(placeholder('Barbell Bench Press set 2 kg')).toBe('65');
     await press('Barbell Bench Press set 1 rated Easy. Change rating');
     await waitFor(() => expect(storedSets(db).every((s) => s.rate === null)).toBe(true));
+  });
+
+  describe('focus follows the rating control (#1408)', () => {
+    // react-native's jest mock puts one shared jest.fn `focus` on View's prototype; Press renders a View.
+    const viewFocus = () => (View as unknown as { prototype: { focus: jest.Mock } }).prototype.focus;
+    const focused = () => viewFocus().mock.contexts.map((n) => (n as { props: { accessibilityLabel?: string } }).props.accessibilityLabel);
+
+    it('rating a set moves focus to its "Change rating" button', async () => {
+      await started();
+      await press('Mark Barbell Bench Press set 1 done');
+      viewFocus().mockClear();
+      await press('Barbell Bench Press set 1: Hard');
+      await screen.findByLabelText('Barbell Bench Press set 1 rated Hard. Change rating');
+      await waitFor(() => expect(focused()).toEqual(['Barbell Bench Press set 1 rated Hard. Change rating']));
+    });
+
+    it('pressing "Change rating" moves focus to the first rating chip', async () => {
+      await started();
+      await press('Mark Barbell Bench Press set 1 done');
+      await press('Barbell Bench Press set 1: Hard');
+      await screen.findByLabelText('Barbell Bench Press set 1 rated Hard. Change rating');
+      viewFocus().mockClear();
+      await press('Barbell Bench Press set 1 rated Hard. Change rating');
+      await screen.findByLabelText('Barbell Bench Press set 1: Easy');
+      await waitFor(() => expect(focused()).toEqual(['Barbell Bench Press set 1: Easy']));
+    });
+
+    it('does not take focus when a rated set is only shown', async () => {
+      await started();
+      viewFocus().mockClear();
+      await press('Mark Barbell Bench Press set 1 done');
+      expect(focused()).not.toContain('Barbell Bench Press set 1: Easy');
+    });
   });
 
   it('asks about form after the last set and stores the answer on the exercise', async () => {

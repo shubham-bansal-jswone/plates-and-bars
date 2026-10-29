@@ -1,4 +1,4 @@
-import { useEffect, useState, type ComponentRef, type ReactNode, type Ref } from 'react';
+import { useEffect, useRef, useState, type ComponentRef, type ReactNode, type Ref } from 'react';
 import { WhyLink } from '../why/WhyLink';
 import { StyleSheet, Text as RNText, View } from 'react-native';
 import { radius, tabular, type } from '../theme/tokens';
@@ -86,16 +86,30 @@ interface Props {
 
 function RateRow({ row, label, onRate }: { row: Row; label: string; onRate: (v: Rate | null) => void }) {
   const c = useTheme();
+  // The control that was pressed is replaced, so focus would fall to the page: after a press, the replacement takes it (#1408).
+  const moved = useRef(false);
+  const rated = useRef<ComponentRef<typeof View>>(null);
+  const first = useRef<ComponentRef<typeof View>>(null);
+  const rate = row.rate;
+  useEffect(() => {
+    if (!moved.current) return;
+    moved.current = false;
+    (rate ? rated : first).current?.focus();
+  }, [rate]);
   if (!row.done) return null;
+  const choose = (v: Rate | null) => {
+    moved.current = true;
+    onRate(v);
+  };
   if (row.rate)
-    return <Chip label={`${label} rated ${RATE_LABEL[row.rate]}. Change rating`} text={RATE_LABEL[row.rate]} pressed onPress={() => onRate(null)} />;
+    return <Chip ref={rated} label={`${label} rated ${RATE_LABEL[row.rate]}. Change rating`} text={RATE_LABEL[row.rate]} pressed onPress={() => choose(null)} />;
   return (
     <View style={{ gap: 4 }}>
       <Text style={{ color: c.muted, fontSize: 14 }}>How did that feel?</Text>
       <WhyLink id="rir" />
       <View style={styles.wrap}>
-        {RATE_ORDER.map((k) => (
-          <Chip key={k} label={`${label}: ${RATE_LABEL[k]}`} text={RATE_LABEL[k]} onPress={() => onRate(k)} />
+        {RATE_ORDER.map((k, i) => (
+          <Chip key={k} ref={i === 0 ? first : undefined} label={`${label}: ${RATE_LABEL[k]}`} text={RATE_LABEL[k]} onPress={() => choose(k)} />
         ))}
       </View>
     </View>
