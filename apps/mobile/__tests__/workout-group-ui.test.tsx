@@ -67,7 +67,7 @@ describe('the "Superset with next" chip', () => {
   it('is on the open exercise only, names both exercises, and makes a block with letters, A1/B1 labels and the header', async () => {
     const { names } = await mount();
     expect(screen.getAllByText('Superset with next')).toHaveLength(1);
-    await press(`Superset ${names[0]} with ${names[1]}`);
+    await press(`Superset with next: ${names[1]}`);
     expect(block(new RegExp(`^Superset: ${names[0]} and ${names[1]}, round 1 of 3`))).toBeTruthy();
     expect(screen.getByLabelText(`Ungroup superset of ${names[0]} and ${names[1]}`)).toBeTruthy();
     expect(screen.getByText('Round 1 of 3')).toBeTruthy();
@@ -79,27 +79,27 @@ describe('the "Superset with next" chip', () => {
 
   it('is hidden on a member that is not the last, and on the last exercise', async () => {
     const { names } = await mount(['g', 'g']);
-    expect(screen.queryByLabelText(`Superset ${names[0]} with ${names[1]}`)).toBeNull();
-    expect(screen.getByLabelText(`Superset ${names[1]} with ${names[2]}`)).toBeTruthy();
+    expect(screen.queryByLabelText(`Superset with next: ${names[1]}`)).toBeNull();
+    expect(screen.getByLabelText(`Superset with next: ${names[2]}`)).toBeTruthy();
   });
 
   it('is disabled with the reason as visible text and as the accessibility hint: another superset, a finished exercise, the first-time ramp', async () => {
     const other = await mount(['g', 'g', 'h', 'h']);
-    const chip = screen.getByLabelText(`Superset ${other.names[1]} with ${other.names[2]}`);
+    const chip = screen.getByLabelText(`Superset with next: ${other.names[2]}`);
     expect(chip.props.accessibilityState).toMatchObject({ disabled: true });
     expect(chip.props.accessibilityHint).toBe(`${other.names[2]} is in another superset. Ungroup it first.`);
     expect(screen.getByText(`${other.names[2]} is in another superset. Ungroup it first.`)).toBeTruthy();
     await screen.unmount();
 
     const ramp = await mount([], { ramp: true });
-    const rc = screen.getByLabelText(`Superset ${ramp.names[0]} with ${ramp.names[1]}`);
+    const rc = screen.getByLabelText(`Superset with next: ${ramp.names[1]}`);
     expect(rc.props.accessibilityState).toMatchObject({ disabled: true });
     expect(screen.getByText(`Finish the first-time ramp for ${ramp.names[0]} first.`)).toBeTruthy();
   });
 
   it('is hidden when the next exercise is in the second session', async () => {
     const { names } = await mount([], { secondFrom: 1 });
-    expect(screen.queryByLabelText(`Superset ${names[0]} with ${names[1]}`)).toBeNull();
+    expect(screen.queryByLabelText(`Superset with next: ${names[1]}`)).toBeNull();
   });
 
   it('a finished next exercise cannot join', async () => {
@@ -118,7 +118,7 @@ describe('the "Superset with next" chip', () => {
       if (d.exercise === second && v.kind === 'work') db.sets.set(k, { ...v, done: 1, data: JSON.stringify({ ...d, done: true, weight_kg: 40, reps: 10 }) });
     }
     await render(withProfile(db, <WorkoutScreen db={db} now={THU} />));
-    const chip = await screen.findByLabelText(`Superset ${w.exercises[0]!.name} with ${second}`);
+    const chip = await screen.findByLabelText(`Superset with next: ${second}`);
     expect(chip.props.accessibilityState).toMatchObject({ disabled: true });
     expect(screen.getByText(`${second} is already done, so it can’t join a superset.`)).toBeTruthy();
   });
@@ -190,7 +190,7 @@ describe('Ungroup', () => {
     await waitFor(() => expect(stored(db).exercises.slice(0, 2).map((e) => e.group)).toEqual([null, null]));
     expect(stored(db).exercises[0]).toHaveProperty('group', null);
     // The block's chip comes back: ungrouped again.
-    expect(screen.getByLabelText(`Superset ${names[0]} with ${names[1]}`)).toBeTruthy();
+    expect(screen.getByLabelText(`Superset with next: ${names[1]}`)).toBeTruthy();
   });
 
   it('the dock stops using letters when the superset is dissolved', async () => {
@@ -227,7 +227,7 @@ it('announces on iOS instead of using a live region', async () => {
   Platform.OS = 'ios';
   try {
     const { names } = await mount();
-    await press(`Superset ${names[0]} with ${names[1]}`);
+    await press(`Superset with next: ${names[1]}`);
     expect(spy).toHaveBeenCalledWith(`${names[0]} and ${names[1]} are now a superset.`);
   } finally {
     spy.mockRestore();
@@ -272,7 +272,7 @@ describe('review round 2', () => {
 
   it('the next exercise on its first-time ramp disables the chip with that exercise\'s name', async () => {
     const { names } = await mount([], { rampOnly: 1 });
-    const chip = screen.getByLabelText(`Superset ${names[0]} with ${names[1]}`);
+    const chip = screen.getByLabelText(`Superset with next: ${names[1]}`);
     expect(chip.props.accessibilityState).toMatchObject({ disabled: true });
     expect(screen.getByText(`Finish the first-time ramp for ${names[1]} first.`)).toBeTruthy();
   });
@@ -292,7 +292,7 @@ describe('review round 2', () => {
       await fireEvent.changeText(r!, '10');
       await press(`Mark ${names[0]} set ${j} done`);
     }
-    expect(screen.queryByLabelText(`Superset ${names[0]} with ${names[1]}`)).toBeNull();
+    expect(screen.queryByLabelText(`Superset with next: ${names[1]}`)).toBeNull();
     expect(screen.queryByText(/is already done/)).toBeNull();
   });
 
@@ -312,16 +312,16 @@ describe('review round 2', () => {
 
   it('the chip is hidden on a finished last member even when another rule would also apply', async () => {
     const { names } = await mount(['g', 'g', 'h', 'h']);
-    expect(screen.getByLabelText(`Superset ${names[1]} with ${names[2]}`)).toBeTruthy(); // disabled: another superset
+    expect(screen.getByLabelText(`Superset with next: ${names[2]}`)).toBeTruthy(); // disabled: another superset
     for (let j = 0; j < 3; j++) await tick(names[1]!, j, `B${j + 1}`);
-    expect(screen.queryByLabelText(`Superset ${names[1]} with ${names[2]}`)).toBeNull();
+    expect(screen.queryByLabelText(`Superset with next: ${names[2]}`)).toBeNull();
   });
 
   it('a member that joins a ticked group is announced as joining, not as a move of the marker', async () => {
     const { names } = await mount(['g', 'g', null]);
     await tick(names[0]!, 0, 'A1');
     await tick(names[1]!, 0, 'B1'); // the marker is on A2 and moves to C1 when C joins: that move must not be announced
-    await press(`Superset ${names[1]} with ${names[2]}`);
+    await press(`Superset with next: ${names[2]}`);
     expect(live()).toBe(`${names[0]}, ${names[1]} and ${names[2]} are now a superset.`);
     expect(upNextOf(names.slice(0, 3))).toEqual([names[2]]);
   });

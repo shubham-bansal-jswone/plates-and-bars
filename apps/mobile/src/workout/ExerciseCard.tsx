@@ -410,7 +410,7 @@ export function ExerciseCard({ ex, info, sug, focus, warm, act, cards, learning,
       <View style={styles.setRow}>
         <Chip label={`Add set to ${ex.name}`} text="Add set" onPress={act.addSet} />
         {ex.sets.length > 1 ? <Chip label={`Remove last set of ${ex.name}`} text="Remove last set" onPress={act.removeSet} /> : null}
-        {superset ? <Chip label={`Superset ${ex.name} with ${superset.next}`} text="Superset with next" disabled={superset.reason !== null} {...(superset.reason ? { hint: superset.reason } : {})} onPress={superset.onPress} /> : null}
+        {superset ? <Chip label={`Superset with next: ${superset.next}`} text="Superset with next" disabled={superset.reason !== null} {...(superset.reason ? { hint: superset.reason } : {})} onPress={superset.onPress} /> : null}
       </View>
       {superset?.reason ? <Hint>{superset.reason}</Hint> : null}
 
