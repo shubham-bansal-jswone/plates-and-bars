@@ -71,7 +71,7 @@ export const CHECKIN_NEEDS_SETUP = 'Run setup (Targets tab) to see your weekly c
 export const WEIGHT_WEEK_NONE = 'Weight: log at least 3 weigh-ins a week to see your weekly trend.';
 export const BURN_TITLE = 'Calorie burn from your real data';
 export const BURN_HOW = 'If you eat about the same each day and your weight trend changes, the difference shows your real burn: about 7,700 kcal equals 1 kg of body weight. This is usually more accurate than any formula or fitness tracker. It’s smoothed week to week so one odd week doesn’t swing your targets.';
-/** The same note for an lb user: the kcal per kg times the kg per lb, to the nearest 100 (about 3,500). */
+/** The same note for an lb user: it uses core's `KCAL_PER_LB` (3,500) in place of the kg figure. */
 export const BURN_HOW_LB = BURN_HOW.replace(`about ${KCAL_PER_KG.toLocaleString('en-US')} kcal equals 1 kg`, `about ${KCAL_PER_LB.toLocaleString('en-US')} kcal equals 1 lb`);
 export const NOT_NOW = 'Not now';
 export const STOP_SUGGESTING = 'Stop suggesting this';
