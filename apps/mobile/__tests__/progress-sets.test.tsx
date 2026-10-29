@@ -1,4 +1,4 @@
-import { act, renderHook, waitFor } from '@testing-library/react-native';
+import { renderHook, waitFor } from '@testing-library/react-native';
 import { addDays, mainLifts, personalRecords } from '@plate-and-bar/core';
 import { loadDoneSets, saveSet, saveWorkout } from '../src/db/workouts';
 import { useProgressSets } from '../src/progress/useProgressSets';
@@ -111,7 +111,6 @@ describe('performance: two years of sets', () => {
     const prs = personalRecords(sets, types);
     const ml = mainLifts(sets, types, addDays(start, 104 * 7));
     const t2 = performance.now();
-    // eslint-disable-next-line no-console
     console.log(`perf: ${sets.length} sets; loadDoneSets ${(t1 - t0).toFixed(0)} ms; personalRecords+mainLifts ${(t2 - t1).toFixed(0)} ms; ${prs.length} PRs, ${ml.length} main lifts`);
     expect(sets).toHaveLength(104 * 4 * 20);
     expect(t1 - t0).toBeLessThan(1500);
