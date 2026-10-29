@@ -1,0 +1,371 @@
+{
+ "description": "Weeks-on-track series (#1351 C5, new): per Monday-week for the weeks before the one holding end, oldest first; on track = at least goal sessions, goal = plan days minus 1, minimum 2 (habits()). The trailing run of onTrack in expected equals habits().weeks (a test asserts it). Sessions are dates; profile is { days }.",
+ "cases": [
+  {
+   "note": "days 4 (goal 3), run of 2 after a miss",
+   "end": "2026-10-29",
+   "weeks": 5,
+   "profile": {
+    "days": 4
+   },
+   "sessions": {
+    "2026-09-21": {
+     "t": "Push A",
+     "n": 5
+    },
+    "2026-09-22": {
+     "t": "Push A",
+     "n": 5
+    },
+    "2026-09-23": {
+     "t": "Push A",
+     "n": 5
+    },
+    "2026-09-28": {
+     "t": "Push A",
+     "n": 5
+    },
+    "2026-09-29": {
+     "t": "Push A",
+     "n": 5
+    },
+    "2026-09-30": {
+     "t": "Push A",
+     "n": 5
+    },
+    "2026-10-05": {
+     "t": "Push A",
+     "n": 5
+    },
+    "2026-10-12": {
+     "t": "Push A",
+     "n": 5
+    },
+    "2026-10-13": {
+     "t": "Push A",
+     "n": 5
+    },
+    "2026-10-14": {
+     "t": "Push A",
+     "n": 5
+    },
+    "2026-10-19": {
+     "t": "Push A",
+     "n": 5
+    },
+    "2026-10-20": {
+     "t": "Push A",
+     "n": 5
+    },
+    "2026-10-21": {
+     "t": "Push A",
+     "n": 5
+    }
+   },
+   "expected": [
+    {
+     "weekStart": "2026-09-21",
+     "sessions": 3,
+     "goal": 3,
+     "onTrack": true
+    },
+    {
+     "weekStart": "2026-09-28",
+     "sessions": 3,
+     "goal": 3,
+     "onTrack": true
+    },
+    {
+     "weekStart": "2026-10-05",
+     "sessions": 1,
+     "goal": 3,
+     "onTrack": false
+    },
+    {
+     "weekStart": "2026-10-12",
+     "sessions": 3,
+     "goal": 3,
+     "onTrack": true
+    },
+    {
+     "weekStart": "2026-10-19",
+     "sessions": 3,
+     "goal": 3,
+     "onTrack": true
+    }
+   ]
+  },
+  {
+   "note": "days 2 (goal 2 floor), never on track",
+   "end": "2026-10-29",
+   "weeks": 3,
+   "profile": {
+    "days": 2
+   },
+   "sessions": {
+    "2026-10-05": {
+     "t": "Push A",
+     "n": 5
+    },
+    "2026-10-19": {
+     "t": "Push A",
+     "n": 5
+    }
+   },
+   "expected": [
+    {
+     "weekStart": "2026-10-05",
+     "sessions": 1,
+     "goal": 2,
+     "onTrack": false
+    },
+    {
+     "weekStart": "2026-10-12",
+     "sessions": 0,
+     "goal": 2,
+     "onTrack": false
+    },
+    {
+     "weekStart": "2026-10-19",
+     "sessions": 1,
+     "goal": 2,
+     "onTrack": false
+    }
+   ]
+  },
+  {
+   "note": "days 0: goal 2 floor",
+   "end": "2026-10-29",
+   "weeks": 4,
+   "profile": {
+    "days": 0
+   },
+   "sessions": {
+    "2026-09-28": {
+     "t": "Push A",
+     "n": 5
+    },
+    "2026-09-29": {
+     "t": "Push A",
+     "n": 5
+    },
+    "2026-10-05": {
+     "t": "Push A",
+     "n": 5
+    },
+    "2026-10-06": {
+     "t": "Push A",
+     "n": 5
+    },
+    "2026-10-12": {
+     "t": "Push A",
+     "n": 5
+    },
+    "2026-10-19": {
+     "t": "Push A",
+     "n": 5
+    },
+    "2026-10-20": {
+     "t": "Push A",
+     "n": 5
+    }
+   },
+   "expected": [
+    {
+     "weekStart": "2026-09-28",
+     "sessions": 2,
+     "goal": 2,
+     "onTrack": true
+    },
+    {
+     "weekStart": "2026-10-05",
+     "sessions": 2,
+     "goal": 2,
+     "onTrack": true
+    },
+    {
+     "weekStart": "2026-10-12",
+     "sessions": 1,
+     "goal": 2,
+     "onTrack": false
+    },
+    {
+     "weekStart": "2026-10-19",
+     "sessions": 2,
+     "goal": 2,
+     "onTrack": true
+    }
+   ]
+  },
+  {
+   "note": "no profile (6 days, goal 5), more weeks than history",
+   "end": "2026-10-29",
+   "weeks": 4,
+   "profile": null,
+   "sessions": {
+    "2026-10-12": {
+     "t": "Push A",
+     "n": 5
+    },
+    "2026-10-13": {
+     "t": "Push A",
+     "n": 5
+    },
+    "2026-10-14": {
+     "t": "Push A",
+     "n": 5
+    },
+    "2026-10-15": {
+     "t": "Push A",
+     "n": 5
+    },
+    "2026-10-16": {
+     "t": "Push A",
+     "n": 5
+    },
+    "2026-10-19": {
+     "t": "Push A",
+     "n": 5
+    },
+    "2026-10-20": {
+     "t": "Push A",
+     "n": 5
+    },
+    "2026-10-21": {
+     "t": "Push A",
+     "n": 5
+    },
+    "2026-10-22": {
+     "t": "Push A",
+     "n": 5
+    },
+    "2026-10-23": {
+     "t": "Push A",
+     "n": 5
+    },
+    "2026-10-24": {
+     "t": "Push A",
+     "n": 5
+    }
+   },
+   "expected": [
+    {
+     "weekStart": "2026-09-28",
+     "sessions": 0,
+     "goal": 5,
+     "onTrack": false
+    },
+    {
+     "weekStart": "2026-10-05",
+     "sessions": 0,
+     "goal": 5,
+     "onTrack": false
+    },
+    {
+     "weekStart": "2026-10-12",
+     "sessions": 5,
+     "goal": 5,
+     "onTrack": true
+    },
+    {
+     "weekStart": "2026-10-19",
+     "sessions": 6,
+     "goal": 5,
+     "onTrack": true
+    }
+   ]
+  },
+  {
+   "note": "sessions this week do not count",
+   "end": "2026-10-29",
+   "weeks": 2,
+   "profile": {
+    "days": 4
+   },
+   "sessions": {
+    "2026-10-19": {
+     "t": "Push A",
+     "n": 5
+    },
+    "2026-10-20": {
+     "t": "Push A",
+     "n": 5
+    },
+    "2026-10-21": {
+     "t": "Push A",
+     "n": 5
+    },
+    "2026-10-26": {
+     "t": "Push A",
+     "n": 5
+    },
+    "2026-10-27": {
+     "t": "Push A",
+     "n": 5
+    },
+    "2026-10-28": {
+     "t": "Push A",
+     "n": 5
+    }
+   },
+   "expected": [
+    {
+     "weekStart": "2026-10-12",
+     "sessions": 0,
+     "goal": 3,
+     "onTrack": false
+    },
+    {
+     "weekStart": "2026-10-19",
+     "sessions": 3,
+     "goal": 3,
+     "onTrack": true
+    }
+   ]
+  },
+  {
+   "note": "week boundary: Sunday belongs to the week before the next Monday",
+   "end": "2026-10-29",
+   "weeks": 2,
+   "profile": {
+    "days": 3
+   },
+   "sessions": {
+    "2026-10-12": {
+     "t": "Push A",
+     "n": 5
+    },
+    "2026-10-13": {
+     "t": "Push A",
+     "n": 5
+    },
+    "2026-10-19": {
+     "t": "Push A",
+     "n": 5
+    },
+    "2026-10-25": {
+     "t": "Push A",
+     "n": 5
+    },
+    "2026-10-26": {
+     "t": "Push A",
+     "n": 5
+    }
+   },
+   "expected": [
+    {
+     "weekStart": "2026-10-12",
+     "sessions": 2,
+     "goal": 2,
+     "onTrack": true
+    },
+    {
+     "weekStart": "2026-10-19",
+     "sessions": 2,
+     "goal": 2,
+     "onTrack": true
+    }
+   ]
+  }
+ ]
+}

@@ -1,0 +1,1497 @@
+{
+ "description": "Milestones (#1351 C6). sessions are runs {start,count,step_days,n}; sets are [exercise,date,weight_kg,reps,flag]; weights are [date,kg]; milestones are the full expected result (id, kind, title, detail, date) newest first.",
+ "cases": [
+  {
+   "note": "kg plates: 60 and 100 earned, heavier fail/deleted/ramp/undone sets and a machine lift ignored",
+   "unit": "kg",
+   "end": "2026-06-30",
+   "types": {
+    "Barbell Back Squat": "barbell",
+    "Barbell Bench Press": "barbell",
+    "Leg Press": "machine",
+    "Dumbbell Bench Press": "dumbbell"
+   },
+   "weights": [],
+   "profile": null,
+   "sets": [
+    [
+     "Barbell Back Squat",
+     "2026-01-05",
+     60,
+     5,
+     ""
+    ],
+    [
+     "Barbell Back Squat",
+     "2026-01-12",
+     100,
+     3,
+     ""
+    ],
+    [
+     "Leg Press",
+     "2026-01-13",
+     200,
+     5,
+     ""
+    ],
+    [
+     "Barbell Back Squat",
+     "2026-02-01",
+     140,
+     3,
+     "fail"
+    ],
+    [
+     "Barbell Back Squat",
+     "2026-02-02",
+     140,
+     3,
+     "deleted"
+    ],
+    [
+     "Barbell Back Squat",
+     "2026-02-03",
+     140,
+     3,
+     "ramp"
+    ],
+    [
+     "Barbell Back Squat",
+     "2026-02-04",
+     140,
+     3,
+     "undone"
+    ]
+   ],
+   "sessions": [],
+   "milestones": [
+    {
+     "id": "plates-2",
+     "kind": "plates",
+     "title": "Two plates a side",
+     "detail": "Barbell Back Squat, 100 kg",
+     "date": "2026-01-12"
+    },
+    {
+     "id": "plates-1",
+     "kind": "plates",
+     "title": "One plate a side",
+     "detail": "Barbell Back Squat, 60 kg",
+     "date": "2026-01-05"
+    }
+   ]
+  },
+  {
+   "note": "kg plates: 140 exactly, with the 60 and 100 earned the same day (ties by id)",
+   "unit": "kg",
+   "end": "2026-06-30",
+   "types": {
+    "Barbell Back Squat": "barbell",
+    "Barbell Bench Press": "barbell",
+    "Leg Press": "machine",
+    "Dumbbell Bench Press": "dumbbell"
+   },
+   "weights": [],
+   "profile": null,
+   "sets": [
+    [
+     "Barbell Back Squat",
+     "2026-03-01",
+     140,
+     1,
+     ""
+    ]
+   ],
+   "sessions": [],
+   "milestones": [
+    {
+     "id": "plates-1",
+     "kind": "plates",
+     "title": "One plate a side",
+     "detail": "Barbell Back Squat, 140 kg",
+     "date": "2026-03-01"
+    },
+    {
+     "id": "plates-2",
+     "kind": "plates",
+     "title": "Two plates a side",
+     "detail": "Barbell Back Squat, 140 kg",
+     "date": "2026-03-01"
+    },
+    {
+     "id": "plates-3",
+     "kind": "plates",
+     "title": "Three plates a side",
+     "detail": "Barbell Back Squat, 140 kg",
+     "date": "2026-03-01"
+    }
+   ]
+  },
+  {
+   "note": "kg plates: 139.8 kg is two plates",
+   "unit": "kg",
+   "end": "2026-06-30",
+   "types": {
+    "Barbell Back Squat": "barbell",
+    "Barbell Bench Press": "barbell",
+    "Leg Press": "machine",
+    "Dumbbell Bench Press": "dumbbell"
+   },
+   "weights": [],
+   "profile": null,
+   "sets": [
+    [
+     "Barbell Back Squat",
+     "2026-03-02",
+     139.8,
+     1,
+     ""
+    ]
+   ],
+   "sessions": [],
+   "milestones": [
+    {
+     "id": "plates-1",
+     "kind": "plates",
+     "title": "One plate a side",
+     "detail": "Barbell Back Squat, 139.8 kg",
+     "date": "2026-03-02"
+    },
+    {
+     "id": "plates-2",
+     "kind": "plates",
+     "title": "Two plates a side",
+     "detail": "Barbell Back Squat, 139.8 kg",
+     "date": "2026-03-02"
+    }
+   ]
+  },
+  {
+   "note": "kg plates: 139.9 kg is two plates, not three (epsilon only, no kg tolerance)",
+   "unit": "kg",
+   "end": "2026-06-30",
+   "types": {
+    "Barbell Back Squat": "barbell",
+    "Barbell Bench Press": "barbell",
+    "Leg Press": "machine",
+    "Dumbbell Bench Press": "dumbbell"
+   },
+   "weights": [],
+   "profile": null,
+   "sets": [
+    [
+     "Barbell Back Squat",
+     "2026-03-02",
+     139.9,
+     1,
+     ""
+    ]
+   ],
+   "sessions": [],
+   "milestones": [
+    {
+     "id": "plates-1",
+     "kind": "plates",
+     "title": "One plate a side",
+     "detail": "Barbell Back Squat, 139.9 kg",
+     "date": "2026-03-02"
+    },
+    {
+     "id": "plates-2",
+     "kind": "plates",
+     "title": "Two plates a side",
+     "detail": "Barbell Back Squat, 139.9 kg",
+     "date": "2026-03-02"
+    }
+   ]
+  },
+  {
+   "note": "plates: a lift missing from types, a dumbbell lift and a zero-rep set are not barbell",
+   "unit": "kg",
+   "end": "2026-06-30",
+   "types": {
+    "Dumbbell Bench Press": "dumbbell"
+   },
+   "weights": [],
+   "profile": null,
+   "sets": [
+    [
+     "Mystery Lift",
+     "2026-03-02",
+     150,
+     5,
+     ""
+    ],
+    [
+     "Dumbbell Bench Press",
+     "2026-03-02",
+     150,
+     5,
+     ""
+    ]
+   ],
+   "sessions": [],
+   "milestones": []
+  },
+  {
+   "note": "plates: a set after end is ignored",
+   "unit": "kg",
+   "end": "2026-03-01",
+   "types": {
+    "Barbell Back Squat": "barbell",
+    "Barbell Bench Press": "barbell",
+    "Leg Press": "machine",
+    "Dumbbell Bench Press": "dumbbell"
+   },
+   "weights": [],
+   "profile": null,
+   "sets": [
+    [
+     "Barbell Back Squat",
+     "2026-03-02",
+     100,
+     5,
+     ""
+    ]
+   ],
+   "sessions": [],
+   "milestones": []
+  },
+  {
+   "note": "lb plates: 61.2 kg is one plate, 100 kg adds the second, 102.1 kg adds nothing new (kg steps in every unit)",
+   "unit": "lb",
+   "end": "2026-06-30",
+   "types": {
+    "Barbell Back Squat": "barbell",
+    "Barbell Bench Press": "barbell",
+    "Leg Press": "machine",
+    "Dumbbell Bench Press": "dumbbell"
+   },
+   "weights": [],
+   "profile": null,
+   "sets": [
+    [
+     "Barbell Back Squat",
+     "2026-04-01",
+     61.2,
+     5,
+     ""
+    ],
+    [
+     "Barbell Back Squat",
+     "2026-04-05",
+     100,
+     5,
+     ""
+    ],
+    [
+     "Barbell Back Squat",
+     "2026-04-10",
+     102.1,
+     5,
+     ""
+    ]
+   ],
+   "sessions": [],
+   "milestones": [
+    {
+     "id": "plates-2",
+     "kind": "plates",
+     "title": "Two plates a side",
+     "detail": "Barbell Back Squat, 220.5 lb",
+     "date": "2026-04-05"
+    },
+    {
+     "id": "plates-1",
+     "kind": "plates",
+     "title": "One plate a side",
+     "detail": "Barbell Back Squat, 134.9 lb",
+     "date": "2026-04-01"
+    }
+   ]
+  },
+  {
+   "note": "lb user: 60 kg meets the kg step, so it is one plate (units never remove a milestone)",
+   "unit": "lb",
+   "end": "2026-06-30",
+   "types": {
+    "Barbell Back Squat": "barbell",
+    "Barbell Bench Press": "barbell",
+    "Leg Press": "machine",
+    "Dumbbell Bench Press": "dumbbell"
+   },
+   "weights": [],
+   "profile": null,
+   "sets": [
+    [
+     "Barbell Back Squat",
+     "2026-04-01",
+     60,
+     5,
+     ""
+    ]
+   ],
+   "sessions": [],
+   "milestones": [
+    {
+     "id": "plates-1",
+     "kind": "plates",
+     "title": "One plate a side",
+     "detail": "Barbell Back Squat, 132.3 lb",
+     "date": "2026-04-01"
+    }
+   ]
+  },
+  {
+   "note": "bench at bodyweight: bodyweight of the day, a later weigh-in does not count back",
+   "unit": "kg",
+   "end": "2026-06-30",
+   "types": {
+    "Barbell Back Squat": "barbell",
+    "Barbell Bench Press": "barbell",
+    "Leg Press": "machine",
+    "Dumbbell Bench Press": "dumbbell"
+   },
+   "weights": [
+    [
+     "2026-01-01",
+     80
+    ],
+    [
+     "2026-02-01",
+     70
+    ]
+   ],
+   "profile": null,
+   "sets": [
+    [
+     "Barbell Bench Press",
+     "2026-01-10",
+     75,
+     5,
+     ""
+    ],
+    [
+     "Barbell Bench Press",
+     "2026-02-05",
+     75,
+     5,
+     ""
+    ]
+   ],
+   "sessions": [],
+   "milestones": [
+    {
+     "id": "bench-bodyweight",
+     "kind": "bodyweight",
+     "title": "Bench press at your bodyweight",
+     "detail": "Barbell Bench Press, 75 kg",
+     "date": "2026-02-05"
+    },
+    {
+     "id": "plates-1",
+     "kind": "plates",
+     "title": "One plate a side",
+     "detail": "Barbell Bench Press, 75 kg",
+     "date": "2026-01-10"
+    }
+   ]
+  },
+  {
+   "note": "bench at bodyweight: no weigh-in uses the profile weight",
+   "unit": "kg",
+   "end": "2026-06-30",
+   "types": {
+    "Barbell Back Squat": "barbell",
+    "Barbell Bench Press": "barbell",
+    "Leg Press": "machine",
+    "Dumbbell Bench Press": "dumbbell"
+   },
+   "weights": [],
+   "profile": {
+    "days": 0,
+    "weight_kg": 70
+   },
+   "sets": [
+    [
+     "Barbell Bench Press",
+     "2026-01-10",
+     70,
+     1,
+     ""
+    ]
+   ],
+   "sessions": [],
+   "milestones": [
+    {
+     "id": "bench-bodyweight",
+     "kind": "bodyweight",
+     "title": "Bench press at your bodyweight",
+     "detail": "Barbell Bench Press, 70 kg",
+     "date": "2026-01-10"
+    },
+    {
+     "id": "plates-1",
+     "kind": "plates",
+     "title": "One plate a side",
+     "detail": "Barbell Bench Press, 70 kg",
+     "date": "2026-01-10"
+    }
+   ]
+  },
+  {
+   "note": "bench at bodyweight: no weigh-in and no profile weight earns nothing",
+   "unit": "kg",
+   "end": "2026-06-30",
+   "types": {
+    "Barbell Back Squat": "barbell",
+    "Barbell Bench Press": "barbell",
+    "Leg Press": "machine",
+    "Dumbbell Bench Press": "dumbbell"
+   },
+   "weights": [],
+   "profile": null,
+   "sets": [
+    [
+     "Barbell Bench Press",
+     "2026-01-10",
+     70,
+     1,
+     ""
+    ]
+   ],
+   "sessions": [],
+   "milestones": [
+    {
+     "id": "plates-1",
+     "kind": "plates",
+     "title": "One plate a side",
+     "detail": "Barbell Bench Press, 70 kg",
+     "date": "2026-01-10"
+    }
+   ]
+  },
+  {
+   "note": "bench at bodyweight: a dumbbell bench and a fail set do not count",
+   "unit": "kg",
+   "end": "2026-06-30",
+   "types": {
+    "Barbell Back Squat": "barbell",
+    "Barbell Bench Press": "barbell",
+    "Leg Press": "machine",
+    "Dumbbell Bench Press": "dumbbell"
+   },
+   "weights": [
+    [
+     "2026-01-01",
+     60
+    ]
+   ],
+   "profile": null,
+   "sets": [
+    [
+     "Dumbbell Bench Press",
+     "2026-01-10",
+     70,
+     5,
+     ""
+    ],
+    [
+     "Barbell Bench Press",
+     "2026-01-11",
+     70,
+     5,
+     "fail"
+    ]
+   ],
+   "sessions": [],
+   "milestones": []
+  },
+  {
+   "note": "squat at 1.5x: 119 at 80 kg is short, 120 earns it (119 is two plates, 100 kg)",
+   "unit": "kg",
+   "end": "2026-06-30",
+   "types": {
+    "Barbell Back Squat": "barbell",
+    "Barbell Bench Press": "barbell",
+    "Leg Press": "machine",
+    "Dumbbell Bench Press": "dumbbell"
+   },
+   "weights": [
+    [
+     "2026-04-01",
+     80
+    ]
+   ],
+   "profile": null,
+   "sets": [
+    [
+     "Barbell Back Squat",
+     "2026-05-01",
+     119,
+     3,
+     ""
+    ],
+    [
+     "Barbell Back Squat",
+     "2026-05-03",
+     120,
+     3,
+     ""
+    ]
+   ],
+   "sessions": [],
+   "milestones": [
+    {
+     "id": "squat-1.5x-bodyweight",
+     "kind": "bodyweight",
+     "title": "Squat at 1.5 times your bodyweight",
+     "detail": "Barbell Back Squat, 120 kg",
+     "date": "2026-05-03"
+    },
+    {
+     "id": "plates-1",
+     "kind": "plates",
+     "title": "One plate a side",
+     "detail": "Barbell Back Squat, 119 kg",
+     "date": "2026-05-01"
+    },
+    {
+     "id": "plates-2",
+     "kind": "plates",
+     "title": "Two plates a side",
+     "detail": "Barbell Back Squat, 119 kg",
+     "date": "2026-05-01"
+    }
+   ]
+  },
+  {
+   "note": "squat at 1.5x: uses the weigh-in on or before the day (weigh-in the same day counts)",
+   "unit": "kg",
+   "end": "2026-06-30",
+   "types": {
+    "Barbell Back Squat": "barbell",
+    "Barbell Bench Press": "barbell",
+    "Leg Press": "machine",
+    "Dumbbell Bench Press": "dumbbell"
+   },
+   "weights": [
+    [
+     "2026-05-03",
+     70
+    ]
+   ],
+   "profile": null,
+   "sets": [
+    [
+     "Barbell Back Squat",
+     "2026-05-03",
+     105,
+     3,
+     ""
+    ]
+   ],
+   "sessions": [],
+   "milestones": [
+    {
+     "id": "plates-1",
+     "kind": "plates",
+     "title": "One plate a side",
+     "detail": "Barbell Back Squat, 105 kg",
+     "date": "2026-05-03"
+    },
+    {
+     "id": "plates-2",
+     "kind": "plates",
+     "title": "Two plates a side",
+     "detail": "Barbell Back Squat, 105 kg",
+     "date": "2026-05-03"
+    },
+    {
+     "id": "squat-1.5x-bodyweight",
+     "kind": "bodyweight",
+     "title": "Squat at 1.5 times your bodyweight",
+     "detail": "Barbell Back Squat, 105 kg",
+     "date": "2026-05-03"
+    }
+   ]
+  },
+  {
+   "note": "workouts: 9 sessions, none",
+   "unit": "kg",
+   "end": "2026-06-30",
+   "types": {
+    "Barbell Back Squat": "barbell",
+    "Barbell Bench Press": "barbell",
+    "Leg Press": "machine",
+    "Dumbbell Bench Press": "dumbbell"
+   },
+   "weights": [],
+   "profile": {
+    "days": 0
+   },
+   "sets": [],
+   "sessions": [
+    {
+     "start": "2026-01-01",
+     "count": 9,
+     "step_days": 1,
+     "n": 1
+    }
+   ],
+   "milestones": []
+  },
+  {
+   "note": "workouts: an entry with no sets is not a workout",
+   "unit": "kg",
+   "end": "2026-06-30",
+   "types": {
+    "Barbell Back Squat": "barbell",
+    "Barbell Bench Press": "barbell",
+    "Leg Press": "machine",
+    "Dumbbell Bench Press": "dumbbell"
+   },
+   "weights": [],
+   "profile": {
+    "days": 0
+   },
+   "sets": [],
+   "sessions": [
+    {
+     "start": "2026-01-01",
+     "count": 9,
+     "step_days": 1,
+     "n": 1
+    },
+    {
+     "start": "2026-02-01",
+     "count": 1,
+     "step_days": 1,
+     "n": 0
+    }
+   ],
+   "milestones": []
+  },
+  {
+   "note": "workouts: the 10th",
+   "unit": "kg",
+   "end": "2026-06-30",
+   "types": {
+    "Barbell Back Squat": "barbell",
+    "Barbell Bench Press": "barbell",
+    "Leg Press": "machine",
+    "Dumbbell Bench Press": "dumbbell"
+   },
+   "weights": [],
+   "profile": {
+    "days": 0
+   },
+   "sets": [],
+   "sessions": [
+    {
+     "start": "2026-01-01",
+     "count": 10,
+     "step_days": 1,
+     "n": 1
+    }
+   ],
+   "milestones": [
+    {
+     "id": "workouts-10",
+     "kind": "workouts",
+     "title": "10th workout",
+     "detail": "10 workouts completed",
+     "date": "2026-01-10"
+    }
+   ]
+  },
+  {
+   "note": "workouts: 49 sessions",
+   "unit": "kg",
+   "end": "2026-06-30",
+   "types": {
+    "Barbell Back Squat": "barbell",
+    "Barbell Bench Press": "barbell",
+    "Leg Press": "machine",
+    "Dumbbell Bench Press": "dumbbell"
+   },
+   "weights": [],
+   "profile": {
+    "days": 0
+   },
+   "sets": [],
+   "sessions": [
+    {
+     "start": "2026-01-01",
+     "count": 49,
+     "step_days": 1,
+     "n": 1
+    }
+   ],
+   "milestones": [
+    {
+     "id": "workouts-10",
+     "kind": "workouts",
+     "title": "10th workout",
+     "detail": "10 workouts completed",
+     "date": "2026-01-10"
+    }
+   ]
+  },
+  {
+   "note": "workouts: the 50th",
+   "unit": "kg",
+   "end": "2026-06-30",
+   "types": {
+    "Barbell Back Squat": "barbell",
+    "Barbell Bench Press": "barbell",
+    "Leg Press": "machine",
+    "Dumbbell Bench Press": "dumbbell"
+   },
+   "weights": [],
+   "profile": {
+    "days": 0
+   },
+   "sets": [],
+   "sessions": [
+    {
+     "start": "2026-01-01",
+     "count": 50,
+     "step_days": 1,
+     "n": 1
+    }
+   ],
+   "milestones": [
+    {
+     "id": "workouts-50",
+     "kind": "workouts",
+     "title": "50th workout",
+     "detail": "50 workouts completed",
+     "date": "2026-02-19"
+    },
+    {
+     "id": "workouts-10",
+     "kind": "workouts",
+     "title": "10th workout",
+     "detail": "10 workouts completed",
+     "date": "2026-01-10"
+    }
+   ]
+  },
+  {
+   "note": "workouts: 99 sessions",
+   "unit": "kg",
+   "end": "2026-06-30",
+   "types": {
+    "Barbell Back Squat": "barbell",
+    "Barbell Bench Press": "barbell",
+    "Leg Press": "machine",
+    "Dumbbell Bench Press": "dumbbell"
+   },
+   "weights": [],
+   "profile": {
+    "days": 0
+   },
+   "sets": [],
+   "sessions": [
+    {
+     "start": "2026-01-01",
+     "count": 99,
+     "step_days": 1,
+     "n": 1
+    }
+   ],
+   "milestones": [
+    {
+     "id": "workouts-50",
+     "kind": "workouts",
+     "title": "50th workout",
+     "detail": "50 workouts completed",
+     "date": "2026-02-19"
+    },
+    {
+     "id": "workouts-10",
+     "kind": "workouts",
+     "title": "10th workout",
+     "detail": "10 workouts completed",
+     "date": "2026-01-10"
+    }
+   ]
+  },
+  {
+   "note": "workouts: the 100th",
+   "unit": "kg",
+   "end": "2026-06-30",
+   "types": {
+    "Barbell Back Squat": "barbell",
+    "Barbell Bench Press": "barbell",
+    "Leg Press": "machine",
+    "Dumbbell Bench Press": "dumbbell"
+   },
+   "weights": [],
+   "profile": {
+    "days": 0
+   },
+   "sets": [],
+   "sessions": [
+    {
+     "start": "2026-01-01",
+     "count": 100,
+     "step_days": 1,
+     "n": 1
+    }
+   ],
+   "milestones": [
+    {
+     "id": "workouts-100",
+     "kind": "workouts",
+     "title": "100th workout",
+     "detail": "100 workouts completed",
+     "date": "2026-04-10"
+    },
+    {
+     "id": "workouts-50",
+     "kind": "workouts",
+     "title": "50th workout",
+     "detail": "50 workouts completed",
+     "date": "2026-02-19"
+    },
+    {
+     "id": "workouts-10",
+     "kind": "workouts",
+     "title": "10th workout",
+     "detail": "10 workouts completed",
+     "date": "2026-01-10"
+    }
+   ]
+  },
+  {
+   "note": "workouts: sessions after end are not counted",
+   "unit": "kg",
+   "end": "2026-02-18",
+   "types": {
+    "Barbell Back Squat": "barbell",
+    "Barbell Bench Press": "barbell",
+    "Leg Press": "machine",
+    "Dumbbell Bench Press": "dumbbell"
+   },
+   "weights": [],
+   "profile": {
+    "days": 0
+   },
+   "sets": [],
+   "sessions": [
+    {
+     "start": "2026-01-01",
+     "count": 100,
+     "step_days": 1,
+     "n": 1
+    }
+   ],
+   "milestones": [
+    {
+     "id": "workouts-10",
+     "kind": "workouts",
+     "title": "10th workout",
+     "detail": "10 workouts completed",
+     "date": "2026-01-10"
+    }
+   ]
+  },
+  {
+   "note": "plan block: 4 weeks of 2 sessions on a 3-day plan, dated the Sunday that ends it",
+   "unit": "kg",
+   "end": "2026-02-02",
+   "types": {
+    "Barbell Back Squat": "barbell",
+    "Barbell Bench Press": "barbell",
+    "Leg Press": "machine",
+    "Dumbbell Bench Press": "dumbbell"
+   },
+   "weights": [],
+   "profile": {
+    "days": 3
+   },
+   "sets": [],
+   "sessions": [
+    {
+     "start": "2026-01-05",
+     "count": 4,
+     "step_days": 7,
+     "n": 1
+    },
+    {
+     "start": "2026-01-07",
+     "count": 4,
+     "step_days": 7,
+     "n": 1
+    }
+   ],
+   "milestones": [
+    {
+     "id": "plan-block-4w",
+     "kind": "plan",
+     "title": "Four weeks on plan",
+     "detail": "4 weeks in a row on track",
+     "date": "2026-02-01"
+    }
+   ]
+  },
+  {
+   "note": "plan block: not yet seen on the Sunday itself (habits counts whole weeks before this one)",
+   "unit": "kg",
+   "end": "2026-02-01",
+   "types": {
+    "Barbell Back Squat": "barbell",
+    "Barbell Bench Press": "barbell",
+    "Leg Press": "machine",
+    "Dumbbell Bench Press": "dumbbell"
+   },
+   "weights": [],
+   "profile": {
+    "days": 3
+   },
+   "sets": [],
+   "sessions": [
+    {
+     "start": "2026-01-05",
+     "count": 4,
+     "step_days": 7,
+     "n": 1
+    },
+    {
+     "start": "2026-01-07",
+     "count": 4,
+     "step_days": 7,
+     "n": 1
+    }
+   ],
+   "milestones": []
+  },
+  {
+   "note": "plan block: one thin week resets the count; the block is the 4 weeks after it",
+   "unit": "kg",
+   "end": "2026-02-23",
+   "types": {
+    "Barbell Back Squat": "barbell",
+    "Barbell Bench Press": "barbell",
+    "Leg Press": "machine",
+    "Dumbbell Bench Press": "dumbbell"
+   },
+   "weights": [],
+   "profile": {
+    "days": 3
+   },
+   "sets": [],
+   "sessions": [
+    {
+     "start": "2026-01-05",
+     "count": 2,
+     "step_days": 7,
+     "n": 1
+    },
+    {
+     "start": "2026-01-07",
+     "count": 2,
+     "step_days": 7,
+     "n": 1
+    },
+    {
+     "start": "2026-01-19",
+     "count": 1,
+     "step_days": 7,
+     "n": 1
+    },
+    {
+     "start": "2026-01-26",
+     "count": 4,
+     "step_days": 7,
+     "n": 1
+    },
+    {
+     "start": "2026-01-28",
+     "count": 4,
+     "step_days": 7,
+     "n": 1
+    }
+   ],
+   "milestones": [
+    {
+     "id": "plan-block-4w",
+     "kind": "plan",
+     "title": "Four weeks on plan",
+     "detail": "4 weeks in a row on track",
+     "date": "2026-02-22"
+    },
+    {
+     "id": "workouts-10",
+     "kind": "workouts",
+     "title": "10th workout",
+     "detail": "10 workouts completed",
+     "date": "2026-02-09"
+    }
+   ]
+  },
+  {
+   "note": "plan block: days 0 has no plan",
+   "unit": "kg",
+   "end": "2026-02-23",
+   "types": {
+    "Barbell Back Squat": "barbell",
+    "Barbell Bench Press": "barbell",
+    "Leg Press": "machine",
+    "Dumbbell Bench Press": "dumbbell"
+   },
+   "weights": [],
+   "profile": {
+    "days": 0
+   },
+   "sets": [],
+   "sessions": [
+    {
+     "start": "2026-01-05",
+     "count": 8,
+     "step_days": 7,
+     "n": 1
+    },
+    {
+     "start": "2026-01-07",
+     "count": 8,
+     "step_days": 7,
+     "n": 1
+    }
+   ],
+   "milestones": [
+    {
+     "id": "workouts-10",
+     "kind": "workouts",
+     "title": "10th workout",
+     "detail": "10 workouts completed",
+     "date": "2026-02-04"
+    }
+   ]
+  },
+  {
+   "note": "unit stable: 60, 100 and 140 kg earn all three plates in kg",
+   "unit": "kg",
+   "end": "2026-06-30",
+   "types": {
+    "Barbell Back Squat": "barbell",
+    "Barbell Bench Press": "barbell",
+    "Leg Press": "machine",
+    "Dumbbell Bench Press": "dumbbell"
+   },
+   "weights": [],
+   "profile": null,
+   "sets": [
+    [
+     "Barbell Back Squat",
+     "2026-01-05",
+     60,
+     5,
+     ""
+    ],
+    [
+     "Barbell Back Squat",
+     "2026-01-12",
+     100,
+     3,
+     ""
+    ],
+    [
+     "Barbell Back Squat",
+     "2026-01-19",
+     140,
+     1,
+     ""
+    ]
+   ],
+   "sessions": [],
+   "milestones": [
+    {
+     "id": "plates-3",
+     "kind": "plates",
+     "title": "Three plates a side",
+     "detail": "Barbell Back Squat, 140 kg",
+     "date": "2026-01-19"
+    },
+    {
+     "id": "plates-2",
+     "kind": "plates",
+     "title": "Two plates a side",
+     "detail": "Barbell Back Squat, 100 kg",
+     "date": "2026-01-12"
+    },
+    {
+     "id": "plates-1",
+     "kind": "plates",
+     "title": "One plate a side",
+     "detail": "Barbell Back Squat, 60 kg",
+     "date": "2026-01-05"
+    }
+   ]
+  },
+  {
+   "note": "unit stable: the same sets for an lb user give the same ids and dates",
+   "unit": "lb",
+   "end": "2026-06-30",
+   "types": {
+    "Barbell Back Squat": "barbell",
+    "Barbell Bench Press": "barbell",
+    "Leg Press": "machine",
+    "Dumbbell Bench Press": "dumbbell"
+   },
+   "weights": [],
+   "profile": null,
+   "sets": [
+    [
+     "Barbell Back Squat",
+     "2026-01-05",
+     60,
+     5,
+     ""
+    ],
+    [
+     "Barbell Back Squat",
+     "2026-01-12",
+     100,
+     3,
+     ""
+    ],
+    [
+     "Barbell Back Squat",
+     "2026-01-19",
+     140,
+     1,
+     ""
+    ]
+   ],
+   "sessions": [],
+   "milestones": [
+    {
+     "id": "plates-3",
+     "kind": "plates",
+     "title": "Three plates a side",
+     "detail": "Barbell Back Squat, 308.6 lb",
+     "date": "2026-01-19"
+    },
+    {
+     "id": "plates-2",
+     "kind": "plates",
+     "title": "Two plates a side",
+     "detail": "Barbell Back Squat, 220.5 lb",
+     "date": "2026-01-12"
+    },
+    {
+     "id": "plates-1",
+     "kind": "plates",
+     "title": "One plate a side",
+     "detail": "Barbell Back Squat, 132.3 lb",
+     "date": "2026-01-05"
+    }
+   ]
+  },
+  {
+   "note": "kg plates: 59.9 kg is not a plate",
+   "unit": "kg",
+   "end": "2026-06-30",
+   "types": {
+    "Barbell Back Squat": "barbell",
+    "Barbell Bench Press": "barbell",
+    "Leg Press": "machine",
+    "Dumbbell Bench Press": "dumbbell"
+   },
+   "weights": [],
+   "profile": null,
+   "sets": [
+    [
+     "Barbell Back Squat",
+     "2026-01-05",
+     59.9,
+     5,
+     ""
+    ]
+   ],
+   "sessions": [],
+   "milestones": []
+  },
+  {
+   "note": "bench at bodyweight: 79.9 at 80 kg bodyweight is not earned",
+   "unit": "kg",
+   "end": "2026-06-30",
+   "types": {
+    "Barbell Bench Press": "dumbbell"
+   },
+   "weights": [
+    [
+     "2026-01-01",
+     80
+    ]
+   ],
+   "profile": null,
+   "sets": [
+    [
+     "Barbell Bench Press",
+     "2026-01-05",
+     79.9,
+     5,
+     ""
+    ]
+   ],
+   "sessions": [],
+   "milestones": []
+  },
+  {
+   "note": "zero-rep sets earn nothing",
+   "unit": "kg",
+   "end": "2026-06-30",
+   "types": {
+    "Barbell Back Squat": "barbell",
+    "Barbell Bench Press": "barbell",
+    "Leg Press": "machine",
+    "Dumbbell Bench Press": "dumbbell"
+   },
+   "weights": [
+    [
+     "2026-01-01",
+     50
+    ]
+   ],
+   "profile": null,
+   "sets": [
+    [
+     "Barbell Back Squat",
+     "2026-01-05",
+     150,
+     0,
+     ""
+    ],
+    [
+     "Barbell Bench Press",
+     "2026-01-05",
+     100,
+     0,
+     ""
+    ]
+   ],
+   "sessions": [],
+   "milestones": []
+  },
+  {
+   "note": "plates: two sets on the first day, the detail shows the lightest that meets each step",
+   "unit": "kg",
+   "end": "2026-06-30",
+   "types": {
+    "Barbell Back Squat": "barbell",
+    "Barbell Bench Press": "barbell",
+    "Leg Press": "machine",
+    "Dumbbell Bench Press": "dumbbell"
+   },
+   "weights": [],
+   "profile": null,
+   "sets": [
+    [
+     "Barbell Back Squat",
+     "2026-01-05",
+     100,
+     3,
+     ""
+    ],
+    [
+     "Barbell Back Squat",
+     "2026-01-05",
+     60,
+     5,
+     ""
+    ],
+    [
+     "Barbell Back Squat",
+     "2026-01-05",
+     145,
+     1,
+     ""
+    ]
+   ],
+   "sessions": [],
+   "milestones": [
+    {
+     "id": "plates-1",
+     "kind": "plates",
+     "title": "One plate a side",
+     "detail": "Barbell Back Squat, 60 kg",
+     "date": "2026-01-05"
+    },
+    {
+     "id": "plates-2",
+     "kind": "plates",
+     "title": "Two plates a side",
+     "detail": "Barbell Back Squat, 100 kg",
+     "date": "2026-01-05"
+    },
+    {
+     "id": "plates-3",
+     "kind": "plates",
+     "title": "Three plates a side",
+     "detail": "Barbell Back Squat, 145 kg",
+     "date": "2026-01-05"
+    }
+   ]
+  },
+  {
+   "note": "plates: an EZ-bar lift typed barbell does not count",
+   "unit": "kg",
+   "end": "2026-06-30",
+   "types": {
+    "Preacher Curl": "barbell"
+   },
+   "weights": [],
+   "profile": null,
+   "sets": [
+    [
+     "Preacher Curl",
+     "2026-01-05",
+     70,
+     8,
+     ""
+    ]
+   ],
+   "sessions": [],
+   "milestones": []
+  },
+  {
+   "note": "workouts: the 10th falls on end",
+   "unit": "kg",
+   "end": "2026-01-10",
+   "types": {
+    "Barbell Back Squat": "barbell",
+    "Barbell Bench Press": "barbell",
+    "Leg Press": "machine",
+    "Dumbbell Bench Press": "dumbbell"
+   },
+   "weights": [],
+   "profile": {
+    "days": 0
+   },
+   "sets": [],
+   "sessions": [
+    {
+     "start": "2026-01-01",
+     "count": 10,
+     "step_days": 1,
+     "n": 1
+    }
+   ],
+   "milestones": [
+    {
+     "id": "workouts-10",
+     "kind": "workouts",
+     "title": "10th workout",
+     "detail": "10 workouts completed",
+     "date": "2026-01-10"
+    }
+   ]
+  },
+  {
+   "note": "workouts: end the day before the 10th",
+   "unit": "kg",
+   "end": "2026-01-09",
+   "types": {
+    "Barbell Back Squat": "barbell",
+    "Barbell Bench Press": "barbell",
+    "Leg Press": "machine",
+    "Dumbbell Bench Press": "dumbbell"
+   },
+   "weights": [],
+   "profile": {
+    "days": 0
+   },
+   "sets": [],
+   "sessions": [
+    {
+     "start": "2026-01-01",
+     "count": 10,
+     "step_days": 1,
+     "n": 1
+    }
+   ],
+   "milestones": []
+  },
+  {
+   "note": "bodyweight: heaviest set of the day is shown",
+   "unit": "kg",
+   "end": "2026-06-30",
+   "types": {},
+   "weights": [
+    [
+     "2026-01-01",
+     50
+    ]
+   ],
+   "profile": null,
+   "sets": [
+    [
+     "Barbell Bench Press",
+     "2026-01-05",
+     55,
+     3,
+     ""
+    ],
+    [
+     "Barbell Bench Press",
+     "2026-01-05",
+     60,
+     3,
+     ""
+    ]
+   ],
+   "sessions": [],
+   "milestones": [
+    {
+     "id": "bench-bodyweight",
+     "kind": "bodyweight",
+     "title": "Bench press at your bodyweight",
+     "detail": "Barbell Bench Press, 60 kg",
+     "date": "2026-01-05"
+    }
+   ]
+  },
+  {
+   "note": "plates: two lifts at the same weight on the same day, the detail takes the name that sorts first",
+   "unit": "kg",
+   "end": "2026-06-30",
+   "types": {
+    "Barbell Row": "barbell",
+    "Deadlift": "barbell"
+   },
+   "weights": [],
+   "profile": null,
+   "sets": [
+    [
+     "Deadlift",
+     "2026-01-05",
+     60,
+     5,
+     ""
+    ],
+    [
+     "Barbell Row",
+     "2026-01-05",
+     60,
+     5,
+     ""
+    ]
+   ],
+   "sessions": [],
+   "milestones": [
+    {
+     "id": "plates-1",
+     "kind": "plates",
+     "title": "One plate a side",
+     "detail": "Barbell Row, 60 kg",
+     "date": "2026-01-05"
+    }
+   ]
+  }
+ ]
+}

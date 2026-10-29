@@ -501,6 +501,22 @@ export { rangeSeries, downsampleWeekly, DOWNSAMPLE_THRESHOLD, RANGE_DAYS } from 
 export type { SeriesRange, DownsampleMode } from './progressSeries';
 
 /**
+ * Progress volume (#1351 C2, new rules): `weeklyDoneSets` is `doneCoverage`'s counting per Monday-week (shared `addDoneSets`),
+ * `volumeVsPlan` is the 4-week average per `COVER_SHOW` muscle against the current plan's `plannedCoverage`.
+ */
+export { weeklyDoneSets, volumeVsPlan, VOLUME_AVG_WEEKS } from './progressVolume';
+export type { WeekSets, VolumeVsPlan, VolumeVsPlanResult } from './progressVolume';
+
+/**
+ * Weekly intake and weeks-on-track series (#1351 C4, C5, new rules). `weeklyIntake` is the average kcal and protein per Monday-week over
+ * the days with a live food log (the `weekSummary` rule), null for a week with none, `partial` under `WEEKLY_INTAKE_MIN_DAYS` (4) days.
+ * `weeksOnTrackSeries` is the per-week form of `habits().weeks`; the goal rule it shares with `habits` stays internal
+ * (`weeklySessionGoal`, `weekOnTrack` in `progress.ts`, mirroring prototype `consistencyHtml()`).
+ */
+export { weeklyIntake, weeksOnTrackSeries, WEEKLY_INTAKE_MIN_DAYS } from './progressSeries';
+export type { IntakeTargets, WeeklyIntake, WeekOnTrack } from './progressSeries';
+
+/**
  * Progress: weight and waist trend, the scale-jump note and entry limits (#233).
  * - `weightSeries` mirrors the series in prototype `weightChart()`; `waistSeries` mirrors `waistPts` in `measuresHtml()`;
  *   `WEIGHT_CHART_POINTS` and `WAIST_CHART_POINTS` are their 30 and 20.
@@ -808,6 +824,14 @@ export type { E1rmSet, E1rmPoint, SessionElapsed } from './e1rm';
  */
 export { PR_THRESHOLD, PR_MIN_PRIOR_SESSIONS, MAIN_LIFT_WEEKS, MAIN_LIFT_MIN_POINTS, MAIN_LIFT_COUNT, priorBestOf, isPrToday, personalRecords, mainLifts } from './records';
 export type { PrSet, PrSetRef, PrMetric, PrImprovement, PersonalRecord, PriorBest, MainLift } from './records';
+
+/**
+ * Milestones (#1351 C6, new rule, no prototype counterpart): `milestones(sets, sessions, weights, types, unit, end, profile?)` lists the earned
+ * ones with the date first earned, newest first: 1/2/3 plates a side (barbell), bench at bodyweight, squat at 1.5 x bodyweight, the 10th/50th/100th
+ * workout (`sessionDates`) and the first 4 on-track weeks (`habits`). Derived from stored data, never stored. New best 1RM is not one (Recent PRs).
+ */
+export { PLATE_MILESTONES, KG_EPSILON, EZ_BAR_LIFTS, BENCH_LIFTS, SQUAT_LIFTS, BENCH_BODYWEIGHT_X, SQUAT_BODYWEIGHT_X, WORKOUT_MILESTONES, PLAN_BLOCK_WEEKS, milestones } from './milestones';
+export type { Milestone, MilestoneKind, MilestoneProfile } from './milestones';
 
 /**
  * Workout import from a Strong or Hevy CSV (#1179, new, no prototype counterpart).
