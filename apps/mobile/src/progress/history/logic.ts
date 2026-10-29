@@ -52,7 +52,11 @@ export function buildSessions(log: SessionLog, setsByDate: Readonly<Record<strin
     const listed = stored.flatMap((e, i) => (by.has(e.name) ? [{ name: e.name, sets: 1, group: valid[i] }] : []));
     const listedLetters = groupLabels(listed);
     const letters = new Map(listed.flatMap((e, i) => (listedLetters[i] ? [[e.name, listedLetters[i]!] as const] : [])));
-    const exercises = [...by].map(([name, sets]): HistoryExercise => {
+    // Cards follow the stored exercise order too (rows have no order of their own: every first set is index 0, a re-saved set moves last);
+    // names the stored list lacks keep row order, after the stored ones.
+    const rank = new Map(stored.map((e, i) => [e.name, i] as const));
+    const ordered = [...by].map((x, i) => [x, i] as const).sort(([[a], i], [[b], j]) => (rank.get(a) ?? Infinity) - (rank.get(b) ?? Infinity) || i - j).map(([x]) => x);
+    const exercises = ordered.map(([name, sets]): HistoryExercise => {
       const mapped = sets.map((s) => ({ w: s.weight_kg, r: s.reps, rate: s.rate }));
       const l = letters.get(name);
       return { name, sets: mapped, volume: sessionVolume([{ sets: mapped.map((s) => ({ done: true, w: s.w, r: s.r })) }]), ...(l ? { label: l } : {}) };
