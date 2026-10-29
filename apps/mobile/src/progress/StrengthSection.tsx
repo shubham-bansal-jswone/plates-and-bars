@@ -144,7 +144,7 @@ function StrengthBody({ all, types, inRange, date, bodyweight }: Loaded & { date
             <Text style={[typeScale.small, { color: c.brand }]}>{PR_LABEL}</Text>
             <View style={styles.prLine}>
               <Text style={[typeScale.label, { color: c.ink, flexShrink: 1 }]}>{r.lift}</Text>
-              <Text style={[tabular, { color: c.ink, fontWeight: '700' }]}>{score}</Text>
+              <Text style={[tabular, { color: c.ink, fontWeight: '700', flexShrink: 0 }]}>{score}</Text>
             </View>
             <Text style={[typeScale.caption, { color: c.muted }]}>{`${when} · ${gain}`}</Text>
           </View>
