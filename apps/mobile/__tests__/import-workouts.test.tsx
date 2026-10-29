@@ -198,6 +198,29 @@ describe('import workouts (#1179)', () => {
     expect(JSON.parse(db.rows.get('workouts:2024-03-28')!).exercises.every((e: object) => !('group' in e))).toBe(true);
   });
 
+  it('the same exercise in two blocks of one workout is one entry with its sets in file order, and a superset that still holds is kept (#1340)', async () => {
+    const db = await setup();
+    await open();
+    await fireEvent.press(screen.getByLabelText(t.hevy));
+    const head = 'title,start_time,end_time,description,exercise_title,superset_id,exercise_notes,set_index,set_type,weight_kg,reps,distance_km,duration_seconds,rpe';
+    const w = '"27 Mar 2024, 18:30","27 Mar 2024, 19:30"';
+    await chooseFile([
+      head,
+      `Upper,${w},,Bench Press (Barbell),0,,0,normal,60,8,,,`,
+      `Upper,${w},,Barbell Row,0,,0,normal,80,5,,,`,
+      `Upper,${w},,Bench Press (Barbell),0,,1,normal,62,6,,,`,
+    ].join('\n'));
+    expect(await screen.findByText(t.workouts(1, 3))).toBeTruthy();
+    await fireEvent.press(screen.getByLabelText(t.importBtn));
+    expect(await screen.findByText(t.imported(1, 3))).toBeTruthy();
+    const day = JSON.parse(db.rows.get('workouts:2024-03-27')!);
+    expect(day.exercises.map((e: { name: string }) => e.name)).toEqual(['Barbell Bench Press', 'Barbell Row']);
+    expect(day.exercises[0].group).toBe(day.exercises[1].group);
+    expect(day.exercises[0].group).toMatch(/^[A-Za-z0-9_-]{1,36}$/);
+    const bench = [...db.sets.values()].map((r) => JSON.parse(r.data)).filter((x) => x.exercise === 'Barbell Bench Press').sort((a, b) => a.set_index - b.set_index);
+    expect(bench.map((x) => [x.set_index, x.weight_kg])).toEqual([[0, 60], [1, 62]]);
+  });
+
   it('refuses a wrong file with a message and writes nothing', async () => {
     const db = await setup();
     await open();
