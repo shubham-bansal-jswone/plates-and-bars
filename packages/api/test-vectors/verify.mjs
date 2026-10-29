@@ -714,6 +714,7 @@ const routinesVec = JSON.parse(readFileSync(new URL("./routines.json", import.me
     for (const e of r.exercises) {
       if (typeof e.name !== "string" || len(e.name) < 1 || len(e.name) > L.exercise_name_max || !blankRe.test(e.name)) return "exercises.name";
       if (!Number.isInteger(e.sets) || e.sets < L.sets_min || e.sets > L.sets_max) return "exercises.sets";
+      if (e.group !== undefined && e.group !== null && !(typeof e.group === "string" && /^[A-Za-z0-9_-]{1,36}$/u.test(e.group))) return "exercises.group";
       const keys = Object.keys(e);
       if (keys.length > L.max_exercise_keys) return "exercises.unknown_key";
       for (const k of keys) {
@@ -735,6 +736,24 @@ const routinesVec = JSON.parse(readFileSync(new URL("./routines.json", import.me
     return refused;
   };
   for (const c of routinesVec.cap.cases) if (JSON.stringify(cap(c)) !== JSON.stringify(c.refused)) failures.push(`routines.json cap "${c.note}": expected ${JSON.stringify(c.refused)}, got ${JSON.stringify(cap(c))}`);
+}
+
+// exercise-group.json (#1182): WorkoutExercise.group and RoutineExercise.group share one shape; the vectors are checked against the schema's type, bounds and pattern.
+{
+  const gv = JSON.parse(readFileSync(new URL("./exercise-group.json", import.meta.url), "utf8"));
+  const sch = parsed.components.schemas;
+  for (const [name, node] of [["WorkoutExercise", sch.WorkoutExercise], ["RoutineExercise", sch.RoutineExercise]]) {
+    const g = node.properties.group;
+    if (!g) { failures.push(`${name}.group is missing`); continue; }
+    if (node.required.includes("group")) failures.push(`${name}.group must stay optional (older clients omit it)`);
+    if (JSON.stringify(g.type) !== JSON.stringify(["string", "null"])) failures.push(`${name}.group must be a nullable string`);
+    if (g.minLength !== 1 || g.maxLength !== 36 || g.pattern !== "^[A-Za-z0-9_-]{1,36}$") failures.push(`${name}.group: bounds or pattern differ from exercise-group.json`);
+    const re = new RegExp(g.pattern, "u");
+    const accepts = (v) => (v === null ? g.type.includes("null") : typeof v === "string" && [...v].length >= g.minLength && [...v].length <= g.maxLength && re.test(v));
+    for (const v of gv.valid) if (!accepts(v)) failures.push(`${name}.group refuses valid ${JSON.stringify(v)}`);
+    for (const v of gv.invalid) if (accepts(v)) failures.push(`${name}.group accepts invalid ${JSON.stringify(v)}`);
+    if (node.maxProperties !== 20) failures.push(`${name}.maxProperties must stay 20`);
+  }
 }
 
 if (failures.length) {
