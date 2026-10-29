@@ -50,6 +50,8 @@ interface Props {
   format?: (n: number) => string;
   /** A reference line in the unit of the values, drawn at any finite value above 0 (the axis grows to it). A target of 0 or less is ignored: no line, caption or gap text. */
   target?: { value: number; caption?: string };
+  /** One extra table line per bar (same order as `bars`), e.g. "Protein 140 g"; added after the target text on a logged week. Not part of the chart's spoken label. */
+  extra?: readonly (string | null)[];
 }
 
 const defaultFormat = (n: number): string => round1(n).toLocaleString('en-IN');
@@ -66,7 +68,7 @@ const isBelow = (b: Bar, target: number | undefined, format: (n: number) => stri
  * (outline only). A week below the target keeps its fill and gets an inner ring in the page colour, and the table says "Below target", so
  * neither colour nor shape alone carries it. Under the chart: the first and last week, the target's caption, and a "Show as table" alternative.
  */
-export function BarChart({ bars, box, label, unit, noun, valueHeader, target, format = defaultFormat }: Props) {
+export function BarChart({ bars, box, label, unit, noun, valueHeader, target, extra, format = defaultFormat }: Props) {
   const c = useTheme();
   const fontFamily = useFontFamily()('400');
   const [width, setWidth] = useState<number>(box.W);
@@ -87,15 +89,19 @@ export function BarChart({ bars, box, label, unit, noun, valueHeader, target, fo
     ...count(BAR_COUNT_NOT_LOGGED, (b) => b.value === null),
   ];
   const spoken = [label, BAR_SUMMARY_RANGE(bars.length, date(first.label), date(last.label)), counts.join(', ')].filter(Boolean).join('. ');
-  const rows: ChartRow[] = bars.map((b) => {
+  const rows: ChartRow[] = bars.map((b, i) => {
     if (b.value === null) return { date: b.label, value: BAR_NOT_LOGGED };
     const gap = t === undefined ? null : b.value - t;
-    const parts = t === undefined || gap === null ? [] : [
-      BAR_TARGET_ROW(format(t), unit),
-      BAR_DELTA(format(Math.abs(gap)), unit, isOn(b.value, t, format) ? 'on' : gap < 0 ? 'under' : 'over'),
-      ...(isBelow(b, t, format) ? [BAR_BELOW] : []),
+    const parts = [
+      ...(b.partial ? [BAR_PARTIAL] : []),
+      ...(t === undefined || gap === null ? [] : [
+        BAR_TARGET_ROW(format(t), unit),
+        BAR_DELTA(format(Math.abs(gap)), unit, isOn(b.value, t, format) ? 'on' : gap < 0 ? 'under' : 'over'),
+        ...(isBelow(b, t, format) ? [BAR_BELOW] : []),
+      ]),
+      ...(extra?.[i] ? [extra[i]] : []),
     ];
-    return { date: b.label, value: `${format(b.value)} ${unit}${b.partial ? `, ${BAR_PARTIAL}` : ''}`, note: parts.join(', ') || undefined };
+    return { date: b.label, value: `${format(b.value)} ${unit}`, note: parts.join(', ') || undefined };
   });
   const onLayout = (e: LayoutChangeEvent) => setWidth(e.nativeEvent.layout.width || box.W);
   return (

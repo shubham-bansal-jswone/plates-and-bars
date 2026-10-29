@@ -127,6 +127,22 @@ export const BAR_COUNT_BELOW = (n: number): string => `${n} below target`;
 export const BAR_COUNT_PARTIAL = (n: number): string => `${n} with few days logged`;
 export const BAR_COUNT_NOT_LOGGED = (n: number): string => `${n} not logged`;
 
+// Eating by week (#1351 A6).
+export const EATING_TITLE = 'Eating by week';
+export const EATING_LOADING = 'Loading…';
+export const EATING_ERROR = 'Couldn’t read your food logs. Open this tab again to retry.';
+export const EATING_EMPTY = 'Log food to see your weekly averages here.';
+export const EATING_NO_TARGET = 'Run setup (Targets tab) to set a calorie target and compare your weeks with it.';
+/** `days` is the logged days the average rests on when that is under 4, else null. */
+export const EATING_HEADLINE = (target: string | null, days: number | null = null): string =>
+  `kcal a day, last 4 weeks${days === null ? '' : `, from ${days} ${days === 1 ? 'day' : 'days'} logged`}${target ? `, target ${target} kcal` : ''}`;
+export const EATING_NONE_RECENT = 'No food logged in the last 4 weeks';
+export const EATING_PROTEIN = (g: string, target: string | null): string => `Protein ${g} g a day${target ? `, target ${target} g` : ''}`;
+export const EATING_CHART_LABEL = 'Average calories by week';
+export const EATING_NOUN = 'Calories';
+export const EATING_VALUE_HEADER = 'Average a day';
+export const EATING_HOLLOW_HINT = 'Hollow bar: few days logged. Gap: no food logged that week.';
+
 // Any tape part and the weeks-on-track strip (#1351 A7).
 export const MEASURE_PART_GROUP = 'Measurement part';
 export const MEASURE_TREND_NONE = (part: string): string => `Log a few ${part.toLowerCase()} measurements to see your trend line here.`;

@@ -20,6 +20,8 @@ import { WeekCard } from '../progress/WeekCard';
 import { useCheckin } from '../progress/useCheckin';
 import { RangedTrend } from '../progress/RangedTrend';
 import { MeasureTrend } from '../progress/MeasureTrend';
+import { EatingByWeek } from '../progress/EatingByWeek';
+import { useWeeklyIntake } from '../progress/useWeeklyIntake';
 import { WeeksOnTrack } from '../progress/WeeksOnTrack';
 import { useProgress } from '../progress/useProgress';
 import { useStoredText } from '../progress/useStoredText';
@@ -66,6 +68,7 @@ export function ProgressScreen({ db, now = () => new Date() }: Props) {
   const labs = useLabs({ db, today: v.today, notify, reloadKey: dataVersion });
   const ci = useCheckin({ db, date: p.date, weights: p.weights, now, notify, reloadKey: dataVersion });
 
+  const eating = useWeeklyIntake({ db, date: p.date, reloadKey: dataVersion });
   const hist = useHistory(db, dataVersion);
   const [openDay, setOpenDay] = useState<string | null>(null);
   // The day just closed: focus returns to its row.
@@ -103,6 +106,7 @@ export function ProgressScreen({ db, now = () => new Date() }: Props) {
             <LabsSection labs={labs} today={v.today} />
             <StepsSleepSection key={`steps-${p.date}`} p={p} />
             <WeekCard date={v.today} pastDay={!v.isToday} days={ci.weekDays} kcalTarget={profile?.targets.kcal ?? DEFAULT_KCAL_TARGET} />
+            <EatingByWeek days={eating.days} failed={eating.failed} date={p.date} kcalTarget={profile?.targets.kcal ?? DEFAULT_KCAL_TARGET} proteinTarget={profile?.targets.protein_g ?? 0} />
             <WeeksOnTrack sessions={ci.sessions} date={p.date} profile={profile} />
           </>
         ) : (
