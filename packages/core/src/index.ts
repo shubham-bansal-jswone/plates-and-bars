@@ -537,7 +537,7 @@ export {
   chartLayout,
   barLayout,
   BAR_MAX_WIDTH,
-  BAR_TARGET_MAX_RATIO,
+  BAR_MIN_HEIGHT,
   scaleJump,
   weightEntry,
   measurementRow,

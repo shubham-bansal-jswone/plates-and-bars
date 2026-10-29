@@ -81,8 +81,8 @@ describe.each([['light', light], ['dark', dark]] as const)('BarChart styling in 
 
   it('keeps the ring visible against the bar: 3:1 in both modes, so it survives greyscale', () => {
     expect(contrast(p.bg, p.bar)).toBeGreaterThanOrEqual(3);
-    // The hollow bar's outline sits on the page.
-    expect(contrast(p.bg, p.bar)).toBeGreaterThanOrEqual(3);
+    // The hollow bar's outline sits on the card.
+    expect(contrast(p.surface, p.bar)).toBeGreaterThanOrEqual(3);
   });
 
   it('draws the target line in ink at half opacity', async () => {
@@ -110,20 +110,34 @@ describe('BarChart target', () => {
     expect(withT[0]![3]).toBeLessThan(without[0]![3]);
   });
 
-  it('draws a far target nowhere, but still names it', async () => {
+  it('draws a far target at the top, with the bars made short to fit', async () => {
     await render(<BarChart {...base} bars={weeks} target={{ value: 9000 }} />);
-    expect(walk('RNSVGLine').filter((l) => l.props?.strokeOpacity === 0.5)).toHaveLength(0);
-    expect(screen.getByText('Target 9000 kcal')).toBeTruthy();
-    expect(num(rect('bar-2026-10-12'), 'height')).toBeCloseTo(118, 6);
+    expect(walk('RNSVGLine').filter((l) => l.props?.strokeOpacity === 0.5)).toHaveLength(1);
+    expect(screen.getByText('Target 9,000 kcal')).toBeTruthy();
+    expect(num(rect('bar-2026-10-12'), 'height')).toBeCloseTo((2400 / 9000) * 118, 6);
+  });
+
+  it('ignores a target of 0 or less, or not finite: no line, caption, delta or flag', async () => {
+    for (const value of [0, -100, Infinity, NaN]) {
+      await render(<BarChart {...base} bars={weeks} target={{ value, caption: 'Goal' }} />);
+      expect(walk('RNSVGLine').filter((l) => l.props?.strokeOpacity === 0.5)).toHaveLength(0);
+      expect(screen.queryByText('Goal')).toBeNull();
+      expect(screen.queryByText(/^Target/)).toBeNull();
+      expect(walk('RNSVGRect').filter((n) => String(n.props?.testID).startsWith('ring'))).toHaveLength(0);
+      await fireEvent.press(screen.getByRole('button', { name: 'Show as table' }));
+      expect(screen.getByLabelText('14 Sept 2026, 2,000 kcal')).toBeTruthy();
+      expect(screen.queryByLabelText(/Target|over|under/)).toBeNull();
+      await screen.unmount();
+    }
   });
 
   it('draws a near target, with the default or a given caption', async () => {
     await render(<BarChart {...base} bars={weeks} target={{ value: 1800 }} />);
     expect(walk('RNSVGLine').filter((l) => l.props?.strokeOpacity === 0.5)).toHaveLength(1);
-    expect(screen.getByText('Target 1800 kcal')).toBeTruthy();
+    expect(screen.getByText('Target 1,800 kcal')).toBeTruthy();
     await screen.unmount();
-    await render(<BarChart {...base} bars={weeks} target={{ value: 1800, caption: 'Your goal: 1800 kcal' }} />);
-    expect(screen.getByText('Your goal: 1800 kcal')).toBeTruthy();
+    await render(<BarChart {...base} bars={weeks} target={{ value: 1800, caption: 'Your goal: 1,800 kcal' }} />);
+    expect(screen.getByText('Your goal: 1,800 kcal')).toBeTruthy();
   });
 });
 
@@ -133,30 +147,88 @@ describe('BarChart table and labels', () => {
   it('lists not logged, few days logged and the below-target flag as text', async () => {
     await render(<BarChart {...base} bars={weeks} target={{ value: 1800 }} />);
     await open();
-    expect(screen.getByLabelText('21 Sept 2026, 1500 kcal, Target 1800 kcal, 300 kcal under, Below target')).toBeTruthy();
-    expect(screen.getByLabelText('14 Sept 2026, 2000 kcal, Target 1800 kcal, 200 kcal over')).toBeTruthy();
+    expect(screen.getByLabelText('21 Sept 2026, 1,500 kcal, Target 1,800 kcal, 300 kcal under, Below target')).toBeTruthy();
+    expect(screen.getByLabelText('14 Sept 2026, 2,000 kcal, Target 1,800 kcal, 200 kcal over')).toBeTruthy();
     expect(screen.getByLabelText('28 Sept 2026, Not logged')).toBeTruthy();
     // A partial week says so and is not flagged against the target.
-    expect(screen.getByLabelText('5 Oct 2026, 1000 kcal, few days logged, Target 1800 kcal, 800 kcal under')).toBeTruthy();
+    expect(screen.getByLabelText('5 Oct 2026, 1,000 kcal, few days logged, Target 1,800 kcal, 800 kcal under')).toBeTruthy();
   });
 
   it('has no target or delta text without a target, and says On target at the target', async () => {
     await render(<BarChart {...base} bars={weeks} />);
     await open();
-    expect(screen.getByLabelText('14 Sept 2026, 2000 kcal')).toBeTruthy();
+    expect(screen.getByLabelText('14 Sept 2026, 2,000 kcal')).toBeTruthy();
     await screen.unmount();
     await render(<BarChart {...base} bars={[weeks[0]!, weeks[4]!]} target={{ value: 2000 }} />);
     await open();
-    expect(screen.getByLabelText('14 Sept 2026, 2000 kcal, Target 2000 kcal, On target')).toBeTruthy();
+    expect(screen.getByLabelText('14 Sept 2026, 2,000 kcal, Target 2,000 kcal, On target')).toBeTruthy();
   });
 
-  it('wires the summary to the image role, with gaps, partial and below-target weeks added', async () => {
+  it('speaks a count summary with the range, never a list of dates', async () => {
     await render(<BarChart {...base} bars={weeks} target={{ value: 1800 }} />);
-    const img = screen.getByRole('image');
-    expect(img.props.accessibilityLabel).toBe('Average calories by week. Not logged: 28 Sept. Few days logged: 5 Oct. Below target: 21 Sept');
+    expect(screen.getByRole('image').props.accessibilityLabel).toBe('Average calories by week. 5 weeks from 14 Sept to 12 Oct. 1 below target, 1 with few days logged, 1 not logged');
     await screen.unmount();
     await render(<BarChart {...base} bars={[weeks[0]!, weeks[4]!]} />);
-    expect(screen.getByRole('image').props.accessibilityLabel).toBe('Average calories by week');
+    expect(screen.getByRole('image').props.accessibilityLabel).toBe('Average calories by week. 2 weeks from 14 Sept to 12 Oct');
+    await screen.unmount();
+    await render(<BarChart {...base} bars={[{ label: '2025-12-29', value: 1 }, { label: '2026-01-05', value: 2 }]} />);
+    expect(screen.getByRole('image').props.accessibilityLabel).toBe('Average calories by week. 2 weeks from 29 Dec 2025 to 5 Jan 2026');
+  });
+
+  it('hides the visible dates row from a screen reader, since the label carries the range', async () => {
+    await render(<BarChart {...base} bars={weeks} />);
+    expect(screen.queryByText('14 Sept')).toBeNull();
+    expect(screen.getByText('14 Sept', hidden)).toBeTruthy();
+  });
+
+  it('formats numbers with the given format prop, in the caption, table and axis', async () => {
+    const format = (n: number) => `<${n}>`;
+    await render(<BarChart {...base} bars={weeks} target={{ value: 1800 }} format={format} />);
+    expect(screen.getByText('Target <1800> kcal')).toBeTruthy();
+    expect(walk('RNSVGText').map((t) => JSON.stringify(t.children))).toEqual(expect.arrayContaining([expect.stringContaining('<2400>')]));
+    await fireEvent.press(screen.getByRole('button', { name: 'Show as table' }));
+    expect(screen.getByLabelText('14 Sept 2026, <2000> kcal, Target <1800> kcal, <200> kcal over')).toBeTruthy();
+  });
+
+  it('shows the target, delta and flag as visible text, under a "Week of" header', async () => {
+    await render(<BarChart {...base} bars={weeks} target={{ value: 1800 }} />);
+    await fireEvent.press(screen.getByRole('button', { name: 'Show as table' }));
+    expect(screen.getByText('Target 1,800 kcal, 300 kcal under, Below target')).toBeTruthy();
+    expect(screen.getByText('Week of')).toBeTruthy();
+    expect(screen.queryByText('Date')).toBeNull();
+  });
+
+  it('compares as shown: a week that rounds to the target is On target, not flagged', async () => {
+    await render(<BarChart {...base} bars={[{ label: '2026-09-14', value: 1799.96 }, { label: '2026-09-21', value: 1799.94 }]} target={{ value: 1800 }} />);
+    await fireEvent.press(screen.getByRole('button', { name: 'Show as table' }));
+    expect(screen.getByLabelText('14 Sept 2026, 1,800 kcal, Target 1,800 kcal, On target')).toBeTruthy();
+    expect(screen.getByLabelText('21 Sept 2026, 1,799.9 kcal, Target 1,800 kcal, 0.1 kcal under, Below target')).toBeTruthy();
+    expect(rect('ring-2026-09-14')).toBeUndefined();
+  });
+
+  it('draws a real 0 as a short stub in the bar colour, unlike a gap', async () => {
+    await render(<BarChart {...base} bars={[{ label: '2026-09-14', value: 0 }, { label: '2026-09-21', value: null }, { label: '2026-09-28', value: 5 }]} />);
+    expect(num(rect('bar-2026-09-14'), 'height')).toBe(2);
+    expect(rect('bar-2026-09-21')).toBeUndefined();
+    await fireEvent.press(screen.getByRole('button', { name: 'Show as table' }));
+    expect(screen.getByLabelText('14 Sept 2026, 0 kcal')).toBeTruthy();
+    expect(screen.getByLabelText('21 Sept 2026, Not logged')).toBeTruthy();
+  });
+
+  it('skips the ring on a bar too short to hold it', async () => {
+    await render(<BarChart {...base} bars={[{ label: '2026-09-14', value: 1 }, { label: '2026-09-21', value: 2000 }]} target={{ value: 2000 }} />);
+    expect(rect('bar-2026-09-14')).toBeDefined();
+    expect(rect('ring-2026-09-14')).toBeUndefined();
+    await screen.unmount();
+    await render(<BarChart {...base} bars={[{ label: '2026-09-14', value: 1000 }, { label: '2026-09-21', value: 2000 }]} target={{ value: 2000 }} />);
+    expect(rect('ring-2026-09-14')).toBeDefined();
+  });
+
+  it('scales the axis text to the measured width so it stays 12px as drawn', async () => {
+    await render(<BarChart {...base} bars={weeks} />);
+    await fireEvent(screen.root!, 'layout', { nativeEvent: { layout: { width: 560, height: 100 } } });
+    const sizes = walk('RNSVGText').map((t) => Number(t.props?.font?.fontSize));
+    for (const s of sizes) expect(s).toBeCloseTo((12 * 320) / 560, 6);
   });
 
   it('labels the first and last week, and the axis text is at least 12px as drawn', async () => {

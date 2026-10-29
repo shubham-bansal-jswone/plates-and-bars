@@ -20,9 +20,9 @@ export interface ChartRow {
 
 /**
  * The text alternative of a chart: a 44px "Show as table" button that opens date and value rows, newest first, the last 12 until "Show all".
- * Give it the rows the chart draws, oldest first. `noun` names it for a screen reader ("Weight values by date").
+ * Give it the rows the chart draws, oldest first. `noun` names it for a screen reader ("Weight values by date"); `dateHeader` names the first column (default "Date").
  */
-export function ChartTable({ rows, noun, valueHeader }: { rows: readonly ChartRow[]; noun: string; valueHeader: string }) {
+export function ChartTable({ rows, noun, valueHeader, dateHeader = TABLE_DATE }: { rows: readonly ChartRow[]; noun: string; valueHeader: string; dateHeader?: string }) {
   const c = useTheme();
   const [open, setOpen] = useState(false);
   const [all, setAll] = useState(false);
@@ -36,8 +36,8 @@ export function ChartTable({ rows, noun, valueHeader }: { rows: readonly ChartRo
       </Press>
       {open ? (
         <View accessibilityRole="list" accessibilityLabel={TABLE_LABEL(noun)}>
-          <View style={[styles.row, { borderBottomColor: c.line }]} accessible accessibilityRole="header" accessibilityLabel={`${TABLE_DATE}, ${valueHeader}`}>
-            <Text style={[typeScale.small, { color: c.muted }]}>{TABLE_DATE}</Text>
+          <View style={[styles.row, { borderBottomColor: c.line }]} accessible accessibilityRole="header" accessibilityLabel={`${dateHeader}, ${valueHeader}`}>
+            <Text style={[typeScale.small, { color: c.muted }]}>{dateHeader}</Text>
             <Text style={[typeScale.small, { color: c.muted }]}>{valueHeader}</Text>
           </View>
           {shown.map((r) => (

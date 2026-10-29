@@ -10,13 +10,15 @@ import { useTheme } from '../theme/useTheme';
 import { ChartTable, type ChartRow } from './ChartTable';
 import {
   BAR_BELOW,
+  BAR_COUNT_BELOW,
+  BAR_COUNT_NOT_LOGGED,
+  BAR_COUNT_PARTIAL,
   BAR_DELTA,
   BAR_NOT_LOGGED,
   BAR_PARTIAL,
-  BAR_SUMMARY_BELOW,
-  BAR_SUMMARY_NOT_LOGGED,
-  BAR_SUMMARY_PARTIAL,
+  BAR_SUMMARY_RANGE,
   BAR_TARGET_ROW,
+  BAR_WEEK_OF,
   CHART_TARGET,
 } from './copy';
 
@@ -37,55 +39,59 @@ export interface Bar {
 interface Props {
   bars: readonly Bar[];
   box: ChartBox;
-  /** Spoken summary, e.g. "Average calories by week, 2,050 kcal". Gaps, partial weeks and weeks below target are added to it. */
+  /** Spoken summary, e.g. "Average calories by week". The week count and range, and counts of weeks below target, with few days logged and not logged, are added to it. */
   label: string;
   unit: string;
   /** Names the table for a screen reader ("Calories values by date"). */
   noun: string;
   /** Header of the table's value column. */
   valueHeader: string;
-  /** A reference line in the unit of the values. Not drawn when 0 or less or over twice the tallest bar (the table and caption still give it). */
+  /** Formats a number for the caption, table and axis, e.g. thousands-separated kcal. Default: one decimal at most, en-IN grouping. */
+  format?: (n: number) => string;
+  /** A reference line in the unit of the values, drawn at any finite value above 0 (the axis grows to it). A target of 0 or less is ignored: no line, caption or gap text. */
   target?: { value: number; caption?: string };
 }
 
-/** A bar is below target when it is logged, not partial (too few days to compare) and under the target. */
-const isBelow = (b: Bar, target: number | undefined): boolean => target !== undefined && !b.partial && b.value !== null && b.value < target;
+const defaultFormat = (n: number): string => round1(n).toLocaleString('en-IN');
+
+/** A bar is below target when it is logged, not partial (too few days to compare) and under the target, both as shown (to 0.1), so "On target" never carries the flag. */
+const isBelow = (b: Bar, target: number | undefined): boolean => target !== undefined && !b.partial && b.value !== null && round1(b.value) < round1(target);
 
 /**
  * Weekly bar chart on core's `barLayout`, at most `CHART_MAX_WIDTH` wide. Bars are `c.bar`. A null value is a gap. A partial week is hollow
  * (outline only). A week below the target keeps its fill and gets an inner ring in the page colour, and the table says "Below target", so
  * neither colour nor shape alone carries it. Under the chart: the first and last week, the target's caption, and a "Show as table" alternative.
  */
-export function BarChart({ bars, box, label, unit, noun, valueHeader, target }: Props) {
+export function BarChart({ bars, box, label, unit, noun, valueHeader, target, format = defaultFormat }: Props) {
   const c = useTheme();
   const fontFamily = useFontFamily()('400');
   const [width, setWidth] = useState<number>(box.W);
-  const layout = barLayout(bars.map((b) => b.value), target?.value, box);
+  const t = target && Number.isFinite(target.value) && target.value > 0 ? target.value : undefined;
+  const layout = barLayout(bars.map((b) => b.value), t, box);
   const first = bars[0], last = bars[bars.length - 1];
   if (!layout || !first || !last) return null;
   const { W, H, px, py } = box;
   const fs = LABEL_PX / Math.max(width / W, 0.1);
   const date = first.label.slice(0, 4) === last.label.slice(0, 4) ? shortDate : dateWithYear;
-  const t = target?.value;
-  const note = (text: (weeks: string) => string, pick: (b: Bar) => boolean): string[] => {
-    const w = bars.filter(pick).map((b) => shortDate(b.label)).join(', ');
-    return w ? [text(w)] : [];
+  const count = (text: (n: number) => string, pick: (b: Bar) => boolean): string[] => {
+    const n = bars.filter(pick).length;
+    return n > 0 ? [text(n)] : [];
   };
-  const notes = [
-    ...note(BAR_SUMMARY_NOT_LOGGED, (b) => b.value === null),
-    ...note(BAR_SUMMARY_PARTIAL, (b) => b.value !== null && !!b.partial),
-    ...note(BAR_SUMMARY_BELOW, (b) => isBelow(b, t)),
+  const counts = [
+    ...count(BAR_COUNT_BELOW, (b) => isBelow(b, t)),
+    ...count(BAR_COUNT_PARTIAL, (b) => b.value !== null && !!b.partial),
+    ...count(BAR_COUNT_NOT_LOGGED, (b) => b.value === null),
   ];
-  const spoken = [label, ...notes].join('. ');
+  const spoken = [label, BAR_SUMMARY_RANGE(bars.length, date(first.label), date(last.label)), counts.join(', ')].filter(Boolean).join('. ');
   const rows: ChartRow[] = bars.map((b) => {
     if (b.value === null) return { date: b.label, value: BAR_NOT_LOGGED };
     const gap = t === undefined ? null : b.value - t;
     const parts = t === undefined || gap === null ? [] : [
-      BAR_TARGET_ROW(String(round1(t)), unit),
-      BAR_DELTA(String(round1(Math.abs(gap))), unit, round1(gap) === 0 ? 'on' : gap < 0 ? 'under' : 'over'),
+      BAR_TARGET_ROW(format(t), unit),
+      BAR_DELTA(format(Math.abs(gap)), unit, round1(gap) === 0 ? 'on' : gap < 0 ? 'under' : 'over'),
       ...(isBelow(b, t) ? [BAR_BELOW] : []),
     ];
-    return { date: b.label, value: `${round1(b.value)} ${unit}${b.partial ? `, ${BAR_PARTIAL}` : ''}`, note: parts.join(', ') || undefined };
+    return { date: b.label, value: `${format(b.value)} ${unit}${b.partial ? `, ${BAR_PARTIAL}` : ''}`, note: parts.join(', ') || undefined };
   });
   const onLayout = (e: LayoutChangeEvent) => setWidth(e.nativeEvent.layout.width || box.W);
   return (
@@ -94,7 +100,7 @@ export function BarChart({ bars, box, label, unit, noun, valueHeader, target }: 
         <Svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ aspectRatio: W / H }}>
           <Line x1={px} x2={W} y1={py} y2={py} stroke={c.line} strokeWidth={1} />
           <Line x1={px} x2={W} y1={H - py} y2={H - py} stroke={c.line} strokeWidth={1} />
-          <SvgText x={0} y={py + 4} fill={c.muted} fontSize={fs} fontFamily={fontFamily}>{String(round1(layout.max))}</SvgText>
+          <SvgText x={0} y={py + 4} fill={c.muted} fontSize={fs} fontFamily={fontFamily}>{format(layout.max)}</SvgText>
           <SvgText x={0} y={H - py + 4} fill={c.muted} fontSize={fs} fontFamily={fontFamily}>0</SvgText>
           {layout.bars.map((r, i) => {
             const b = bars[i];
@@ -115,8 +121,8 @@ export function BarChart({ bars, box, label, unit, noun, valueHeader, target }: 
           <Text style={[typeScale.small, { color: c.muted }]}>{date(last.label)}</Text>
         </View>
       </View>
-      {target ? <Text style={[typeScale.small, { color: c.muted }]}>{target.caption ?? CHART_TARGET(String(round1(target.value)), unit)}</Text> : null}
-      <ChartTable rows={rows} noun={noun} valueHeader={valueHeader} />
+      {target && t !== undefined ? <Text style={[typeScale.small, { color: c.muted }]}>{target.caption ?? CHART_TARGET(format(t), unit)}</Text> : null}
+      <ChartTable rows={rows} noun={noun} valueHeader={valueHeader} dateHeader={BAR_WEEK_OF} />
     </View>
   );
 }
