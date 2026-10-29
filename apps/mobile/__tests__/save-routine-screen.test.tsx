@@ -237,7 +237,7 @@ describe('Save as routine in the completion panel', () => {
   const row = { id: 'a', version: 0, updated_at: '', deleted_at: null, w: '10', r: '10', done: true, rate: null, t: null } as never;
   const exs = [{ name: 'Squat', part: 1, bridge: false, form: null, found: null, skipRamp: false, feel: null, sets: [row], ramp: [] }] as never;
   const panel = (onSaveRoutine?: () => void) =>
-    render(<CompletionPanel db={{} as never} date="2026-10-08" profileKg={80} exs={exs} cardio={null} lifts={{}} reloadKey={0} {...(onSaveRoutine ? { onSaveRoutine } : {})} />);
+    render(<CompletionPanel db={{} as never} date="2026-10-08" profileKg={80} exs={exs} cardio={null} prs={new Set()} reloadKey={0} {...(onSaveRoutine ? { onSaveRoutine } : {})} />);
 
   it('has the action, which calls back', async () => {
     const open = jest.fn();

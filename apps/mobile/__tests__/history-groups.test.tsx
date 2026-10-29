@@ -18,7 +18,7 @@ const sets = NAMES.map((n, i) => wset(n, i));
 const build = (groups?: (string | null | undefined)[]) =>
   buildSessions({ [DATE]: { t: 'Pull' } } as never, { [DATE]: sets }, {}, groups ? { [DATE]: NAMES.map((name, i) => ({ name, group: groups[i] })) } : {});
 const labels = (g?: (string | null | undefined)[]) => build(g)[0]!.exercises.map((e) => e.label);
-const show = (s = build()) => render(<WorkoutDay session={s[0]!} sessions={s} lifts={{}} onBack={() => {}} />);
+const show = (s = build()) => render(<WorkoutDay session={s[0]!} sessions={s} prs={new Set()} onBack={() => {}} />);
 
 describe('history session labels', () => {
   it('labels members of a valid group only', () => expect(labels(['g', 'g', null, undefined])).toEqual(['A', 'B', undefined, undefined]));
@@ -128,7 +128,7 @@ describe('history Share', () => {
 
 describe('share model', () => {
   const ex = (name: string, group?: string | null): ExState => ({ name, part: 1, bridge: false, form: null, found: null, skipRamp: true, feel: null, ramp: [], group, sets: [{ ...blankRow(), w: '50', r: '8', done: true }] });
-  const card = (exs: ExState[], labels?: (string | null)[]) => buildShareCard({ date: DATE, exs, cardio: null, lifts: {}, labels });
+  const card = (exs: ExState[], labels?: (string | null)[]) => buildShareCard({ date: DATE, exs, cardio: null, labels });
   it('adds the marker only for grouped exercises, numbers unchanged', () => {
     const plain = card([ex('Row'), ex('Pull-up')]);
     const grouped = card([ex('Row', 'g'), ex('Pull-up', 'g'), ex('Squat')]);

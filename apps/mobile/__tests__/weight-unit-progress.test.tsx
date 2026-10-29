@@ -2,7 +2,7 @@ import { readFileSync, readdirSync } from 'fs';
 import { join } from 'path';
 import { Pressable, Text } from 'react-native';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
-import { addDays, lbToKg, type LiftRecord } from '@plate-and-bar/core';
+import { addDays, lbToKg } from '@plate-and-bar/core';
 import { saveProfile } from '../src/db/records';
 import { saveWeight } from '../src/db/progress';
 import { saveCycle } from '../src/db/cycle';
@@ -177,7 +177,7 @@ describe('Progress in pounds, on screen (#1185)', () => {
 
   it('the volume chart is spoken in lb', async () => {
     const s = sessions();
-    await inUnit('lb', <WorkoutDay session={s.find((x) => x.date === '2026-10-08')!} sessions={s} lifts={{} as Record<string, LiftRecord>} onBack={() => {}} />);
+    await inUnit('lb', <WorkoutDay session={s.find((x) => x.date === '2026-10-08')!} sessions={s} prs={new Set()} onBack={() => {}} />);
     expect(await screen.findByLabelText('Row volume over 2 sessions, 1,058 lb, 2,161 lb')).toBeTruthy(); // 480 kg, 980 kg
   });
 });
@@ -197,7 +197,7 @@ const inUnit = (unit: 'kg' | 'lb', ui: React.ReactElement) => {
 describe('History and trends in pounds (#1185)', () => {
   it('sets, volume, heaviest set and e1RM read in lb', async () => {
     const s = sessions();
-    await inUnit('lb', <WorkoutDay session={s.find((x) => x.date === '2026-10-08')!} sessions={s} lifts={{} as Record<string, LiftRecord>} onBack={() => {}} />);
+    await inUnit('lb', <WorkoutDay session={s.find((x) => x.date === '2026-10-08')!} sessions={s} prs={new Set()} onBack={() => {}} />);
     expect(await screen.findByText('Set 1: 154.3 lb x 8')).toBeTruthy(); // 70 kg
     expect(screen.getByText('lb lifted')).toBeTruthy();
     expect(screen.getByText(/Heaviest set 154\.3 lb\./)).toBeTruthy(); // one decimal, like the set lines

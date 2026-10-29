@@ -43,19 +43,12 @@ describe('history logic', () => {
     expect(buildSessions({ '2026-10-06': { t: 'x' } }, { '2026-10-06': [wset('a', 'Row', 0, 60, 8, false)] })).toEqual([]);
   });
 
-  it('trends one exercise oldest first and calls a personal best only when core stored the toast for that day', () => {
+  it('trends one exercise oldest first; the personal-best badge is not part of the trend', () => {
     const s = buildSessions(log, sets);
-    const lift = (hist: { date: string; e: number }[], pbToast: string | null) => ({ date: '2026-10-06', sets: [], hist, pbToast }) as unknown as LiftRecord;
-    const hist = [{ date: '2026-10-04', e: 60 }, { date: '2026-10-06', e: 70 }];
-    expect(exerciseTrend(s, 'Row', lift(hist, '2026-10-06'))).toMatchObject({
+    expect(exerciseTrend(s, 'Row')).toEqual({
       points: [{ date: '2026-10-04', volume: 500 }, { date: '2026-10-06', volume: 840 }],
       heaviest: 60,
-      pbDate: '2026-10-06',
     });
-    // Core's own call wins: a stored history that looks like a best (the capped hist forgot an older, higher one) shows nothing without the toast.
-    expect(exerciseTrend(s, 'Row', lift(hist, null)).pbDate).toBeNull();
-    expect(exerciseTrend(s, 'Row', lift(hist, '2026-10-04')).pbDate).toBeNull(); // the toast was for an earlier day
-    expect(exerciseTrend(s, 'Row', undefined).pbDate).toBeNull();
   });
 
   it('words a set by what was typed', () => {
@@ -84,7 +77,9 @@ describe('Progress: recent workouts', () => {
     await saveWorkout(db, workout('2026-10-06', 'Pull A'));
     await saveSet(db, '2026-10-06', wset('a', 'Row', 0, 60, 8));
     await saveSet(db, '2026-10-06', wset('b', 'Row', 1, 60, 6));
-    await saveLift(db, 'Row', { date: '2026-10-06', sets: [], hist: [{ date: '2026-10-01', e: 50 }, { date: '2026-10-06', e: 70 }], pbToast: '2026-10-06' } as unknown as LiftRecord);
+    // The badge is core's personalRecords over the stored sets (an earlier, lighter day makes 6 Oct a record), not the lift record's pbToast.
+    await saveWorkout(db, workout('2026-10-01', 'Pull A'));
+    await saveSet(db, '2026-10-01', wset('z', 'Row', 0, 50, 5));
     const { rerender } = await setup(db);
     const row = await screen.findByLabelText('6 Oct, Pull A, 2 sets, 840 kg');
     expect(screen.queryByText('No workouts logged yet. Your sessions will appear here.')).toBeNull();
@@ -93,7 +88,7 @@ describe('Progress: recent workouts', () => {
     expect(await screen.findByRole('header', { name: 'Pull A' })).toBeTruthy();
     expect(screen.getByText('Set 1: 60 kg x 8')).toBeTruthy();
     expect(screen.getByText('Set 2: 60 kg x 6')).toBeTruthy();
-    expect(screen.getByText('Personal best')).toBeTruthy();
+    expect(await screen.findByText('Personal best')).toBeTruthy();
     expect(screen.getByLabelText('2 sets')).toBeTruthy();
     expect(screen.getByLabelText('840 kg lifted')).toBeTruthy();
     expect(screen.getByLabelText('1 exercise')).toBeTruthy();
@@ -105,6 +100,33 @@ describe('Progress: recent workouts', () => {
     await rerender(1); // a sync pull stored records
     await flush();
     expect(await screen.findByLabelText('7 Oct, Push A, 1 set, 400 kg')).toBeTruthy();
+  });
+
+  it('shows no Personal best on a day that is not a record, whatever pbToast says', async () => {
+    const db = memoryDb();
+    await saveWorkout(db, workout('2026-10-01', 'Pull A'));
+    await saveSet(db, '2026-10-01', wset('z', 'Row', 0, 80, 8));
+    await saveWorkout(db, workout('2026-10-06', 'Pull A'));
+    await saveSet(db, '2026-10-06', wset('a', 'Row', 0, 60, 8));
+    await saveLift(db, 'Row', { date: '2026-10-06', sets: [], hist: [{ date: '2026-10-06', e: 70 }], pbToast: '2026-10-06' } as unknown as LiftRecord);
+    await saveWorkout(db, workout('2026-10-07', 'Pull A')); // a later day is a record; it must not badge 6 Oct
+    await saveSet(db, '2026-10-07', wset('c', 'Row', 0, 100, 8));
+    await setup(db);
+    await fireEvent.press(await screen.findByLabelText('6 Oct, Pull A, 1 set, 480 kg'));
+    await screen.findByRole('header', { name: 'Pull A' });
+    expect(screen.queryByText('Personal best')).toBeNull();
+  });
+
+  it('an assisted lift is scored as assisted at the profile bodyweight: less assistance is a record', async () => {
+    const db = memoryDb();
+    await saveWorkout(db, workout('2026-10-01', 'Pull A'));
+    await saveSet(db, '2026-10-01', wset('z', 'Assisted Pull-up', 0, 30, 8)); // 8 x (82 - 30)
+    await saveWorkout(db, workout('2026-10-06', 'Pull A'));
+    await saveSet(db, '2026-10-06', wset('a', 'Assisted Pull-up', 0, 20, 8)); // 8 x (82 - 20): a record; as a loaded lift it would not be
+    await setup(db);
+    await fireEvent.press(await screen.findByLabelText('6 Oct, Pull A, 1 set, 160 kg'));
+    await screen.findByRole('header', { name: 'Pull A' });
+    expect(await screen.findByText('Personal best')).toBeTruthy();
   });
 
   async function withDay() {
