@@ -357,7 +357,7 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
    * names and stored set counts; core's `startRoutine` applies only the deload and light steps. Exercises the library lacks or the
    * rules exclude stay in the session, and the screen flags them. Like every start, never overwrites a session already stored.
    */
-  const startFromRoutine = (routine: readonly { name: string; sets: number }[], override: Workout['where'] = null, ciChoice: Workout['ci_choice'] = null) =>
+  const startFromRoutine = (routine: readonly { name: string; sets: number; group?: string | null }[], override: Workout['where'] = null, ciChoice: Workout['ci_choice'] = null) =>
     begin(() => {
       const where = override ?? (profile as Profile).where;
       const { deload, reentry } = rangesOf(adjustments);
@@ -625,7 +625,7 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
       }
     }
     if (!kept.length) return false;
-    d.exs = kept;
+    d.exs = fixExGroups(kept); // a group left with under 2 members is dissolved, before the write and before the planned snapshot's signature
     commit(d);
     void enqueue(() =>
       atomic(async (h) => {

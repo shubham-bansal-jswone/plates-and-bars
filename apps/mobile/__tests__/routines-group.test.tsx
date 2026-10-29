@@ -1,4 +1,5 @@
-import { cleanup, render, screen, waitFor } from '@testing-library/react-native';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { SyncContext, type SyncState } from '../src/sync/SyncProvider';
 import { WorkoutScreen } from '../src/screens/WorkoutScreen';
 import { createRoutine, loadRoutines } from '../src/db/routines';
 import { loadWorkout, saveWorkout } from '../src/db/workouts';
@@ -7,7 +8,7 @@ import { saveSettings } from '../src/db/settings';
 import { defaultSettings } from '../src/settings/types';
 import { buildProfile, emptyDraft } from '../src/setup/logic';
 import { ROUTINE_COPY as T } from '../src/workout/copy';
-import { press } from './disclosure-helpers';
+import { expand, press } from './disclosure-helpers';
 import { withProfile } from './helpers';
 import { openDb } from './sync-helpers';
 
@@ -79,5 +80,56 @@ describe('Starting a routine with a group', () => {
     await press('Start Plain');
     await waitFor(async () => expect(await loadWorkout(db as never, DATE)).not.toBeNull());
     for (const e of (await loadWorkout(db as never, DATE))!.exercises) expect(e).not.toHaveProperty('group');
+  });
+});
+
+describe('Save as routine after Complete workout, with groups', () => {
+  async function tick(name: string) {
+    await expand(name);
+    await fireEvent.changeText(screen.getByLabelText(`${name} set 1 kg`), '10');
+    await fireEvent.changeText(screen.getByLabelText(`${name} set 1 reps`), '10');
+    await press(`Mark ${name} set 1 done`);
+  }
+  async function setup(ticked: string[]) {
+    const db = await openDb();
+    await saveSettings(db as never, defaultSettings('2026-10-08T00:00:00Z'));
+    await saveProfile(db as never, { ...profile, where: 'gym' });
+    await createRoutine(db as never, 'Sup', SUPERSET);
+    const ui = (dataVersion: number) => <SyncContext.Provider value={{ dataVersion } as SyncState}>{withProfile(db as never, <WorkoutScreen db={db as never} now={THURSDAY} />)}</SyncContext.Provider>;
+    const view = await render(ui(0));
+    await press('Start Sup');
+    await screen.findByText('Session');
+    for (const n of ticked) await tick(n);
+    await press('Complete workout');
+    await press('Confirm');
+    await screen.findByText('Session done');
+    return { db, view, ui };
+  }
+  const savedRoutine = async (db: Db) => {
+    await press(T.action);
+    await fireEvent.changeText(screen.getByLabelText(T.nameLabel), 'Copy');
+    await press(T.save);
+    await waitFor(async () => expect(await loadRoutines(db)).toHaveLength(2));
+    return (await loadRoutines(db)).find((r) => r.name !== 'Sup')!.exercises;
+  };
+
+  it('dissolves a one-member group at Complete, so a no-change pull keeps the planned session', async () => {
+    const { db, view, ui } = await setup(['Lat Pulldown']);
+    expect((await loadWorkout(db as never, DATE))!.exercises.map((e) => e.group ?? null)).toEqual([null]);
+    await view.rerender(ui(1));
+    await waitFor(() => expect(screen.getByLabelText(T.action)).toBeTruthy());
+    expect((await savedRoutine(db)).map((e) => e.name)).toEqual(['Lat Pulldown', 'Barbell Bench Press', 'Pec Deck Fly']);
+  });
+
+  it('a pull that changes only the grouping discards the plan: the live grouping is saved', async () => {
+    const { db, view, ui } = await setup(['Lat Pulldown', 'Barbell Bench Press']);
+    const wk = (await loadWorkout(db as never, DATE))!;
+    expect(wk.exercises.map((e) => !!e.group)).toEqual([true, true]);
+    await saveWorkout(db as never, { ...wk, exercises: wk.exercises.map((e) => ({ ...e, group: null })) });
+    await view.rerender(ui(1));
+    await waitFor(() => expect(screen.getByLabelText(T.action)).toBeTruthy());
+    const rows = await savedRoutine(db);
+    expect(rows.map((e) => e.name)).toEqual(['Lat Pulldown', 'Barbell Bench Press']);
+    for (const e of rows) expect(e).not.toHaveProperty('group');
   });
 });
