@@ -122,13 +122,13 @@ describe('EatingByWeek card', () => {
 
   it('says to log 4 days only when nothing is logged in the 12 weeks', async () => {
     await render(ui({ days: [] }));
-    expect(screen.getByText('Log food on 4 or more days in a week to see weekly averages.')).toBeTruthy();
+    expect(screen.getByText('Log food to see your weekly averages here.')).toBeTruthy();
     expect(walk('RNSVGRect')).toHaveLength(0);
   });
 
   it('draws hollow bars when every week has under 4 days, and the headline says how many days it rests on', async () => {
     await render(ui({ days: week('2026-10-05', 3, 2000) }));
-    expect(screen.queryByText('Log food on 4 or more days in a week to see weekly averages.')).toBeNull();
+    expect(screen.queryByText('Log food to see your weekly averages here.')).toBeNull();
     expect(bar('2026-10-05')?.props?.fill).toBeNull();
     expect(screen.getByLabelText('2,000 kcal a day, last 4 weeks, from 3 days logged, target 2,100 kcal. Protein 100 g a day, target 150 g')).toBeTruthy();
     expect(screen.getByText('kcal a day, last 4 weeks, from 3 days logged, target 2,100 kcal')).toBeTruthy();
@@ -136,7 +136,7 @@ describe('EatingByWeek card', () => {
 
   it('with logs only 5 to 12 weeks ago still draws them, and says nothing was logged in the last 4 weeks', async () => {
     await render(ui({ days: week('2026-08-03', 5, 2000) })); // viewed 8 Oct
-    expect(screen.queryByText('Log food on 4 or more days in a week to see weekly averages.')).toBeNull();
+    expect(screen.queryByText('Log food to see your weekly averages here.')).toBeNull();
     expect(bar('2026-08-03')).toBeTruthy();
     expect(screen.getByText('No food logged in the last 4 weeks')).toBeTruthy();
     expect(screen.getByLabelText('No food logged in the last 4 weeks')).toBeTruthy();

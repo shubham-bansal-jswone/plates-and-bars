@@ -9,6 +9,7 @@ import { SyncContext, type SyncState } from '../src/sync/SyncProvider';
 import { DEFAULT_KCAL_TARGET } from '@plate-and-bar/core';
 import { buildProfile, emptyDraft } from '../src/setup/logic';
 import { memoryDb, withProfile } from './helpers';
+import { openDb } from './sync-helpers';
 
 const mockFocus = { n: 0 };
 jest.mock('expo-router', () => ({
@@ -58,7 +59,7 @@ describe('EatingByWeek on Progress: data source', () => {
     const empty = memoryDb();
     await saveProfile(empty, profile());
     await render(withProfile(empty, <ProgressScreen db={empty} now={NOW} />));
-    expect((await screen.findAllByText('Log food on 4 or more days in a week to see weekly averages.')).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText('Log food to see your weekly averages here.')).length).toBeGreaterThan(0);
   });
 
   it('follows the check-in reads: a log saved after mount shows when the tab is shown again', async () => {
@@ -105,6 +106,12 @@ describe('EatingByWeek on Progress: reloads and targets', () => {
     await days(db, ['2026-10-05', '2026-10-06', '2026-10-07', '2026-10-08'], 1700);
     await render(withProfile(db, <ProgressScreen db={db} now={NOW} />));
     expect(await screen.findByLabelText(new RegExp(`^1,700 kcal a day, last 4 weeks, target ${DEFAULT_KCAL_TARGET.toLocaleString('en-IN')} kcal`))).toBeTruthy();
+  });
+
+  it('loadLogsBetween on real SQLite includes both end days and nothing outside', async () => {
+    const db = await openDb();
+    for (const [i, d] of ['2026-09-30', '2026-10-01', '2026-10-03', '2026-10-04'].entries()) await log(db as never, d, i + 1);
+    expect((await loadLogsBetween(db as never, '2026-10-01', '2026-10-03')).map((l) => l.kcal).sort()).toEqual([2, 3]);
   });
 
   it('loadLogsBetween is inclusive, bounded and leaves out deleted logs', async () => {

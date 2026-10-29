@@ -131,7 +131,7 @@ export const BAR_COUNT_NOT_LOGGED = (n: number): string => `${n} not logged`;
 export const EATING_TITLE = 'Eating by week';
 export const EATING_LOADING = 'Loading…';
 export const EATING_ERROR = 'Couldn’t read your food logs. Open this tab again to retry.';
-export const EATING_EMPTY = 'Log food on 4 or more days in a week to see weekly averages.';
+export const EATING_EMPTY = 'Log food to see your weekly averages here.';
 export const EATING_NO_TARGET = 'Run setup (Targets tab) to set a calorie target and compare your weeks with it.';
 /** `days` is the logged days the average rests on when that is under 4, else null. */
 export const EATING_HEADLINE = (target: string | null, days: number | null = null): string =>
