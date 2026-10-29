@@ -268,6 +268,15 @@ describe('routines in the device export and restore', () => {
       expect((await storedRoutines(dst)).every(contractOk)).toBe(true);
     });
 
+    it.each<[string, Row]>([['exercises is a string', { exercises: 'x' }], ['exercises is missing', { exercises: undefined }], ['name is a number', { name: 5 }], ['name is missing', { name: undefined }]])(
+      'a routine whose %s is skipped and counted, and the rest of the file restores',
+      async (_n, bad) => {
+        const { list, summary } = await restored(await fileWith([bad, {}]));
+        expect(list.map((r) => r.name)).toEqual(['r1']);
+        expect(summary.tables.routines).toMatchObject({ added: 1, invalid: 1 });
+      },
+    );
+
     it('a routine without created_at is skipped', async () => {
       const { list, summary } = await restored(await fileWith([{ created_at: undefined }]));
       expect(list).toHaveLength(0);
@@ -659,14 +668,6 @@ describe('routines in the device export and restore', () => {
 
   it('the over-limit copy states the contract limit of 100', () => {
     expect(RESTORE_COPY.table('Routines', { added: 0, newer: 0, older: 0, conflicts: 0, overCap: 1 })).toContain('(over the limit of 100)');
-  });
-
-  it('refuses a routine row that is not a routine', async () => {
-    const src = await openDb();
-    await createRoutine(src, 'A', squat);
-    const file = JSON.parse(JSON.stringify((await buildLocalExport(src)).file)) as { tables: { routines: { exercises: unknown }[] } };
-    file.tables.routines[0]!.exercises = 'x';
-    await expect(parseRestore(JSON.stringify(file))).rejects.toMatchObject({ code: 'bad_rows' });
   });
 });
 
