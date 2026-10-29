@@ -1,15 +1,14 @@
 import { useCallback, useMemo, useRef, type ComponentRef } from 'react';
-import type { NativeScrollEvent, NativeSyntheticEvent, ScrollView, View } from 'react-native';
+import type { ScrollView, View } from 'react-native';
 import { useReducedMotion } from '../components/reducedMotion';
 
 /** About how high the rest dock is (the page keeps a 184 px spacer under its last control for it). */
 export const DOCK_CLEAR = 150;
 const EDGE = 8;
 
-/** What `Page` takes to let its owner scroll it: hands over the ScrollView, and reports the offset through `onScroll`. */
+/** What `Page` takes to let its owner scroll it: hands over the ScrollView. */
 export interface PageScroller {
   attach: (node: ComponentRef<typeof ScrollView> | null) => void;
-  onScroll: (e: NativeSyntheticEvent<NativeScrollEvent>) => void;
 }
 
 /**
@@ -31,18 +30,21 @@ export function revealDelta(nodeTop: number, nodeH: number, viewTop: number, vie
  */
 export function useScrollIntoView() {
   const ref = useRef<ComponentRef<typeof ScrollView> | null>(null);
-  const y = useRef(0);
   const reduced = useReducedMotion();
   const animated = reduced === false;
-  const scroller = useMemo<PageScroller>(() => ({ attach: (n) => void (ref.current = n), onScroll: (e) => void (y.current = e.nativeEvent.contentOffset.y) }), []);
+  const scroller = useMemo<PageScroller>(() => ({ attach: (n) => void (ref.current = n) }), []);
   const reveal = useCallback(
     (node: ComponentRef<typeof View> | null | undefined, bottomClear: number) => {
       const page = ref.current;
-      if (!node || !page) return;
+      const content = page?.getInnerViewRef();
+      if (!node || !page || !content) return;
+      // The offset is read from where the content sits (its top is the page top less the offset), not from `onScroll`, which lags a scroll that has just happened.
       node.measureInWindow((_x, nodeTop, _w, nodeH) => {
         page.measureInWindow((_px, viewTop, _pw, viewH) => {
-          const d = revealDelta(nodeTop, nodeH, viewTop, viewH, bottomClear);
-          if (d !== 0) page.scrollTo({ x: 0, y: Math.max(0, y.current + d), animated });
+          content.measureInWindow((_cx, contentTop) => {
+            const d = revealDelta(nodeTop, nodeH, viewTop, viewH, bottomClear);
+            if (d !== 0) page.scrollTo({ x: 0, y: Math.max(0, viewTop - contentTop + d), animated });
+          });
         });
       });
     },

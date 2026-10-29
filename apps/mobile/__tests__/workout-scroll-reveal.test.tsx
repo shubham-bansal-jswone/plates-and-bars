@@ -21,17 +21,21 @@ const profile = buildProfile({ ...emptyDraft(), sex: 'male', age: '30', unit: 'c
 const VIEW_H = 700; // the page: top 0, 700 high
 // Layout is mocked: the page (the scroll view, which the jest mock lets share View's measure) is 700 high; any other node asked is the one being revealed, at `nodeTop`, 100 high.
 let nodeTop = 0;
+let scrollY = 0; // where the page is scrolled to: its content starts that far above the page
 const scrollTo = jest.spyOn(ScrollView.prototype, 'scrollTo').mockImplementation(() => {});
 const measured = jest.spyOn(View.prototype, 'measureInWindow').mockImplementation(function (this: { props: object }, ...args: unknown[]) {
   const cb = args[0] as (x: number, y: number, w: number, h: number) => void;
   if ('contentContainerStyle' in this.props) cb(0, 0, 375, VIEW_H);
   else cb(0, nodeTop, 300, 100);
 });
+// The page's inner content view: its window top is the page top less the offset (react-native-web and native both have it; jest's mock does not).
+(ScrollView.prototype as unknown as { getInnerViewRef: () => unknown }).getInnerViewRef = () => ({ measureInWindow: (cb: (x: number, y: number) => void) => cb(0, -scrollY) });
 const focus = jest.spyOn(TextInput.prototype, 'focus');
 beforeEach(() => {
   scrollTo.mockClear();
   measured.mockClear();
   focus.mockClear();
+  scrollY = 0;
   setReducedMotionForTests(undefined);
 });
 
@@ -92,6 +96,16 @@ describe('the up-next set in a superset of 3 (#1343)', () => {
     await waitFor(() => expect(scrollTo).toHaveBeenCalledTimes(1));
     expect(scrollTo).toHaveBeenCalledWith({ x: 0, y: 1000 - (VIEW_H - DOCK_CLEAR - 8), animated: false });
     expect(focus).not.toHaveBeenCalled(); // never a weight field
+  });
+
+  it('adds the offset the page is already scrolled to', async () => {
+    setReducedMotionForTests(true);
+    const names = await mount(['g', 'g', 'g'], false);
+    scrollY = 300;
+    nodeTop = 900;
+    await tick(names[0]!, 0, 'A1');
+    await waitFor(() => expect(scrollTo).toHaveBeenCalledTimes(1));
+    expect(scrollTo).toHaveBeenCalledWith({ x: 0, y: 300 + 1000 - (VIEW_H - DOCK_CLEAR - 8), animated: false });
   });
 
   it('animates the scroll when reduced motion is off', async () => {
