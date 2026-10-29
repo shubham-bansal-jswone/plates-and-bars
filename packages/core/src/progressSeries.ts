@@ -114,6 +114,33 @@ export function weeklyIntake(days: readonly ProgressDay[], end: string, weeks: n
   return out;
 }
 
+/** Days-weighted average over the last weeks of a `weeklyIntake` series (#1351 A6). */
+export interface IntakeAverage {
+  /** Null when no day is logged in those weeks (never 0). Unrounded. */
+  avgKcal: number | null;
+  avgProtein_g: number | null;
+  /** Logged days the averages rest on. */
+  loggedDays: number;
+}
+
+/**
+ * Average kcal and protein per logged day over the last `lastN` (default 4) rows of a `weeklyIntake` series: every week is weighted by its
+ * logged days, so a 2-day week counts for 2 days, not a whole week, and the result is not a mean of week means. Weeks with no logged day are
+ * skipped; none at all gives null averages and 0 days. The current week counts with its days so far.
+ *
+ * New rule (#1351 A6, in core under the lane waiver).
+ */
+export function intakeAverage(weeks: readonly Pick<WeeklyIntake, 'loggedDays' | 'avgKcal' | 'avgProtein_g'>[], lastN = 4): IntakeAverage {
+  let n = 0, sk = 0, sp = 0;
+  for (const w of lastN >= 1 ? weeks.slice(-Math.floor(lastN)) : []) {
+    if (w.avgKcal === null || w.avgProtein_g === null) continue;
+    n += w.loggedDays;
+    sk += w.avgKcal * w.loggedDays;
+    sp += w.avgProtein_g * w.loggedDays;
+  }
+  return { avgKcal: n ? sk / n : null, avgProtein_g: n ? sp / n : null, loggedDays: n };
+}
+
 /** One Monday-week of `weeksOnTrackSeries`. */
 export interface WeekOnTrack {
   /** The week's Monday. */

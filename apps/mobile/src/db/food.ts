@@ -7,6 +7,12 @@ export async function loadLogs(db: WorkoutDb, date: string): Promise<FoodLog[]> 
   return rows.map((r) => JSON.parse(r.data) as FoodLog).filter((l) => !l.deleted_at);
 }
 
+/** Live food logs of the days `from` to `to` (inclusive, YYYY-MM-DD), one query: the weekly averages read 12 weeks at once. */
+export async function loadLogsBetween(db: WorkoutDb, from: string, to: string): Promise<FoodLog[]> {
+  const rows = await db.getAllAsync<{ data: string }>('SELECT data FROM food_logs WHERE log_date >= ? AND log_date <= ?', from, to);
+  return rows.map((r) => JSON.parse(r.data) as FoodLog).filter((l) => !l.deleted_at);
+}
+
 export async function saveLog(db: StoreDb, l: FoodLog): Promise<void> {
   await db.runAsync('INSERT OR REPLACE INTO food_logs (key, log_date, data) VALUES (?, ?, ?)', l.id, l.date, JSON.stringify(l));
 }

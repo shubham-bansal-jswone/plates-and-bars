@@ -20,6 +20,8 @@ import { WeekCard } from '../progress/WeekCard';
 import { useCheckin } from '../progress/useCheckin';
 import { RangedTrend } from '../progress/RangedTrend';
 import { MeasureTrend } from '../progress/MeasureTrend';
+import { EatingByWeek } from '../progress/EatingByWeek';
+import { useWeeklyIntake } from '../progress/useWeeklyIntake';
 import { WeeksOnTrack } from '../progress/WeeksOnTrack';
 import { VolumeSection } from '../progress/VolumeSection';
 import { useProgressSets } from '../progress/useProgressSets';
@@ -70,6 +72,7 @@ export function ProgressScreen({ db, now = () => new Date() }: Props) {
 
   // All done sets, read once and shared by Strength and Training volume (not the steps version: a step reading must not re-read every set).
   const sets = useProgressSets(db, useDataVersion(), settings?.settings.exercise_overrides);
+  const eating = useWeeklyIntake({ db, date: p.date, reloadKey: dataVersion });
   const hist = useHistory(db, dataVersion);
   const [openDay, setOpenDay] = useState<string | null>(null);
   // The day just closed: focus returns to its row.
@@ -108,6 +111,7 @@ export function ProgressScreen({ db, now = () => new Date() }: Props) {
             <LabsSection labs={labs} today={v.today} />
             <StepsSleepSection key={`steps-${p.date}`} p={p} />
             <WeekCard date={v.today} pastDay={!v.isToday} days={ci.weekDays} kcalTarget={profile?.targets.kcal ?? DEFAULT_KCAL_TARGET} />
+            <EatingByWeek days={eating.days} failed={eating.failed} date={p.date} kcalTarget={profile?.targets.kcal ?? DEFAULT_KCAL_TARGET} proteinTarget={profile?.targets.protein_g ?? 0} />
             <WeeksOnTrack sessions={ci.sessions} date={p.date} profile={profile} />
           </>
         ) : (
