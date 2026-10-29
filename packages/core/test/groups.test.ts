@@ -1,14 +1,14 @@
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
-import { GROUP_MAX, GROUP_MIN, GROUP_TRANSITION_SEC, groupLabels, nextInRound, normalizeGroups, REST_COMPOUND_SEC, REST_OTHER_SEC, restAfterTick, restFor, type GroupEx } from '../src/index';
+import { GROUP_MAX, GROUP_MIN, GROUP_TRANSITION_SEC, groupLabels, nextInRound, normalizeGroups, restAfterTick, restFor, type GroupEx } from '../src/index';
 
-type Row = [string, number, string | null];
-const v = JSON.parse(readFileSync(resolve(__dirname, '../../api/test-vectors/groups.json'), 'utf8')) as {
+type Row = [string, number, unknown];
+const v = JSON.parse(readFileSync(resolve(__dirname, '../../../docs/spec/golden/groups.json'), 'utf8')) as {
   limits: { group_min: number; group_max: number; transition_sec: number };
   configs: { note: string; ex: Row[]; labels: (string | null)[]; normalized: (string | null)[] }[];
   order: { note: string; ex: Row[]; sequence: [number, number][] }[];
 };
-const mk = (rows: Row[]): GroupEx[] => rows.map(([name, sets, group]) => ({ name, sets, group }));
+const mk = (rows: Row[]): GroupEx[] => rows.map(([name, sets, group]) => ({ name, sets, group: group as string | null }));
 const tg = (pattern: string) => ({ pattern, family: '', equipment: '', difficulty: 1, primary: [], secondary: [], joints: [] });
 // 'sq' and 'row' are compound (150), 'curl' and 'ext' are not (75).
 const tags = { sq: tg('squat'), row: tg('h-pull'), curl: tg('curl'), ext: tg('ext') };
@@ -26,7 +26,11 @@ describe('groups (#1182)', () => {
   it.each(v.order.map((c) => [c.note, c] as const))('order: %s', (_n, c) => {
     const ex = mk(c.ex);
     const seq: [number, number][] = [[0, 0]];
-    for (let n = nextInRound(ex, 0, 0); n; n = nextInRound(ex, n.ex, n.set)) seq.push([n.ex, n.set]);
+    const d = new Set(['0,0']);
+    for (let n = nextInRound(ex, 0, 0, (k, s) => d.has(`${k},${s}`)); n; n = nextInRound(ex, n.ex, n.set, (k, s) => d.has(`${k},${s}`))) {
+      seq.push([n.ex, n.set]);
+      d.add(`${n.ex},${n.set}`);
+    }
     expect(seq).toEqual(c.sequence);
   });
 
@@ -59,56 +63,131 @@ describe('groups (#1182)', () => {
         }
       }
     });
-    it('treats empty and non-string ids as ungrouped', () => {
-      expect(normalizeGroups([{ name: 'a', sets: 1, group: '' }, { name: 'b', sets: 1, group: '' }]).map((e) => e.group)).toEqual(['', '']);
+    it('writes null for a present id the contract pattern rejects, leaves absent and null alone', () => {
+      const bad = ['', 5, 'has space', 'x'.repeat(37), {}] as unknown as string[];
+      for (const g of bad) expect(normalizeGroups([{ name: 'a', sets: 1, group: g }])[0]).toEqual({ name: 'a', sets: 1, group: null });
+      expect(normalizeGroups([{ name: 'a', sets: 1, group: 'x'.repeat(36) }, { name: 'b', sets: 1, group: 'x'.repeat(36) }]).map((e) => e.group)).toEqual(['x'.repeat(36), 'x'.repeat(36)]);
+      const plain = { name: 'a', sets: 1, group: null };
+      expect(normalizeGroups([plain])[0]).toBe(plain);
     });
   });
 
   describe('restAfterTick', () => {
-    it('ungrouped equals restFor exactly', () => {
-      const ex = mk([['sq', 3, null], ['curl', 2, null], ['zzz', 1, null]]);
-      for (let i = 0; i < ex.length; i++)
-        for (let j = 0; j < (ex[i] as GroupEx).sets; j++) {
-          const r = restAfterTick(ex, i, j, on);
-          expect(r.seconds).toBe(restFor((ex[i] as GroupEx).name, tags));
-          expect(r.kind).toBe('round');
-        }
-      expect(restAfterTick(ex, 1, 0, on).seconds).toBe(REST_OTHER_SEC);
-      expect(restAfterTick(ex, 0, 0, on).seconds).toBe(REST_COMPOUND_SEC);
+    const fin = (marks: [number, number][] = []) => {
+      const d = new Set(marks.map(([k, s]) => `${k},${s}`));
+      return (k: number, s: number) => d.has(`${k},${s}`);
+    };
+    const none = { kind: 'none', seconds: 0 };
+
+    // The app's rule, transcribed from apps/mobile/src/workout/useWorkoutDay.ts:451-455 (after `s.done = true`):
+    //   nj = ex.sets.findIndex(x => !x.done); nx = d.exs.slice(i + 1).find(e => e.sets.some(x => !x.done));
+    //   if (nj >= 0) startRest(... `Next: set ${nj + 1}`); else if (nx) startRest(... `Next: ${nx.name}`);  (else no rest)
+    // Ramp ticks (rampTick) and warm-ups never reach that code, so no rest starts for them and core is not asked.
+    type Ex = { name: string; sets: boolean[] };
+    function app(list: Ex[], i: number, j: number, restOff: boolean) {
+      const ex = list[i] as Ex;
+      const sets = ex.sets.map((x, n) => x || n === j);
+      const nj = sets.findIndex((x) => !x);
+      const nxi = list.findIndex((e, k) => k > i && e.sets.some((x) => !x));
+      if (restOff || (nj < 0 && nxi < 0)) return { rest: false as const };
+      const next = nj >= 0 ? { ex: i, set: nj } : { ex: nxi, set: (list[nxi] as Ex).sets.findIndex((x) => !x) };
+      return { rest: true as const, seconds: restFor(ex.name, tags), next };
+    }
+    const viaCore = (list: Ex[], i: number, j: number, restOff: boolean) => {
+      const exs = list.map((e) => ({ name: e.name, sets: e.sets.length }));
+      const r = restAfterTick(exs, i, j, (k, s) => (list[k] as Ex).sets[s] as boolean, { restOff, tags });
+      return r.kind === 'none' ? { rest: false as const } : { rest: true as const, seconds: r.seconds, next: r.next };
+    };
+    const names = ['sq', 'curl', 'row', 'zzz'];
+    it.each([
+      ['normal tick', [[false, false, false], [false]], 0, 0, false],
+      ['out of order: set 3 before 2', [[true, false, false, false]], 0, 2, false],
+      ['last set of an exercise', [[true, true, false], [false, false]], 0, 2, false],
+      ['last set of the last exercise', [[false], [true, true, false]], 1, 2, false],
+      ['later exercises already finished', [[false, false], [true, true], [true]], 0, 1, false],
+      ['a later exercise finished, one beyond open', [[false], [true], [false, false]], 0, 0, false],
+      ['rest off', [[false, false], [false]], 0, 0, true],
+    ] as [string, boolean[][], number, number, boolean][])('ungrouped parity with the app: %s', (_n, sets, i, j, off) => {
+      const list = sets.map((s, k) => ({ name: names[k] as string, sets: s }));
+      expect(viaCore(list, i, j, off)).toEqual(app(list, i, j, off));
     });
+    it('ungrouped parity with the app: every done state of random lists', () => {
+      let seed = 11;
+      const rnd = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648;
+      for (let t = 0; t < 2000; t++) {
+        const list = Array.from({ length: 1 + Math.floor(rnd() * 4) }, (_, k) => ({ name: names[k] as string, sets: Array.from({ length: 1 + Math.floor(rnd() * 4) }, () => rnd() < 0.5) }));
+        const i = Math.floor(rnd() * list.length);
+        const j = Math.floor(rnd() * (list[i] as Ex).sets.length);
+        const off = rnd() < 0.2;
+        expect(viaCore(list, i, j, off)).toEqual(app(list, i, j, off));
+      }
+    });
+
     it('restOff disables everything but still reports next', () => {
       const ex = mk([['sq', 2, 'g'], ['curl', 2, 'g']]);
-      expect(restAfterTick(ex, 0, 0, { ...on, restOff: true })).toEqual({ kind: 'none', seconds: 0, next: { ex: 1, set: 0 } });
-      expect(restAfterTick(ex, 1, 0, { ...on, restOff: true }).seconds).toBe(0);
+      expect(restAfterTick(ex, 0, 0, fin(), { ...on, restOff: true })).toEqual({ ...none, next: { ex: 1, set: 0 } });
+      expect(restAfterTick(ex, 1, 0, fin([[0, 0]]), { ...on, restOff: true }).seconds).toBe(0);
     });
     it('transition mid-round, longest restFor at round end', () => {
       const ex = mk([['curl', 2, 'g'], ['sq', 2, 'g']]);
-      expect(restAfterTick(ex, 0, 0, on)).toEqual({ kind: 'transition', seconds: 15, next: { ex: 1, set: 0 } });
-      // the earlier member is the cheap one: end-of-round rest is the compound's, and the reverse order agrees
-      expect(restAfterTick(ex, 1, 0, on)).toEqual({ kind: 'round', seconds: 150, next: { ex: 0, set: 1 } });
+      expect(restAfterTick(ex, 0, 0, fin(), on)).toEqual({ kind: 'transition', seconds: 15, next: { ex: 1, set: 0 } });
+      expect(restAfterTick(ex, 1, 0, fin([[0, 0]]), on)).toEqual({ kind: 'round', seconds: 150, next: { ex: 0, set: 1 } });
       const rev = mk([['sq', 2, 'g'], ['curl', 2, 'g']]);
-      expect(restAfterTick(rev, 1, 0, on).seconds).toBe(150);
+      expect(restAfterTick(rev, 1, 0, fin([[0, 0]]), on).seconds).toBe(150);
       const cheap = mk([['curl', 2, 'g'], ['ext', 2, 'g']]);
-      expect(restAfterTick(cheap, 1, 0, on).seconds).toBe(75);
+      expect(restAfterTick(cheap, 1, 0, fin([[0, 0]]), on).seconds).toBe(75);
+    });
+    it('ticking B1 before A1 is a transition, next is A1; A1 then closes the round', () => {
+      const ex = mk([['curl', 2, 'g'], ['sq', 2, 'g']]);
+      expect(restAfterTick(ex, 1, 0, fin(), on)).toEqual({ kind: 'transition', seconds: 15, next: { ex: 0, set: 0 } });
+      expect(restAfterTick(ex, 0, 0, fin([[1, 0]]), on)).toEqual({ kind: 'round', seconds: 150, next: { ex: 0, set: 1 } });
+      // an earlier round still open keeps a later tick a transition
+      expect(restAfterTick(ex, 0, 1, fin([[1, 0], [1, 1]]), on)).toEqual({ kind: 'transition', seconds: 15, next: { ex: 0, set: 0 } });
     });
     it('unequal set counts: members that ran out do not count', () => {
       const ex = mk([['sq', 1, 'g'], ['curl', 3, 'g']]);
-      expect(restAfterTick(ex, 0, 0, on).kind).toBe('transition');
-      expect(restAfterTick(ex, 1, 0, on)).toEqual({ kind: 'round', seconds: 150, next: { ex: 1, set: 1 } });
-      // round 2: sq is out, curl alone ends the round at its own rest
-      expect(restAfterTick(ex, 1, 1, on)).toEqual({ kind: 'round', seconds: 75, next: { ex: 1, set: 2 } });
-      // last set of the group: next is past the group (none here)
-      expect(restAfterTick(ex, 1, 2, on).next).toBeNull();
+      expect(restAfterTick(ex, 0, 0, fin(), on).kind).toBe('transition');
+      expect(restAfterTick(ex, 1, 0, fin([[0, 0]]), on)).toEqual({ kind: 'round', seconds: 150, next: { ex: 1, set: 1 } });
+      expect(restAfterTick(ex, 1, 1, fin([[0, 0], [1, 0]]), on)).toEqual({ kind: 'round', seconds: 75, next: { ex: 1, set: 2 } });
+      expect(restAfterTick(ex, 1, 2, fin([[0, 0], [1, 0], [1, 1]]), on)).toEqual({ ...none, next: null });
     });
-    it('a 3-member group has two transitions then a round', () => {
+    it('a 3-member group has two transitions then a round; no rest after the last set', () => {
       const ex = mk([['curl', 1, 'g'], ['ext', 1, 'g'], ['row', 1, 'g'], ['sq', 1, null]]);
-      expect(restAfterTick(ex, 0, 0, on).kind).toBe('transition');
-      expect(restAfterTick(ex, 1, 0, on).kind).toBe('transition');
-      expect(restAfterTick(ex, 2, 0, on)).toEqual({ kind: 'round', seconds: 150, next: { ex: 3, set: 0 } });
+      expect(restAfterTick(ex, 0, 0, fin(), on).kind).toBe('transition');
+      expect(restAfterTick(ex, 1, 0, fin([[0, 0]]), on).kind).toBe('transition');
+      expect(restAfterTick(ex, 2, 0, fin([[0, 0], [1, 0]]), on)).toEqual({ kind: 'round', seconds: 150, next: { ex: 3, set: 0 } });
+      expect(restAfterTick(ex, 2, 0, fin([[0, 0], [1, 0], [3, 0]]), on)).toEqual({ ...none, next: null });
+    });
+    it('after a group the next skips finished exercises', () => {
+      const ex = mk([['curl', 1, 'g'], ['ext', 1, 'g'], ['sq', 1, null], ['row', 1, null]]);
+      expect(nextInRound(ex, 1, 0, fin([[0, 0], [2, 0]]))).toEqual({ ex: 3, set: 0 });
     });
     it('an invalid (singleton) group behaves ungrouped', () => {
       const ex = mk([['curl', 2, 'g'], ['sq', 2, null]]);
-      expect(restAfterTick(ex, 0, 0, on)).toEqual({ kind: 'round', seconds: 75, next: { ex: 0, set: 1 } });
+      expect(restAfterTick(ex, 0, 0, fin(), on)).toEqual({ kind: 'round', seconds: 75, next: { ex: 0, set: 1 } });
+    });
+    it('a split id is ungrouped in order, rest and labels alike', () => {
+      const ex = mk([['curl', 2, 'g'], ['ext', 2, 'g'], ['zzz', 2, null], ['curl', 2, 'g'], ['ext', 2, 'g']]);
+      expect(groupLabels(ex)).toEqual([null, null, null, null, null]);
+      expect(nextInRound(ex, 0, 0, fin())).toEqual({ ex: 0, set: 1 });
+      expect(restAfterTick(ex, 0, 0, fin(), on)).toEqual({ kind: 'round', seconds: 75, next: { ex: 0, set: 1 } });
+    });
+    it('a seven-member run is ungrouped as given (normalize first)', () => {
+      const ex = mk(['a', 'b', 'c', 'd', 'e', 'f', 'g'].map((n) => [n, 2, 'g'] as Row));
+      expect(nextInRound(ex, 0, 0, fin())).toEqual({ ex: 0, set: 1 });
+    });
+    it('an empty id is not a group', () => {
+      const ex = mk([['curl', 2, ''], ['ext', 2, '']]);
+      expect(nextInRound(ex, 0, 0, fin())).toEqual({ ex: 0, set: 1 });
+      expect(groupLabels(ex)).toEqual([null, null]);
+    });
+    it('a set index past every member gives kind none, never -Infinity', () => {
+      const ex = mk([['a', 1, 'g'], ['b', 1, 'g']]);
+      expect(restAfterTick(ex, 1, 5, fin([[0, 0], [1, 0]]), on)).toEqual({ ...none, next: null });
+      expect(restAfterTick(ex, 1, 5, fin(), on)).toEqual({ ...none, next: { ex: 0, set: 0 } });
+      expect(restAfterTick(ex, 0, 1, fin([[0, 0], [1, 0]]), on)).toEqual({ ...none, next: null });
+      expect(restAfterTick(mk([['a', 1, null], ['b', 1, null]]), 0, 4, fin(), on)).toEqual({ ...none, next: { ex: 0, set: 0 } });
+      expect(restAfterTick(ex, 9, 0, fin(), on)).toEqual({ ...none, next: null });
     });
   });
 });

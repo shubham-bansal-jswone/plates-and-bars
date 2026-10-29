@@ -12,6 +12,10 @@
   { "note": "over the cap: first 6 stay, the 7th is ungrouped", "ex": [["a", 3, "g"], ["b", 3, "g"], ["c", 3, "g"], ["d", 3, "g"], ["e", 3, "g"], ["f", 3, "g"], ["g", 3, "g"]], "labels": [null, null, null, null, null, null, null], "normalized": ["g", "g", "g", "g", "g", "g", null] },
   { "note": "exactly 6 is valid", "ex": [["a", 3, "g"], ["b", 3, "g"], ["c", 3, "g"], ["d", 3, "g"], ["e", 3, "g"], ["f", 3, "g"]], "labels": ["A", "B", "C", "D", "E", "F"], "normalized": ["g", "g", "g", "g", "g", "g"] },
   { "note": "unequal set counts do not change grouping", "ex": [["a", 2, "g"], ["b", 4, "g"]], "labels": ["A", "B"], "normalized": ["g", "g"] }
+,
+  { "note": "split id with runs of 2 is dissolved whole", "ex": [["a", 3, "g"], ["b", 3, "g"], ["c", 3, null], ["d", 3, "g"], ["e", 3, "g"]], "labels": [null, null, null, null, null], "normalized": [null, null, null, null, null] },
+  { "note": "ids the contract rejects become null", "ex": [["a", 3, ""], ["b", 3, ""], ["c", 3, 5], ["d", 3, 5], ["e", 3, "has space"], ["f", 3, "has space"], ["g", 3, "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"], ["h", 3, "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"]], "labels": [null, null, null, null, null, null, null, null], "normalized": [null, null, null, null, null, null, null, null] },
+  { "note": "36 characters is a valid id", "ex": [["a", 3, "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy"], ["b", 3, "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy"]], "labels": ["A", "B"], "normalized": ["yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy", "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy"] }
  ],
  "order": [
   { "note": "A1 B1 A2 B2", "ex": [["a", 2, "g"], ["b", 2, "g"]], "sequence": [[0, 0], [1, 0], [0, 1], [1, 1]] },

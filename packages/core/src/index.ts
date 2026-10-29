@@ -807,4 +807,4 @@ export type { ImportSource, ImportError, ImportSet, ImportDay, ImportSkipped, Im
  * - `groupLabels` member letters, `normalizeGroups` repair, `nextInRound` alternating order, `restAfterTick` round and transition rest (reuses `restFor`).
  */
 export { GROUP_MAX, GROUP_MIN, GROUP_TRANSITION_SEC, groupLabels, normalizeGroups, nextInRound, restAfterTick } from './groups';
-export type { GroupEx, RestAfterTick } from './groups';
+export type { GroupEx, IsDone, RestAfterTick } from './groups';

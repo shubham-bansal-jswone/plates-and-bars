@@ -10,7 +10,10 @@ export const GROUP_TRANSITION_SEC = 15;
 /** What the group rules read of a session exercise (contract `WorkoutExercise`): name, set count and the optional group id. */
 export type GroupEx = { name: string; sets: number; group?: string | null };
 
-const gid = (e: GroupEx): string | null => (typeof e.group === 'string' && e.group !== '' ? e.group : null);
+const ID = /^[A-Za-z0-9_-]{1,36}$/;
+/** Contract pattern for a group id (`^[A-Za-z0-9_-]{1,36}$`). */
+const validId = (g: unknown): g is string => typeof g === 'string' && ID.test(g);
+const gid = (e: GroupEx): string | null => (validId(e.group) ? e.group : null);
 
 /** Runs of equal non-null ids as [start, end) pairs, in order. */
 function runs(exs: readonly GroupEx[]): { id: string; a: number; b: number }[] {
@@ -25,10 +28,12 @@ function runs(exs: readonly GroupEx[]): { id: string; a: number; b: number }[] {
   return out;
 }
 
-/** The valid group run (2 to 6 contiguous members) holding index `i`, or null. */
-function runOf(exs: readonly GroupEx[], i: number): { a: number; b: number } | null {
-  const r = runs(exs).find((x) => x.a <= i && i < x.b);
-  return r && r.b - r.a >= GROUP_MIN && r.b - r.a <= GROUP_MAX ? r : null;
+/** The valid runs: 2 to 6 members and an id that appears in one run only. The one rule behind labels, order and rest. */
+function validRuns(exs: readonly GroupEx[]): { a: number; b: number }[] {
+  const all = runs(exs);
+  const n = new Map<string, number>();
+  for (const r of all) n.set(r.id, (n.get(r.id) ?? 0) + 1);
+  return all.filter((r) => n.get(r.id) === 1 && r.b - r.a >= GROUP_MIN && r.b - r.a <= GROUP_MAX);
 }
 
 /**
@@ -36,21 +41,16 @@ function runOf(exs: readonly GroupEx[], i: number): { a: number; b: number } | n
  * valid run (singleton, over 6, or id split into several runs). A set label is the letter plus the set number: 'A1', 'B1', 'A2'.
  *
  * New (#1182, ADR 012), not a prototype port: no prototype behaviour, no golden fixture. Tests load
- * packages/api/test-vectors/groups.json.
+ * docs/spec/golden/groups.json.
  */
 export function groupLabels(exs: readonly GroupEx[]): (string | null)[] {
-  const byId = new Map<string, number>();
-  for (const r of runs(exs)) byId.set(r.id, (byId.get(r.id) ?? 0) + 1);
   const out: (string | null)[] = exs.map(() => null);
-  for (const r of runs(exs)) {
-    if (byId.get(r.id) !== 1 || r.b - r.a < GROUP_MIN || r.b - r.a > GROUP_MAX) continue;
-    for (let k = r.a; k < r.b; k++) out[k] = String.fromCharCode(65 + k - r.a);
-  }
+  for (const r of validRuns(exs)) for (let k = r.a; k < r.b; k++) out[k] = String.fromCharCode(65 + k - r.a);
   return out;
 }
 
 /**
- * Repair groups: an id found in more than one run is dissolved entirely; a run under 2 members is dissolved; in a run over 6 the first
+ * Repair groups: a present id that fails the contract pattern (`^[A-Za-z0-9_-]{1,36}$`: empty, number, space, over 36 characters) becomes null; an id found in more than one run is dissolved entirely; a run under 2 members is dissolved; in a run over 6 the first
  * 6 stay and the rest are ungrouped. Dissolved members get `group: null` (explicit null, so a three-way merge sees the ungroup);
  * exercises that were not grouped are returned unchanged (key not added), and so are members of valid groups. Returns a new array,
  * never mutates, never reorders, never touches names or other keys. Idempotent.
@@ -62,6 +62,9 @@ export function normalizeGroups<E extends GroupEx>(exs: readonly E[]): E[] {
   const count = new Map<string, number>();
   for (const r of all) count.set(r.id, (count.get(r.id) ?? 0) + 1);
   const clear = new Set<number>();
+  exs.forEach((e, i) => {
+    if (e.group !== undefined && e.group !== null && !validId(e.group)) clear.add(i);
+  });
   for (const r of all) {
     const n = r.b - r.a;
     if (count.get(r.id) !== 1 || n < GROUP_MIN) for (let k = r.a; k < r.b; k++) clear.add(k);
@@ -70,45 +73,63 @@ export function normalizeGroups<E extends GroupEx>(exs: readonly E[]): E[] {
   return exs.map((e, i) => (clear.has(i) ? { ...e, group: null } : e));
 }
 
-/**
- * The set that follows (exercise `i`, set `j`, both 0-based) and the exercise index and set index of it, or null at the end.
- * Ungrouped: the next set of the same exercise, then the next exercise's first set. In a group the order alternates by round:
- * A1, B1, A2, B2; a member out of sets drops out of later rounds; after the last round, the first exercise after the group.
- * A group that is not a valid run is treated as ungrouped. Assumes `exs` as given (call `normalizeGroups` first).
- *
- * New (#1182, ADR 012), not a prototype port.
- */
-export function nextInRound(exs: readonly GroupEx[], i: number, j: number): { ex: number; set: number } | null {
-  const r = runOf(exs, i);
-  if (r) {
-    for (let k = i + 1; k < r.b; k++) if ((exs[k] as GroupEx).sets > j) return { ex: k, set: j };
-    // The first member with sets left in round j+1 is the first with sets > j+1 (a member out of sets drops out).
-    for (let k = r.a; k < r.b; k++) if ((exs[k] as GroupEx).sets > j + 1) return { ex: k, set: j + 1 };
-    return r.b < exs.length ? { ex: r.b, set: 0 } : null;
-  }
-  const e = exs[i];
-  if (e && j + 1 < e.sets) return { ex: i, set: j + 1 };
-  return i + 1 < exs.length ? { ex: i + 1, set: 0 } : null;
+/** Whether set `s` of exercise `k` is done. The ticked set is treated as done by `nextInRound` and `restAfterTick`. */
+export type IsDone = (ex: number, set: number) => boolean;
+
+type Pos = { ex: number; set: number };
+
+/** The run of `i` (a valid group, else just `i`) and the rounds-order scan helpers; `done` includes the ticked set (i, j). */
+function scope(exs: readonly GroupEx[], i: number, j: number, done: IsDone) {
+  const g = validRuns(exs).find((x) => x.a <= i && i < x.b);
+  const a = g ? g.a : i;
+  const b = g ? g.b : i + 1;
+  const open = (k: number, s: number) => s < (exs[k] as GroupEx).sets && !(k === i && s === j) && !done(k, s);
+  const rounds = g ? Math.max(...exs.slice(a, b).map((e) => e.sets)) : (exs[i] as GroupEx).sets;
+  return { group: g !== undefined, a, b, open, rounds };
 }
 
-export type RestAfterTick = { kind: 'none' | 'transition' | 'round'; seconds: number; next: { ex: number; set: number } | null };
+/**
+ * The set to go to after set `j` of exercise `i` (both 0-based) is ticked, or null when nothing undone is left from `i` onward.
+ * `done(k, s)` is the done state of every set; the ticked set counts as done. Ungrouped (mirrors the app's tick,
+ * useWorkoutDay.ts:451-455): the first undone set of this exercise, else the first later exercise with an undone set (finished
+ * ones skipped), else null. In a group the order alternates by round: A1, B1, A2, B2, the first undone set in that order (a member out
+ * of sets drops out of later rounds); after the group, the first later exercise with an undone set. A group that is not a valid run
+ * (see `groupLabels`) is treated as ungrouped. Assumes `exs` as given (call `normalizeGroups` first).
+ *
+ * New (#1182, ADR 012); the ungrouped case matches the app's done-state rule, not a prototype function.
+ */
+export function nextInRound(exs: readonly GroupEx[], i: number, j: number, done: IsDone): Pos | null {
+  if (!exs[i]) return null;
+  const c = scope(exs, i, j, done);
+  for (let s = 0; s < c.rounds; s++) for (let k = c.a; k < c.b; k++) if (c.open(k, s)) return { ex: k, set: s };
+  for (let k = c.b; k < exs.length; k++) {
+    const s = Array.from({ length: (exs[k] as GroupEx).sets }, (_, x) => x).find((x) => c.open(k, x));
+    if (s !== undefined) return { ex: k, set: s };
+  }
+  return null;
+}
+
+export type RestAfterTick = { kind: 'none' | 'transition' | 'round'; seconds: number; next: Pos | null };
 
 /**
- * The rest to start when set `j` of exercise `i` is ticked. `restOff` (the global rest setting) gives kind 'none', 0 seconds.
- * Ungrouped, or a group's last undone member of the round: kind 'round', the normal `restFor` (for a group, the longest `restFor` among
- * the members still in that round). An earlier member of a round: kind 'transition', `GROUP_TRANSITION_SEC`. `next` is `nextInRound`.
- * Warm-up and ramp stay a per-exercise pre-step and are not part of rounds.
+ * The rest to start when set `j` of exercise `i` is ticked, given the done state (`done`, the ticked set counts as done).
+ * Kind 'none', 0 seconds when: `restOff` (the global rest setting; `next` still reported), nothing undone is left from `i` onward
+ * (`next` null: the app starts no rest then), or `j` is not a set of any member of the round. Otherwise ungrouped: kind 'round', the
+ * normal `restFor`. In a group the round is open while another member still has an undone set at index `j` or earlier: then kind
+ * 'transition', `GROUP_TRANSITION_SEC` (so ticking B1 before A1 is a transition); the tick that closes the round is kind 'round', the
+ * longest `restFor` among the members still in that round. Warm-up and ramp ticks start no rest and are not part of rounds.
  *
- * New (#1182, ADR 012), not a prototype port. Ungrouped input gives exactly `restFor(name, tags)`.
+ * New (#1182, ADR 012); ungrouped matches the app's done-state rule (useWorkoutDay.ts:451-455), not a prototype function.
  */
-export function restAfterTick(exs: readonly GroupEx[], i: number, j: number, o: { restOff: boolean; tags: ExerciseCatalog['tags'] }): RestAfterTick {
-  const next = nextInRound(exs, i, j);
-  if (o.restOff) return { kind: 'none', seconds: 0, next };
-  const r = runOf(exs, i);
-  if (!r) return { kind: 'round', seconds: restFor((exs[i] as GroupEx).name, o.tags), next };
+export function restAfterTick(exs: readonly GroupEx[], i: number, j: number, done: IsDone, o: { restOff: boolean; tags: ExerciseCatalog['tags'] }): RestAfterTick {
+  const next = nextInRound(exs, i, j, done);
+  if (o.restOff || !next) return { kind: 'none', seconds: 0, next };
+  const c = scope(exs, i, j, done);
   const inRound: number[] = [];
-  for (let k = r.a; k < r.b; k++) if ((exs[k] as GroupEx).sets > j) inRound.push(k);
-  const lastIdx = inRound[inRound.length - 1] as number;
-  if (i < lastIdx) return { kind: 'transition', seconds: GROUP_TRANSITION_SEC, next };
+  for (let k = c.a; k < c.b; k++) if ((exs[k] as GroupEx).sets > j) inRound.push(k);
+  if (inRound.length === 0 || !inRound.includes(i)) return { kind: 'none', seconds: 0, next };
+  if (c.group) {
+    for (let s = 0; s <= j; s++) for (let k = c.a; k < c.b; k++) if (c.open(k, s)) return { kind: 'transition', seconds: GROUP_TRANSITION_SEC, next };
+  }
   return { kind: 'round', seconds: Math.max(...inRound.map((k) => restFor((exs[k] as GroupEx).name, o.tags))), next };
 }
