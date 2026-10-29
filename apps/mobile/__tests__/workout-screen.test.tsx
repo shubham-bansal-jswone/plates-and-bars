@@ -495,6 +495,39 @@ describe('Workout tab: logging sets', () => {
     expect(screen.queryByText('Next: Barbell Bench Press')).toBeNull();
   });
 
+  // Reviewer's reproductions on #1333: while a rest runs the ungrouped dock behaves as before groups.
+  it('removing the exercise just finished keeps "Next: <Name>", not "set 1 of" the one after (#1182 S4)', async () => {
+    await started();
+    await cutToOneSet('Barbell Bench Press');
+    await press('Mark Barbell Bench Press set 1 done');
+    expect(screen.getByText('Next: Machine Shoulder Press')).toBeTruthy();
+    await removeExercise('Barbell Bench Press');
+    expect(screen.getByText('Next: Machine Shoulder Press')).toBeTruthy();
+  });
+
+  it('unticking the finished exercise and then removing the target moves on, not back to the finished one (#1182 S4)', async () => {
+    await started();
+    await cutToOneSet('Barbell Bench Press');
+    await press('Mark Barbell Bench Press set 1 done');
+    await press('Mark Barbell Bench Press set 1 done'); // untick
+    expect(screen.getByText('Next: Machine Shoulder Press')).toBeTruthy();
+    await removeExercise('Machine Shoulder Press');
+    expect(screen.getByText('Next: Pec Deck Fly')).toBeTruthy();
+  });
+
+  it('when the last set of the target is ticked with nothing after it, the dock closes, though an earlier exercise is open again (#1182 S4)', async () => {
+    await started();
+    await cutToOneSet('Barbell Bench Press');
+    for (const n of ['Machine Shoulder Press', 'Pec Deck Fly', 'Cable Lateral Raise']) await removeExercise(n);
+    await press('Mark Barbell Bench Press set 1 done');
+    expect(screen.getByText('Next: Overhead Cable Extension')).toBeTruthy();
+    await press('Mark Barbell Bench Press set 1 done'); // untick: the finished exercise is open again
+    await expand('Overhead Cable Extension');
+    while (screen.queryByLabelText('Remove last set of Overhead Cable Extension')) await press('Remove last set of Overhead Cable Extension');
+    await press('Mark Overhead Cable Extension set 1 done');
+    expect(screen.queryByTestId('rest-title')).toBeNull(); // Bench is open again, but the dock never goes back to it
+  });
+
   async function swapToday(name: string) {
     await reveal(name);
     await press(`Can’t do ${name}`);

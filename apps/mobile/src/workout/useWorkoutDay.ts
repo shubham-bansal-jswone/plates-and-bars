@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { buzz, PB_BUZZ } from '../haptics';
 import {
   cantRule,
+  restAfterTick,
+  restFor,
   noLoad,
   rampRate,
   infoForUnit,
@@ -36,6 +38,8 @@ import { displayRow, weightFromField } from './unitText';
 import { buildSession } from './buildSession';
 import { getCatalog } from './catalog';
 import { rangesOf } from './adjust';
+import { restTarget } from './restNext';
+import type { RestNext } from './parts';
 import { guidance, progressionContext, type Tuning } from './guidance';
 import { cantChange, persistCant } from './cantApply';
 import { dayQueue, dayWrites, enqueueDay } from './dayQueue';
@@ -63,8 +67,10 @@ interface Options {
   labHold?: boolean;
   /** Short message for the toast. */
   notify: (msg: string) => void;
-  /** A set was ticked: start the rest timer for `name`, then show `next`. */
-  startRest: (name: string, next: string, from: string[]) => void;
+  /** A set was ticked and a rest follows: start the rest timer for `seconds`, then show `next` (a grouped session's dock follows it by position). */
+  startRest: (seconds: number, next: RestNext) => void;
+  /** The global "rest timer" setting is off: no rest starts (core's `restAfterTick`). Off when not given. */
+  restOff?: boolean;
   /** Saved exercise rules and swaps; they shape the session being built. */
   exclusions: readonly Exclusion[];
   swaps: readonly Swap[];
@@ -89,7 +95,7 @@ const clone = (d: Day): Day => ({ ...d, exs: structuredClone(d.exs) });
  * Today's workout: loads it from SQLite, and every action updates the screen and writes the changed
  * rows straight away (nothing waits on the network). Rules come from core; this only wires them to records.
  */
-export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustments, labHold = false, notify, startRest, exclusions, swaps, saveRule, tune, reloadKey = 0 }: Options) {
+export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustments, labHold = false, notify, startRest, restOff = false, exclusions, swaps, saveRule, tune, reloadKey = 0 }: Options) {
   const date = shown ?? localDate(now());
   const [day, setDay] = useState<Day>({ ready: false, workout: null, exs: [], lifts: {}, sessions: {} });
   /** The day the loaded session belongs to: while the viewed day is another one the screen is not ready, so no action runs against the old day's rows. */
@@ -468,11 +474,19 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
         s.r = f.r;
         s.done = true;
         s.t = stamp(now());
-        const nj = ex.sets.findIndex((x) => !x.done);
-        const nx = d.exs.slice(i + 1).find((e) => e.sets.some((x) => !x.done));
-        const from = d.exs.slice(i).map((e) => e.name);
-        if (nj >= 0) startRest(ex.name, `Next: set ${nj + 1} of ${ex.name}`, from);
-        else if (nx) startRest(ex.name, `Next: ${nx.name}`, from);
+        if (d.exs.some((e) => e.group)) {
+          // A grouped session: core's restAfterTick says whether a rest follows and what comes next. Only here, when the set has just been ticked: core treats it as done.
+          const r = restAfterTick(d.exs.map((e) => ({ name: e.name, sets: e.sets.length, group: e.group })), i, j, (k, n) => !!d.exs[k]?.sets[n]?.done, { restOff, tags: getCatalog().tags });
+          if (r.kind !== 'none' && r.next) startRest(r.seconds, restTarget(d.exs, i, r.next));
+        } else if (!restOff) {
+          // An ungrouped session: as before groups.
+          const nj = ex.sets.findIndex((x) => !x.done);
+          const nx = d.exs.slice(i + 1).find((e) => e.sets.some((x) => !x.done));
+          const from = d.exs.slice(i).map((e) => e.name);
+          const total = restFor(ex.name, getCatalog().tags);
+          if (nj >= 0) startRest(total, { label: `Next: set ${nj + 1} of ${ex.name}`, from });
+          else if (nx) startRest(total, { label: `Next: ${nx.name}`, from });
+        }
       },
       async (name) => {
         if (dropped.current.get(id) === null) return;
