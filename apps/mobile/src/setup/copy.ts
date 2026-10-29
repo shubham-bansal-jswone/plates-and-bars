@@ -1,6 +1,6 @@
 import type { Activity, Experience, Goal, Pace, Where } from '@plate-and-bar/core';
 
-// Setup copy, taken from docs/prototype/plate-and-bar.html. Moves into a content bundle once one exists.
+// Setup copy, taken from the prototype (frozen at git tag `prototype-final`). Moves into a content bundle once one exists.
 
 export const CONSENT_TEXT_VERSION = '2026-10-17';
 

@@ -1,4 +1,4 @@
-/** Worked from the prototype `videoFrames` (plate-and-bar.html lines 3181, 3183); no fixture exists in docs/spec/golden. */
+/** Worked from the prototype `videoFrames` (prototype-final tag); no fixture exists in docs/spec/golden. */
 import { FRAME_DEFAULT_DURATION_MS, frameDuration, framePositions, frameTimesMs } from '../src/formFrames';
 
 const close = (a: number[], b: number[]) => {
