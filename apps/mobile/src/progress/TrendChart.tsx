@@ -25,7 +25,7 @@ interface Props {
 
 /**
  * Line chart on core's `chartLayout` (the prototype's SVG, drawn with react-native-svg), at most `CHART_MAX_WIDTH` wide. Adds the first and
- * last dates under the line, the last point's value, and an optional target line. Nothing with fewer than 2 points.
+ * last dates under the line (the last with its value, kept out of the plot so it never covers the line), and an optional target line. Nothing with fewer than 2 points.
  */
 export function TrendChart({ points, box, label, unit, target }: Props) {
   const c = useTheme();
@@ -38,12 +38,9 @@ export function TrendChart({ points, box, label, unit, target }: Props) {
   const { W, H, px, py } = box;
   const drawn = layout.points.slice(0, points.length);
   const line = drawn.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
-  // Font size in viewBox units so the text is LABEL_PX wide-screen or narrow: the SVG is scaled to its measured width.
+  // The axis labels stay LABEL_PX as drawn: the SVG is scaled to its measured width, so the size is given in viewBox units.
   const fs = LABEL_PX / Math.max(width / W, 0.1);
-  const end = drawn[drawn.length - 1];
   const targetY = target === undefined ? null : (layout.points[layout.points.length - 1]?.y ?? null);
-  // Above the point, or below it when it sits at the top edge.
-  const lastY = end ? (end.y - fs - 2 < 0 ? end.y + fs + 4 : end.y - 6) : 0;
   const date = first.date.slice(0, 4) === last.date.slice(0, 4) ? shortDate : dateWithYear;
   const onLayout = (e: LayoutChangeEvent) => setWidth(e.nativeEvent.layout.width || box.W);
   return (
@@ -59,11 +56,13 @@ export function TrendChart({ points, box, label, unit, target }: Props) {
           {drawn.map((p, i) => (
             <Circle key={points[i]?.date} cx={p.x} cy={p.y} r={3} fill={c.brand} />
           ))}
-          {end ? <SvgText x={end.x} y={lastY} fill={c.ink} fontSize={fs} fontWeight="700" textAnchor="end" fontFamily={fontFamily}>{unit ? `${round1(last.v)} ${unit}` : String(round1(last.v))}</SvgText> : null}
         </Svg>
         <View style={styles.dates} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
           <Text style={[typeScale.small, { color: c.muted }]}>{date(first.date)}</Text>
-          <Text style={[typeScale.small, { color: c.muted }]}>{date(last.date)}</Text>
+          <Text style={[typeScale.small, { color: c.muted }]}>
+            {date(last.date)}
+            <Text style={[typeScale.small, { color: c.ink, fontWeight: '700' }]}>{` · ${unit ? `${round1(last.v)} ${unit}` : round1(last.v)}`}</Text>
+          </Text>
         </View>
       </View>
       {target !== undefined && unit ? <Text style={[typeScale.small, { color: c.muted }]}>{CHART_TARGET(String(round1(target)), unit)}</Text> : null}

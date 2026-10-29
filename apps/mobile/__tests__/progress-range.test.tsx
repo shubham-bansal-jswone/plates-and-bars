@@ -155,23 +155,23 @@ describe('TrendChart additions', () => {
   const pts = [{ date: '2026-09-01', v: 82 }, { date: '2026-10-05', v: 80.5 }];
   const box = { W: 320, H: 150, px: 34, py: 16 };
 
-  it('shows the first and last date and the last value with its unit', async () => {
+  it('shows the first and last date, and the last value with its unit beside the last date', async () => {
     await render(<TrendChart points={pts} box={box} label="Weight" unit="kg" />);
     expect(screen.getByText(shortDate('2026-09-01'), { includeHiddenElements: true })).toBeTruthy();
-    expect(screen.getByText(shortDate('2026-10-05'), { includeHiddenElements: true })).toBeTruthy();
-    expect(JSON.stringify(screen.toJSON())).toContain('80.5 kg');
+    expect(screen.getByText(new RegExp(`^${shortDate('2026-10-05')}`), { includeHiddenElements: true })).toBeTruthy();
+    expect(screen.getByText(/· 80\.5 kg$/, { includeHiddenElements: true })).toBeTruthy();
   });
 
   it('adds the year to both dates when the series spans two years', async () => {
     await render(<TrendChart points={[{ date: '2025-12-20', v: 82 }, { date: '2026-01-05', v: 80 }]} box={box} label="Weight" />);
     expect(screen.getByText(dateWithYear('2025-12-20'), { includeHiddenElements: true })).toBeTruthy();
-    expect(screen.getByText(dateWithYear('2026-01-05'), { includeHiddenElements: true })).toBeTruthy();
+    expect(screen.getByText(new RegExp(`^${dateWithYear('2026-01-05')}`), { includeHiddenElements: true })).toBeTruthy();
   });
 
   it('axis and value labels are at least 12px as drawn', async () => {
     await render(<TrendChart points={pts} box={box} label="Weight" unit="kg" />);
     const sizes = walk('RNSVGText').map((t) => Number(t.props?.font?.fontSize));
-    expect(sizes.length).toBe(3);
+    expect(sizes.length).toBe(2);
     for (const s of sizes) expect(s).toBeGreaterThanOrEqual(12);
   });
 
