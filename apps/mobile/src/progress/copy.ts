@@ -127,6 +127,22 @@ export const BAR_COUNT_BELOW = (n: number): string => `${n} below target`;
 export const BAR_COUNT_PARTIAL = (n: number): string => `${n} with few days logged`;
 export const BAR_COUNT_NOT_LOGGED = (n: number): string => `${n} not logged`;
 
+// Eating by week (#1351 A6).
+export const EATING_TITLE = 'Eating by week';
+export const EATING_LOADING = 'Loading…';
+export const EATING_ERROR = 'Couldn’t read your food logs. Open this tab again to retry.';
+export const EATING_EMPTY = 'Log food to see your weekly averages here.';
+export const EATING_NO_TARGET = 'Run setup (Targets tab) to set a calorie target and compare your weeks with it.';
+/** `days` is the logged days the average rests on when that is under 4, else null. */
+export const EATING_HEADLINE = (target: string | null, days: number | null = null): string =>
+  `kcal a day, last 4 weeks${days === null ? '' : `, from ${days} ${days === 1 ? 'day' : 'days'} logged`}${target ? `, target ${target} kcal` : ''}`;
+export const EATING_NONE_RECENT = 'No food logged in the last 4 weeks';
+export const EATING_PROTEIN = (g: string, target: string | null): string => `Protein ${g} g a day${target ? `, target ${target} g` : ''}`;
+export const EATING_CHART_LABEL = 'Average calories by week';
+export const EATING_NOUN = 'Calories';
+export const EATING_VALUE_HEADER = 'Average a day';
+export const EATING_HOLLOW_HINT = 'Hollow bar: few days logged. Gap: no food logged that week.';
+
 // Any tape part and the weeks-on-track strip (#1351 A7).
 export const MEASURE_PART_GROUP = 'Measurement part';
 export const MEASURE_TREND_NONE = (part: string): string => `Log a few ${part.toLowerCase()} measurements to see your trend line here.`;
@@ -137,3 +153,31 @@ export const WEEKS_EMPTY = 'Your weeks on track will show here after your first 
 export const MILESTONES_TITLE = 'Milestones';
 /** One gentle line: no locked entries, no promise of a date. */
 export const MILESTONES_EMPTY = 'Milestones you earn will show up here.';
+
+// Training volume (Progress, A5 of #1351)
+export const VOL_TITLE = 'Training volume';
+export const VOL_MUSCLE_GROUP = 'Muscle';
+export const VOL_ERROR = 'Couldn’t read your training volume. It will try again when you come back to this tab.';
+export const VOL_EMPTY = 'Finish a workout to see weekly sets against your plan.';
+export const VOL_CHART_LABEL = (muscle: string): string => `${muscle}: done sets by week`;
+export const VOL_THIS_WEEK = 'this week';
+export const VOL_WEEK_OF = (date: string): string => `in the week of ${date}`;
+export const VOL_HEADLINE = (muscle: string, sets: string, target: string | null, when: string): string =>
+  target === null ? `${muscle} ${sets} sets ${when}` : `${muscle} ${sets} of about ${target} sets ${when}`;
+export const VOL_PLAN_LINE = (target: string): string => `Your current plan: about ${target} sets a week`;
+export const VOL_PLAN_NOTE = 'The line is your plan today, drawn across every week. Earlier weeks may have followed a different plan.';
+export const VOL_PLAN_ROW = (target: string, unit: string): string => `Your current plan: ${target} ${unit}`;
+export const VOL_BELOW_PLAN = 'Below your current plan';
+export const VOL_COUNT_BELOW_PLAN = (n: number): string => `${n} below your current plan`;
+export const VOL_NO_SETUP = 'Run setup (Targets tab) to see your plan’s weekly sets as a line.';
+export const VOL_NO_MUSCLE_TARGET = (muscle: string): string => `Your current plan has no sets for ${muscle.toLowerCase()}.`;
+export const VOL_RANK_TITLE = 'All muscles, weekly average';
+export const VOL_AVG_NOTE = 'Average of your last 4 complete weeks against your current plan, lowest first. Under 6 sets a week is marked low.';
+export const VOL_AVG_NOTE_FEW = (n: number): string => `Average of your ${n} complete ${n === 1 ? 'week' : 'weeks'} so far; it settles after 4. Lowest first. Under 6 sets a week is marked low.`;
+export const VOL_NO_FULL_WEEK = 'Averages start after your first complete week of workouts (Monday to Sunday).';
+export const VOL_LOW = 'Low';
+export const VOL_ROW_OF = (avg: string, target: string): string => `${avg} of ${target}`;
+export const VOL_ROW_LABEL = (muscle: string, avg: string, target: string | null, below: boolean, low: boolean): string =>
+  `${muscle}, average ${avg} sets a week${target === null ? '' : `, your current plan about ${target}`}${below ? ', below your plan' : ''}${low ? ', low' : ''}`;
+export const VOL_SHOW_ALL = 'Show all';
+export const VOL_SHOW_FEWER = 'Show fewer';

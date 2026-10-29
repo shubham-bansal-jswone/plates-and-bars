@@ -247,8 +247,8 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
       ms.current = null;
       return;
     }
-    // Not in the day queue: a tick (which runs in it) waits for this read, so queueing it behind that tick would deadlock. It leaves the viewed day out,
-    // the only day this hook writes, so queued writes of its own cannot change it.
+    // Not in the day queue, so a tick's queued writes never wait on a history read. It leaves the viewed day out, the only day this hook writes,
+    // so queued writes of its own cannot change what it reads.
     // On `msChain` like every evaluation, so it reads the shown ids after the write of every earlier tick and a tick's new id is never overwritten.
     const data = msChain.current.then(loadMs);
     msChain.current = data.then(() => undefined, () => undefined);

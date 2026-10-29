@@ -124,6 +124,22 @@ describe('useProgressSets', () => {
     expect(priorBestOf(result.current.before('2026-10-01'), 'barbell', '2026-10-01').best).toBeGreaterThan(170);
   });
 
+  it('a failed reload clears the read mark: the next focus reads again with no write between', async () => {
+    const db = await openDb();
+    await day(db, '2026-10-01', [wset('a', 'Row', 60, 8)]);
+    const real = db.getAllAsync.bind(db);
+    const spy = jest.spyOn(db, 'getAllAsync');
+    const { result, rerender } = await renderHook((p: { v: number }) => useProgressSets(db, p.v), { initialProps: { v: 0 } });
+    await waitFor(() => expect(result.current.all).toHaveLength(1));
+    spy.mockRejectedValue(new Error('disk'));
+    await rerender({ v: 1 });
+    await waitFor(() => expect(result.current.error).not.toBeNull());
+    spy.mockImplementation(real as never);
+    await focus();
+    await waitFor(() => expect(result.current.error).toBeNull());
+    expect(result.current.all).toHaveLength(1);
+  });
+
   it('reloads on focus after a local write, also without a sync version (dataVersion stays 0); a focus with no write does not read', async () => {
     const db = await openDb();
     await day(db, '2026-10-01', [wset('a', 'Row', 60, 8)]);

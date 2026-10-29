@@ -3,11 +3,8 @@ import { StyleSheet, View, useWindowDimensions } from 'react-native';
 import { latestWeight, milestones as milestonesOf, personalRecords, WEIGHT_CHART_BOX, type SessionLog } from '@plate-and-bar/core';
 import { Text } from '../components/Text';
 import { Card, Heading, Hint, Press, a11yState } from '../components/ui';
-import type { WorkoutDb } from '../db/workouts';
 import { dateWithYear, shortDate } from '../format';
 import { useWeightUnit } from '../settings/weightUnit';
-import { useDataVersion } from '../sync/useDataVersion';
-import { useOptionalSettings } from '../state/SettingsProvider';
 import { useProfile } from '../state/ProfileProvider';
 import { radius, space, type as typeScale } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
@@ -18,7 +15,7 @@ import { E1RM_NOTE } from './E1rmTrend';
 import { RangedTrend } from './RangedTrend';
 import { leadLift, liftChoices, liftSeries } from './strength';
 import { CHOOSE_LIFT, CHOOSE_LIFT_LIST, LIFT_CHIPS, PR_NONE, PR_TITLE, STRENGTH_EMPTY, STRENGTH_ERROR, STRENGTH_LOADING, STRENGTH_TITLE, strengthSentence } from './strengthCopy';
-import { useProgressSets } from './useProgressSets';
+import type { ProgressSets } from './useProgressSets';
 
 /** Rows of recent personal bests: fewer on a phone-width screen. */
 const PR_ROWS = 5;
@@ -26,7 +23,8 @@ const PR_ROWS_NARROW = 3;
 const NARROW = 400;
 
 interface Props {
-  db: WorkoutDb;
+  /** From `useProgressSets`, called once by the screen and shared with Training volume, so all history is read once. */
+  sets: ProgressSets;
   /** The viewed date: lifts, ranges and bests count up to it. */
   date: string;
   /** Weigh-ins, for the bodyweight that scores assisted lifts. */
@@ -39,11 +37,9 @@ interface Props {
  * Progress, Strength: the lead lift's estimated 1-rep max with its change, chips to switch lift, a ranged e1RM line with a table alternative,
  * and recent personal bests from all history. All history is read once by `useProgressSets`; nothing here reads the db again.
  */
-export function StrengthSection({ db, date, weights, sessions = null }: Props) {
+export function StrengthSection({ sets, date, weights, sessions = null }: Props) {
   const c = useTheme();
-  const settings = useOptionalSettings();
   const { profile } = useProfile();
-  const sets = useProgressSets(db, useDataVersion(), settings?.settings.exercise_overrides);
   const { all, types, inRange, loading, error } = sets;
   const bodyweight = latestWeight(weights, date) ?? profile?.weight_kg ?? null;
   return (
@@ -61,7 +57,7 @@ export function StrengthSection({ db, date, weights, sessions = null }: Props) {
   );
 }
 
-type Loaded = Pick<ReturnType<typeof useProgressSets>, 'all' | 'types' | 'inRange'>;
+type Loaded = Pick<ProgressSets, 'all' | 'types' | 'inRange'>;
 
 function StrengthBody({ all, types, inRange, date, bodyweight, weights, sessions }: Loaded & { date: string; bodyweight: number | null; weights: Props['weights']; sessions: SessionLog | null }) {
   const c = useTheme();

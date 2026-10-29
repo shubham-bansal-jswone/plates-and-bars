@@ -281,5 +281,188 @@
     }
    ]
   }
+ ],
+ "intake_average": [
+  {
+   "note": "no logs: null averages and 0 days, never 0",
+   "weeks": [
+    {
+     "loggedDays": 0,
+     "avgKcal": null,
+     "avgProtein_g": null
+    },
+    {
+     "loggedDays": 0,
+     "avgKcal": null,
+     "avgProtein_g": null
+    },
+    {
+     "loggedDays": 0,
+     "avgKcal": null,
+     "avgProtein_g": null
+    },
+    {
+     "loggedDays": 0,
+     "avgKcal": null,
+     "avgProtein_g": null
+    }
+   ],
+   "expected": {
+    "avgKcal": null,
+    "avgProtein_g": null,
+    "loggedDays": 0
+   }
+  },
+  {
+   "note": "no weeks at all",
+   "weeks": [],
+   "expected": {
+    "avgKcal": null,
+    "avgProtein_g": null,
+    "loggedDays": 0
+   }
+  },
+  {
+   "note": "a partial week is weighted by its days, not as a whole week: (2*1000 + 5*2000) / 7",
+   "weeks": [
+    {
+     "loggedDays": 5,
+     "avgKcal": 2000,
+     "avgProtein_g": 100
+    },
+    {
+     "loggedDays": 2,
+     "avgKcal": 1000,
+     "avgProtein_g": 40
+    }
+   ],
+   "expected": {
+    "avgKcal": 1714.2857142857142,
+    "avgProtein_g": 82.85714285714286,
+    "loggedDays": 7
+   }
+  },
+  {
+   "note": "a no-log week is skipped",
+   "weeks": [
+    {
+     "loggedDays": 5,
+     "avgKcal": 2000,
+     "avgProtein_g": 100
+    },
+    {
+     "loggedDays": 0,
+     "avgKcal": null,
+     "avgProtein_g": null
+    },
+    {
+     "loggedDays": 4,
+     "avgKcal": 1500,
+     "avgProtein_g": 80
+    }
+   ],
+   "expected": {
+    "avgKcal": 1777.7777777777778,
+    "avgProtein_g": 91.11111111111111,
+    "loggedDays": 9
+   }
+  },
+  {
+   "note": "the current week counts its days so far; only the last 4 weeks count",
+   "weeks": [
+    {
+     "loggedDays": 7,
+     "avgKcal": 3000,
+     "avgProtein_g": 200
+    },
+    {
+     "loggedDays": 3,
+     "avgKcal": 1800,
+     "avgProtein_g": 90
+    },
+    {
+     "loggedDays": 7,
+     "avgKcal": 2100,
+     "avgProtein_g": 120
+    },
+    {
+     "loggedDays": 7,
+     "avgKcal": 2100,
+     "avgProtein_g": 120
+    },
+    {
+     "loggedDays": 1,
+     "avgKcal": 900,
+     "avgProtein_g": 30
+    }
+   ],
+   "expected": {
+    "avgKcal": 1983.3333333333333,
+    "avgProtein_g": 110.0,
+    "loggedDays": 18
+   }
+  },
+  {
+   "note": "not a mean of week means: 7 days at 2000 and 1 day at 1000 is 1875, not 1500",
+   "weeks": [
+    {
+     "loggedDays": 7,
+     "avgKcal": 2000,
+     "avgProtein_g": 100
+    },
+    {
+     "loggedDays": 1,
+     "avgKcal": 1000,
+     "avgProtein_g": 50
+    }
+   ],
+   "expected": {
+    "avgKcal": 1875,
+    "avgProtein_g": 93.75,
+    "loggedDays": 8
+   }
+  },
+  {
+   "note": "last_n 2 takes the last 2 weeks; 0 or less takes none",
+   "weeks": [
+    {
+     "loggedDays": 4,
+     "avgKcal": 1000,
+     "avgProtein_g": 10
+    },
+    {
+     "loggedDays": 4,
+     "avgKcal": 2000,
+     "avgProtein_g": 20
+    },
+    {
+     "loggedDays": 4,
+     "avgKcal": 3000,
+     "avgProtein_g": 30
+    }
+   ],
+   "last_n": 2,
+   "expected": {
+    "avgKcal": 2500,
+    "avgProtein_g": 25,
+    "loggedDays": 8
+   }
+  },
+  {
+   "note": "last_n 0 takes none",
+   "weeks": [
+    {
+     "loggedDays": 4,
+     "avgKcal": 1000,
+     "avgProtein_g": 10
+    }
+   ],
+   "last_n": 0,
+   "expected": {
+    "avgKcal": null,
+    "avgProtein_g": null,
+    "loggedDays": 0
+   }
+  }
  ]
 }
