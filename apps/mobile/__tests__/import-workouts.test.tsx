@@ -252,15 +252,26 @@ describe('import workouts (#1179)', () => {
     expect(JSON.parse(db.rows.get('workouts:2024-03-27')!)).toMatchObject({ deleted_at: null, version: 4, template: 'Session' });
   });
 
-  it('matches an unmatched exercise to a library exercise so its sets join the existing lift', async () => {
+  it('matches a Strong name from the alias list on its own, with nothing left to match by hand', async () => {
     const db = await setup();
     await open();
     await chooseFile([HEAD, '2024-03-27 18:30:00,A,Squat (Barbell),1,100,5,0,0,,,'].join('\n'));
+    await screen.findByText(t.matched(1));
+    expect(screen.queryByText(t.unmatchedTitle(1))).toBeNull();
+    await fireEvent.press(screen.getByLabelText(t.importBtn));
+    await screen.findByText(t.imported(1, 1));
+    expect(JSON.parse([...db.sets.values()][0]!.data).exercise).toBe('Barbell Back Squat');
+  });
+
+  it('matches an unmatched exercise to a library exercise so its sets join the existing lift', async () => {
+    const db = await setup();
+    await open();
+    await chooseFile([HEAD, '2024-03-27 18:30:00,A,Zercher Squat (Barbell),1,100,5,0,0,,,'].join('\n'));
     await screen.findByText(t.unmatchedTitle(1));
-    await fireEvent.press(screen.getByLabelText(t.matchLabel('Squat (Barbell)')));
+    await fireEvent.press(screen.getByLabelText(t.matchLabel('Zercher Squat (Barbell)')));
     await fireEvent.changeText(screen.getByLabelText(t.pickerSearch), 'back squat');
     await fireEvent.press(screen.getByLabelText(t.pickerPick('Barbell Back Squat')));
-    expect(screen.getByLabelText(t.matchedToLabel('Squat (Barbell)', 'Barbell Back Squat'))).toBeTruthy();
+    expect(screen.getByLabelText(t.matchedToLabel('Zercher Squat (Barbell)', 'Barbell Back Squat'))).toBeTruthy();
     await fireEvent.press(screen.getByLabelText(t.importBtn));
     await screen.findByText(t.imported(1, 1));
     expect(JSON.parse([...db.sets.values()][0]!.data).exercise).toBe('Barbell Back Squat');
@@ -270,12 +281,12 @@ describe('import workouts (#1179)', () => {
   it('choosing Skip after a match drops the match, so that exercise is not written', async () => {
     const db = await setup();
     await open();
-    await chooseFile([HEAD, '2024-03-27 18:30:00,A,Bench Press (Barbell),1,60,5,0,0,,,', '2024-03-27 18:30:00,A,Squat (Barbell),1,100,5,0,0,,,'].join('\n'));
+    await chooseFile([HEAD, '2024-03-27 18:30:00,A,Bench Press (Barbell),1,60,5,0,0,,,', '2024-03-27 18:30:00,A,Zercher Squat (Barbell),1,100,5,0,0,,,'].join('\n'));
     await screen.findByText(t.unmatchedTitle(1));
-    await fireEvent.press(screen.getByLabelText(t.matchLabel('Squat (Barbell)')));
+    await fireEvent.press(screen.getByLabelText(t.matchLabel('Zercher Squat (Barbell)')));
     await fireEvent.press(screen.getByLabelText(t.pickerPick('Barbell Back Squat')));
-    expect(screen.getByLabelText(t.matchedToLabel('Squat (Barbell)', 'Barbell Back Squat'))).toBeTruthy();
-    await fireEvent.press(screen.getByLabelText(t.skipLabel('Squat (Barbell)')));
+    expect(screen.getByLabelText(t.matchedToLabel('Zercher Squat (Barbell)', 'Barbell Back Squat'))).toBeTruthy();
+    await fireEvent.press(screen.getByLabelText(t.skipLabel('Zercher Squat (Barbell)')));
     await fireEvent.press(screen.getByLabelText(t.importBtn));
     await screen.findByText(t.imported(1, 1));
     const names = [...db.sets.values()].map((r) => JSON.parse(r.data).exercise);

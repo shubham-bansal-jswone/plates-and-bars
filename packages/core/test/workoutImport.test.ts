@@ -1,5 +1,7 @@
 import { IMPORT_MAX_EXERCISES, IMPORT_MAX_CHARS, IMPORT_MAX_ROWS, importDate, matchAll, matchExercise, parseCsv, parseWorkoutCsv, planImport, KG_PER_LB } from '../src';
 import type { ImportParsed } from '../src';
+import aliasContent from '../../../content/import-aliases.json';
+import exercisesContent from '../../../content/exercises.json';
 
 const STRONG_HEAD = 'Date,Workout Name,Exercise Name,Set Order,Weight,Reps,Distance,Seconds,Notes,Workout Notes,RPE';
 const strong = (...rows: string[]) => [STRONG_HEAD, ...rows].join('\n');
@@ -299,5 +301,46 @@ describe('Hevy superset_id to groups (S8 of #1182)', () => {
     expect(JSON.stringify(p.days[0]!.sets[0])).toBe('{"exercise":"A","setIndex":0,"weightKg":40,"reps":10}');
     const strongP = ok(parseWorkoutCsv(strong('2024-03-27 18:30:00,Push,Bench,1,60,8,,,,,'), 'strong'));
     expect('superset' in strongP.days[0]!.sets[0]!).toBe(false);
+  });
+});
+
+describe('import aliases (content/import-aliases.json)', () => {
+  const library = Object.keys(exercisesContent.tags);
+  const aliases = aliasContent.aliases;
+  const cases: [string, string][] = [
+    ['Squat (Barbell)', 'Barbell Back Squat'],
+    ['Deadlift (Barbell)', 'Deadlift'],
+    ['Lateral Raise (Dumbbell)', 'Lateral Raise'],
+    ['Leg Press (Machine)', 'Leg Press'],
+    ['Lat Pulldown (Cable)', 'Lat Pulldown'],
+    ['Hip Thrust (Barbell)', 'Hip Thrust'],
+    ['Leg Extension (Machine)', 'Leg Extension'],
+    ['Push Up (Bodyweight)', 'Push-ups'],
+  ];
+  it.each(cases)('maps %s to %s in the library', (from, to) => {
+    expect(library).toContain(to);
+    expect(matchExercise(from, library)).toBeNull();
+    expect(matchExercise(from, library, aliases)).toBe(to);
+    expect(matchExercise(from.toLowerCase(), library, aliases)).toBe(to);
+  });
+  it('every shipped alias target is a library exercise', () => {
+    for (const to of Object.values(aliases)) expect(library).toContain(to);
+  });
+  it('leaves unknown names and look-alike equipment unmatched', () => {
+    expect(matchExercise('Deadlift (Dumbbell)', library, aliases)).toBeNull();
+    expect(matchExercise('Crunch (Machine)', library, aliases)).toBeNull();
+    expect(matchExercise('Zercher Squat (Barbell)', library, aliases)).toBeNull();
+  });
+  it('an exact catalogue match wins over an alias for the same name', () => {
+    expect(matchExercise('Leg Press', ['Leg Press', 'Other'], { 'Leg Press': 'Other' })).toBe('Leg Press');
+    expect(matchExercise('leg press', ['Leg Press', 'Other'], { 'leg press': 'Other' })).toBe('Leg Press');
+    expect(matchExercise('Push Up', ['Push-ups', 'Other'], { 'Push Up': 'Other' })).toBe('Push-ups');
+  });
+  it('an alias whose target is not in the catalogue does not match', () => {
+    expect(matchExercise('Squat (Barbell)', ['Goblet Squat'], { 'Squat (Barbell)': 'Barbell Back Squat' })).toBeNull();
+  });
+  it('matchAll uses the aliases', () => {
+    const days = [{ date: '2024-03-27', title: 'A', sets: [{ exercise: 'Squat (Barbell)', weightKg: 100, reps: 5 }, { exercise: 'Deadlift (Dumbbell)', weightKg: 30, reps: 5 }] }];
+    expect(matchAll(days, library, aliases)).toEqual({ matched: { 'Squat (Barbell)': 'Barbell Back Squat' }, unmatched: ['Deadlift (Dumbbell)'] });
   });
 });

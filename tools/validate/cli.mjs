@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { validateExercises } from './exercises.mjs';
 import { validateFoods } from './foods.mjs';
 import { validateExerciseImages } from './exercise-images.mjs';
+import { validateImportAliases } from './import-aliases.mjs';
 import { validateExerciseMotion } from './exercise-motion.mjs';
 import { scanContent } from '../check-no-ifct/check.mjs';
 
@@ -26,10 +27,12 @@ console.log(`exercises ok: ${Object.keys(content.tags).length} exercises, ` +
 
 const foods = JSON.parse(readFileSync(`${repo}/content/foods.json`, 'utf8'));
 const images = JSON.parse(readFileSync(`${repo}/content/exercise-images.json`, 'utf8'));
+const aliases = JSON.parse(readFileSync(`${repo}/content/import-aliases.json`, 'utf8'));
 const motion = JSON.parse(readFileSync(`${repo}/content/exercise-motion.json`, 'utf8'));
 const problems = [
   ...validateFoods(foods),
   ...validateExerciseImages(images, Object.keys(content.tags)).map((e) => `exercise-images.json: ${e}`),
+  ...validateImportAliases(aliases, Object.keys(content.tags)).map((e) => `import-aliases.json: ${e}`),
   ...validateExerciseMotion(motion, Object.keys(content.tags)).map((e) => `exercise-motion.json: ${e}`),
   ...scanContent(`${repo}/content`).map((h) => `IFCT/INDB (ADR 005 forbids it): ${h}`),
 ];
