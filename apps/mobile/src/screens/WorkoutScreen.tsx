@@ -1,11 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ComponentRef, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ComponentProps, type ComponentRef, type ReactNode } from 'react';
 import { profileWhyValues } from '../why/values';
 import { WhyLink } from '../why/WhyLink';
 import { useFocusEffect } from 'expo-router';
 import { AccessibilityInfo, Platform, StyleSheet, Text as RNText, useWindowDimensions, View } from 'react-native';
 import { useDataVersion } from '../sync/useDataVersion';
 import { Text } from '../components/Text';
-import { HAND_PICKED, ROUTINE_EXERCISES_MAX, routineFromSession, modsNote, overridesFromSettings, missingExercises, plannedCoverage, type WeekPlan, secondSessionChoices, sessionVolume, beginnerRamp, checkinFlags, isFocus, nextInList, coverageTemplates, mondayOf, planned, warmupRamp, type Checkin, isLearning, exInfo, fromKg, infoForUnit, priorSessions, REST_EXTEND_SEC, type ExclusionReason } from '@plate-and-bar/core';
+import { HAND_PICKED, ROUTINE_EXERCISES_MAX, routineFromSession, modsNote, overridesFromSettings, missingExercises, plannedCoverage, type WeekPlan, secondSessionChoices, sessionVolume, beginnerRamp, checkinFlags, isFocus, nextInList, coverageTemplates, mondayOf, planned, warmupRamp, type Checkin, isLearning, exInfo, fromKg, canGroupWithNext, infoForUnit, priorSessions, REST_EXTEND_SEC, type ExclusionReason } from '@plate-and-bar/core';
 import { fmt } from '../format';
 import { ClearanceCard } from '../components/ClearanceCard';
 import { Button, Card, Chip, Disclosure, H1, Hint, MetricRow, Note, Page, useScrollToTopOn } from '../components/ui';
@@ -19,6 +19,9 @@ import { buildSession } from '../workout/buildSession';
 import { getCatalog } from '../workout/catalog';
 import { CHECKIN, REASON_TEXT, listJoin, modsNoteText, muscleName, ROUTINE_COPY, MY_ROUTINES } from '../workout/copy';
 import { ExerciseCard, type Actions } from '../workout/ExerciseCard';
+import { ringUntilBlur } from '../workout/focusRing';
+import { SupersetBlock } from '../workout/SupersetBlock';
+import { groupEx, groupReason, groupRounds, groupUnits, removalNote, upNext, type Unit } from '../workout/groupUnits';
 import { AddExerciseFlow } from '../workout/AddExerciseFlow';
 import { BodyMap } from '../workout/BodyMap';
 import { musclesOf } from '../workout/muscles';
@@ -47,6 +50,7 @@ import { useWorkoutDay, type PickSeed } from '../workout/useWorkoutDay';
 import { useLabHold } from '../labs/useLabHold';
 import { labs } from '../labs/content';
 import type { Workout } from '../workout/types';
+import type { ExState } from '../workout/model';
 import { DateAnnouncer, DateBar } from '../components/DateBar';
 import { useViewedDate } from '../state/ViewedDate';
 
@@ -559,6 +563,50 @@ function SessionView({ now, db, reloadKey, w, profile, focus, rules, notify, tun
     focusNode(panelHeading.current);
   }, [complete]);
   const current = pinned && day.exs.some((e) => e.name === pinned) ? pinned : (day.exs.find((e) => e.sets.some((s) => !s.done))?.name ?? null);
+  const units = groupUnits(day.exs);
+  // The open unit is every unit holding an exercise with the current name (as on base, where `expanded` was `ex.name === current`): a name twice opens both copies.
+  const inUnit = (u: Unit) => (current ? day.exs.findIndex((e, k) => k >= u.start && k < u.end && e.name === current) : -1);
+  // A live region, and on iOS (which has none) an announcement: where focus is not enough (a group made, the marker moving).
+  const [said, setSaid] = useState('');
+  const say = (msg: string) => {
+    setSaid(msg);
+    if (Platform.OS === 'ios') AccessibilityInfo.announceForAccessibility(msg);
+  };
+  // Focus lands on a node (the block header, an exercise heading) once the render that shows it is done; nodes register by key.
+  const [nodes] = useState(() => new Map<string, ComponentRef<typeof RNText>>());
+  const [focusOn, setFocusOn] = useState<{ key: string } | null>(null);
+  const reg = (key: string) => (n: ComponentRef<typeof RNText> | null) => void (n ? nodes.set(key, n) : nodes.delete(key));
+  // The ring colour is read when focus is applied, not a dependency: a theme change must not move focus again.
+  const ring = useRef(c.focus);
+  useEffect(() => void (ring.current = c.focus));
+  useEffect(() => {
+    const node = focusOn ? nodes.get(focusOn.key) : null;
+    if (!node) return;
+    focusNode(node);
+    // After a click the browser draws no ring on a script-focused node (:focus-visible); the user must see where focus went, as after a key press.
+    if (Platform.OS === 'web') {
+      ringUntilBlur(node as unknown as HTMLElement, ring.current);
+    }
+  }, [focusOn, nodes]);
+  // The marker moved inside the open superset (a tick): say where. Not on first show, and not when another unit opened.
+  const open0 = units.find((u) => u.labels.length > 0 && inUnit(u) >= 0);
+  const marker = open0 ? upNext(day.exs, open0.start, open0.end) : null;
+  const markerKey = open0 && marker ? `${open0.start}.${open0.end}:${marker.ex}:${marker.set}` : null;
+  const lastMarker = useRef<string | null>(null);
+  useEffect(() => {
+    const before = lastMarker.current;
+    lastMarker.current = markerKey;
+    // Same unit, same members (a member just added is announced as a new superset, not as a move of the marker).
+    if (before && !markerKey) setSaid(''); // the block is done (or closed): an old "Up next" must not stay in the live region
+    if (!before || !markerKey || before === markerKey || before.split(':')[0] !== markerKey.split(':')[0] || !open0 || !marker) return;
+    say(`Up next: ${day.exs[marker.ex]?.name}, ${String.fromCharCode(65 + marker.ex - open0.start)}${marker.set + 1}.`);
+  }, [markerKey]); // eslint-disable-line react-hooks/exhaustive-deps -- says once per move
+  const removeNamed = (n: string) => {
+    const note = removalNote(day.exs, n);
+    if (!w.removeExercise(n)) return;
+    notify(note.toast);
+    if (note.said) say(note.said);
+  };
 
   // The map is open until the first tick on every width (prototype sessionMapHtml).
   const info = (
@@ -573,36 +621,96 @@ function SessionView({ now, db, reloadKey, w, profile, focus, rules, notify, tun
     </>
   );
 
+  const ungroup = (u: Unit) => {
+    const names = w.ungroup(u.start);
+    if (!names) return;
+    setPinned(names[0] as string);
+    setFocusOn({ key: `ex:${names[0]}` });
+    notify('Superset ungrouped');
+  };
+  const group = (i: number) => {
+    const names = w.groupWithNext(i);
+    if (!names) return;
+    setPinned((day.exs[i] as ExState).name);
+    setFocusOn({ key: `header:${names[0]}` });
+    say(`${listJoin(names)} are now a superset.`);
+  };
+  /** One exercise's card: a lone exercise, or a member of the superset `m.unit` (then `m.next` is the set up next in it). */
+  const card = (i: number, expanded: boolean, m?: { unit: Unit; next: { ex: number; set: number } | null }) => {
+    const ex = day.exs[i] as ExState;
+    const { info, sug } = guidance(ex, ctx, wk);
+    const pin = () => setPinned(ex.name);
+    const act: Actions = {
+      edit: (kind, j, f, v) => (pin(), w.editSet(i, kind, j, f, v)),
+      tick: (j) => (pin(), w.tick(i, j)),
+      rate: (j, v) => (pin(), w.rate(i, j, v)),
+      form: (v) => (pin(), w.setForm(i, v)),
+      rampStart: () => (pin(), w.rampStart(i)),
+      rampSkip: () => (pin(), w.rampSkip(i)),
+      rampAdd: () => (pin(), w.rampAdd(i)),
+      rampTick: (j) => (pin(), w.rampTick(i, j)),
+      rampRate: (j, v) => (pin(), w.rampRated(i, j, v)),
+      howTo: () => onHowTo(ex.name),
+      cant: () => onCant(i, ex.name),
+      cantPain: () => onCant(i, ex.name, 'pain'),
+      feel: (v) => (pin(), w.setFeel(i, v)),
+      skipRest: () => w.skipRemaining(i),
+      addSet: () => (pin(), w.addSet(i)),
+      removeSet: () => (pin(), w.removeSet(i)),
+      remove: () => removeNamed(ex.name),
+    };
+    // "Superset with next": on an open exercise, with core's rule and the first-time ramp (the app's); hidden when there is no offer.
+    let superset: ComponentProps<typeof ExerciseCard>['superset'];
+    const nx = day.exs[i + 1];
+    const rule = canGroupWithNext(groupEx(day.exs), i, (k, s) => !!day.exs[k]?.sets[s]?.done);
+    // Hidden: no offer here, or this exercise is itself finished (a finished card stays open; it says nothing about supersets).
+    const finished = ex.sets.length > 0 && ex.sets.every((x) => x.done);
+    const hidden = finished || (!rule.ok && (rule.why === 'last' || rule.why === 'inner'));
+    if (expanded && nx && nx.part === ex.part && !hidden) {
+      const ramping = (e: ExState) => guidance(e, ctx, wk).sug.mode === 'new' && !e.skipRamp && e.found === null && !e.sets.some((x) => x.done);
+      const pending = [ex, nx].find(ramping);
+      superset = { next: nx.name, reason: groupReason(rule, day.exs.map((e) => e.name)) ?? (pending ? `Finish the first-time ramp for ${pending.name} first.` : null), onPress: () => group(i) };
+    }
+    const lead = m ? (m.next ? m.next.ex : expanded ? inUnit(m.unit) : -1) : -1;
+    return (
+      <ExerciseCard
+        key={ex.name}
+        {...(superset ? { superset } : {})}
+        {...(m ? { member: { letter: String.fromCharCode(65 + i - m.unit.start), upNext: !!m.next && m.next.ex === i }, compact: expanded && lead !== i, currentSet: m.next && m.next.ex === i ? m.next.set : -1 } : {})}
+        headingRef={reg(`ex:${ex.name}`)}
+        expanded={expanded}
+        onToggle={pin}
+        notify={notify}
+        lifts={day.lifts}
+        prior={priorSessions(day.lifts[ex.name], date)}
+        infoOf={(n) => exInfo(n, getCatalog(), ctx.overrides?.[n], ctx.where)}
+        learning={isLearning(!!getCatalog().cards[ex.name], day.lifts[ex.name], date)}
+        ex={ex}
+        info={info}
+        sug={sug}
+        focus={focus}
+        warm={warmupRamp(ex, i, sug, day.exs, infoForUnit(info, unit), getCatalog().tags)}
+        act={act}
+        cards={<ExerciseCards ex={ex} info={info} date={date} lifts={day.lifts} rules={rules} notify={notify} now={now} where={wk.where ?? profile.where} />}
+      />
+    );
+  };
+
   const stack = (
     <>
-      {day.exs.map((ex, i) => {
-        const { info, sug } = guidance(ex, ctx, wk);
-        const pin = () => setPinned(ex.name);
-        const act: Actions = {
-          edit: (kind, j, f, v) => (pin(), w.editSet(i, kind, j, f, v)),
-          tick: (j) => (pin(), w.tick(i, j)),
-          rate: (j, v) => (pin(), w.rate(i, j, v)),
-          form: (v) => (pin(), w.setForm(i, v)),
-          rampStart: () => (pin(), w.rampStart(i)),
-          rampSkip: () => (pin(), w.rampSkip(i)),
-          rampAdd: () => (pin(), w.rampAdd(i)),
-          rampTick: (j) => (pin(), w.rampTick(i, j)),
-          rampRate: (j, v) => (pin(), w.rampRated(i, j, v)),
-          howTo: () => onHowTo(ex.name),
-          cant: () => onCant(i, ex.name),
-          cantPain: () => onCant(i, ex.name, 'pain'),
-          feel: (v) => (pin(), w.setFeel(i, v)),
-          skipRest: () => w.skipRemaining(i),
-          addSet: () => (pin(), w.addSet(i)),
-          removeSet: () => (pin(), w.removeSet(i)),
-          remove: () => {
-            if (w.removeExercise(ex.name)) notify(`${ex.name} removed`);
-          },
-        };
+      {units.map((u) => {
+        const open = inUnit(u) >= 0;
+        const first = day.exs[u.start] as ExState;
+        const second = first.part === 2 && day.exs[u.start - 1]?.part !== 2 ? <H1 level={2}>Second session</H1> : null;
+        if (u.labels.length === 0) return <View key={first.name} style={{ gap: 8 }}>{second}{card(u.start, open)}</View>;
+        const members = day.exs.slice(u.start, u.end);
+        const next = upNext(day.exs, u.start, u.end);
         return (
-          <View key={ex.name} style={{ gap: 8 }}>
-            {ex.part === 2 && day.exs[i - 1]?.part !== 2 ? <H1 level={2}>Second session</H1> : null}
-            <ExerciseCard expanded={ex.name === current} onToggle={pin} notify={notify} lifts={day.lifts} prior={priorSessions(day.lifts[ex.name], date)} infoOf={(n) => exInfo(n, getCatalog(), ctx.overrides?.[n], ctx.where)} learning={isLearning(!!getCatalog().cards[ex.name], day.lifts[ex.name], date)} ex={ex} info={info} sug={sug} focus={focus} warm={warmupRamp(ex, i, sug, day.exs, infoForUnit(info, unit), getCatalog().tags)} act={act} cards={<ExerciseCards ex={ex} info={info} date={date} lifts={day.lifts} rules={rules} notify={notify} now={now} where={wk.where ?? profile.where} />} />
+          <View key={`g:${first.name}`} style={{ gap: 8 }}>
+            {second}
+            <SupersetBlock names={members.map((e) => e.name)} rounds={groupRounds(members)} open={open} headerRef={reg(`header:${first.name}`)} onUngroup={() => ungroup(u)}>
+              {members.map((_, k) => card(u.start + k, open, { unit: u, next }))}
+            </SupersetBlock>
           </View>
         );
       })}
@@ -637,6 +745,7 @@ function SessionView({ now, db, reloadKey, w, profile, focus, rules, notify, tun
 
   const head = (
     <>
+      <Text testID="session-announce" accessibilityLiveRegion="polite" style={styles.srOnly}>{Platform.OS === 'ios' ? '' : said}</Text>
       <H1>{wk.template || HAND_PICKED}</H1>
       <SegmentBar exs={day.exs} />
       <Text accessibilityLabel={`${done} of ${all} sets done`} style={[type.caption, { color: c.muted }]}>
@@ -651,7 +760,7 @@ function SessionView({ now, db, reloadKey, w, profile, focus, rules, notify, tun
           <View style={styles.fill}>
             <Note>{reason === 'unknown' ? MY_ROUTINES.unknown(n) : MY_ROUTINES.excluded(n)}</Note>
           </View>
-          <Chip label={MY_ROUTINES.removeLabel(n)} text={MY_ROUTINES.remove} onPress={() => void (w.removeExercise(n) && notify(`${n} removed`))} />
+          <Chip label={MY_ROUTINES.removeLabel(n)} text={MY_ROUTINES.remove} onPress={() => removeNamed(n)} />
         </View>
       ))}
       <View style={{ width: '100%', maxWidth: 560, alignSelf: 'center' }}>

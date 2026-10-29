@@ -82,7 +82,7 @@ export function H1({ children, level = 1 }: { children: ReactNode; level?: 1 | 2
  * only emits the `aria-*` props, so every stateful control spreads this (#381). `pressed` is a toggle button
  * (`aria-pressed`, spoken on native as selected).
  */
-export function a11yState(s: { selected?: boolean; checked?: boolean; expanded?: boolean; busy?: boolean; pressed?: boolean }) {
+export function a11yState(s: { selected?: boolean; checked?: boolean; expanded?: boolean; busy?: boolean; pressed?: boolean; disabled?: boolean }) {
   const defined = Object.entries(s).filter(([, v]) => v !== undefined);
   const { pressed, ...native } = Object.fromEntries(defined) as typeof s;
   return {
@@ -91,6 +91,7 @@ export function a11yState(s: { selected?: boolean; checked?: boolean; expanded?:
     'aria-checked': s.checked,
     'aria-expanded': s.expanded,
     'aria-busy': s.busy,
+    'aria-disabled': s.disabled,
     'aria-pressed': s.pressed,
   };
 }
@@ -281,16 +282,18 @@ export function Choice({
  * A toggle chip: filter, rating and quick-answer buttons. `label` is the spoken name, `text` (default the label) what shows.
  * Selected = lime fill with dark text. One component for the whole app.
  */
-export function Chip({ label, text, pressed, danger, onPress }: { label: string; text?: string; pressed?: boolean; danger?: boolean; onPress: () => void }) {
+export function Chip({ label, text, pressed, danger, disabled, hint, onPress }: { label: string; text?: string; pressed?: boolean; danger?: boolean; /** Not pressable and drawn faded; announced as disabled. Give the reason as `hint` and as visible text near the chip. */ disabled?: boolean; /** Spoken after the label (the reason a chip is disabled). */ hint?: string; onPress: () => void }) {
   const c = useTheme();
   return (
     <Press
       accessibilityRole="button"
       accessibilityLabel={label}
-      {...a11yState({ pressed })}
+      accessibilityHint={hint}
+      disabled={disabled}
+      {...a11yState({ pressed, disabled: disabled || undefined })}
       onPress={onPress}
       hitSlop={{ top: 2, bottom: 2 }}
-      style={[styles.chip, { backgroundColor: pressed ? c.brand : c.surfaceSoft }, danger ? { borderWidth: 1, borderColor: c.danger } : null]}
+      style={[styles.chip, { backgroundColor: pressed ? c.brand : c.surfaceSoft }, danger ? { borderWidth: 1, borderColor: c.danger } : null, disabled && { opacity: 0.55 }]}
     >
       <Text style={[type.buttonSm, { color: pressed ? c.onBrand : danger ? c.danger : c.ink }]}>{text ?? label}</Text>
     </Press>
