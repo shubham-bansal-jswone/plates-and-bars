@@ -216,6 +216,33 @@ describe('the personal-best toast uses the all-time rule (#1351 A4b)', () => {
     expect(await pbToast(db, name)).toBe('2026-09-01');
   });
 
+  it('a lift record already marked a personal best today does not toast again (after a remount)', async () => {
+    const { db, name, result } = await started();
+    await seedDay(db, name, '2026-09-01', [[80, 5]]);
+    await seedDay(db, name, '2026-09-20', [[90, 5]]);
+    await saveLift(db, name, { date: DATE, sets: [{ w: 50, r: 5, rate: null }], form: null, n: 3, first: '2026-09-01', prev: null, hist: [{ date: '2026-09-01', e: 1 }, { date: '2026-09-20', e: 1 }], pbToast: DATE });
+    await tickSet(result, 0, '100', '5');
+    expect(toasts()).toEqual([]);
+    expect(await pbToast(db, name)).toBe(DATE);
+  });
+
+  it('the once-per-day guard is per date: a PR on each of two days toasts on each', async () => {
+    const { db, name, props, result } = await started();
+    await seedDay(db, name, '2026-08-01', [[80, 5]]);
+    await seedDay(db, name, '2026-08-10', [[90, 5]]);
+    await seedDay(db, name, '2026-09-20', [[50, 5]]);
+    await act(async () => void (await props({ date: '2026-09-20' })));
+    await waitFor(() => expect(result.current.day.workout?.date).toBe('2026-09-20'));
+    await act(async () => result.current.tick(0, 0)); // untick the stored set, then log a heavier one
+    await act(async () => void (await dayQueue.current));
+    await tickSet(result, 0, '120', '5');
+    expect(toasts()).toHaveLength(1);
+    await act(async () => void (await props({ date: undefined })));
+    await waitFor(() => expect(result.current.day.workout?.date).toBe(DATE));
+    await tickSet(result, 0, '200', '5');
+    expect(toasts()).toHaveLength(2);
+  });
+
   it('a prior-best read that was in flight when a pull landed is not cached', async () => {
     const { db, name, props, result } = await started();
     await seedDay(db, name, '2026-09-01', [[60, 5]]);
