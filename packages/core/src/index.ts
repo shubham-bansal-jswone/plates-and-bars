@@ -361,6 +361,7 @@ export type { MuscleSets, PlannedCoverageInput, CoverageWorkout, CoverageSet, Co
  * Progress: body measures and day targets. Weigh-ins, measurements, day notes and sets come in
  * contract shapes (`Weight`, `Measurement`, `DayNote`, `WorkoutSet`).
  * - `latestWeight` mirrors prototype `latestWeight(upTo)`; `measureAt` mirrors `measureAt(key, upTo)`.
+ * - `bodyweightOn` is the one bodyweight-for-a-date lookup (latest weigh-in on or before, else a positive profile weight, else null); no prototype counterpart.
  * - `navyBodyFat` mirrors prototype `navyBF(upTo)`.
  * - `waterTarget` mirrors prototype `waterTarget()` (state passed in); `WATER_DEFAULT_ML`, `WATER_ML_PER_KG`,
  *   `WATER_TRAINING_ML` are its 2500, 33 and 600.
@@ -373,6 +374,7 @@ export type { MuscleSets, PlannedCoverageInput, CoverageWorkout, CoverageSet, Co
  */
 export {
   latestWeight,
+  bodyweightOn,
   measureAt,
   navyBodyFat,
   waterTarget,

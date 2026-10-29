@@ -67,6 +67,20 @@ export function latestWeight(weighIns: readonly WeighIn[], upTo?: string): numbe
 }
 
 /**
+ * The bodyweight for `date`: the latest live weigh-in on or before it, else the profile weight, else null (#1404).
+ * One lookup for the app (assisted lifts, PR toast, History, Recent PRs) and for milestones.
+ *
+ * A profile weight of 0 or a negative value is invalid and counts as no weight (null), so the lookup never hands back a bodyweight that scores
+ * every lift as zero times bodyweight. This is the `||` the milestones lookup used; the app helper's `??` differed only for such invalid profiles.
+ * A weigh-in is returned as stored. Not a prototype port; built on `latestWeight`.
+ */
+export function bodyweightOn(weighIns: readonly WeighIn[], date: string, profileKg?: number | null): number | null {
+  const w = latestWeight(weighIns, date);
+  if (w !== null) return w;
+  return profileKg != null && profileKg > 0 ? profileKg : null;
+}
+
+/**
  * The latest nonzero `key` measurement on or before `upTo`, with its date, or null.
  *
  * Mirrors prototype `measureAt(key, upTo)`.
