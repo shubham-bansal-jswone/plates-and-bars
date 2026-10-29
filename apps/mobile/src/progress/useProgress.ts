@@ -10,6 +10,7 @@ import { localDate } from '../setup/logic';
 import { MEASURE_NONE, WEIGHT_BAD } from './copy';
 import { stepsSleepSave } from './stepsSleep';
 import type { Measurement, Weight } from './types';
+import { trackWrite } from '../db/pendingWrites';
 
 const stamp = (d: Date): string => d.toISOString().replace(/\.\d{3}Z$/, 'Z');
 
@@ -83,6 +84,8 @@ export function useProgress({ db, date: shown, now, notify, reloadKey = 0 }: Opt
     (write: () => Promise<void>) => {
       writes.current++;
       queue.current = queue.current.then(write).catch(() => notify('Couldn’t save that. Try again.'));
+      // The Workout tab waits for it before it reads the weigh-ins that score assisted lifts.
+      trackWrite(queue.current);
     },
     [notify],
   );

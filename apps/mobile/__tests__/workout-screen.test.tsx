@@ -351,7 +351,9 @@ describe('Workout tab: logging sets', () => {
     for (let k = n + 1; k > 1; k--) await press('Remove last set of Barbell Bench Press');
     await waitFor(() => expect(sets()).toBe(1));
     expect(screen.queryByLabelText('Remove last set of Barbell Bench Press')).toBeNull();
-    expect(screen.getByText('Set removed')).toBeTruthy();
+    const removed = StyleSheet.flatten(screen.getByText('Set removed').parent?.props.style);
+    expect(removed).toMatchObject({ position: 'absolute', bottom: 90 }); // every other Workout toast stays at the bottom
+    expect('top' in removed).toBe(false);
   });
 
   it('the set chips are named from their visible text (WCAG 2.5.3, #800)', async () => {
@@ -466,6 +468,10 @@ describe('Workout tab: logging sets', () => {
     const dock = screen.getByLabelText('Rest timer').parent;
     expect(StyleSheet.flatten(dock?.props.style)).toMatchObject({ position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: expect.any(String) });
     expect(screen.getByText('Next: set 2 of Barbell Bench Press')).toBeTruthy();
+    // A bottom toast is lifted above the dock (90 + the 100 px ring + 30).
+    await press('Add set to Barbell Bench Press');
+    await press('Remove last set of Barbell Bench Press');
+    expect(StyleSheet.flatten(screen.getByText('Set removed').parent?.props.style)).toMatchObject({ bottom: 220 });
     expect(screen.getByLabelText('Mark Barbell Bench Press set 1 done').props.accessibilityState.checked).toBe(true);
     expect(screen.getByText('1 of 15 sets done, 375 kg lifted')).toBeTruthy();
   });
@@ -735,6 +741,37 @@ describe('Workout tab: logging sets', () => {
     await keys('1,5', 2);
     await keys('-5', 0);
     await keys('45', 45);
+  });
+
+  it('keeps autocorrect and autocapitalize off in the set row inputs, and shows the toast at the top so it does not cover the row and tick', async () => {
+    await setup();
+    await press('Start Push B');
+    await screen.findByText('Push B');
+    for (const label of ['Barbell Bench Press set 1 kg', 'Barbell Bench Press set 1 reps']) {
+      const input = screen.getByLabelText(label);
+      expect(input.props.autoCorrect).toBe(false);
+      expect(input.props.autoCapitalize).toBe('none');
+    }
+    await press('Mark Barbell Bench Press set 1 done');
+    const toast = await screen.findByText('Enter the weight and reps first.');
+    const wrap = StyleSheet.flatten(toast.parent?.props.style);
+    // The top variant carries no `bottom` at all (react-native-web would keep a `bottom: undefined` override's base value).
+    expect(wrap).toMatchObject({ position: 'absolute', top: 12 });
+    expect('bottom' in wrap).toBe(false);
+  });
+
+  const toastStyle = async (text: string) => StyleSheet.flatten((await screen.findByText(text)).parent?.props.style);
+
+  it('shows the ramp refusal at the top too, whatever its wording', async () => {
+    await setup();
+    await press('Start Push B');
+    await screen.findByText('Push B');
+    await expand('Machine Shoulder Press');
+    await press('Start the ramp for Machine Shoulder Press');
+    await press('Mark Machine Shoulder Press ramp set 1 done');
+    const style = await toastStyle('Enter the weight first.');
+    expect(style).toMatchObject({ position: 'absolute', top: 12 });
+    expect('bottom' in style).toBe(false);
   });
 
   it('refuses to tick a first-time set with nothing to fill from', async () => {

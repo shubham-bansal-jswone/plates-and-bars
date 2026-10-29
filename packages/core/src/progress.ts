@@ -785,12 +785,17 @@ export interface ChartLayout {
 }
 
 /**
- * Line-chart layout: points spread evenly from `px` to `W - 8`, values scaled between `py` (max) and
- * `H - py` (min); a range under 1 is widened by 0.5 each way. Null with fewer than 2 points.
+ * Line-chart layout: values scaled between `py` (max) and `H - py` (min); a range under 1 is widened by 0.5 each way. Null with fewer than 2 points.
  *
- * Mirrors the geometry of prototype `weightChart()` (with `WEIGHT_CHART_BOX`) and `lineChart()` (`WAIST_CHART_BOX`).
+ * x runs from `px` to `W - 8`. With `dates` (one `YYYY-MM-DD` per value, oldest first) a point sits at the share of whole days
+ * (`daysBetween`) from the first date to its own, out of the days from the first to the last, so weigh-ins 3 and 7 days apart are drawn
+ * 3 and 7 units apart and the slope reads true. Without `dates`, when `dates` does not have one entry per value, or when the first and last
+ * date are the same day, or any date is malformed or earlier than the one before it, points are spread evenly by index, the prototype's layout.
+ *
+ * Index spacing mirrors the geometry of prototype `weightChart()` (with `WEIGHT_CHART_BOX`) and `lineChart()` (`WAIST_CHART_BOX`);
+ * spacing by date is a spec change (#1370, PROTOTYPE_SPEC section 0), y is unchanged.
  */
-export function chartLayout(values: readonly number[], box: ChartBox): ChartLayout | null {
+export function chartLayout(values: readonly number[], box: ChartBox, dates?: readonly string[]): ChartLayout | null {
   if (values.length < 2) return null;
   const { W, H, px, py } = box;
   let mn = Math.min(...values), mx = Math.max(...values);
@@ -798,7 +803,13 @@ export function chartLayout(values: readonly number[], box: ChartBox): ChartLayo
     mn -= 0.5;
     mx += 0.5;
   }
-  const X = (i: number): number => px + (i * (W - px - 8)) / (values.length - 1), Y = (v: number): number => py + ((mx - v) * (H - py * 2)) / (mx - mn);
+  const w = W - px - 8, last = values.length - 1;
+  // Days from the first date to each point; used only when there is one per value, all finite, never going backwards, and the span is above 0.
+  const offs = dates && dates.length === values.length ? dates.map((d) => daysBetween(dates[0] as string, d)) : null;
+  const span = offs ? (offs[last] as number) : 0;
+  const byDate = offs !== null && span > 0 && offs.every((o, i) => Number.isFinite(o) && o >= (offs[i - 1] ?? 0));
+  const X = (i: number): number => (byDate && offs ? px + ((offs[i] as number) * w) / span : px + (i * w) / last);
+  const Y = (v: number): number => py + ((mx - v) * (H - py * 2)) / (mx - mn);
   return { min: mn, max: mx, points: values.map((v, i) => ({ x: X(i), y: Y(v) })) };
 }
 

@@ -29,8 +29,8 @@ import { workoutLists } from '../workout/workoutLists';
 import { guidance, progressionContext, type Tuning } from '../workout/guidance';
 import { ExerciseCards, RecheckCards, StartCards } from '../workout/ExerciseCards';
 import { BurnLine } from '../workout/BurnLine';
-import { RING_SIZE } from '../workout/Ring';
 import { CardioBlock } from '../workout/CardioBlock';
+import { RING_SIZE } from '../workout/Ring';
 import { ModeNote, WeekTools } from '../workout/ScheduleTools';
 import { CantSheet } from '../workout/CantSheet';
 import { CompletionPanel } from '../workout/CompletionPanel';
@@ -70,8 +70,11 @@ export function WorkoutScreen({ db, now = () => new Date() }: Props) {
   const [rest, setRest] = useState<RestState | null>(null);
   const [howTo, setHowTo] = useState<string | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const notify = useCallback((msg: string) => {
+  const [toastTop, setToastTop] = useState(false);
+  const notify = useCallback((msg: string, opts?: { top?: boolean }) => {
     setToast(msg);
+    // Only a set-row refusal (`top`) goes to the top, so it does not cover the row and tick; the rest stay at the bottom above the rest dock.
+    setToastTop(opts?.top === true);
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => setToast(null), 2200);
   }, []);
@@ -215,7 +218,7 @@ export function WorkoutScreen({ db, now = () => new Date() }: Props) {
       </Page>
       {sheets}
       {restBar}
-      <ToastBar message={toast} lift={rest ? RING_SIZE + 30 : 0} />
+      <ToastBar message={toast} top={toastTop} lift={rest ? RING_SIZE + 30 : 0} />
     </View>
   );
 }

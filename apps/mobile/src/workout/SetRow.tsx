@@ -58,8 +58,8 @@ export function SetRow({ n, label, row, wHead, repsHead, ph, onEdit, onTick, cur
     <>
     <View style={styles.set}>
       <Text numberOfLines={1} style={[type.metricSm, tabular, { color: c.muted, width: wide ? LABEL_W_WIDE : 28 }]}>{n}</Text>
-      <Input accessibilityLabel={`${label} ${wHead}`} inputMode="decimal" ref={wRef} editable={!locked} value={locked ? '' : (draft ?? weightFieldText(row.w, unit))} placeholder={ph.w} onChangeText={(v) => edit('w', v)} onBlur={() => (unreadable ? undefined : setDraft(null))} {...invalid('w')} />
-      <Input accessibilityLabel={`${label} ${repsHead}`} inputMode="numeric" editable={!locked} ref={rRef} value={row.r} placeholder={ph.r} onChangeText={(v) => edit('r', v)} {...invalid('r')} />
+      <Input accessibilityLabel={`${label} ${wHead}`} inputMode="decimal" autoCorrect={false} autoCapitalize="none" ref={wRef} editable={!locked} value={locked ? '' : (draft ?? weightFieldText(row.w, unit))} placeholder={ph.w} onChangeText={(v) => edit('w', v)} onBlur={() => (unreadable ? undefined : setDraft(null))} {...invalid('w')} />
+      <Input accessibilityLabel={`${label} ${repsHead}`} inputMode="numeric" autoCorrect={false} autoCapitalize="none" editable={!locked} ref={rRef} value={row.r} placeholder={ph.r} onChangeText={(v) => edit('r', v)} {...invalid('r')} />
       <Press
         accessibilityRole="checkbox"
         accessibilityLabel={`Mark ${label} done`}

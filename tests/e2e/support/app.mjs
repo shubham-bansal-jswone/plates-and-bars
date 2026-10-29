@@ -97,6 +97,46 @@ export async function completeSetup(page) {
   await expect(label(page, 'Calories (kcal)')).toHaveValue('1,990');
 }
 
+/**
+ * Resolves once the element has kept the same position and size for 10 animation frames in a row (about 160 ms), so a sheet
+ * sliding in or a tab pane mounting is over. Playwright's own "stable" check needs only two equal frames, and on a busy
+ * CI runner a stalled animation can show two equal frames and then move: the click lands on a moving target and the app
+ * drops it (traces of #1315: the roti tap and the Exercise library tap were "performed" mid-transition and did nothing).
+ * Event based, no fixed delay.
+ */
+export async function settled(locator) {
+  await locator.waitFor({ state: 'visible' });
+  const handle = await locator.elementHandle();
+  let timer;
+  await Promise.race([
+    handle.evaluate(
+      (el) =>
+        new Promise((resolve, reject) => {
+          let last = '';
+          let same = 0;
+          const tick = () => {
+            // A node React replaced reads 0,0,0,0 for ever: it must not count as still.
+            if (!el.isConnected) return reject(new Error('detached'));
+            const r = el.getBoundingClientRect();
+            const now = `${r.x},${r.y},${r.width},${r.height}`;
+            same = now === last ? same + 1 : 0;
+            last = now;
+            if (same >= 10) resolve();
+            else requestAnimationFrame(tick);
+          };
+          tick();
+        }),
+    ),
+    new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error('timeout')), 15_000);
+    }),
+  ])
+    .catch((e) => {
+      throw new Error(`settled(): ${e.message.includes('detached') ? 'the element was replaced while waiting' : 'the element did not hold still for 10 frames within 15 s'}: ${locator}`);
+    })
+    .finally(() => clearTimeout(timer));
+}
+
 /** Switches to a bottom tab (Food, Workout, Progress, Targets). */
 export const tab = (page, name) => label(page, name).click();
 

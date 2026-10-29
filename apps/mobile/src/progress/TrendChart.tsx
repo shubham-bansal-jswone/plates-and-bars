@@ -24,7 +24,7 @@ interface Props {
 }
 
 /**
- * Line chart on core's `chartLayout` (the prototype's SVG, drawn with react-native-svg), at most `CHART_MAX_WIDTH` wide. Adds the first and
+ * Line chart on core's `chartLayout` (the prototype's SVG drawn with react-native-svg, with points spaced by date, #1370), at most `CHART_MAX_WIDTH` wide. Adds the first and
  * last dates under the line (the last with its value, kept out of the plot so it never covers the line), and an optional target line. Nothing with fewer than 2 points.
  */
 export function TrendChart({ points, box, label, unit, target }: Props) {
@@ -32,8 +32,8 @@ export function TrendChart({ points, box, label, unit, target }: Props) {
   const fontFamily = useFontFamily()('400');
   const [width, setWidth] = useState<number>(box.W);
   const values = points.map((p) => p.v);
-  const own = chartLayout(values, box);
-  // A target is laid out as one extra value so the y axis always spans it; x comes from the points alone, so a target never moves them.
+  const own = chartLayout(values, box, points.map((p) => p.date));
+  // A target is laid out as one extra value so the y axis always spans it; x comes from the points and their dates alone (the target's layout is read for y only), so a target never moves them.
   const layout = target === undefined ? own : chartLayout([...values, target], box);
   const first = points[0], last = points[points.length - 1];
   if (!own || !layout || !first || !last) return null;
@@ -56,7 +56,7 @@ export function TrendChart({ points, box, label, unit, target }: Props) {
           <SvgText x={0} y={H - py + 4} fill={c.muted} fontSize={fs} fontFamily={fontFamily}>{String(round1(layout.min))}</SvgText>
           <Polyline points={line} fill="none" stroke={c.brand} strokeWidth={2} strokeLinejoin="round" />
           {drawn.map((p, i) => (
-            <Circle key={points[i]?.date} cx={p.x} cy={p.y} r={3} fill={c.brand} />
+            <Circle key={`${i}-${points[i]?.date}`} cx={p.x} cy={p.y} r={3} fill={c.brand} />
           ))}
         </Svg>
         <View style={styles.dates} aria-hidden accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
