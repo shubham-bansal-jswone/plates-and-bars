@@ -320,8 +320,36 @@ describe('review round 2', () => {
   it('a member that joins a ticked group is announced as joining, not as a move of the marker', async () => {
     const { names } = await mount(['g', 'g', null]);
     await tick(names[0]!, 0, 'A1');
+    await tick(names[1]!, 0, 'B1'); // the marker is on A2 and moves to C1 when C joins: that move must not be announced
     await press(`Superset ${names[1]} with ${names[2]}`);
     expect(live()).toBe(`${names[0]}, ${names[1]} and ${names[2]} are now a superset.`);
+    expect(upNextOf(names.slice(0, 3))).toEqual([names[2]]);
+  });
+});
+
+describe('an untick in a superset while a rest runs', () => {
+  it('moves the marker and the dock together to the unticked set', async () => {
+    const { names } = await mount(['g', 'g'], { restOff: false });
+    const [a, b] = [names[0]!, names[1]!];
+    await tick(a, 0, 'A1');
+    expect(screen.getByText(`Next: B1 ${b}`)).toBeTruthy();
+    await press(new RegExp(`^Mark ${a} set 1, A1 done`)); // untick
+    expect(upNextOf([a, b])).toEqual([a]);
+    expect(screen.getByText(`Next: A1 ${a}`)).toBeTruthy();
+    expect(screen.getAllByLabelText('Rest timer')).toHaveLength(1); // still the one rest: an untick starts none
+  });
+
+  it('after the whole block is done, unticking B3 puts both on B3', async () => {
+    const { names } = await mount(['g', 'g'], { restOff: false });
+    const [a, b] = [names[0]!, names[1]!];
+    for (let j = 0; j < 3; j++) {
+      await tick(a, j, `A${j + 1}`);
+      await tick(b, j, `B${j + 1}`);
+    }
+    expect(screen.getByText(`Next: ${names[2]}`)).toBeTruthy();
+    await press(new RegExp(`^Mark ${b} set 3, B3 done`));
+    expect(upNextOf([a, b])).toEqual([b]);
+    expect(screen.getByText(`Next: B3 ${b}`)).toBeTruthy();
   });
 });
 

@@ -126,7 +126,8 @@ describe('ungroup', () => {
 });
 
 describe('the dock label follows the groups (#1333 review)', () => {
-  const ex = (name: string, group: string | null, n = 3) => ({ name, group, sets: Array.from({ length: n }, () => ({ done: false })) }) as never;
+  // The ticked exercise has its first set done, as when the rest started.
+  const ex = (name: string, group: string | null, n = 3) => ({ name, group, sets: Array.from({ length: n }, (_, j) => ({ done: name === 'A' && j === 0 })) }) as never;
   const rest = { at: { i: 0, name: 'A' }, to: { ex: 1, set: 0, name: 'B' }, label: 'Next: B1 B' } as GroupNext;
 
   it('keeps the object while the label is right, and re-derives it when the group goes', () => {
