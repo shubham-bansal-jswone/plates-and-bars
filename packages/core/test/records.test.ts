@@ -3,17 +3,17 @@ import { resolve } from 'path';
 import { isPrToday, mainLifts, personalRecords, priorBestOf, PR_THRESHOLD, PR_MIN_PRIOR_SESSIONS, MAIN_LIFT_WEEKS, MAIN_LIFT_MIN_POINTS, MAIN_LIFT_COUNT, type ExType, type PrSet } from '../src/index';
 
 type Row = [string, string, number, number, string];
-interface Rec { lift: string; date: string; e1rm: number; set: { w: number; r: number }; previous_best: number; delta: number }
+interface Rec { lift: string; date: string; metric: string; score: number; set: { w: number; r: number }; previous_best: number; delta: number }
 const v = JSON.parse(readFileSync(resolve(__dirname, '../../../docs/spec/golden/records.json'), 'utf8')) as {
   constants: { pr_threshold: number; pr_min_prior_sessions: number; main_lift_weeks: number; main_lift_min_points: number; main_lift_count: number };
-  records: { note: string; types: Record<string, ExType>; sets: Row[]; records: Rec[] }[];
-  tick: { note: string; prior: { best: number; sessions: number }; sets: Row[]; type: ExType | null; result: Rec | null }[];
-  main_lifts: { note: string; today: string; types: Record<string, ExType>; sets: Row[]; lifts: { lift: string; sessions: number; last: string }[] }[];
+  records: { note: string; types: Record<string, ExType>; bodyweight_kg?: number; sets: Row[]; records: Rec[] }[];
+  tick: { note: string; prior: { best: number; sessions: number }; sets: Row[]; type: ExType | null; bodyweight_kg?: number; result: Rec | null }[];
+  main_lifts: { note: string; end: string; types: Record<string, ExType>; sets: Row[]; lifts: { lift: string; sessions: number; last: string }[] }[];
 };
 const mk = (rows: Row[]): PrSet[] =>
   rows.map(([exercise, date, w, r, flag]) => ({ exercise, date, kind: flag === 'ramp' ? 'ramp' : 'work', weight_kg: w, reps: r, done: flag !== 'undone', rate: flag === 'fail' ? 'fail' : null, deleted_at: flag === 'deleted' ? '2026-12-01T00:00:00Z' : null }));
-const wire = (r: Rec) => ({ lift: r.lift, date: r.date, e1rm: r.e1rm, set: r.set, previousBest: r.previous_best, delta: r.delta });
-const wireImp = (r: Rec | null) => (r ? { e1rm: r.e1rm, set: r.set, previousBest: r.previous_best, delta: r.delta } : null);
+const wire = (r: Rec) => ({ lift: r.lift, date: r.date, metric: r.metric, score: r.score, set: r.set, previousBest: r.previous_best, delta: r.delta });
+const wireImp = (r: Rec | null) => (r ? { metric: r.metric, score: r.score, set: r.set, previousBest: r.previous_best, delta: r.delta } : null);
 
 describe('personal records (#1351 C3)', () => {
   it('constants match the vectors', () => {
@@ -22,13 +22,13 @@ describe('personal records (#1351 C3)', () => {
     ]);
   });
   it.each(v.records.map((c) => [c.note, c] as const))('personalRecords: %s', (_n, c) => {
-    expect(personalRecords(mk(c.sets), c.types)).toEqual(c.records.map(wire));
+    expect(personalRecords(mk(c.sets), c.types, c.bodyweight_kg)).toEqual(c.records.map(wire));
   });
   it.each(v.tick.map((c) => [c.note, c] as const))('isPrToday: %s', (_n, c) => {
-    expect(isPrToday(c.prior, mk(c.sets), c.type ?? undefined)).toEqual(wireImp(c.result));
+    expect(isPrToday(c.prior, mk(c.sets), c.type ?? undefined, c.bodyweight_kg)).toEqual(wireImp(c.result));
   });
   it.each(v.main_lifts.map((c) => [c.note, c] as const))('mainLifts: %s', (_n, c) => {
-    expect(mainLifts(mk(c.sets), c.types, c.today)).toEqual(c.lifts);
+    expect(mainLifts(mk(c.sets), c.types, c.end)).toEqual(c.lifts);
   });
 
   describe('toast and list agree', () => {
@@ -37,8 +37,9 @@ describe('personal records (#1351 C3)', () => {
         const sets = mk(c.sets);
         for (const r of personalRecords(sets, c.types)) {
           const mine = sets.filter((s) => s.exercise === r.lift);
-          const hit = isPrToday(priorBestOf(mine, c.types[r.lift], r.date), mine.filter((s) => s.date === r.date), c.types[r.lift]);
-          expect(hit).toEqual({ e1rm: r.e1rm, set: r.set, previousBest: r.previousBest, delta: r.delta });
+          const bw = c.bodyweight_kg;
+          const hit = isPrToday(priorBestOf(mine, c.types[r.lift], r.date, bw), mine.filter((s) => s.date === r.date), c.types[r.lift], bw);
+          expect(hit).toEqual({ metric: r.metric, score: r.score, set: r.set, previousBest: r.previousBest, delta: r.delta });
         }
       }
     });
@@ -51,7 +52,7 @@ describe('personal records (#1351 C3)', () => {
       expect(priorBestOf(sets, undefined, '2026-03-11')).toEqual({ best: 122.5, sessions: 2 });
     });
     it('nothing before: zero', () => expect(priorBestOf(sets, undefined, '2026-03-01')).toEqual({ best: 0, sessions: 0 }));
-    it('excluded types give nothing', () => expect(priorBestOf(sets, 'bodyweight', '2026-03-11')).toEqual({ best: 0, sessions: 0 }));
+    it('bodyweight scores total reps (fail counts, deleted does not)', () => expect(priorBestOf(sets, 'bodyweight', '2026-03-11')).toEqual({ best: 10, sessions: 3 }));
   });
 
   describe('edge cases', () => {
@@ -64,13 +65,13 @@ describe('personal records (#1351 C3)', () => {
       const s = mk([['B', '2026-03-01', 100, 5, ''], ['B', '2026-03-05', 200, 5, 'fail'], ['B', '2026-03-10', 105, 5, '']]);
       expect(personalRecords(s, {}).map((r) => r.date)).toEqual(['2026-03-10']);
     });
-    it('same-day estimate tie keeps the heavier set, then the lower reps', () => {
+    it('same-day estimate tie keeps the heavier set', () => {
       // 90x10 = 120 exactly, 120x1 = 120
       const s = mk([['B', '2026-03-01', 100, 5, ''], ['B', '2026-03-10', 90, 10, ''], ['B', '2026-03-10', 120, 1, '']]);
       expect(personalRecords(s, {})[0]?.set).toEqual({ w: 120, r: 1 });
       const s2 = mk([['B', '2026-03-01', 100, 5, ''], ['B', '2026-03-10', 120, 1, ''], ['B', '2026-03-10', 90, 10, '']]);
       expect(personalRecords(s2, {})[0]?.set).toEqual({ w: 120, r: 1 });
-      // same weight and estimate cannot differ in reps; 100x1 vs 100x1 duplicate
+      // identical sets
       const s3 = mk([['B', '2026-03-01', 50, 5, ''], ['B', '2026-03-10', 100, 1, ''], ['B', '2026-03-10', 100, 1, '']]);
       expect(personalRecords(s3, {})[0]?.set).toEqual({ w: 100, r: 1 });
     });
@@ -78,9 +79,28 @@ describe('personal records (#1351 C3)', () => {
       const s = mk([['Z', '2026-03-01', 50, 5, ''], ['A', '2026-03-01', 50, 5, ''], ['Z', '2026-03-10', 100, 5, ''], ['A', '2026-03-10', 100, 5, '']]);
       expect(personalRecords(s, {}).map((r) => r.lift)).toEqual(['A', 'Z']);
     });
+    it('bodyweight and assisted ties keep the heavier set; an empty or zero day is skipped', () => {
+      const bw = mk([['P', '2026-03-01', 0, 5, ''], ['P', '2026-03-10', 0, 5, ''], ['P', '2026-03-10', 10, 5, ''], ['P', '2026-03-10', 5, 5, ''], ['P', '2026-03-10', 0, 0, ''], ['P', '2026-03-10', 0, 20, 'undone']]);
+      expect(personalRecords(bw, { P: 'bodyweight' }).map((r) => [r.score, r.set])).toEqual([[15, { w: 10, r: 5 }]]);
+      const s = mk([['P', '2026-03-01', 0, 5, ''], ['P', '2026-03-10', 0, 5, ''], ['P', '2026-03-10', 10, 5, ''], ['P', '2026-03-10', 5, 8, '']]);
+      expect(personalRecords(s, { P: 'bodyweight' })[0]?.set).toEqual({ w: 5, r: 8 });
+      const t = mk([['P', '2026-03-10', 10, 5, ''], ['P', '2026-03-10', 0, 5, '']]);
+      expect(isPrToday({ best: 1, sessions: 1 }, t, 'bodyweight')?.set).toEqual({ w: 10, r: 5 });
+      expect(isPrToday({ best: 1, sessions: 1 }, mk([['P', '2026-03-10', 0, 0, '']]), 'bodyweight')).toBeNull();
+      expect(isPrToday({ best: 1, sessions: 1 }, mk([['P', '2026-03-10', 0, 5, '']]))).toBeNull();
+    });
     it('two sessions on one day are one day for records', () => {
       const s: PrSet[] = [...mk([['B', '2026-03-01', 100, 5, ''], ['B', '2026-03-10', 105, 5, ''], ['B', '2026-03-10', 106, 5, '']])];
       expect(personalRecords(s, {})).toHaveLength(1);
+    });
+    it('mainLifts counts days: two sessions on one date are one point', () => {
+      const s: PrSet[] = [...mk([['B', '2026-10-01', 100, 5, ''], ['B', '2026-10-01', 100, 5, ''], ['B', '2026-10-02', 100, 5, '']])].map((x, i) => ({ ...x, session: 's' + i }));
+      expect(mainLifts(s, {}, '2026-10-29')).toEqual([]);
+    });
+    it('mainLifts ends at the viewed date', () => {
+      const s = mk(['2026-10-01', '2026-10-08', '2026-10-15', '2026-10-22'].map((d): Row => ['B', d, 100, 5, '']));
+      expect(mainLifts(s, {}, '2026-10-14')).toEqual([]);
+      expect(mainLifts(s, {}, '2026-10-15')).toHaveLength(1);
     });
     it('mainLifts ties fall back to the name', () => {
       const d = ['2026-10-01', '2026-10-08', '2026-10-15'];
