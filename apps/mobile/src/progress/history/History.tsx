@@ -28,7 +28,7 @@ const typeOf = (name: string) => getLibrary().find((x) => x.name === name)?.type
 const volumeNumber = (kg: number, unit: WeightUnit): string => fmt(fromKg(kg, unit));
 const volumeText = (kg: number, unit: WeightUnit): string => `${volumeNumber(kg, unit)} ${unit}`;
 const count = (n: number, one: string): string => `${n} ${one}${n === 1 ? '' : 's'}`;
-const summary = (s: HistorySession, unit: WeightUnit): string => `${shortDate(s.date)}, ${s.name}, ${s.setsDone} ${s.setsDone === 1 ? 'set' : 'sets'}${s.volume > 0 ? `, ${volumeText(s.volume, unit)}` : ''}`;
+const summary = (s: HistorySession, unit: WeightUnit): string => `${s.name}, ${shortDate(s.date)}, ${s.setsDone} ${s.setsDone === 1 ? 'set' : 'sets'}${s.volume > 0 ? `, ${volumeText(s.volume, unit)}` : ''}`;
 
 /** "Recent workouts": one row per logged day, newest first. Tap opens that day. `focusDate`: the day just closed; focus returns to its row. */
 export function RecentWorkouts({ sessions, onOpen, focusDate = null }: { sessions: readonly HistorySession[]; onOpen: (date: string) => void; focusDate?: string | null }) {

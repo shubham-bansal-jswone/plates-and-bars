@@ -81,7 +81,7 @@ describe('Progress: recent workouts', () => {
     await saveWorkout(db, workout('2026-10-01', 'Pull A'));
     await saveSet(db, '2026-10-01', wset('z', 'Row', 0, 50, 5));
     const { rerender } = await setup(db);
-    const row = await screen.findByLabelText('6 Oct, Pull A, 2 sets, 840 kg');
+    const row = await screen.findByLabelText('Pull A, 6 Oct, 2 sets, 840 kg');
     expect(screen.queryByText('No workouts logged yet. Your sessions will appear here.')).toBeNull();
 
     await fireEvent.press(row);
@@ -99,7 +99,7 @@ describe('Progress: recent workouts', () => {
     await saveSet(db, '2026-10-07', wset('c', 'Bench', 0, 40, 10));
     await rerender(1); // a sync pull stored records
     await flush();
-    expect(await screen.findByLabelText('7 Oct, Push A, 1 set, 400 kg')).toBeTruthy();
+    expect(await screen.findByLabelText('Push A, 7 Oct, 1 set, 400 kg')).toBeTruthy();
   });
 
   it('shows no Personal best on a day that is not a record, whatever pbToast says', async () => {
@@ -140,7 +140,7 @@ describe('Progress: recent workouts', () => {
   it('moves focus to the day heading when a day opens, and back to the row after Back', async () => {
     const spy = jest.spyOn(AccessibilityInfo, 'setAccessibilityFocus').mockImplementation(() => undefined);
     await withDay();
-    const row = await screen.findByLabelText('6 Oct, Pull A, 1 set, 480 kg');
+    const row = await screen.findByLabelText('Pull A, 6 Oct, 1 set, 480 kg');
     await flush();
     const n0 = spy.mock.calls.length;
     await fireEvent.press(row);
@@ -154,7 +154,7 @@ describe('Progress: recent workouts', () => {
 
   it('goes back to the page when the open day disappears after a sync', async () => {
     const { db, rerender } = await withDay();
-    await fireEvent.press(await screen.findByLabelText('6 Oct, Pull A, 1 set, 480 kg'));
+    await fireEvent.press(await screen.findByLabelText('Pull A, 6 Oct, 1 set, 480 kg'));
     await screen.findByRole('header', { name: 'Pull A' });
     await saveSet(db, '2026-10-06', wset('a', 'Row', 0, 60, 8, false)); // un-ticked on another device
     await rerender(1);
