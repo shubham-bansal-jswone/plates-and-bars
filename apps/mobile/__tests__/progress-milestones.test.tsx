@@ -1,10 +1,12 @@
 import { render, screen, fireEvent } from '@testing-library/react-native';
+import * as workoutsDb from '../src/db/workouts';
 import { saveSet, saveWorkout } from '../src/db/workouts';
 import { saveProfile } from '../src/db/records';
 import { saveSettings } from '../src/db/settings';
 import { defaultSettings } from '../src/settings/types';
 import { WeightUnitProvider } from '../src/settings/weightUnit';
 import { ProgressScreen } from '../src/screens/ProgressScreen';
+import { STRENGTH_ERROR } from '../src/progress/strengthCopy';
 import { buildProfile, emptyDraft } from '../src/setup/logic';
 import { KEY_WEIGHT_UNIT, setKv } from '../src/sync/store';
 import { withProfile } from './helpers';
@@ -77,5 +79,20 @@ describe('Milestones on Progress (#1351 A9)', () => {
     expect(await screen.findByLabelText('Three plates a side, Barbell Back Squat, 308.6 lb, 5 Sept')).toBeTruthy();
     expect(screen.queryByLabelText(/ kg, \d+ \w{3,4}$/)).toBeNull();
     expect(screen.queryByText(/45/)).toBeNull();
+  });
+
+  it('sits in the Strength section after Recent PRs, and a failed read shows the section error with no list', async () => {
+    await open(history);
+    const heads = (await screen.findAllByRole('header')).map((h) => h.props.children);
+    expect(heads.indexOf('Milestones')).toBeGreaterThan(heads.indexOf('Recent personal bests'));
+    expect(heads.indexOf('Milestones')).toBeGreaterThan(heads.indexOf('Strength'));
+  });
+
+  it('a failed read hides the list and shows the Strength error line', async () => {
+    const spy = jest.spyOn(workoutsDb, 'loadDoneSets').mockRejectedValue(new Error('x'));
+    await open(history);
+    expect(await screen.findByText(STRENGTH_ERROR)).toBeTruthy();
+    expect(screen.queryByRole('header', { name: 'Milestones' })).toBeNull();
+    spy.mockRestore();
   });
 });

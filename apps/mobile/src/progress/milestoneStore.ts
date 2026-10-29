@@ -1,4 +1,5 @@
 import { exInfo, milestones, type ExerciseOverride, type ExType, type Milestone, type MilestoneProfile, type PrSet, type SessionLog, type WeightUnit } from '@plate-and-bar/core';
+import type { Weight } from './types';
 import { loadWeights } from '../db/progress';
 import { loadDoneSets, loadSessionLog, type WorkoutDb } from '../db/workouts';
 import { getCatalog } from '../workout/catalog';
@@ -23,32 +24,56 @@ export function typesOf(names: Iterable<string>, overrides: Overrides): Record<s
   return Object.fromEntries([...new Set(names)].map((n) => [n, exInfo(n, catalog, overrides[n]).type] as const));
 }
 
-/** Everything core's `milestones` reads, from the device. `end` bounds the data (the viewed day, or today). */
-export async function earnedNow(db: WorkoutDb, profile: MilestoneProfile | null, overrides: Overrides, unit: WeightUnit, end: string): Promise<{ list: Milestone[]; sets: PrSet[]; sessions: SessionLog }> {
-  const [sets, sessions, weights] = await Promise.all([loadDoneSets(db), loadSessionLog(db), loadWeights(db)]);
-  return { list: milestones(sets, sessions, weights, typesOf(sets.map((s) => s.exercise), overrides), unit, end, profile), sets, sessions };
+/** What the Workout tab keeps between reloads so a tick reads nothing from the db: every done set and the session log without the viewed day, the weigh-ins and the shown ids. */
+export interface MilestoneData {
+  sets: PrSet[];
+  sessions: SessionLog;
+  weights: Weight[];
+  shown: Set<string>;
 }
 
-/** First run: every milestone already earned counts as shown, so old history never toasts. Does nothing once the key exists. */
-export async function seedShown(db: WorkoutDb, profile: MilestoneProfile | null, overrides: Overrides, unit: WeightUnit, end: string): Promise<void> {
-  if (parseShown(await getKv(db, KEY_MILESTONES_SHOWN)) !== null) return;
-  const { list } = await earnedNow(db, profile, overrides, unit, end);
-  await setKv(db, KEY_MILESTONES_SHOWN, JSON.stringify(list.map((m) => m.id)));
+type Shared = { profile: MilestoneProfile | null; overrides: Overrides; unit: WeightUnit; end: string };
+
+const run = (d: Pick<MilestoneData, 'sets' | 'sessions' | 'weights'>, a: Shared): Milestone[] =>
+  milestones(d.sets, d.sessions, d.weights, typesOf(d.sets.map((s) => s.exercise), a.overrides), a.unit, a.end, a.profile);
+
+/**
+ * One reload: reads all history (the only db read of milestones outside Progress) and marks every milestone earned without the viewed
+ * day as shown, silently, whatever the cause of the reload (mount, a pull, a restore, an import, another device). Only a tick on the
+ * viewed day (`takeNewMilestones`) may announce one. The viewed day is left out so a milestone its own ticks will earn is not swallowed.
+ */
+export async function loadMilestoneData(db: WorkoutDb, a: Shared, day: string): Promise<MilestoneData> {
+  const [sets, sessions, weights, raw] = await Promise.all([loadDoneSets(db), loadSessionLog(db), loadWeights(db), getKv(db, KEY_MILESTONES_SHOWN)]);
+  const before = sets.filter((s) => s.date !== day);
+  const { [day]: _day, ...log } = sessions;
+  const data = { sets: before, sessions: log as SessionLog, weights };
+  const shown = parseShown(raw) ?? new Set<string>();
+  const have = shown.size;
+  for (const m of run(data, a)) shown.add(m.id);
+  if (raw === null || shown.size !== have) await setKv(db, KEY_MILESTONES_SHOWN, JSON.stringify([...shown]));
+  return { ...data, shown };
+}
+
+/** The most significant new milestone of the newest date: the highest step of each kind (two plates over one), then by id. */
+export function toastPick(fresh: readonly Milestone[]): Milestone | undefined {
+  const newest = fresh[0]?.date;
+  const best = new Map<string, Milestone>();
+  const step = (m: Milestone) => Number(/-(\d+)$/.exec(m.id)?.[1] ?? 0);
+  for (const m of fresh) if (m.date === newest && (!best.get(m.kind) || step(m) > step(best.get(m.kind) as Milestone))) best.set(m.kind, m);
+  return [...best.values()].sort((a, b) => (a.id < b.id ? -1 : 1))[0];
 }
 
 /**
- * The milestones earned that were not shown before, each marked shown at once (all of them: one toast per tick shows at most one, the
- * rest go to the completion panel, and none is announced twice). Newest first, as `milestones` orders them. An untick earns nothing and
- * un-shows nothing: ids are only ever added. With no stored set yet (not seeded) it seeds and returns nothing.
+ * A tick on the viewed day: core `milestones` in memory over the cached data plus the day's own sets (`today`, with the day added to the
+ * session log), diffed against the cached shown ids. New ones are marked shown (cache and one small `setKv`), newest first, as core orders
+ * them. No history is read. Ids are only added: an untick never un-shows one.
  */
-export async function takeNewMilestones(db: WorkoutDb, profile: MilestoneProfile | null, overrides: Overrides, unit: WeightUnit, end: string): Promise<Milestone[]> {
-  const shown = parseShown(await getKv(db, KEY_MILESTONES_SHOWN));
-  const { list } = await earnedNow(db, profile, overrides, unit, end);
-  if (shown === null) {
-    await setKv(db, KEY_MILESTONES_SHOWN, JSON.stringify(list.map((m) => m.id)));
-    return [];
+export async function takeNewMilestones(db: WorkoutDb, data: MilestoneData, today: { date: string; sets: PrSet[]; entry: { t: string; n: number } | null }, a: Shared): Promise<Milestone[]> {
+  const list = run({ sets: [...data.sets, ...today.sets], sessions: today.entry ? { ...data.sessions, [today.date]: today.entry } : data.sessions, weights: data.weights }, a);
+  const fresh = list.filter((m) => !data.shown.has(m.id));
+  if (fresh.length > 0) {
+    for (const m of fresh) data.shown.add(m.id);
+    await setKv(db, KEY_MILESTONES_SHOWN, JSON.stringify([...data.shown]));
   }
-  const fresh = list.filter((m) => !shown.has(m.id));
-  if (fresh.length > 0) await setKv(db, KEY_MILESTONES_SHOWN, JSON.stringify([...shown, ...fresh.map((m) => m.id)]));
   return fresh;
 }

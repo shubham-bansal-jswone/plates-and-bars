@@ -12,7 +12,7 @@ import { MILESTONES_EMPTY, MILESTONES_TITLE } from './copy';
 export const MILESTONES_FIRST = 5;
 
 /**
- * Progress tab: milestones earned, newest first (core's `milestones` order), the last 5 and "Show all". Earned only: no points,
+ * Progress, Strength section (after Recent PRs): milestones earned, newest first (core's `milestones` order), the last 5 and "Show all". Earned only: no points,
  * no locked entries. Each row reads as one line: title, detail, date. Nothing is shown before `milestones` is known (null).
  */
 export function Milestones({ milestones }: { milestones: readonly Milestone[] | null }) {
@@ -22,7 +22,7 @@ export function Milestones({ milestones }: { milestones: readonly Milestone[] | 
   const shown = all ? milestones : milestones.slice(0, MILESTONES_FIRST);
   return (
     <View style={styles.section}>
-      <Heading level={2} style={[typeScale.heading, { color: c.ink }]}>{MILESTONES_TITLE}</Heading>
+      <Heading level={3} style={[typeScale.label, { color: c.ink }]}>{MILESTONES_TITLE}</Heading>
       {milestones.length === 0 ? (
         <Hint>{MILESTONES_EMPTY}</Hint>
       ) : (
@@ -44,7 +44,7 @@ export function Milestones({ milestones }: { milestones: readonly Milestone[] | 
 }
 
 const styles = StyleSheet.create({
-  section: { gap: space.sm, marginTop: space.lg },
+  section: { gap: space.sm },
   row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: space.sm },
   grow: { flex: 1 },
 });

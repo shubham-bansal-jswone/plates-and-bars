@@ -1,6 +1,8 @@
 import { act, render, renderHook, screen, waitFor } from '@testing-library/react-native';
 import { loadSets, loadWorkout, saveLift, saveSet, saveWorkout, type WorkoutDb } from '../src/db/workouts';
-import { dayQueue } from '../src/workout/dayQueue';
+import * as workoutsDb from '../src/db/workouts';
+import * as progressDb from '../src/db/progress';
+import { dayQueue, dayWrites } from '../src/workout/dayQueue';
 import { CompletionPanel } from '../src/workout/CompletionPanel';
 import { useWorkoutDay } from '../src/workout/useWorkoutDay';
 import type { WorkoutSet } from '../src/workout/types';
@@ -21,8 +23,9 @@ const OVER = { step_kg: 2.5, rep_low: 5, rep_high: 12 };
 
 type Db = Awaited<ReturnType<typeof openDb>>;
 const base = (db: Db) => ({ db, now: NOW, focus: [], adjustments: {}, notify, startRest: jest.fn(), exclusions: [], swaps: [], saveRule: jest.fn(), profile });
-const hookOf = (db: Db, unit: 'kg' | 'lb', name: string | null) => () =>
-  useWorkoutDay({ ...base(db), tune: { unit, overrides: name ? { [name]: { type: 'barbell', ...OVER } } : {} }, reloadKey: 0 } as unknown as Parameters<typeof useWorkoutDay>[0]);
+interface P { k: number; date?: string }
+const hookOf = (db: Db, unit: 'kg' | 'lb', name: string | null) => (p?: P) =>
+  useWorkoutDay({ ...base(db), ...(p?.date ? { date: p.date } : {}), tune: { unit, overrides: name ? { [name]: { type: 'barbell', ...OVER } } : {} }, reloadKey: p?.k ?? 0 } as unknown as Parameters<typeof useWorkoutDay>[0]);
 
 /** The first exercise's name is only known once a session has started, so the name is found on a first pass, then the hook is mounted again with its override. */
 async function started(unit: 'kg' | 'lb' = 'kg', before?: (db: Db, name: string) => Promise<void>) {
@@ -37,7 +40,7 @@ async function started(unit: 'kg' | 'lb' = 'kg', before?: (db: Db, name: string)
   await db.runAsync('DELETE FROM settings WHERE key = ?', KEY_MILESTONES_SHOWN); // the probe seeded an empty set: this device is on its first run again
   // Old history is stored after the session exists but before the hook that seeds is mounted; the key is still unset.
   await before?.(db, name);
-  const view = await renderHook(hookOf(db, unit, name));
+  const view = await renderHook(hookOf(db, unit, name), { initialProps: { k: 0 } as P });
   await waitFor(() => expect(view.result.current.day.ready).toBe(true));
   await act(async () => void (await dayQueue.current));
   notify.mockClear();
@@ -106,10 +109,10 @@ describe('the quiet milestone toast (#1351 A9)', () => {
     expect(msToasts()).toHaveLength(1);
   });
 
-  it('at most one toast per tick: two new at once toast the newest, and both are listed', async () => {
+  it('at most one toast per tick: two new on one date toast the higher step, and both are listed', async () => {
     const { db, name, result } = await started();
     await tickSet(result, 0, '100', '5'); // one and two plates a side on the same day
-    expect(msToasts()).toEqual([`Milestone: One plate a side, ${name}, 100 kg`]);
+    expect(msToasts()).toEqual([`Milestone: Two plates a side, ${name}, 100 kg`]);
     expect(result.current.earned.map((m) => m.id).sort()).toEqual(['plates-1', 'plates-2']);
     expect([...(await shown(db))!].sort()).toEqual(['plates-1', 'plates-2']);
   });
@@ -133,5 +136,56 @@ describe('the quiet milestone toast (#1351 A9)', () => {
     const { name, result } = await started('lb');
     await tickSet(result, 0, '60', '5');
     expect(msToasts()).toEqual([`Milestone: One plate a side, ${name}, 132.3 lb`]);
+  });
+
+  it('a pull after a fresh sign-in is seeded silently: no toast for old milestones, and the panel stays empty', async () => {
+    const { db, name, result, rerender } = await started(); // empty store: seeded with nothing
+    await seedDay(db, name, '2026-09-01', [[130, 5]]); // the pulled history
+    await rerender({ k: 1 });
+    await act(async () => void (await dayQueue.current));
+    expect([...(await shown(db))!].sort()).toEqual(['plates-1', 'plates-2']);
+    await tickSet(result, 0, '100', '5');
+    expect(msToasts()).toEqual([]);
+    expect(result.current.earned).toEqual([]);
+  });
+
+  it('history written by another screen after the first seed (an import) is seeded silently', async () => {
+    const { db, name, result } = await started();
+    await seedDay(db, name, '2026-09-01', [[130, 5]]);
+    dayWrites.current++; // writeImport goes through the day queue counter
+    await tickSet(result, 0, '100', '5');
+    expect(msToasts()).toEqual([]);
+    expect(result.current.earned).toEqual([]);
+    await tickSet(result, 1, '140', '1'); // today's own new one still toasts
+    expect(msToasts()).toEqual([`Milestone: Three plates a side, ${name}, 140 kg`]);
+  });
+
+  it('a tick reads no history: the all-history loaders are not called', async () => {
+    const { result } = await started();
+    const spies = [jest.spyOn(workoutsDb, 'loadDoneSets'), jest.spyOn(workoutsDb, 'loadSessionLog'), jest.spyOn(progressDb, 'loadWeights')];
+    await tickSet(result, 0, '60', '5');
+    expect(msToasts()).toHaveLength(1);
+    for (const sp of spies) expect(sp).not.toHaveBeenCalled();
+    spies.forEach((sp) => sp.mockRestore());
+  });
+
+  it('only a tick looks: a rate change on a set edited to a plate weight toasts nothing, the next tick does', async () => {
+    const { result, name } = await started();
+    await tickSet(result, 0, '50', '5');
+    await act(async () => result.current.editSet(0, 'work', 0, 'w', '60'));
+    await act(async () => result.current.rate(0, 0, 'right'));
+    await act(async () => void (await dayQueue.current));
+    expect(msToasts()).toEqual([]);
+    expect(result.current.earned).toEqual([]);
+    await tickSet(result, 1, '60', '5');
+    expect(msToasts()).toEqual([`Milestone: One plate a side, ${name}, 60 kg`]);
+  });
+
+  it('earned holds only the viewed date: another date shows none', async () => {
+    const { result, rerender } = await started();
+    await tickSet(result, 0, '60', '5');
+    expect(result.current.earned).toHaveLength(1);
+    await rerender({ k: 0, date: '2026-10-07' });
+    expect(result.current.earned).toEqual([]);
   });
 });

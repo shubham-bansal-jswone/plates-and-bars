@@ -4,7 +4,7 @@ import { DailyRead } from '../why/DailyRead';
 import { useOptionalSettings } from '../state/SettingsProvider';
 import { profileWhyValues } from '../why/values';
 import { StyleSheet, View } from 'react-native';
-import { DEFAULT_KCAL_TARGET, milestones as milestonesOf, formatWeight, round1, waterRetentionPhase, latestWeight, navyBodyFat, stepsTarget, weightSeries, WEIGHT_CHART_BOX, type MeasureKey } from '@plate-and-bar/core';
+import { DEFAULT_KCAL_TARGET, formatWeight, round1, waterRetentionPhase, latestWeight, navyBodyFat, stepsTarget, weightSeries, WEIGHT_CHART_BOX, type MeasureKey } from '@plate-and-bar/core';
 import { useDataVersion } from '../sync/useDataVersion';
 import { useStepsVersion } from '../steps/DeviceStepsProvider';
 import { Text } from '../components/Text';
@@ -22,8 +22,6 @@ import { RangedTrend } from '../progress/RangedTrend';
 import { MeasureTrend } from '../progress/MeasureTrend';
 import { WeeksOnTrack } from '../progress/WeeksOnTrack';
 import { useProgress } from '../progress/useProgress';
-import { useProgressSets } from '../progress/useProgressSets';
-import { Milestones } from '../progress/Milestones';
 import { useStoredText } from '../progress/useStoredText';
 import { useProfile } from '../state/ProfileProvider';
 import { useWeightUnit } from '../settings/weightUnit';
@@ -68,14 +66,6 @@ export function ProgressScreen({ db, now = () => new Date() }: Props) {
   const labs = useLabs({ db, today: v.today, notify, reloadKey: dataVersion });
   const ci = useCheckin({ db, date: p.date, weights: p.weights, now, notify, reloadKey: dataVersion });
 
-  const { unit } = useWeightUnit();
-  const ps = useProgressSets(db, dataVersion, settings?.settings.exercise_overrides);
-  // All history, the session log and the weigh-ins as of the viewed day; null while any is unread or the read failed, so a part-loaded list never shows.
-  const milestoneList = useMemo(
-    () => (ps.loading || ps.error || !ci.sessions ? null : milestonesOf(ps.all, ci.sessions, p.weights, ps.types, unit, p.date, profile)),
-    [ps.loading, ps.error, ps.all, ps.types, ci.sessions, p.weights, unit, p.date, profile],
-  );
-
   const hist = useHistory(db, dataVersion);
   const [openDay, setOpenDay] = useState<string | null>(null);
   // The day just closed: focus returns to its row.
@@ -101,12 +91,11 @@ export function ProgressScreen({ db, now = () => new Date() }: Props) {
         {ready ? (
           <>
             {hist ? <RecentWorkouts sessions={hist.sessions} onOpen={(d) => { setClosedDay(null); setOpenDay(d); }} focusDate={closedDay} /> : null}
-            <Milestones milestones={milestoneList} />
             <CheckinCard date={p.date} c={ci} cycleNote={!!cycle.info && waterRetentionPhase(cycle.info)} />
             <RapidLossCard c={ci} />
             <DailyRead sex={profile?.sex} values={profile ? profileWhyValues(profile, { date: p.date, flex: settings?.settings.flex, labHold: labs.holdOn }) : undefined} now={now} />
             <SummaryCard checkin={ci.checkin} profile={profile} />
-            <StrengthSection db={db} date={v.date} weights={p.weights} />
+            <StrengthSection db={db} date={v.date} weights={p.weights} sessions={ci.sessions} />
             <WeightSection p={p} />
             <MeasureSection p={p} isToday={v.isToday} />
             <PhotosSection db={db} date={v.today} weights={p.weights} tapes={p.tapes} notify={notify} />
