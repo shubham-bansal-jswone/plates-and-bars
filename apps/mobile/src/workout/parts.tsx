@@ -14,9 +14,9 @@ import { musclesOf } from './muscles';
 import { Ring } from './Ring';
 import { VideoLink } from './VideoLink';
 
-/** The short message at the bottom of the screen (prototype `toast`). */
-/** `lift` raises the toast by that many px (the Workout tab lifts it above the rest dock, which would otherwise cover it). */
-export function ToastBar({ message, lift = 0 }: { message: string | null; lift?: number }) {
+/** The short message (prototype `toast`), at the bottom of the screen, or at the top edge with `top` (the Workout tab's set-row refusal, which at the bottom would cover the row and tick). */
+/** `lift` raises a bottom toast by that many px (the Workout tab lifts it above the rest dock, which would otherwise cover it); a top toast ignores it. */
+export function ToastBar({ message, lift = 0, top = false }: { message: string | null; lift?: number; top?: boolean }) {
   const c = useTheme();
   // iOS has no live regions, so it is told each time the toast text changes; Android and web read the polite live region below.
   useEffect(() => {
@@ -24,7 +24,7 @@ export function ToastBar({ message, lift = 0 }: { message: string | null; lift?:
   }, [message]);
   if (!message) return null;
   return (
-    <View pointerEvents="none" style={[styles.toastWrap, lift ? { bottom: 90 + lift } : null]}>
+    <View pointerEvents="none" style={[styles.toastWrap, top ? styles.toastTop : [styles.toastBottom, lift ? { bottom: 90 + lift } : null]]}>
       <Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={[styles.toast, { backgroundColor: c.toastBg, color: c.toastFg, shadowColor: c.shadow, ...pressedShadow }]}>
         {message}
       </Text>
@@ -208,7 +208,9 @@ export function HowToSheet({ name, onClose }: { name: string | null; onClose: ()
 }
 
 const styles = StyleSheet.create({
-  toastWrap: { position: 'absolute', left: 0, right: 0, bottom: 90, alignItems: 'center' },
+  toastWrap: { position: 'absolute', left: 0, right: 0, alignItems: 'center' },
+  toastBottom: { bottom: 90 },
+  toastTop: { top: 12 },
   toast: { ...type.textBody, paddingHorizontal: 16, paddingVertical: 12, borderRadius: radius.md, maxWidth: 520 },
   srOnly: { position: 'absolute', width: 1, height: 1, margin: -1, overflow: 'hidden', opacity: 0, pointerEvents: 'none' },
   restDock: { position: 'absolute', left: 0, right: 0, bottom: 0, padding: 12, alignItems: 'center' },

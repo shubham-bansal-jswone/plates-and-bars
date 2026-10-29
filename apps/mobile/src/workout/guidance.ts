@@ -5,7 +5,7 @@ import type { ExState } from './model';
 import type { Workout } from './types';
 
 /** What core reads about today, from the stored records. */
-/** Progression context plus the bodyweight assisted machines need (latest logged weight, else the profile's; no weights table yet). */
+/** Progression context plus the bodyweight assisted machines need. The weight suggestion uses the profile weight on purpose (spec #103); scoring (lift record, PR toast, History, Recent PRs) uses `bodyweightOn` (latest weigh-in). */
 export type GuidanceContext = ProgressionContext & { bodyweight: number; returning?: Readonly<Record<string, { until: string }>> };
 
 /** Settings that tune the guidance: a changed rep range (stall card) and exercises coming back after a rule. */

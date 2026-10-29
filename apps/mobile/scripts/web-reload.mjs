@@ -119,8 +119,10 @@ try {
   }
   await click('See my targets');
   await click('Use these targets');
+  // Setup ends on the Food tab (since the design overhaul), so open Targets from the tab bar.
+  await click('Targets');
   await page.waitForSelector(sel('Redo setup'), { timeout: 20000 }); // only Targets has it (the setup results also show 1,990 kcal)
-  await kcalIs('1990');
+  await kcalIs('1,990');
   console.log('offline: setup completed and Targets shows 1,990 kcal with the network off');
   // The export ships the service worker now (#718), so this usually loads from its cache; before that it failed, and
   // either way is only logged. It is probed on a throwaway page: a failed navigation on `page` would leave
@@ -136,7 +138,7 @@ try {
   await page.setOfflineMode(false);
   await page.reload({ waitUntil: 'load' });
   await page.waitForSelector(sel('Redo setup'), { timeout: 20000 });
-  await kcalIs('1990');
+  await kcalIs('1,990');
   console.log('after reload: targets screen shows 1,990 kcal without setup (profile read back from SQLite)');
   // Workout: start today's session (the planned one, or the first other template on a rest day), tick a set.
   await click('Workout');
@@ -212,7 +214,9 @@ try {
   console.log('after reload: the glass of water is still counted (0.3 L)');
   // Progress: log a weight, reload, it is still there.
   await click('Progress');
-  await type('Weight in kg', '81.6');
+  // Setup already stored today's 82 kg weigh-in, so the box starts filled: select it so the typing replaces it.
+  await (await page.waitForSelector('input[aria-label="Weight in kg"]', { timeout: 20000 })).click({ count: 3 });
+  await page.keyboard.type('81.6');
   const wBefore = await opfsStamp(page);
   await click('Save weight');
   await page.waitForSelector(sel('Latest weigh-in 81.6 kg'), { timeout: 20000 });

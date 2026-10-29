@@ -61,6 +61,8 @@ try {
     for (const el of await page.$$('[role="radiogroup"]')) { const no = await el.$('[aria-label="No"]'); if (no) await no.evaluate((e) => e.click()); }
     await click('See my targets');
     await click('Use these targets');
+    // Setup ends on the Food tab (since the design overhaul), so open Targets from the tab bar.
+    await click('Targets');
     await page.waitForSelector(sel('Redo setup'), { timeout: 30000 });
     await shot('targets');
     await click('Workout');
