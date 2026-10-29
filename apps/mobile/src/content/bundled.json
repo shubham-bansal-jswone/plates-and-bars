@@ -2,12 +2,12 @@
   "cards": {
     "sha256": "3b8be9db044adb4ef311d7d7b130021f5686c4b9b5272cab27b33e87731896c8",
     "schema_version": 1,
-    "updated_at": "2026-10-28T15:40:15Z"
+    "updated_at": "2026-10-29T00:26:28Z"
   },
   "eatout": {
     "sha256": "789241075ccff0d736e607391f374f5b317fbc1cbfb2c8eb5835c3fff618b007",
     "schema_version": 1,
-    "updated_at": "2026-10-18T00:57:03Z"
+    "updated_at": "2026-10-29T00:26:28Z"
   },
   "exercise-images": {
     "sha256": "4a793ca1a7ae290f0aacc0c82754f10edf1611cbf1602ee9a1a974fba3c2a48b",
@@ -29,34 +29,39 @@
     "schema_version": 1,
     "updated_at": "2026-10-18T00:57:03Z"
   },
+  "import-aliases": {
+    "sha256": "e3f1b6dd3989d365d222d60b5fc938a2afc749f0189784caf24bf7394ff5d0e6",
+    "schema_version": 1,
+    "updated_at": "2026-10-29T16:29:18Z"
+  },
   "labels": {
     "sha256": "96c8869bf4abdb36257ae0ec42e0b4410eada9de1d7ae672bda9992604ce0ae4",
     "schema_version": 1,
-    "updated_at": "2026-10-09T10:45:53Z"
+    "updated_at": "2026-10-29T00:26:28Z"
   },
   "labs": {
     "sha256": "0d0e4b6bb10c54aefc6ee17a30f6ef0a223418455f34118c4a62a325464e075c",
     "schema_version": 1,
-    "updated_at": "2026-10-20T19:10:19Z"
+    "updated_at": "2026-10-29T00:26:28Z"
   },
   "meal-planning": {
     "sha256": "161627c6e0c4575025a28103a57e2061d1d70dbf70317353b0ae244c6b33d3d8",
     "schema_version": 1,
-    "updated_at": "2026-10-17T14:56:11Z"
+    "updated_at": "2026-10-29T00:26:28Z"
   },
   "measures": {
     "sha256": "47879bcc79ada5af3087e918fb4976174d90b9a65c71fa0656bb3211232516bb",
     "schema_version": 1,
-    "updated_at": "2026-10-09T08:54:10Z"
+    "updated_at": "2026-10-29T00:26:28Z"
   },
   "raw-ingredients": {
     "sha256": "a8a5abc1d3dd5e4f5c6c7aca66ced3586230f328ce124ad343976759b33be683",
     "schema_version": 1,
-    "updated_at": "2026-10-17T14:56:11Z"
+    "updated_at": "2026-10-29T00:26:28Z"
   },
   "recipes": {
     "sha256": "2c681e1c62760ca21921001317422f86e7f110d6fbb0caeb557af0785c79d613",
     "schema_version": 1,
-    "updated_at": "2026-10-17T14:56:11Z"
+    "updated_at": "2026-10-29T00:26:28Z"
   }
 }
