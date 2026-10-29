@@ -8,7 +8,7 @@ import type { WorkoutDb } from '../db/workouts';
 import { radius, tabular, type } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { BurnLine } from './BurnLine';
-import { RATE_LABEL } from './copy';
+import { RATE_LABEL, ROUTINE_COPY } from './copy';
 import type { ExState } from './model';
 import { buildShareCard } from './shareModel';
 import { ShareCard } from './ShareCard';
@@ -19,7 +19,7 @@ import { useWeightUnit } from '../settings/weightUnit';
  * "Session done": shown while every set is ticked, read from today's exercises only. Nothing is stored and nothing is locked:
  * un-tick a set and it goes. The elapsed time is core's `sessionElapsed` over the ticks (`t`), shown only when every ticked set has one; no streak. A personal record is core's `updateLift` result (the record's `pbToast` is today).
  */
-export function CompletionPanel({ db, date, profileKg, exs, cardio, lifts, reloadKey, headingRef }: { headingRef?: Ref<ComponentRef<typeof RNText>>; db: WorkoutDb; date: string; profileKg: number; exs: readonly ExState[]; cardio: number | null; lifts: Readonly<Record<string, LiftRecord>>; reloadKey: number }) {
+export function CompletionPanel({ db, date, profileKg, exs, cardio, lifts, reloadKey, headingRef, onSaveRoutine }: { /** Opens "Save as routine"; absent when the session has nothing to save. */ onSaveRoutine?: () => void; headingRef?: Ref<ComponentRef<typeof RNText>>; db: WorkoutDb; date: string; profileKg: number; exs: readonly ExState[]; cardio: number | null; lifts: Readonly<Record<string, LiftRecord>>; reloadKey: number }) {
   const c = useTheme();
   const { unit } = useWeightUnit();
   const { cardRef, busy, note: shareNote, share } = useShareCard();
@@ -53,6 +53,7 @@ export function CompletionPanel({ db, date, profileKg, exs, cardio, lifts, reloa
       })}
       <BurnLine db={db} date={date} profileKg={profileKg} exs={exs} cardio={cardio} reloadKey={reloadKey} />
       <Button kind="ghost" label="Share" a11yLabel="Share workout summary picture" onPress={() => share(card)} disabled={busy} busy={busy} />
+      {onSaveRoutine ? <Button kind="ghost" label={ROUTINE_COPY.action} a11yLabel={ROUTINE_COPY.actionLabel} onPress={onSaveRoutine} /> : null}
       {shareNote ? <Note>{shareNote}</Note> : null}
       {Platform.OS === 'web' ? null : <ShareCard model={card} cardRef={cardRef} />}
     </Card>

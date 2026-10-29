@@ -126,3 +126,18 @@ export function rampEasyNote(ramp: readonly { w: string; done: boolean; rate: Ra
   if (last?.rate !== 'easy') return null;
   return `Easy, so add a step (about ${kgLabel(harder(num(last.w), info), info, unit)}) and do another ramp set of ${info.lo} ${repWord(info.type)}.`;
 }
+
+/** "Save as routine" (#1184). The limits are core's (`ROUTINE_NAME_MAX`, `ROUTINE_MAX_LIVE`). */
+export const ROUTINE_COPY = {
+  action: 'Save as routine',
+  actionLabel: 'Save today’s exercises as a routine',
+  title: 'Save as routine',
+  hint: 'Saves these exercises and set counts. Weights and reps come from your progress when you start it.',
+  nameLabel: 'Routine name',
+  save: 'Save routine',
+  cancel: 'Cancel',
+  nameError: (max: number) => `Give the routine a name of 1 to ${max} characters.`,
+  tooMany: (max: number) => `You have ${max} routines, the most you can keep. Delete one to save another.`,
+  failed: 'Couldn’t save the routine. Try again.',
+  saved: (name: string) => `Saved “${name}” as a routine`,
+};

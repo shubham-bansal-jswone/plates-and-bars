@@ -5,7 +5,7 @@ import { useFocusEffect } from 'expo-router';
 import { AccessibilityInfo, Platform, StyleSheet, Text as RNText, useWindowDimensions, View } from 'react-native';
 import { useDataVersion } from '../sync/useDataVersion';
 import { Text } from '../components/Text';
-import { HAND_PICKED, modsNote, overridesFromSettings, plannedCoverage, type WeekPlan, secondSessionChoices, sessionVolume, beginnerRamp, checkinFlags, isFocus, nextInList, coverageTemplates, mondayOf, planned, restFor, warmupRamp, type Checkin, isLearning, exInfo, fromKg, infoForUnit, priorSessions, REST_EXTEND_SEC, type ExclusionReason } from '@plate-and-bar/core';
+import { HAND_PICKED, routineFromSession, modsNote, overridesFromSettings, plannedCoverage, type WeekPlan, secondSessionChoices, sessionVolume, beginnerRamp, checkinFlags, isFocus, nextInList, coverageTemplates, mondayOf, planned, restFor, warmupRamp, type Checkin, isLearning, exInfo, fromKg, infoForUnit, priorSessions, REST_EXTEND_SEC, type ExclusionReason } from '@plate-and-bar/core';
 import { fmt } from '../format';
 import { ClearanceCard } from '../components/ClearanceCard';
 import { Button, Card, Chip, Disclosure, H1, Hint, MetricRow, Note, Page, useScrollToTopOn } from '../components/ui';
@@ -17,7 +17,7 @@ import { useSettings } from '../state/SettingsProvider';
 import { useTheme } from '../theme/useTheme';
 import { buildSession } from '../workout/buildSession';
 import { getCatalog } from '../workout/catalog';
-import { CHECKIN, REASON_TEXT, listJoin, modsNoteText, muscleName } from '../workout/copy';
+import { CHECKIN, REASON_TEXT, listJoin, modsNoteText, muscleName, ROUTINE_COPY } from '../workout/copy';
 import { ExerciseCard, type Actions } from '../workout/ExerciseCard';
 import { AddExerciseFlow } from '../workout/AddExerciseFlow';
 import { BodyMap } from '../workout/BodyMap';
@@ -31,6 +31,7 @@ import { CardioBlock } from '../workout/CardioBlock';
 import { ModeNote, WeekTools } from '../workout/ScheduleTools';
 import { CantSheet } from '../workout/CantSheet';
 import { CompletionPanel } from '../workout/CompletionPanel';
+import { SaveRoutineSheet } from '../workout/SaveRoutineSheet';
 import { FinishWorkout } from '../workout/FinishWorkout';
 import { focusNode } from '../labelscan/focus';
 import { LibraryEntryButton } from '../library/LibraryEntryButton';
@@ -506,12 +507,14 @@ function SessionView({ now, db, reloadKey, w, profile, focus, rules, notify, tun
   // The muscle map is open until the first set is ticked (prototype sessionMapHtml); once the user taps it, their choice stays.
   const [mapOpen, setMapOpen] = useState<boolean | null>(null);
   const [adding, setAdding] = useState(false);
+  const [savingRoutine, setSavingRoutine] = useState(false);
   // After Complete workout the panel appears; focus moves to its heading once it is there.
   const focusPanel = useRef(false);
   const panelHeading = useRef<ComponentRef<typeof RNText>>(null);
   // One exercise is expanded at a time: the user's pick, else the first with sets left. Acting on an exercise pins it, so its rating chips and form question stay put after its last tick.
   const [pinned, setPinned] = useState<string | null>(null);
   const wk = day.workout as Workout;
+  const routine = routineFromSession(day.exs.map((e) => ({ name: e.name, sets: e.sets.length })));
   const ctx = progressionContext(date, day.lifts, profile, wk, tune);
   let done = 0;
   let all = 0;
@@ -580,6 +583,8 @@ function SessionView({ now, db, reloadKey, w, profile, focus, rules, notify, tun
         );
       })}
       <Button label="Add exercise" kind="ghost" onPress={() => setAdding(true)} />
+      {routine.length ? <Button label={ROUTINE_COPY.action} a11yLabel={ROUTINE_COPY.actionLabel} kind="ghost" onPress={() => setSavingRoutine(true)} /> : null}
+      {savingRoutine ? <SaveRoutineSheet db={db} exercises={routine} defaultName={wk.template ?? ''} onSaved={(n) => (setSavingRoutine(false), notify(ROUTINE_COPY.saved(n)))} onClose={() => setSavingRoutine(false)} /> : null}
       <AddExerciseFlow open={adding} onClose={() => setAdding(false)} inSession={day.exs.map((e) => e.name)} workouts={workoutLists(coverageTemplates(date, profile, settings.adjustments.weekPlan as WeekPlan | undefined) as readonly string[], wk.where ?? profile.where, { date, exclusions: rules.rules.exclusions, swaps: rules.rules.swaps, lifts: day.lifts })} add={w.addExercise} notify={notify} />
       <Hint>Tap the tick to log a set. An empty field uses the suggested number when there is one; on a first-time exercise, enter it yourself. Rate each set so the next one adjusts: Easy adds a step, Couldn’t finish drops about 10%.</Hint>
       {choices ? (
@@ -614,7 +619,7 @@ function SessionView({ now, db, reloadKey, w, profile, focus, rules, notify, tun
       {complete ? null : <BurnLine db={db} date={date} profileKg={profile.weight_kg} exs={day.exs} cardio={wk.cardio_min} reloadKey={reloadKey} />}
       {notes.length ? <Note>Today: {notes.join('; ')}.</Note> : null}
       <View style={{ width: '100%', maxWidth: 560, alignSelf: 'center' }}>
-        <CompletionPanel headingRef={panelHeading} db={db} date={date} profileKg={profile.weight_kg} exs={day.exs} cardio={wk.cardio_min} lifts={day.lifts} reloadKey={reloadKey} />
+        <CompletionPanel headingRef={panelHeading} db={db} date={date} profileKg={profile.weight_kg} exs={day.exs} cardio={wk.cardio_min} lifts={day.lifts} reloadKey={reloadKey} {...(routine.length ? { onSaveRoutine: () => setSavingRoutine(true) } : {})} />
       </View>
     </>
   );
