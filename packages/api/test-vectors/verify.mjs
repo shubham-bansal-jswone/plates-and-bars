@@ -70,6 +70,27 @@ if (!measures) failures.push("openapi.yaml: content manifest example has no meas
 const etags = [...spec.matchAll(/"([0-9a-f]{64})"/g)].map((m) => m[1]);
 if (etags.length === 0) failures.push("openapi.yaml: no ETag examples");
 for (const e of etags) if (measures && e !== measures[2]) failures.push(`openapi.yaml: ETag example ${e} is not the measures sha256`);
+// Each manifest example entry's sha256 and size_bytes equal the bytes of the matching content/<name>.json
+// (the files the server serves and the app bundles). Only entries the example lists are compared; a name with
+// no content file fails, a content file the example omits (import-aliases) is not required.
+const manifestExamples = load(spec).paths["/content/manifest"].get.responses["200"].content["application/json"].examples;
+let manifestEntries = 0;
+for (const [exName, ex] of Object.entries(manifestExamples)) {
+  for (const b of ex.value.bundles) {
+    let bytes;
+    try {
+      bytes = readFileSync(new URL(`../../../content/${b.name}.json`, import.meta.url));
+    } catch {
+      failures.push(`openapi.yaml: manifest example ${exName} lists ${b.name}, but content/${b.name}.json does not exist`);
+      continue;
+    }
+    manifestEntries++;
+    const sha = createHash("sha256").update(bytes).digest("hex");
+    if (b.sha256 !== sha) failures.push(`openapi.yaml: manifest example ${exName} ${b.name} sha256 is ${b.sha256}, content/${b.name}.json is ${sha}`);
+    if (b.size_bytes !== bytes.length) failures.push(`openapi.yaml: manifest example ${exName} ${b.name} size_bytes is ${b.size_bytes}, content/${b.name}.json is ${bytes.length}`);
+  }
+}
+if (manifestEntries === 0) failures.push("openapi.yaml: no manifest example entry compared with content/");
 // Every tag an operation uses is declared once in the top-level `tags` list (Redocly's recommended
 // rules do not check this).
 const tagBlock = spec.match(/^tags:\n([\s\S]*?)^\S/m);
@@ -762,6 +783,7 @@ if (failures.length) {
 }
 console.log(`sync-ids.json: rfc_example, ${vectors.cases.length} cases and openapi.yaml example ids verified`);
 console.log(`content-hash.json: ${content.cases.length} cases and openapi.yaml content examples verified`);
+console.log(`openapi.yaml: ${manifestEntries} manifest example entries match the bytes of content/*.json`);
 console.log(`blank-text.json: ${blank.must_fail.length} must-fail and ${blank.must_pass.length} must-pass texts on ${blank.fields.length} fields, ${patterns.length} spec patterns without engine-specific escapes or lookbehind`);
 console.log(`openapi.yaml: ${used.size} operation tags, all declared`);
 console.log(`openapi.yaml: ${bounded} record and AI request strings, arrays and open objects, all bounded`);
