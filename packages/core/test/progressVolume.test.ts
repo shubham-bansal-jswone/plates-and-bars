@@ -8,6 +8,7 @@ import {
 const g = JSON.parse(readFileSync(resolve(__dirname, '../../../docs/spec/golden/progressVolume.json'), 'utf8')) as {
   tags: Record<string, { primary: string[]; secondary: string[] }>;
   avg_weeks: number;
+  recent_muscle: { note: string; weeks: WeekSets[]; expected: string | null }[];
   weekly: { note: string; end: string; weeks: number; days: CoverageDay[]; expected: WeekSets[] }[];
   vs_plan: { note: string; weeks: { week: string; partial: boolean; sets: MuscleSets }[]; planned: MuscleSets; since: string | null; expected: ReturnType<typeof volumeVsPlan> }[];
 };
@@ -86,19 +87,7 @@ describe('volumeVsPlan (#1351 C2)', () => {
 });
 
 describe('recentVolumeMuscle (#1409)', () => {
-  const w = (week: string, sets: MuscleSets): WeekSets => ({ week, partial: false, sets });
-  it('is the muscle with the most sets in the latest week that has any', () => {
-    expect(recentVolumeMuscle([w('a', { quads: 9 }), w('b', { chest: 3, lats: 5 }), w('c', { chest: 0, lats: 0 })])).toBe('lats');
-  });
-  it('takes the first of COVER_SHOW on a tie, and counts half sets', () => {
-    expect(recentVolumeMuscle([w('a', { lats: 4, chest: 4 })])).toBe('chest');
-    expect(recentVolumeMuscle([w('a', { chest: 0.5 })])).toBe('chest');
-  });
-  it('is null with no set in any week, or no weeks', () => {
-    expect(recentVolumeMuscle([w('a', { chest: 0 }), w('b', {})])).toBeNull();
-    expect(recentVolumeMuscle([])).toBeNull();
-  });
-  it('ignores a muscle that is not shown', () => {
-    expect(recentVolumeMuscle([w('a', { 'front-delt': 8 })])).toBeNull();
+  it.each(g.recent_muscle.map((c) => [c.note, c] as const))('%s', (_note, c) => {
+    expect(recentVolumeMuscle(c.weeks)).toBe(c.expected);
   });
 });

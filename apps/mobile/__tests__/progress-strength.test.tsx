@@ -304,6 +304,9 @@ describe('states', () => {
     mockHook = hook([set(END, 'Bench Press', 80, 5)]);
     await show();
     expect(screen.getByText(`Bench Press estimated 1-rep max ${e1rm(80)} kg`)).toBeTruthy();
+    // The single-point sentence keeps the number with its unit: the raw text has a non-breaking space, which getByText's normalizer hides (#1409).
+    const raw = screen.getByText(/^Bench Press estimated 1-rep max/).props.children as string | string[];
+    expect(Array.isArray(raw) ? raw.join('') : raw).toBe(`Bench Press estimated 1-rep max ${e1rm(80)}\u00a0kg`);
     expect(screen.getByText(`${e1rm(80)} kg`, hidden)).toBeTruthy();
     expect(screen.queryByRole('image')).toBeNull();
     expect(screen.queryByRole('button', { name: '12 weeks' })).toBeNull();

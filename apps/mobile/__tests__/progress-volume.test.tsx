@@ -187,10 +187,10 @@ describe('VolumeSection', () => {
 
   it('a focus muscle with no sets does not open an empty chart: the most recent muscle does (#1409)', async () => {
     const db = await openDb();
-    await history(db); // only chest and lats have sets; chest has the latest week
+    await history(db); // only chest and lats have sets; the in-progress week (chest, 5) does not override the last full week (lats, 6)
     await show(db, { focus: ['quads'] });
-    await screen.findByRole('button', { name: 'Chest' });
-    expect(pressedOf('Chest')).toBe(true);
+    await screen.findByRole('button', { name: 'Lats' });
+    expect(pressedOf('Lats')).toBe(true);
     expect(pressedOf('Quads')).toBe(false);
     expect(screen.queryByText(VOL_MUSCLE_NONE('Quads'))).toBeNull();
     expect(screen.getByRole('button', { name: 'Show as table' })).toBeTruthy();
@@ -216,15 +216,15 @@ describe('VolumeSection', () => {
     expect(screen.queryByTestId('skeleton')).toBeNull();
   });
 
-  it('without focus starts on the muscle with the most sets in the latest week that has any (#1409)', async () => {
+  it('without focus starts on the muscle with the most sets in the latest complete week that has any (#1409)', async () => {
     const db = await openDb();
-    await history(db); // only chest and lats have sets; this week has chest only
+    await history(db); // only chest and lats have sets; this week (in progress) has chest only, the last full week has lats 6
     await show(db);
     await waitFor(() => expect(screen.queryByTestId('skeleton')).toBeNull());
     const weeks = weeklyDoneSets(await daysFor(db, TODAY), TODAY, 12, getCatalog().tags);
     const rows = volumeVsPlan(weeks, planned, '2026-08-03').rows;
-    expect(defaultMuscle([], rows, weeks)).toBe('chest');
-    const expected = 'chest';
+    expect(defaultMuscle([], rows, weeks)).toBe('lats');
+    const expected = 'lats';
     const label = expected.charAt(0).toUpperCase() + expected.slice(1);
     expect(screen.getAllByRole('button').filter((b) => b.props.accessibilityState?.selected).map((b) => b.props.accessibilityLabel)).toEqual([expect.stringContaining(label.split('-')[0]!)]);
   });

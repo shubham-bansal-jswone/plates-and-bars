@@ -2,11 +2,10 @@ import { useMemo, useState } from 'react';
 import { View } from 'react-native';
 import { downsampleWeekly, rangeSeries, round1, trendChange, type ChartBox, type SeriesRange, type TrendPoint } from '@plate-and-bar/core';
 import { Hint } from '../components/ui';
-import { RANGE_NO_DATA, TREND_NONE, TREND_SUMMARY } from './copy';
+import { RANGE_NO_DATA, TREND_NONE, TREND_SUMMARY, unitTogether } from './copy';
 import { ChartTable } from './ChartTable';
 import { RANGES, RangeControl } from './RangeControl';
 import { TrendChart } from './TrendChart';
-import { unitTogether } from './strengthCopy';
 
 const DEFAULT_RANGE: SeriesRange = '12w';
 

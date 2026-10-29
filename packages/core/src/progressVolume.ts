@@ -59,17 +59,27 @@ export function weeklyDoneSets(days: readonly CoverageDay[], end: string, weeks:
 }
 
 /**
- * The muscle to show first on the volume chart: in the most recent week of `weeks` (oldest first, as `weeklyDoneSets` gives them) that holds any
- * done set of a `COVER_SHOW` muscle, the muscle with the most sets; the first of `COVER_SHOW` on a tie. Null when no week holds a set.
+ * The muscle to show first on the volume chart: in the most recent complete week of `weeks` (oldest first, as `weeklyDoneSets` gives them) that holds any
+ * done set of a `COVER_SHOW` muscle, the muscle with the most sets; the first of `COVER_SHOW` on a tie. A `partial` (in-progress) week does not override
+ * a complete earlier week with sets (Monday's one set of abs does not beat last week's 20 of lats); it is used only when no complete week has any set.
+ * Null when no week holds a set.
  *
  * New rule (#1409): the chart opens on something the user trained, not an empty muscle.
  */
 export function recentVolumeMuscle(weeks: readonly WeekSets[]): string | null {
-  for (let i = weeks.length - 1; i >= 0; i--) {
-    const sets = weeks[i]?.sets ?? {};
+  const top = (w: WeekSets | undefined): string | null => {
+    const sets = w?.sets ?? {};
     let best: string | null = null;
     for (const m of COVER_SHOW) if ((sets[m] || 0) > (best === null ? 0 : sets[best] || 0)) best = m;
-    if (best !== null) return best;
+    return best;
+  };
+  for (const partial of [false, true]) {
+    for (let i = weeks.length - 1; i >= 0; i--) {
+      const w = weeks[i];
+      if (!!w?.partial !== partial) continue;
+      const best = top(w);
+      if (best !== null) return best;
+    }
   }
   return null;
 }
