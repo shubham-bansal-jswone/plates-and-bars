@@ -62,9 +62,6 @@ interface Props {
 }
 
 /** Workout tab: today's planned session with Start, then the session itself. */
-/** The set-row refusal toasts (`useWorkoutDay`): "Enter the weight and reps first.", "Enter the sec first.", "Enter the weight first.". */
-const SET_ROW_TOAST = /^Enter the (weight and )?(reps|sec|weight) first\.$/;
-
 export function WorkoutScreen({ db, now = () => new Date() }: Props) {
   const { profile, status } = useProfile();
   const { ready, settings } = useSettings();
@@ -74,10 +71,10 @@ export function WorkoutScreen({ db, now = () => new Date() }: Props) {
   const [howTo, setHowTo] = useState<string | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [toastTop, setToastTop] = useState(false);
-  const notify = useCallback((msg: string) => {
+  const notify = useCallback((msg: string, opts?: { top?: boolean }) => {
     setToast(msg);
-    // Only the set-row refusal ("Enter the weight and reps first.") goes to the top, so it does not cover the row and tick; the rest stay at the bottom above the rest dock.
-    setToastTop(SET_ROW_TOAST.test(msg));
+    // Only a set-row refusal (`top`) goes to the top, so it does not cover the row and tick; the rest stay at the bottom above the rest dock.
+    setToastTop(opts?.top === true);
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => setToast(null), 2200);
   }, []);

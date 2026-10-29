@@ -80,7 +80,8 @@ interface Options {
   /** The lab hold is on (#1070): new sessions are lighter. Off when not given. */
   labHold?: boolean;
   /** Short message for the toast. */
-  notify: (msg: string) => void;
+  /** `top`: show the toast at the top edge (a set-row refusal, which at the bottom would cover the row and tick). */
+  notify: (msg: string, opts?: { top?: boolean }) => void;
   /** A set was ticked and a rest follows: start the rest timer for `seconds`, then show `next` (a grouped session's dock follows it by position). */
   startRest: (seconds: number, next: RestNext) => void;
   /** The global "rest timer" setting is off: no rest starts (core's `restAfterTick`). Off when not given. */
@@ -640,7 +641,7 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
         const f = tickFill(displayRow(s, unit), setTarget(ex.sets.map((r) => displayRow(r, unit)), j, sug, uinfo, ex.found, unit), uinfo, unit);
         if (!f.ok) {
           empty = f.w === '' && !noLoad(info.type) ? 'w' : 'r';
-          notify(`Enter the ${noLoad(info.type) ? '' : 'weight and '}${repWord(info.type)} first.`);
+          notify(`Enter the ${noLoad(info.type) ? '' : 'weight and '}${repWord(info.type)} first.`, { top: true });
           return false;
         }
         if (s.w === '') s.w = weightFromField(f.w, unit) ?? ''; // a typed weight is left as it is; only a blank takes the suggestion (as kg text)
@@ -999,7 +1000,7 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
         const f = rampTickFill(ex.ramp.map((r) => displayRow(r, unit)), j, infoForUnit(info, unit), unit);
         if (!f.ok) {
           empty = 'w';
-          notify('Enter the weight first.');
+          notify('Enter the weight first.', { top: true });
           return false;
         }
         if (s.w === '') s.w = weightFromField(f.w, unit) ?? '';

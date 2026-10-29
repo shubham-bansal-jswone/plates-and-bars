@@ -468,6 +468,10 @@ describe('Workout tab: logging sets', () => {
     const dock = screen.getByLabelText('Rest timer').parent;
     expect(StyleSheet.flatten(dock?.props.style)).toMatchObject({ position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: expect.any(String) });
     expect(screen.getByText('Next: set 2 of Barbell Bench Press')).toBeTruthy();
+    // A bottom toast is lifted above the dock (90 + the 100 px ring + 30).
+    await press('Add set to Barbell Bench Press');
+    await press('Remove last set of Barbell Bench Press');
+    expect(StyleSheet.flatten(screen.getByText('Set removed').parent?.props.style)).toMatchObject({ bottom: 220 });
     expect(screen.getByLabelText('Mark Barbell Bench Press set 1 done').props.accessibilityState.checked).toBe(true);
     expect(screen.getByText('1 of 15 sets done, 375 kg lifted')).toBeTruthy();
   });
@@ -754,6 +758,20 @@ describe('Workout tab: logging sets', () => {
     // The top variant carries no `bottom` at all (react-native-web would keep a `bottom: undefined` override's base value).
     expect(wrap).toMatchObject({ position: 'absolute', top: 12 });
     expect('bottom' in wrap).toBe(false);
+  });
+
+  const toastStyle = async (text: string) => StyleSheet.flatten((await screen.findByText(text)).parent?.props.style);
+
+  it('shows the ramp refusal at the top too, whatever its wording', async () => {
+    await setup();
+    await press('Start Push B');
+    await screen.findByText('Push B');
+    await expand('Machine Shoulder Press');
+    await press('Start the ramp for Machine Shoulder Press');
+    await press('Mark Machine Shoulder Press ramp set 1 done');
+    const style = await toastStyle('Enter the weight first.');
+    expect(style).toMatchObject({ position: 'absolute', top: 12 });
+    expect('bottom' in style).toBe(false);
   });
 
   it('refuses to tick a first-time set with nothing to fill from', async () => {
