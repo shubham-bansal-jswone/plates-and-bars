@@ -187,6 +187,37 @@ function repairWorkout(rec: Doc): Fixed | null {
   return { rec: out, repaired: !same(out, rec) };
 }
 
+export const SET_KIND = ['work', 'ramp']; // WorkoutSet.kind
+export const SET_RATE = ['easy', 'right', 'hard', 'fail']; // WorkoutSet.rate, besides null
+export const SET_EXERCISE_MAX = 200; // WorkoutSet.exercise
+
+/**
+ * A workout set (live or tombstone) as the contract `WorkoutSet` wants it. Structurally unrepairable is null, and the set is
+ * skipped: `exercise` not a string of 1..SET_EXERCISE_MAX code points, `kind` not work or ramp, `set_index` not an integer from 0 (it
+ * is the set's place, so a guess could collide with another set). Repaired and kept, and counted as repaired: `weight_kg` missing or
+ * not a number becomes null and a negative one 0; `reps` missing or not a number becomes null, a fraction is rounded and a negative one
+ * becomes 0; `rate` missing or not easy, right, hard or fail becomes null; `t` missing or not a string becomes null; `deleted_at`
+ * missing becomes null. An invalid `t` or `updated_at` string never gets here: `normalizeTimestamps` refuses the file for it.
+ */
+function repairSet(rec: Doc): Fixed | null {
+  const { exercise, kind, set_index: idx } = rec;
+  if (typeof exercise !== 'string' || exercise.length === 0 || len(exercise) > SET_EXERCISE_MAX) return null;
+  if (typeof kind !== 'string' || !SET_KIND.includes(kind)) return null;
+  if (typeof idx !== 'number' || !Number.isInteger(idx) || idx < 0) return null;
+  const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+  const w = num(rec.weight_kg);
+  const r = num(rec.reps);
+  const out: Doc = {
+    ...rec,
+    weight_kg: w === null ? null : Math.max(0, w),
+    reps: r === null ? null : Math.max(0, Math.round(r)),
+    rate: typeof rec.rate === 'string' && SET_RATE.includes(rec.rate) ? rec.rate : null,
+    t: typeof rec.t === 'string' ? rec.t : null,
+    deleted_at: rec.deleted_at ?? null,
+  };
+  return { rec: out, repaired: !same(out, rec) };
+}
+
 /** Validates the text of an export file strictly. Throws `RestoreError`; touches nothing. */
 export async function parseRestore(text: string): Promise<ParsedRestore> {
   if (text.length > MAX_RESTORE_BYTES) throw new RestoreError('too_large');
@@ -246,6 +277,12 @@ export async function parseRestore(text: string): Promise<ParsedRestore> {
         }
         setDate = dates.get(String(rec.workout_id)) ?? null;
         if (!setDate) throw new RestoreError('bad_rows'); // a set whose workout is not in the file
+        const fixed = repairSet(rec);
+        if (!fixed) {
+          skipped[tbl] = (skipped[tbl] ?? 0) + 1;
+          continue;
+        }
+        ({ rec, repaired } = fixed);
       }
       rows.push({ tbl, key, rec, setDate, repaired });
     }
