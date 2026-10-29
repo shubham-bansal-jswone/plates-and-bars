@@ -20,21 +20,6 @@ export interface CantChange {
 }
 
 /**
- * A swap keeps the group: a new exercise takes the group of the one it replaced (paired in order when as many left as came in), or, when
- * the old one stayed because it had ticked sets, of the exercise before it. Groups that no longer hold are dissolved by `fixGroups`.
- */
-export function keepGroups(before: Workout['exercises'], after: Workout['exercises']): Workout['exercises'] {
-  const was = new Set(before.map((e) => e.name));
-  const left = before.filter((e) => !after.some((x) => x.name === e.name));
-  const fresh = after.filter((e) => !was.has(e.name));
-  return after.map((e, p) => {
-    if (was.has(e.name)) return e;
-    const from = left.length ? (left.length === fresh.length ? left[fresh.indexOf(e)] : undefined) : after[p - 1];
-    return from?.group ? { ...e, group: from.group } : e;
-  });
-}
-
-/**
  * Runs core's `cantSession` on a stored workout and turns its result into records: new blank sets get an id and sync
  * fields, renumbered sets are stamped, removed ones become tombstones (`deleted_at`), never hard deletes.
  */
@@ -60,7 +45,7 @@ export function cantChange(
     return rec;
   });
   return {
-    exercises: fixGroups(keepGroups(workout.exercises, res.exercises as Workout['exercises'])),
+    exercises: fixGroups(res.exercises as Workout['exercises']),
     sets: all.filter((s) => !s.deleted_at),
     changed: res.changed.map((s) => ({ ...s, updated_at: at })),
     removed: res.removed.map((s) => ({ ...s, updated_at: at, deleted_at: at })),
