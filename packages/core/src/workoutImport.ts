@@ -1,4 +1,6 @@
 import { lbToKg, type WeightUnit } from './weightUnit';
+import { GROUP_MAX } from './groups';
+import { regroup } from './routines';
 
 /**
  * Import of workout history from a Strong or Hevy CSV export (#1179). New, no prototype counterpart. Pure: the app
@@ -24,6 +26,11 @@ export interface ImportSet {
   exercise: string;
   weightKg: number | null;
   reps: number;
+  /**
+   * Hevy `superset_id` of the row, scoped to its workout (`<workout>|<id>`; never a valid group id to store). Present only when the
+   * file has the column and the cell is non-blank, so files without it parse exactly as before. `planImport` turns it into a group.
+   */
+  superset?: string;
 }
 
 /** One calendar day of the file (two workouts on the same day are joined into one: the app keeps one workout per day). */
@@ -182,8 +189,8 @@ export function parseWorkoutCsv(text: string, source: ImportSource, strongUnit: 
   let unit: WeightUnit = strongUnit;
   const c =
     source === 'strong'
-      ? { date: at(['date']), title: at(['workout name']), ex: at(['exercise name']), order: at(['set order']), weight: at(['weight']), reps: at(['reps']), dist: at(['distance']), secs: at(['seconds']), end: undefined, type: undefined }
-      : { date: at(['start_time']), title: at(['title']), ex: at(['exercise_title']), order: at(['set_index']), weight: at(['weight_kg', 'weight_lbs', 'weight_lb']), reps: at(['reps']), dist: at(['distance_km', 'distance_miles', 'distance_meters', 'distance_m']), secs: at(['duration_seconds']), end: at(['end_time']), type: at(['set_type']) };
+      ? { date: at(['date']), title: at(['workout name']), ex: at(['exercise name']), order: at(['set order']), weight: at(['weight']), reps: at(['reps']), dist: at(['distance']), secs: at(['seconds']), end: undefined, type: undefined, sup: undefined }
+      : { date: at(['start_time']), title: at(['title']), ex: at(['exercise_title']), order: at(['set_index']), weight: at(['weight_kg', 'weight_lbs', 'weight_lb']), reps: at(['reps']), dist: at(['distance_km', 'distance_miles', 'distance_meters', 'distance_m']), secs: at(['duration_seconds']), end: at(['end_time']), type: at(['set_type']), sup: at(['superset_id']) };
   if (c.date === undefined || c.title === undefined || c.ex === undefined || c.order === undefined || c.weight === undefined || c.reps === undefined) return { ok: false, error: 'not_recognised' };
   if (source === 'hevy') unit = col.has('weight_kg') ? 'kg' : 'lb';
 
@@ -254,7 +261,8 @@ export function parseWorkoutCsv(text: string, source: ImportSource, strongUnit: 
     have.add(row.exercise);
     const title = row.title === '' ? 'Imported workout' : row.title;
     if (!day.title.split(' + ').includes(title)) day.title = day.title === '' ? title : `${day.title} + ${title}`;
-    day.sets.push({ exercise: row.exercise, weightKg, reps: row.reps });
+    const sup = get(r, c.sup);
+    day.sets.push({ exercise: row.exercise, weightKg, reps: row.reps, ...(sup === '' ? {} : { superset: `${row.group}|${sup}` }) });
   }
 
   const list = [...days.values()].sort((a, b) => a.date.localeCompare(b.date));
@@ -318,6 +326,11 @@ export interface ImportWorkoutDay {
   date: string;
   title: string;
   sets: { exercise: string; setIndex: number; weightKg: number | null; reps: number }[];
+  /**
+   * Group id (contract pattern, fresh per day) by stored exercise name, for the members of each superset; absent when the day has none.
+   * Exercises are listed in order of first set, and the members of a group are adjacent in that order.
+   */
+  groups?: Record<string, string>;
 }
 
 export interface ImportPlan {
@@ -330,11 +343,38 @@ export interface ImportPlan {
   occupied: string[];
 }
 
+/** The group ids for the exercises of one day (see `planImport`), or undefined when none is a valid group. */
+function groupsOf(sup: ReadonlyMap<string, string | null>, newId: () => string): Record<string, string> | undefined {
+  // The scoped CSV values are not contract ids: relabel them s1, s2, ... for the shared group rules.
+  const label = new Map<string, string>();
+  const exs = [...sup].map(([name, g]) => {
+    if (g !== null && !label.has(g)) label.set(g, `s${label.size + 1}`);
+    return { name, sets: 1, group: g === null ? null : (label.get(g) as string) };
+  });
+  if (!exs.some((e) => e.group !== null)) return undefined;
+  const size = new Map<string, number>();
+  for (const e of exs) if (e.group !== null) size.set(e.group, (size.get(e.group) ?? 0) + 1);
+  // Over 6 members is ungrouped whole (`normalizeGroups` would keep the first 6).
+  const fit = exs.map((e) => (e.group !== null && (size.get(e.group) ?? 0) > GROUP_MAX ? { ...e, group: null } : e));
+  const made = regroup(fit, newId);
+  // No prototype: a name such as `constructor` is never found by a plain lookup.
+  const out: Record<string, string> = Object.create(null) as Record<string, string>;
+  exs.forEach((e, i) => {
+    const g = made[i];
+    if (g !== undefined) out[e.name] = g;
+  });
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
 /**
  * The plan to write: every set renamed by `mapping` (imported name to the name to store; null or missing skips the set),
  * days the app already has (`occupiedDates`) left out whole, and sets numbered per exercise per day. Never overwrites a day.
+ * Supersets (#1182, S8): with `newId` given, sets that share a Hevy `superset_id` in one workout become a group of the day (`groups`),
+ * each with its own id from `newId` (the CSV value is never stored). Conservative: an exercise whose sets carry different ids (or
+ * some none) is ungrouped, and a group that is not 2 to 6 members in adjacent order of first set is ungrouped (the `groups.ts` rule);
+ * a `newId` that throws or returns a bad or repeated id leaves that group ungrouped. Without `newId`, or without `superset` on any set, no day has `groups`.
  */
-export function planImport(days: readonly ImportDay[], mapping: Readonly<Record<string, string | null | undefined>>, occupiedDates: ReadonlySet<string>): ImportPlan {
+export function planImport(days: readonly ImportDay[], mapping: Readonly<Record<string, string | null | undefined>>, occupiedDates: ReadonlySet<string>, newId?: () => string): ImportPlan {
   const out: ImportWorkoutDay[] = [];
   const occupied: string[] = [];
   let skippedExercise = 0;
@@ -346,6 +386,8 @@ export function planImport(days: readonly ImportDay[], mapping: Readonly<Record<
     }
     const counts = new Map<string, number>();
     const rows: ImportWorkoutDay['sets'] = [];
+    // Per stored name, in order of first set: the superset of its sets, or null once they disagree.
+    const sup = new Map<string, string | null>();
     for (const s of d.sets) {
       const name = Object.prototype.hasOwnProperty.call(mapping, s.exercise) ? mapping[s.exercise] : null;
       if (name === null || name === undefined) {
@@ -354,11 +396,16 @@ export function planImport(days: readonly ImportDay[], mapping: Readonly<Record<
       }
       const i = counts.get(name) ?? 0;
       counts.set(name, i + 1);
+      const mine = s.superset ?? null;
+      sup.set(name, sup.has(name) && sup.get(name) !== mine ? null : mine);
       rows.push({ exercise: name, setIndex: i, weightKg: s.weightKg, reps: s.reps });
     }
     if (rows.length === 0) continue;
     sets += rows.length;
-    out.push({ date: d.date, title: d.title, sets: rows });
+    const day: ImportWorkoutDay = { date: d.date, title: d.title, sets: rows };
+    const groups = newId ? groupsOf(sup, newId) : undefined;
+    if (groups) day.groups = groups;
+    out.push(day);
   }
   return { days: out, sets, skippedExercise, occupied };
 }

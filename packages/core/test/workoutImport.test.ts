@@ -219,3 +219,85 @@ describe('review fixes (#1179)', () => {
     expect(importDate('Foo 5, 2024')).toBeNull();
   });
 });
+
+describe('Hevy superset_id to groups (S8 of #1182)', () => {
+  const W = '"27 Mar 2024, 18:30","27 Mar 2024, 19:30"';
+  const row = (ex: string, sup: string, idx = 0, title = 'Gym', when = W) => `${title},${when},,${ex},${sup},,${idx},normal,40,10,,,`;
+  const counter = () => {
+    let n = 0;
+    return () => `g${++n}`;
+  };
+  const plan = (rows: string[], newId: (() => string) | null = counter(), map: Record<string, string | null> = {}) => {
+    const p = ok(parseWorkoutCsv(hevy(...rows), 'hevy'));
+    const m: Record<string, string | null> = {};
+    for (const d of p.days) for (const s of d.sets) m[s.exercise] = s.exercise;
+    return planImport(p.days, { ...m, ...map }, new Set(), newId ?? undefined);
+  };
+
+  it('keeps the superset on the set, scoped to its workout, only when the cell is filled', () => {
+    const p = ok(parseWorkoutCsv(hevy(row('A', '0'), row('B', '')), 'hevy'));
+    expect(p.days[0]!.sets[0]!.superset).toMatch(/\|0$/);
+    expect('superset' in p.days[0]!.sets[1]!).toBe(false);
+  });
+
+  it('groups rows sharing a superset_id with a fresh id, not the CSV value', () => {
+    const d = plan([row('A', '7'), row('A', '7', 1), row('B', '7'), row('C', '')]).days[0]!;
+    expect(d.groups).toEqual({ A: 'g1', B: 'g1' });
+  });
+
+  it('gives each group its own id', () => {
+    expect(plan([row('A', '0'), row('B', '0'), row('C', '1'), row('D', '1')]).days[0]!.groups).toEqual({ A: 'g1', B: 'g1', C: 'g2', D: 'g2' });
+  });
+
+  it('the same superset_id in two workouts of one day is two groups', () => {
+    const W2 = '"27 Mar 2024, 07:00","27 Mar 2024, 08:00"';
+    const d = plan([row('A', '0', 0, 'AM', W2), row('B', '0', 0, 'AM', W2), row('C', '0'), row('D', '0')]).days[0]!;
+    expect(d.groups).toEqual({ A: 'g1', B: 'g1', C: 'g2', D: 'g2' });
+  });
+
+  it('a lone member, a split group and a group of seven stay ungrouped', () => {
+    expect(plan([row('A', '0'), row('B', '')]).days[0]!.groups).toBeUndefined();
+    expect(plan([row('A', '0'), row('B', ''), row('C', '0')]).days[0]!.groups).toBeUndefined();
+    const seven = 'ABCDEFG'.split('').map((x) => row(x, '0'));
+    expect(plan(seven).days[0]!.groups).toBeUndefined();
+    const six = 'ABCDEF'.split('').map((x) => row(x, '0'));
+    expect(Object.keys(plan(six).days[0]!.groups!)).toHaveLength(6);
+  });
+
+  it('an exercise whose sets disagree on the superset is ungrouped', () => {
+    const d = plan([row('A', '0'), row('A', '', 1), row('B', '0'), row('C', '0')]).days[0]!;
+    expect(d.groups).toEqual({ B: 'g1', C: 'g1' });
+  });
+
+  it('disagreement is judged on every set, not the last or presence alone', () => {
+    expect(plan([row('A', ''), row('A', '0', 1), row('B', '0')]).days[0]!.groups).toBeUndefined();
+    expect(plan([row('A', '0'), row('A', '1', 1), row('B', '1')]).days[0]!.groups).toBeUndefined();
+  });
+
+  it('a non-member named like an Object.prototype key gets no group', () => {
+    const d = plan([row('A', '0'), row('B', '0'), row('constructor', ''), row('toString', '')]).days[0]!;
+    expect(d.groups).toEqual({ A: 'g1', B: 'g1' });
+    expect(d.groups!['constructor']).toBeUndefined();
+    expect(d.groups!['toString']).toBeUndefined();
+  });
+
+  it('mapping two names to one, or skipping a member, is regrouped on what is left', () => {
+    expect(plan([row('A', '0'), row('B', '0')], counter(), { B: 'A' }).days[0]!.groups).toBeUndefined();
+    expect(plan([row('A', '0'), row('B', '0'), row('C', '0')], counter(), { B: null }).days[0]!.groups).toEqual({ A: 'g1', C: 'g1' });
+  });
+
+  it('a bad or throwing newId leaves the group ungrouped; no newId means no groups', () => {
+    const rows = [row('A', '0'), row('B', '0')];
+    expect(plan(rows, () => 'bad id!').days[0]!.groups).toBeUndefined();
+    expect(plan(rows, () => { throw new Error('x'); }).days[0]!.groups).toBeUndefined();
+    expect(plan(rows, null).days[0]).not.toHaveProperty('groups');
+  });
+
+  it('a file without supersets plans byte for byte as before', () => {
+    const p = plan([row('A', ''), row('B', '')]);
+    expect(p.days[0]).not.toHaveProperty('groups');
+    expect(JSON.stringify(p.days[0]!.sets[0])).toBe('{"exercise":"A","setIndex":0,"weightKg":40,"reps":10}');
+    const strongP = ok(parseWorkoutCsv(strong('2024-03-27 18:30:00,Push,Bench,1,60,8,,,,,'), 'strong'));
+    expect('superset' in strongP.days[0]!.sets[0]!).toBe(false);
+  });
+});
