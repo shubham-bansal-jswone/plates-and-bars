@@ -1,12 +1,13 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
-import { ScrollView, TextInput, View } from 'react-native';
+import { ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { WorkoutScreen } from '../src/screens/WorkoutScreen';
 import { setReducedMotionForTests } from '../src/components/reducedMotion';
 import { saveProfile } from '../src/db/records';
 import { saveSettings } from '../src/db/settings';
 import { defaultSettings } from '../src/settings/types';
 import { buildProfile, emptyDraft } from '../src/setup/logic';
-import { DOCK_CLEAR, revealDelta } from '../src/workout/scrollIntoView';
+import { DOCK_FALLBACK_H, DOCK_SPACER_MARGIN } from '../src/workout/parts';
+import { revealDelta } from '../src/workout/scrollIntoView';
 import type { Workout } from '../src/workout/types';
 import { press } from './disclosure-helpers';
 import { memoryDb, withProfile } from './helpers';
@@ -70,16 +71,16 @@ async function tickUngrouped(name: string) {
 
 describe('revealDelta', () => {
   it('is 0 inside the visible part, which ends above the dock', () => {
-    expect(revealDelta(100, 100, 0, 700, DOCK_CLEAR)).toBe(0);
-    expect(revealDelta(430, 100, 0, 700, DOCK_CLEAR)).toBe(0); // bottom at 530, edge at 542
+    expect(revealDelta(100, 100, 0, 700, DOCK_FALLBACK_H)).toBe(0);
+    expect(revealDelta(430, 100, 0, 700, DOCK_FALLBACK_H)).toBe(0); // bottom at 530, edge at 542
   });
   it('scrolls down just enough to clear the dock and an 8 px edge', () => {
-    expect(revealDelta(600, 100, 0, 700, DOCK_CLEAR)).toBe(158); // 700 - (700 - 150 - 8)
+    expect(revealDelta(600, 100, 0, 700, DOCK_FALLBACK_H)).toBe(158); // 700 - (700 - 150 - 8)
     expect(revealDelta(600, 100, 0, 700, 0)).toBe(8);
   });
   it('brings a node above the page, or one taller than the visible part, to the top edge', () => {
-    expect(revealDelta(-50, 100, 0, 700, DOCK_CLEAR)).toBe(-58);
-    expect(revealDelta(300, 900, 0, 700, DOCK_CLEAR)).toBe(292);
+    expect(revealDelta(-50, 100, 0, 700, DOCK_FALLBACK_H)).toBe(-58);
+    expect(revealDelta(300, 900, 0, 700, DOCK_FALLBACK_H)).toBe(292);
   });
   it('counts from the scroll view top, not the window top', () => {
     expect(revealDelta(120, 100, 100, 600, 0)).toBe(0);
@@ -94,7 +95,7 @@ describe('the up-next set in a superset of 3 (#1343)', () => {
     nodeTop = 900;
     await tick(names[0]!, 0, 'A1');
     await waitFor(() => expect(scrollTo).toHaveBeenCalledTimes(1));
-    expect(scrollTo).toHaveBeenCalledWith({ x: 0, y: 1000 - (VIEW_H - DOCK_CLEAR - 8), animated: false });
+    expect(scrollTo).toHaveBeenCalledWith({ x: 0, y: 1000 - (VIEW_H - DOCK_FALLBACK_H - 8), animated: false });
     expect(focus).not.toHaveBeenCalled(); // never a weight field
   });
 
@@ -105,7 +106,41 @@ describe('the up-next set in a superset of 3 (#1343)', () => {
     nodeTop = 900;
     await tick(names[0]!, 0, 'A1');
     await waitFor(() => expect(scrollTo).toHaveBeenCalledTimes(1));
-    expect(scrollTo).toHaveBeenCalledWith({ x: 0, y: 300 + 1000 - (VIEW_H - DOCK_CLEAR - 8), animated: false });
+    expect(scrollTo).toHaveBeenCalledWith({ x: 0, y: 300 + 1000 - (VIEW_H - DOCK_FALLBACK_H - 8), animated: false });
+  });
+
+  it('does not animate while reduced motion is not known yet', async () => {
+    setReducedMotionForTests(undefined);
+    const names = await mount(['g', 'g', 'g'], false);
+    nodeTop = 900;
+    await tick(names[0]!, 0, 'A1');
+    await waitFor(() => expect(scrollTo).toHaveBeenCalledTimes(1));
+    expect(scrollTo).toHaveBeenCalledWith(expect.objectContaining({ animated: false }));
+  });
+
+  it('never scrolls to a negative offset', async () => {
+    const names = await mount(['g', 'g', 'g'], false);
+    scrollY = 20;
+    nodeTop = -50; // the delta is -58, more than the page is scrolled
+    await tick(names[0]!, 0, 'A1');
+    await waitFor(() => expect(scrollTo).toHaveBeenCalledTimes(1));
+    expect(scrollTo).toHaveBeenCalledWith(expect.objectContaining({ y: 0 }));
+  });
+
+  it('uses the dock\'s measured height, for the target and for the page spacer (large text)', async () => {
+    setReducedMotionForTests(true);
+    const names = await mount(['g', 'g', 'g'], false);
+    const spacer = () => StyleSheet.flatten(screen.getByTestId('dock-spacer').props.style).height;
+    expect(spacer()).toBe(DOCK_FALLBACK_H + DOCK_SPACER_MARGIN); // before the dock has been laid out
+    nodeTop = 900;
+    await tick(names[0]!, 0, 'A1');
+    await waitFor(() => expect(scrollTo).toHaveBeenCalledTimes(1));
+    await fireEvent(screen.getByLabelText('Rest timer'), 'layout', { nativeEvent: { layout: { x: 0, y: 0, width: 375, height: 240 } } });
+    expect(spacer()).toBe(240 + DOCK_SPACER_MARGIN);
+    scrollTo.mockClear();
+    await tick(names[1]!, 0, 'B1');
+    await waitFor(() => expect(scrollTo).toHaveBeenCalledTimes(1));
+    expect(scrollTo).toHaveBeenCalledWith({ x: 0, y: 1000 - (VIEW_H - 240 - 8), animated: false });
   });
 
   it('animates the scroll when reduced motion is off', async () => {
@@ -152,7 +187,7 @@ describe('the finish question (#1344)', () => {
     await press('Complete workout');
     await screen.findByText(/^Finish with 1 of/);
     await waitFor(() => expect(scrollTo).toHaveBeenCalledTimes(1));
-    expect(scrollTo).toHaveBeenCalledWith(expect.objectContaining({ y: 740 - (VIEW_H - DOCK_CLEAR - 8) }));
+    expect(scrollTo).toHaveBeenCalledWith(expect.objectContaining({ y: 740 - (VIEW_H - DOCK_FALLBACK_H - 8) }));
     expect(focus).not.toHaveBeenCalled();
     await press('Keep going');
     scrollTo.mockClear();

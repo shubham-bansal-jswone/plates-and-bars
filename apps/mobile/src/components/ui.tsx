@@ -24,13 +24,14 @@ export function Page({ children, resetKey, wide, scroller }: { children: ReactNo
   const bottom = useBottomInset();
   const ref = useRef<ComponentRef<typeof ScrollView>>(null);
   const toTop = useCallback(() => ref.current?.scrollTo({ x: 0, y: 0, animated: false }), []);
+  const hold = useCallback((n: ComponentRef<typeof ScrollView> | null) => void ((ref.current = n), scroller?.attach(n)), [scroller]);
   const first = useRef(true);
   useLayoutEffect(() => {
     if (first.current) first.current = false;
     else toTop();
   }, [resetKey, toTop]);
   return (
-    <ScrollView ref={(n) => void ((ref.current = n), scroller?.attach(n))} style={{ backgroundColor: c.bg }} contentContainerStyle={[styles.page, { paddingBottom: space.lg + bottom }]} keyboardShouldPersistTaps="handled">
+    <ScrollView ref={hold} style={{ backgroundColor: c.bg }} contentContainerStyle={[styles.page, { paddingBottom: space.lg + bottom }]} keyboardShouldPersistTaps="handled">
       <ScrollTop.Provider value={toTop}>
         <View role="main" style={[styles.column, wide && isWide ? styles.columnWide : null]}>{children}</View>
       </ScrollTop.Provider>

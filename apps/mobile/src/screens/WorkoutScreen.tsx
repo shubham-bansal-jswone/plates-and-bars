@@ -37,11 +37,11 @@ import { CompletionPanel } from '../workout/CompletionPanel';
 import { SaveRoutineSheet } from '../workout/SaveRoutineSheet';
 import { RoutinesSection, type PendingUndo } from '../workout/RoutinesSection';
 import { FinishWorkout } from '../workout/FinishWorkout';
-import { DOCK_CLEAR, useScrollIntoView } from '../workout/scrollIntoView';
+import { useScrollIntoView } from '../workout/scrollIntoView';
 import { focusNode } from '../labelscan/focus';
 import { LibraryEntryButton } from '../library/LibraryEntryButton';
 import { Hero, IndexThumb, SegmentBar, StartButton } from '../workout/SessionHeader';
-import { HowToSheet, RestBar, ToastBar, type GroupNext, type RestNext, type RestState } from '../workout/parts';
+import { DOCK_FALLBACK_H, DOCK_SPACER_MARGIN, HowToSheet, RestBar, ToastBar, type GroupNext, type RestNext, type RestState } from '../workout/parts';
 import { restRetarget } from '../workout/restNext';
 import { useRestNotification } from '../reminders/useRestNotification';
 import { usePersistedRest } from '../workout/restStore';
@@ -116,9 +116,11 @@ export function WorkoutScreen({ db, now = () => new Date() }: Props) {
   const [cantName, setCantName] = useState<{ i: number; name: string; reason?: ExclusionReason } | null>(null);
 
   // Brings a node into view above the rest dock (when one is up). One mechanism for the session: the up-next set of a superset, the finish question.
+  const [measuredDock, setMeasuredDock] = useState<number | null>(null);
+  const dockH = measuredDock ?? DOCK_FALLBACK_H;
   const scroll = useScrollIntoView();
-  const reveal = (node: ComponentRef<typeof View> | null | undefined) => scroll.reveal(node, rest ? DOCK_CLEAR : 0);
-  const restBar = <RestBar rest={rest} onAdd={addRest} onSkip={() => setRest(null)} />;
+  const reveal = (node: ComponentRef<typeof View> | null | undefined) => scroll.reveal(node, rest ? dockH : 0);
+  const restBar = <RestBar rest={rest} onAdd={addRest} onSkip={() => setRest(null)} onHeight={setMeasuredDock} />;
   // One tree for every state, the state's content in the one body slot: the rest bar and toast keep their place (and so are not remounted,
   // which would repeat "Rest done, go!" and re-read the toast) while a day is read. They sit outside it as the prototype's #restbar and #toast sit outside #view.
   // The date bar is in the one Page for every state, so it is not remounted when a day finishes loading (a tap that spans the remount is lost, #1032).
@@ -142,7 +144,7 @@ export function WorkoutScreen({ db, now = () => new Date() }: Props) {
       day.exs.length === 0 ? (
         <StartView key={w.date} now={now} db={db} w={w} labHold={labHold === true} profile={profile} focus={focus} rules={rulesApi} notify={notify} tune={tune} />
       ) : (
-        <SessionView key={w.date} reveal={reveal} now={now} db={db} reloadKey={shown + dataVersion} w={w} profile={profile} focus={focus} rules={rulesApi} notify={notify} tune={tune} onHowTo={setHowTo} onCant={(i, name, reason) => setCantName(reason ? { i, name, reason } : { i, name })} />
+        <SessionView key={w.date} reveal={reveal} dockH={dockH} now={now} db={db} reloadKey={shown + dataVersion} w={w} profile={profile} focus={focus} rules={rulesApi} notify={notify} tune={tune} onHowTo={setHowTo} onCant={(i, name, reason) => setCantName(reason ? { i, name, reason } : { i, name })} />
       );
     const where = day.workout?.where ?? profile.where;
     const planned = () => plannedCoverage({ date: w.date, profile, weekPlan: settings.adjustments.weekPlan as WeekPlan | undefined, exclusions: rules.exclusions, swaps: rules.swaps, lifts: day.lifts }, getCatalog());
@@ -517,7 +519,7 @@ function StartView({ now, db, w, labHold, profile, focus, rules, notify, tune }:
   );
 }
 
-function SessionView({ reveal, now, db, reloadKey, w, profile, focus, rules, notify, tune, onHowTo, onCant }: { reveal: (node: ComponentRef<typeof View> | null | undefined) => void; now: () => Date; db: WorkoutDb; reloadKey: number; w: W; profile: Prof; focus: readonly string[]; rules: ReturnType<typeof useRules>; notify: (msg: string) => void; tune: Tuning; onHowTo: (n: string) => void; onCant: (i: number, name: string, reason?: ExclusionReason) => void }) {
+function SessionView({ reveal, dockH, now, db, reloadKey, w, profile, focus, rules, notify, tune, onHowTo, onCant }: { reveal: (node: ComponentRef<typeof View> | null | undefined) => void; dockH: number; now: () => Date; db: WorkoutDb; reloadKey: number; w: W; profile: Prof; focus: readonly string[]; rules: ReturnType<typeof useRules>; notify: (msg: string) => void; tune: Tuning; onHowTo: (n: string) => void; onCant: (i: number, name: string, reason?: ExclusionReason) => void }) {
   const c = useTheme();
   const { date, day } = w;
   const { settings } = useSettings();
@@ -777,8 +779,8 @@ function SessionView({ reveal, now, db, reloadKey, w, profile, focus, rules, not
     </>
   );
 
-  // Under the rest dock (about 150 high) the last controls stay reachable.
-  const spacer = <View style={{ height: 184 }} />;
+  // Under the rest dock the last controls stay reachable.
+  const spacer = <View testID="dock-spacer" style={{ height: dockH + DOCK_SPACER_MARGIN }} />;
   if (wide)
     return (
       <>

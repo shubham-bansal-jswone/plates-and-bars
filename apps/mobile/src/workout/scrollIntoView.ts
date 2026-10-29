@@ -2,8 +2,6 @@ import { useCallback, useMemo, useRef, type ComponentRef } from 'react';
 import type { ScrollView, View } from 'react-native';
 import { useReducedMotion } from '../components/reducedMotion';
 
-/** About how high the rest dock is (the page keeps a 184 px spacer under its last control for it). */
-export const DOCK_CLEAR = 150;
 const EDGE = 8;
 
 /** What `Page` takes to let its owner scroll it: hands over the ScrollView. */
