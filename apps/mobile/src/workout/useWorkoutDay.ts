@@ -39,7 +39,7 @@ import { rangesOf } from './adjust';
 import { guidance, progressionContext, type Tuning } from './guidance';
 import { cantChange, persistCant } from './cantApply';
 import { dayQueue, dayWrites, enqueueDay } from './dayQueue';
-import { blankRow, carryOnto, exerciseRecord, exercisesFrom, isCardioOnly, mergeWorkout, setRecord, stamp, unversioned, type ExState, type Row } from './model';
+import { blankRow, carryOnto, exerciseRecord, exercisesFrom, fixExGroups, isCardioOnly, mergeWorkout, setRecord, stamp, unversioned, type ExState, type Row } from './model';
 import type { Workout } from './types';
 
 export interface Day {
@@ -161,10 +161,12 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
     const stored = await loadWorkout(h, date);
     if (!overTombstone && stored?.deleted_at && Date.parse(stored.updated_at) > Date.parse(d.workout.updated_at)) return;
     const keep = new Map((stored && !stored.deleted_at ? stored.exercises : d.workout.exercises).map((x) => [x.name, x]));
-    const mine = { ...d.workout, exercises: d.exs.map((e) => exerciseRecord(e, keep.get(e.name))) };
+    const base = synced.current;
+    // A tombstoned row is no base: a new session over it must not add `group: null` to exercises that match its grouped names.
+    const was = new Map((base && !base.deleted_at ? base : d.workout).exercises.map((x) => [x.name, x]));
+    const mine = { ...d.workout, exercises: d.exs.map((e) => exerciseRecord(e, keep.get(e.name), was.get(e.name))) };
     // Changed since this screen loaded or wrote it (a pull, or a rule saved on Targets): merge rather than overwrite (#410).
     // Compared by content, not by the stamp (whole seconds); a sync push only patches `version`.
-    const base = synced.current;
     const elsewhere = !overTombstone && !!base && !!stored && !stored.deleted_at && unversioned(stored) !== unversioned(base);
     const row = { ...(elsewhere ? mergeWorkout(base, mine, stored) : mine), version: stored?.version ?? d.workout.version, updated_at: stamp(now()) };
     await saveWorkout(h, row);
@@ -706,7 +708,7 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
     const d = clone(ref.current);
     const gone = d.exs.find((e) => e.name === name);
     if (!gone || !d.workout) return false;
-    d.exs = d.exs.filter((e) => e.name !== name);
+    d.exs = fixExGroups(d.exs.filter((e) => e.name !== name)); // a group left with under 2 members is dissolved
     const last = d.exs.length === 0;
     // The last exercise out ends the session, not the cardio minutes (prototype delex): they stay as a cardio-only day.
     const cardio = d.workout.cardio_min;
@@ -840,14 +842,15 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
         for (const r of [...e.sets, ...e.ramp]) rows.set(r.id, r);
         return [...e.sets.keys()].map((j) => setRecord(e, 'work', j, now())).concat([...e.ramp.keys()].map((j) => setRecord(e, 'ramp', j, now())));
       });
-      const ch = cantChange({ ...w, exercises: d.exs.map((e) => exerciseRecord(e, w.exercises.find((x) => x.name === e.name))) }, records, i, draft, choice, w.where ?? profile?.where ?? 'gym', exclusions, d.lifts, date, at);
+      // ponytail: `(synced.current ?? w)` vs `w` cannot differ yet: with no ungroup UI, a base group is never absent from `w` while null on screen. Revisit with ungroup (S4).
+      const ch = cantChange({ ...w, exercises: d.exs.map((e) => exerciseRecord(e, w.exercises.find((x) => x.name === e.name), (synced.current ?? w).exercises.find((x) => x.name === e.name))) }, records, i, draft, choice, w.where ?? profile?.where ?? 'gym', exclusions, d.lifts, date, at);
       d.exs = ch.exercises.map((x) => {
         const pick = (kind: 'work' | 'ramp'): Row[] =>
           ch.sets
             .filter((s) => s.exercise === x.name && s.kind === kind)
             .sort((a, b) => a.set_index - b.set_index)
             .map((s) => rows.get(s.id) ?? { id: s.id, version: s.version, w: '', r: '', done: false, rate: null, t: null });
-        return { name: x.name, part: x.part, bridge: x.bridge, form: x.form, found: x.found_kg, skipRamp: x.skip_ramp, feel: x.feel ?? null, sets: pick('work'), ramp: pick('ramp') };
+        return { name: x.name, part: x.part, bridge: x.bridge, form: x.form, found: x.found_kg, skipRamp: x.skip_ramp, feel: x.feel ?? null, group: x.group ?? null, sets: pick('work'), ramp: pick('ramp') };
       });
       d.workout = { ...w, exercises: ch.exercises };
       commit(d);
