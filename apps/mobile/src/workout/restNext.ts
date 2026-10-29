@@ -22,16 +22,19 @@ export function restTarget(exs: Exs, i: number, n: { ex: number; set: number }):
 }
 
 /**
- * The dock target while the rest runs and the session changes of a grouped session (a removal, a swap, a set ticked): the stored
- * target while that set is still open and still the same exercise, else the first undone set of core's round order after the ticked exercise, else
+ * The dock target while the rest runs and the session changes of a grouped session (a removal, a swap, a set ticked, an ungroup): the stored
+ * target while that set is still open and still the same exercise (its label is derived again, so letters follow a group that was dissolved or re-lettered), else the first undone set of core's round order after the ticked exercise, else
  * null (the dock closes). Never by name alone, so two exercises with one name cannot stand in for each other (#1329). Nothing counts as just ticked
  * here (set -1), so a later untick cannot change the dock; only the first tick (restTarget) treats its set as done.
  */
 export function restRetarget(exs: Exs, r: GroupNext): GroupNext | null {
   const e = exs[r.to.ex];
-  if (e && e.name === r.to.name && e.sets[r.to.set] && !e.sets[r.to.set]?.done) return r;
   // The ticked exercise may have moved (an earlier one was removed): find it again by name, else keep its place (without its "set N of" wording).
   const found = exs[r.at.i]?.name === r.at.name ? r.at.i : exs.findIndex((x) => x.name === r.at.name);
+  if (e && e.name === r.to.name && e.sets[r.to.set] && !e.sets[r.to.set]?.done) {
+    const label = restLabel(exs, found, r.to);
+    return label === r.label ? r : { ...r, label };
+  }
   const i = found >= 0 ? found : r.at.i;
   const n = nextInRound(gx(exs), i, -1, (k, s) => !!exs[k]?.sets[s]?.done);
   return n && { ...restTarget(exs, i, n), label: restLabel(exs, found, n) };

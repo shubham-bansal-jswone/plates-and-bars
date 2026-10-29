@@ -3,6 +3,7 @@ import { buzz, PB_BUZZ } from '../haptics';
 import {
   cantRule,
   restAfterTick,
+  canGroupWithNext,
   restFor,
   noLoad,
   rampRate,
@@ -31,6 +32,7 @@ import {
 import { deleteLift, loadLifts, loadSessionLog, loadSets, loadWorkout, saveLift, saveSet, saveWorkout, type WorkoutDb } from '../db/workouts';
 import { inTransaction, type PullDb } from '../db/outbox';
 import { localDate } from '../setup/logic';
+import { newId } from '../db/records';
 import { parseCardio } from './cardio';
 import { freshRead } from '../state/freshRead';
 import type { Profile } from '../setup/types';
@@ -39,6 +41,7 @@ import { buildSession } from './buildSession';
 import { getCatalog } from './catalog';
 import { rangesOf } from './adjust';
 import { restTarget } from './restNext';
+import { groupEx, removalNote } from './groupUnits';
 import type { RestNext } from './parts';
 import { guidance, progressionContext, type Tuning } from './guidance';
 import { cantChange, persistCant } from './cantApply';
@@ -691,6 +694,36 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
   };
 
   /**
+   * Groups exercise `i` with the next one (core's `canGroupWithNext` decides; a refused one changes nothing): a new group id for two ungrouped
+   * exercises, else the id of the group the other one is in. Returns the names of the group's members in order, or null when refused.
+   */
+  const groupWithNext = (i: number): string[] | null => {
+    const d = clone(ref.current);
+    const a = d.exs[i];
+    const b = d.exs[i + 1];
+    if (!d.workout || !a || !b || !canGroupWithNext(groupEx(d.exs), i, (k, s) => !!d.exs[k]?.sets[s]?.done).ok) return null;
+    const id = a.group || b.group || newId();
+    a.group = id;
+    b.group = id;
+    const members = d.exs.filter((e) => e.group === id).map((e) => e.name);
+    commit(d);
+    void enqueue(() => writeWorkout());
+    return members;
+  };
+
+  /** Dissolves the group of exercise `i`: every member gets an explicit `group: null` (ADR 012: the three-way merge must see the ungroup). Returns the former members' names, or null when `i` is in no group. */
+  const ungroup = (i: number): string[] | null => {
+    const d = clone(ref.current);
+    const id = d.exs[i]?.group;
+    if (!d.workout || !id) return null;
+    const members = d.exs.filter((e) => e.group === id);
+    for (const e of members) e.group = null;
+    commit(d);
+    void enqueue(() => writeWorkout());
+    return members.map((e) => e.name);
+  };
+
+  /**
    * Adds a library exercise to today's session (prototype `exPick`): as many blank work sets as its last session, at least 3
    * (core `newExercise`). It joins the last exercise's part, so it shows with the session it was added to. A name already in
    * the session is refused: the contract keeps names unique within a workout.
@@ -844,6 +877,7 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
    */
   const cant = (i: number | null, draft: CantDraft, choice: string | null) => {
     const rule = cantRule(draft, choice, date);
+    const gone = removalNote(ref.current.exs, draft.name).toast; // said before the exercises change: a member of a superset leaves it
     const today = draft.dur === 'today';
     const saved = today ? null : saveRule(rule);
     if (!today && !saved) return; // the rules could not be read: nothing is changed (the store said why)
@@ -877,8 +911,8 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
         else synced.current = out;
       });
     }
-    notify(choice ? `Swapped in ${choice}` : `${draft.name} removed`);
+    notify(choice ? `Swapped in ${choice}` : gone);
   };
 
-  return { date, day: loaded === date ? day : NOT_READY, cant, setCardio, editSet, tick, rate, setForm, setFeel, skipRemaining, rampStart, rampSkip, rampAdd, rampTick, rampRated, addSet, removeSet, addExercise, removeExercise, finishEarly, start, startPicked, startFromRoutine, addSecond };
+  return { date, day: loaded === date ? day : NOT_READY, cant, setCardio, editSet, tick, rate, setForm, setFeel, skipRemaining, rampStart, rampSkip, rampAdd, rampTick, rampRated, addSet, removeSet, groupWithNext, ungroup, addExercise, removeExercise, finishEarly, start, startPicked, startFromRoutine, addSecond };
 }

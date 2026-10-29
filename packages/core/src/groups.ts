@@ -142,3 +142,36 @@ export function restAfterTick(exs: readonly GroupEx[], i: number, j: number, don
   }
   return { kind: 'round', seconds: Math.max(...inRound.map((k) => restFor((exs[k] as GroupEx).name, o.tags))), next };
 }
+
+/** Why exercise `i` cannot be grouped with the one after it: `last` and `inner` mean the offer does not apply at all (no next exercise; `i` is not the last member of its group). */
+export type GroupWithNext = { ok: true } | { ok: false; why: 'last' | 'inner' | 'other' | 'full' | 'done' | 'same'; ex: number };
+
+/**
+ * Whether exercise `i` may be grouped with exercise `i + 1`: two ungrouped exercises start a group; an ungrouped one joins the group that
+ * starts at the next; the last member of a group takes an ungrouped next one. Not allowed: two groups (`other`, ex the next), the result over
+ * `GROUP_MAX` (`full`), `i` or the next one fully done (`done`, ex which), the result holding one name twice (`same`, ex the next). The first reason
+ * in that order is returned; groups that are not valid runs count as ungrouped. Rules that need the app (parts of the session, the first-time ramp) are not here.
+ *
+ * New (#1182, ADR 012), not a prototype port.
+ */
+export function canGroupWithNext(exs: readonly GroupEx[], i: number, done: IsDone): GroupWithNext {
+  const a = exs[i];
+  const b = exs[i + 1];
+  if (!a || !b) return { ok: false, why: 'last', ex: i };
+  const all = validRuns(exs);
+  const ra = all.find((r) => r.a <= i && i < r.b);
+  const rb = all.find((r) => r.a <= i + 1 && i + 1 < r.b);
+  if (ra && i !== ra.b - 1) return { ok: false, why: 'inner', ex: i };
+  if (ra && rb) return { ok: false, why: 'other', ex: i + 1 };
+  const from = ra ? ra.a : i;
+  const to = rb ? rb.b : i + 2;
+  if (to - from > GROUP_MAX) return { ok: false, why: 'full', ex: i };
+  const finished = (k: number) => {
+    const e = exs[k] as GroupEx;
+    return e.sets > 0 && Array.from({ length: e.sets }, (_, s) => done(k, s)).every(Boolean);
+  };
+  for (const k of [i, i + 1]) if (finished(k)) return { ok: false, why: 'done', ex: k };
+  const names = exs.slice(from, to).map((e) => e.name);
+  if (new Set(names).size !== names.length) return { ok: false, why: 'same', ex: i + 1 };
+  return { ok: true };
+}
