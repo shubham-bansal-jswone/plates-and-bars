@@ -16,6 +16,9 @@ jest.mock('../src/reminders/sync', () => ({ cancelReminders: async () => undefin
 
 // The contract's vectors (packages/api/test-vectors/routines.json), read directly so they cannot drift.
 type Rec = { name: string; exercises: RoutineExercise[] };
+ 
+const groupVectors = require('../../../packages/api/test-vectors/exercise-group.json') as { valid: (string | null)[]; invalid: unknown[] };
+ 
 const vectors = require('../../../packages/api/test-vectors/routines.json') as { valid: { note: string; record: Rec }[]; invalid: { note: string; record: Rec }[] };
 
 type Db = Awaited<ReturnType<typeof openDb>>;
@@ -132,11 +135,35 @@ describe('routines store (#1184)', () => {
 
   it('a rename keeps the exercises, including keys this app does not know', async () => {
     const db = await openDb();
-    const r = await createRoutine(db, 'A', [{ name: 'Squat', sets: 3, group: 'ss1', note: null }], T(1));
+    const r = await createRoutine(db, 'A', [{ name: 'Squat', sets: 3, group: 'ss1', note: null, tempo: 'slow' }, { name: 'Row', sets: 3, group: 'ss1' }], T(1));
     await renameRoutine(db, r.id as string, 'B', T(2));
     await deleteRoutine(db, r.id as string, T(3));
     await undoDeleteRoutine(db, r.id as string, T(4));
-    expect((await loadRoutines(db))[0]).toMatchObject({ name: 'B', exercises: [{ name: 'Squat', sets: 3, group: 'ss1', note: null }] });
+    expect((await loadRoutines(db))[0]).toMatchObject({ name: 'B', exercises: [{ name: 'Squat', sets: 3, group: 'ss1', note: null, tempo: 'slow' }, { name: 'Row', sets: 3, group: 'ss1' }] });
+  });
+
+  it.each(groupVectors.valid.map((g) => [JSON.stringify(g), g] as const))('exercise-group.json valid id %s is stored as given', async (_n, g) => {
+    const db = await openDb();
+    const r = await createRoutine(db, 'A', [{ name: 'Squat', sets: 3, group: g }, { name: 'Row', sets: 3, group: g }]);
+    expect(r.exercises.map((e) => e.group)).toEqual([g, g]);
+  });
+
+  it.each(groupVectors.invalid.map((g) => [JSON.stringify(g), g] as const))('exercise-group.json invalid id %s is refused and nothing is written', async (_n, g) => {
+    const db = await openDb();
+    await expect(createRoutine(db, 'A', [{ name: 'Squat', sets: 3, group: g as string }, { name: 'Row', sets: 3, group: g as string }])).rejects.toMatchObject({ code: 'exercises' });
+    expect(await loadRoutines(db)).toEqual([]);
+  });
+
+  it('a group that is not a valid run is dissolved to an explicit null; a valid one is kept', async () => {
+    const db = await openDb();
+    const one = await createRoutine(db, 'A', [{ name: 'Squat', sets: 3, group: 'ss1' }, { name: 'Row', sets: 3 }]);
+    expect(one.exercises.map((e) => e.group)).toEqual([null, undefined]);
+    const split = await createRoutine(db, 'B', [{ name: 'A', sets: 3, group: 'x' }, { name: 'B', sets: 3 }, { name: 'C', sets: 3, group: 'x' }]);
+    expect(split.exercises.map((e) => e.group)).toEqual([null, undefined, null]);
+    const deduped = await createRoutine(db, 'C', [{ name: 'A', sets: 3, group: 'x' }, { name: 'A', sets: 3, group: 'x' }, { name: 'B', sets: 3 }]);
+    expect(deduped.exercises.map((e) => e.group)).toEqual([null, undefined]);
+    const ok = await createRoutine(db, 'D', [{ name: 'A', sets: 3, group: 'x' }, { name: 'B', sets: 3, group: 'x' }]);
+    expect(ok.exercises.map((e) => e.group)).toEqual(['x', 'x']);
   });
 
   it('a repeated exercise name is dropped, the first stays', async () => {
