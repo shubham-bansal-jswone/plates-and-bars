@@ -16,6 +16,8 @@ export const KEY_REST = 'device.rest';
 export const KEY_WEIGHT_UNIT = 'device.weight_unit';
 /** The plate calculator's bar weight and available plates per unit (#1176). Device-only, never synced, kept by a store wipe like the unit: gym equipment holds no personal data. */
 export const KEY_PLATES = 'device.plates';
+/** Ids of the milestones already shown (toasted, or earned before this key existed), a JSON array (#1351 A9). Device-only, never synced; null means never seeded. Removed with a store wipe, so a restored account seeds again and is not flooded. */
+export const KEY_MILESTONES_SHOWN = 'device.milestones_shown';
 export const KEY_CURSOR = 'sync.cursor';
 /** Set once the cursor was reset after the upgrade that added the routines table (ADR 011), so `routines` already on the server are pulled. */
 export const KEY_ROUTINES_PULLED = 'sync.routines_pulled';

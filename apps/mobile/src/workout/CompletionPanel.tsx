@@ -1,6 +1,6 @@
 import { type ComponentRef, type Ref } from 'react';
 import { Platform, StyleSheet, Text as RNText, View } from 'react-native';
-import { type LiftRecord } from '@plate-and-bar/core';
+import { type LiftRecord, type Milestone } from '@plate-and-bar/core';
 import { Text } from '../components/Text';
 import { Button, Card, Heading, MetricRow, Note } from '../components/ui';
 import { sessionTimeLine } from '../progress/e1rm';
@@ -8,7 +8,7 @@ import type { WorkoutDb } from '../db/workouts';
 import { radius, tabular, type } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { BurnLine } from './BurnLine';
-import { RATE_LABEL, ROUTINE_COPY } from './copy';
+import { milestoneLine, RATE_LABEL, ROUTINE_COPY } from './copy';
 import type { ExState } from './model';
 import { buildShareCard } from './shareModel';
 import { ShareCard } from './ShareCard';
@@ -19,7 +19,7 @@ import { useWeightUnit } from '../settings/weightUnit';
  * "Session done": shown while every set is ticked, read from today's exercises only. Nothing is stored and nothing is locked:
  * un-tick a set and it goes. The elapsed time is core's `sessionElapsed` over the ticks (`t`), shown only when every ticked set has one; no streak. A personal best is the lift record's `pbToast` being today, as `useWorkoutDay` sets it with core's `isPrToday`.
  */
-export function CompletionPanel({ db, date, profileKg, exs, cardio, lifts, reloadKey, headingRef, onSaveRoutine }: { /** Opens "Save as routine"; absent when the session has nothing to save. */ onSaveRoutine?: () => void; headingRef?: Ref<ComponentRef<typeof RNText>>; db: WorkoutDb; date: string; profileKg: number; exs: readonly ExState[]; cardio: number | null; lifts: Readonly<Record<string, LiftRecord>>; reloadKey: number }) {
+export function CompletionPanel({ earned = [], db, date, profileKg, exs, cardio, lifts, reloadKey, headingRef, onSaveRoutine }: { /** Milestones earned in this session (#1351 A9), one line each. */ earned?: readonly Milestone[]; /** Opens "Save as routine"; absent when the session has nothing to save. */ onSaveRoutine?: () => void; headingRef?: Ref<ComponentRef<typeof RNText>>; db: WorkoutDb; date: string; profileKg: number; exs: readonly ExState[]; cardio: number | null; lifts: Readonly<Record<string, LiftRecord>>; reloadKey: number }) {
   const c = useTheme();
   const { unit } = useWeightUnit();
   const { cardRef, busy, note: shareNote, share } = useShareCard();
@@ -51,6 +51,9 @@ export function CompletionPanel({ db, date, profileKg, exs, cardio, lifts, reloa
           </View>
         );
       })}
+      {earned.map((m) => (
+        <Text key={m.id} testID="completion-milestone" accessibilityLabel={`Milestone: ${milestoneLine(m)}`} style={[type.caption, { color: c.body }]}>{`Milestone: ${milestoneLine(m)}`}</Text>
+      ))}
       <BurnLine db={db} date={date} profileKg={profileKg} exs={exs} cardio={cardio} reloadKey={reloadKey} />
       <Button kind="ghost" label="Share" a11yLabel="Share workout summary picture" onPress={() => share(card)} disabled={busy} busy={busy} />
       {onSaveRoutine ? <Button kind="ghost" label={ROUTINE_COPY.action} onPress={onSaveRoutine} /> : null}

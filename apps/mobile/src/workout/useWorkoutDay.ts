@@ -31,6 +31,7 @@ import {
   type Checkin,
   type Exclusion,
   type LiftRecord,
+  type Milestone,
   type PriorBest,
   type PrSet,
   type Rate,
@@ -42,8 +43,9 @@ import { deleteLift, loadExerciseSets, loadLifts, loadSessionLog, loadSets, load
 import { inTransaction, type PullDb } from '../db/outbox';
 import { localDate } from '../setup/logic';
 import { parseCardio } from './cardio';
-import { pbToastText } from './copy';
+import { milestoneToastText, pbToastText } from './copy';
 import { freshRead } from '../state/freshRead';
+import { seedShown, takeNewMilestones } from '../progress/milestoneStore';
 import type { Profile } from '../setup/types';
 import { displayRow, weightFromField } from './unitText';
 import { buildSession } from './buildSession';
@@ -100,6 +102,7 @@ export interface PickSeed {
   exercises: readonly { name: string; bridge?: boolean }[];
 }
 
+const NO_EARNED: Milestone[] = [];
 const NOT_READY: Day = { ready: false, workout: null, exs: [], lifts: {}, sessions: {} };
 const clone = (d: Day): Day => ({ ...d, exs: structuredClone(d.exs) });
 
@@ -113,6 +116,8 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
   /** The day the loaded session belongs to: while the viewed day is another one the screen is not ready, so no action runs against the old day's rows. */
   const [loaded, setLoaded] = useState<string | null>(null);
   const ref = useRef(day);
+  /** Milestones earned by ticks in this session of the viewed day (new since the last shown), for the completion panel; a remount starts it empty. */
+  const [earnedIn, setEarnedIn] = useState<{ date: string; list: Milestone[] }>({ date: '', list: [] });
   /** The day shown now: a start or second session that was reading history when the day changed must not commit. */
   const dateRef = useRef(date);
   useEffect(() => {
@@ -213,6 +218,19 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
     }
   };
 
+  // First run: the milestones already earned count as shown before any tick, so old history never toasts (#1351 A9). Queued, so a tick waits for it.
+  const msRef = useRef({ profile, unit: tune.unit ?? 'kg', overrides: tune.overrides ?? {}, end: '' });
+  useEffect(() => {
+    const today = localDate(now());
+    msRef.current = { profile, unit: tune.unit ?? 'kg', overrides: tune.overrides ?? {}, end: date > today ? date : today };
+  });
+  const hasProfile = !!profile;
+  useEffect(() => {
+    if (!hasProfile) return;
+    const m = msRef.current;
+    void enqueueDay(() => seedShown(db, m.profile, m.overrides, m.unit, m.end), () => undefined);
+  }, [db, hasProfile]);
+
   /** The all-time best before a viewed date, per lift: read once (not per tick) and dropped when the data may have changed. */
   const priorBests = useRef<{ name: string; date: string; bodyweight: number | null; prior: PriorBest }[]>([]);
   // A sync pull, an import or restore (the screen's reloadKey moves) can change any earlier day.
@@ -286,6 +304,16 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
       const unit = tune.unit ?? 'kg';
       notify(pbToastText(ex.name, pr, unit, info.type));
       buzz(PB_BUZZ);
+    }
+    // A milestone is looked for only when a set is ticked (an untick never earns one, and never un-shows one). Every new one is marked shown and
+    // listed for the completion panel; at most one is toasted, and not when this tick's personal best already was.
+    if (ex.sets.some((s) => s.done)) {
+      const m = msRef.current;
+      const fresh = await takeNewMilestones(db, m.profile, m.overrides, m.unit, m.end).catch(() => []);
+      if (fresh.length > 0) {
+        setEarnedIn((cur) => ({ date, list: [...(cur.date === date ? cur.list : []), ...fresh.filter((f) => !(cur.date === date && cur.list.some((x) => x.id === f.id)))] }));
+        if (!pr && fresh[0]) notify(milestoneToastText(fresh[0]));
+      }
     }
   };
 
@@ -970,5 +998,5 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
     notify(choice ? `Swapped in ${choice}` : gone);
   };
 
-  return { date, day: loaded === date ? day : NOT_READY, cant, setCardio, editSet, tick, rate, setForm, setFeel, skipRemaining, rampStart, rampSkip, rampAdd, rampTick, rampRated, addSet, removeSet, groupWithNext, ungroup, addExercise, removeExercise, finishEarly, start, startPicked, startFromRoutine, addSecond };
+  return { date, earned: earnedIn.date === date ? earnedIn.list : NO_EARNED, day: loaded === date ? day : NOT_READY, cant, setCardio, editSet, tick, rate, setForm, setFeel, skipRemaining, rampStart, rampSkip, rampAdd, rampTick, rampRated, addSet, removeSet, groupWithNext, ungroup, addExercise, removeExercise, finishEarly, start, startPicked, startFromRoutine, addSecond };
 }

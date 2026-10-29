@@ -1,0 +1,137 @@
+import { act, render, renderHook, screen, waitFor } from '@testing-library/react-native';
+import { loadSets, loadWorkout, saveLift, saveSet, saveWorkout, type WorkoutDb } from '../src/db/workouts';
+import { dayQueue } from '../src/workout/dayQueue';
+import { CompletionPanel } from '../src/workout/CompletionPanel';
+import { useWorkoutDay } from '../src/workout/useWorkoutDay';
+import type { WorkoutSet } from '../src/workout/types';
+import { parseShown } from '../src/progress/milestoneStore';
+import { KEY_MILESTONES_SHOWN, getKv } from '../src/sync/store';
+import { buildProfile, emptyDraft } from '../src/setup/logic';
+import { openDb } from './sync-helpers';
+
+jest.mock('expo-router', () => ({ useFocusEffect: () => {} }));
+jest.mock('expo-crypto', () => ({ randomUUID: () => globalThis.crypto.randomUUID() }));
+
+const NOW = () => new Date(2026, 9, 8, 10, 0, 0);
+const DATE = '2026-10-08';
+const notify = jest.fn();
+const profile = buildProfile({ ...emptyDraft(), sex: 'male', age: '30', unit: 'cm', cm: '165', weight: '82', activity: 'sitting', where: 'gym', days: 6, exp: 'some', minutes: 60, goal: 'lose', pace: 'moderate', screen: ['no', 'no', 'no', 'no', 'no', 'no'] }, new Date(2026, 8, 1));
+// Every lift is a barbell for these tests, whatever the library says, so the plate steps apply to exercise 0.
+const OVER = { step_kg: 2.5, rep_low: 5, rep_high: 12 };
+
+type Db = Awaited<ReturnType<typeof openDb>>;
+const base = (db: Db) => ({ db, now: NOW, focus: [], adjustments: {}, notify, startRest: jest.fn(), exclusions: [], swaps: [], saveRule: jest.fn(), profile });
+const hookOf = (db: Db, unit: 'kg' | 'lb', name: string | null) => () =>
+  useWorkoutDay({ ...base(db), tune: { unit, overrides: name ? { [name]: { type: 'barbell', ...OVER } } : {} }, reloadKey: 0 } as unknown as Parameters<typeof useWorkoutDay>[0]);
+
+/** The first exercise's name is only known once a session has started, so the name is found on a first pass, then the hook is mounted again with its override. */
+async function started(unit: 'kg' | 'lb' = 'kg', before?: (db: Db, name: string) => Promise<void>) {
+  const db = await openDb();
+  const probe = await renderHook(hookOf(db, unit, null));
+  await waitFor(() => expect(probe.result.current.day.ready).toBe(true));
+  await act(async () => void (await probe.result.current.start('Upper A', {}, null)));
+  await waitFor(async () => expect((await loadSets(db, DATE)).length).toBeGreaterThan(0));
+  await act(async () => void (await dayQueue.current));
+  const name = probe.result.current.day.exs[0]!.name;
+  await probe.unmount();
+  await db.runAsync('DELETE FROM settings WHERE key = ?', KEY_MILESTONES_SHOWN); // the probe seeded an empty set: this device is on its first run again
+  // Old history is stored after the session exists but before the hook that seeds is mounted; the key is still unset.
+  await before?.(db, name);
+  const view = await renderHook(hookOf(db, unit, name));
+  await waitFor(() => expect(view.result.current.day.ready).toBe(true));
+  await act(async () => void (await dayQueue.current));
+  notify.mockClear();
+  return { db, name, ...view };
+}
+
+async function seedDay(db: Db, name: string, date: string, sets: [number, number][]) {
+  const w = (await loadWorkout(db, DATE))!;
+  await saveWorkout(db, { ...w, date, id: `w-${date}` } as typeof w);
+  let i = 0;
+  for (const [kg, reps] of sets) {
+    const s: WorkoutSet = { id: `${date}-${name}-${i}`, version: 0, updated_at: `${date}T09:00:00Z`, deleted_at: null, workout_id: null, exercise: name, kind: 'work', set_index: i++, weight_kg: kg, reps, done: true, rate: null, t: null };
+    await saveSet(db, date, s);
+  }
+}
+
+type Hook = Awaited<ReturnType<typeof started>>['result'];
+const tickSet = async (result: Hook, j: number, w: string, r: string) => {
+  await act(async () => result.current.editSet(0, 'work', j, 'w', w));
+  await act(async () => result.current.editSet(0, 'work', j, 'r', r));
+  await act(async () => result.current.tick(0, j));
+  await act(async () => void (await dayQueue.current));
+};
+const untick = async (result: Hook, j: number) => {
+  await act(async () => result.current.tick(0, j));
+  await act(async () => void (await dayQueue.current));
+};
+const msToasts = () => notify.mock.calls.map(([m]) => String(m)).filter((m) => m.startsWith('Milestone:'));
+const prToasts = () => notify.mock.calls.map(([m]) => String(m)).filter((m) => m.startsWith('New personal best'));
+const shown = async (db: WorkoutDb) => parseShown(await getKv(db, KEY_MILESTONES_SHOWN));
+
+describe('the quiet milestone toast (#1351 A9)', () => {
+  it('first run marks the milestones already earned as shown, so old history never toasts', async () => {
+    const { db, name, result } = await started('kg', (d, n) => seedDay(d, n, '2026-09-01', [[130, 5]])); // an old best of about 151 kg: nothing today is a personal best
+    expect([...(await shown(db))!].sort()).toEqual(['plates-1', 'plates-2']);
+    await tickSet(result, 0, '100', '5');
+    expect(msToasts()).toEqual([]);
+    expect(result.current.earned).toEqual([]);
+    await tickSet(result, 1, '140', '1'); // a genuinely new one
+    expect(msToasts()).toEqual([`Milestone: Three plates a side, ${name}, 140 kg`]);
+    expect([...(await shown(db))!].sort()).toEqual(['plates-1', 'plates-2', 'plates-3']);
+  });
+
+  it('a new milestone toasts once, with title and detail, and not again after a remount', async () => {
+    const { db, name, result, unmount } = await started();
+    await tickSet(result, 0, '60', '5');
+    expect(msToasts()).toEqual([`Milestone: One plate a side, ${name}, 60 kg`]);
+    expect(result.current.earned.map((m) => m.id)).toEqual(['plates-1']);
+    await unmount();
+    notify.mockClear();
+    const again = await renderHook(hookOf(db, 'kg', name));
+    await waitFor(() => expect(again.result.current.day.ready).toBe(true));
+    await tickSet(again.result, 1, '60', '5');
+    expect(msToasts()).toEqual([]);
+    expect(again.result.current.earned).toEqual([]);
+  });
+
+  it('an untick earns and un-shows nothing, and a retick does not toast again', async () => {
+    const { db, result } = await started();
+    await tickSet(result, 0, '60', '5');
+    expect(msToasts()).toHaveLength(1);
+    await untick(result, 0);
+    expect(await shown(db)).toEqual(new Set(['plates-1']));
+    expect(result.current.earned.map((m) => m.id)).toEqual(['plates-1']);
+    await untick(result, 0); // retick
+    expect(msToasts()).toHaveLength(1);
+  });
+
+  it('at most one toast per tick: two new at once toast the newest, and both are listed', async () => {
+    const { db, name, result } = await started();
+    await tickSet(result, 0, '100', '5'); // one and two plates a side on the same day
+    expect(msToasts()).toEqual([`Milestone: One plate a side, ${name}, 100 kg`]);
+    expect(result.current.earned.map((m) => m.id).sort()).toEqual(['plates-1', 'plates-2']);
+    expect([...(await shown(db))!].sort()).toEqual(['plates-1', 'plates-2']);
+  });
+
+  it('the personal-best toast wins the tick, the milestone goes to the completion panel', async () => {
+    const { name, result } = await started('kg', async (d, n) => {
+      await seedDay(d, n, '2026-09-01', [[40, 5]]);
+      await seedDay(d, n, '2026-09-20', [[50, 5]]);
+      await saveLift(d, n, { date: '2026-09-20', sets: [{ w: 50, r: 5, rate: null }], form: null, n: 3, first: '2026-09-01', prev: null, hist: [{ date: '2026-09-20', e: 58 }] });
+    });
+    await tickSet(result, 0, '60', '5');
+    expect(prToasts()).toHaveLength(1);
+    expect(msToasts()).toEqual([]);
+    expect(result.current.earned.map((m) => m.id)).toEqual(['plates-1']);
+    const ex = result.current.day.exs[0]!;
+    await render(<CompletionPanel db={{} as WorkoutDb} date={DATE} profileKg={82} earned={result.current.earned} exs={[{ ...ex, sets: ex.sets.map((x) => ({ ...x, done: true })) }]} cardio={null} lifts={result.current.day.lifts} reloadKey={0} />);
+    expect(screen.getByLabelText(`Milestone: One plate a side, ${name}, 60 kg`)).toBeTruthy();
+  });
+
+  it('says it in pounds for a pound user, without 45 lb plates', async () => {
+    const { name, result } = await started('lb');
+    await tickSet(result, 0, '60', '5');
+    expect(msToasts()).toEqual([`Milestone: One plate a side, ${name}, 132.3 lb`]);
+  });
+});

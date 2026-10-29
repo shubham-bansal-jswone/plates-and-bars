@@ -178,3 +178,9 @@ export function pbToastText(name: string, pr: PrImprovement, unit: WeightUnit, t
   if (pr.metric === 'reps') return `New personal best: ${name}, ${pr.score} ${repWord(type)} in total (+${pr.delta})`;
   return `New personal best: ${name}, ${pr.set.r} reps with ${w(pr.set.w)} of assistance`;
 }
+
+/** The quiet toast for a milestone just earned (#1351 A9): the title and detail core wrote, in the user's unit. One line, no points. */
+export const milestoneToastText = (m: { title: string; detail: string }): string => `Milestone: ${m.title}, ${m.detail}`;
+
+/** One milestone as a line (the completion panel and the Progress list): title and detail. */
+export const milestoneLine = (m: { title: string; detail: string }): string => `${m.title}, ${m.detail}`;
