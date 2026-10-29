@@ -2,6 +2,7 @@ import { act, fireEvent, render, renderHook, screen, waitFor } from '@testing-li
 import type { ExType } from '@plate-and-bar/core';
 import { bodyweightOn } from '../src/progress/bodyweight';
 import { saveWeight } from '../src/db/progress';
+import { useProgress } from '../src/progress/useProgress';
 import { saveProfile } from '../src/db/records';
 import { loadLifts, loadSets, loadWorkout, saveLift, saveSet, saveWorkout } from '../src/db/workouts';
 import { dayQueue } from '../src/workout/dayQueue';
@@ -19,6 +20,13 @@ jest.mock('expo-router', () => ({
 }));
 jest.mock('react-native/Libraries/ReactNative/RendererProxy', () => ({ ...jest.requireActual('react-native/Libraries/ReactNative/RendererProxy'), findNodeHandle: () => 7 }));
 jest.mock('expo-crypto', () => ({ randomUUID: () => globalThis.crypto.randomUUID() }));
+
+// A held weigh-in save: while `mockGate` is set, `saveWeight` waits for it, as a slow disk write would.
+let mockGate: Promise<void> | null = null;
+jest.mock('../src/db/progress', () => {
+  const actual = jest.requireActual('../src/db/progress');
+  return { ...actual, saveWeight: async (...a: unknown[]) => { if (mockGate) await mockGate; return actual.saveWeight(...a); } };
+});
 
 const NOW = () => new Date(2026, 9, 8, 10, 0, 0);
 const DATE = '2026-10-08';
@@ -91,6 +99,26 @@ describe('the workout scores an assisted lift at the latest weigh-in', () => {
     expect(await score(db, name)).toBe(336);
   });
 
+  it('a reload waits for a weigh-in whose save is still running (trackWrite)', async () => {
+    const { db, name, reload, result } = await started();
+    await seedDay(db, name, '2026-09-01', [[20, 8]]);
+    await seedDay(db, name, '2026-09-20', [[20, 8]], true);
+    await tickSet(result, 0, '12', '7'); // 82 kg: no toast
+    expect(toasts()).toEqual([]);
+    const progress = await renderHook(() => useProgress({ db, date: DATE, now: NOW, notify }));
+    await waitFor(() => expect(progress.result.current.ready).toBe(true));
+    let release = () => {};
+    mockGate = new Promise<void>((r) => (release = r));
+    await act(async () => progress.result.current.saveWeightText('60')); // queued, held in saveWeight
+    await act(async () => void (await new Promise<void>((r) => setImmediate(r))));
+    await reload(1); // the Workout tab is shown again while the save is still running
+    mockGate = null;
+    await act(async () => { release(); await new Promise<void>((r) => setImmediate(r)); await new Promise<void>((r) => setImmediate(r)); });
+    await tickSet(result, 1, '12', '7'); // 60 kg: 336 against 320
+    expect(toasts()).toHaveLength(1);
+    expect(await score(db, name)).toBe(336);
+  });
+
   it('does not use a weigh-in dated after the workout date', async () => {
     const { db, name, reload, result } = await started();
     await seedDay(db, name, '2026-09-01', [[20, 8]]);
@@ -128,6 +156,12 @@ describe('History and Recent PRs agree for an assisted lift', () => {
 
   it('both show the record at a 100 kg weigh-in', async () => {
     await open([['2026-10-03', 100]]);
+    await waitFor(() => expect(badge()).toBe(true));
+    expect(recent()).toBe(true);
+  });
+
+  it('uses the viewed date (8 Oct), not the opened session date (6 Oct): a 7 Oct weigh-in counts', async () => {
+    await open([['2026-10-07', 100]]);
     await waitFor(() => expect(badge()).toBe(true));
     expect(recent()).toBe(true);
   });
