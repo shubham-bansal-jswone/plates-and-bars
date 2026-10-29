@@ -119,8 +119,18 @@ export function WorkoutScreen({ db, now = () => new Date() }: Props) {
   const [measuredDock, setMeasuredDock] = useState<number | null>(null);
   const dockH = measuredDock ?? DOCK_FALLBACK_H;
   const scroll = useScrollIntoView();
-  const reveal = (node: ComponentRef<typeof View> | null | undefined) => scroll.reveal(node, rest ? dockH : 0);
-  const restBar = <RestBar rest={rest} onAdd={addRest} onSkip={() => setRest(null)} onHeight={setMeasuredDock} />;
+  // A new rest mounts a new dock, whose height is only known after its layout (the label can be longer than the last one): a node revealed a moment ago is revealed again then.
+  const lastReveal = useRef<{ node: ComponentRef<typeof View>; at: number } | null>(null);
+  const reveal = (node: ComponentRef<typeof View> | null | undefined) => {
+    lastReveal.current = node ? { node, at: Date.now() } : null;
+    scroll.reveal(node, rest ? dockH : 0);
+  };
+  const onDockHeight = (h: number) => {
+    setMeasuredDock(h);
+    const last = lastReveal.current;
+    if (last && h !== dockH && Date.now() - last.at < 1000) scroll.reveal(last.node, h);
+  };
+  const restBar = <RestBar rest={rest} onAdd={addRest} onSkip={() => setRest(null)} onHeight={onDockHeight} />;
   // One tree for every state, the state's content in the one body slot: the rest bar and toast keep their place (and so are not remounted,
   // which would repeat "Rest done, go!" and re-read the toast) while a day is read. They sit outside it as the prototype's #restbar and #toast sit outside #view.
   // The date bar is in the one Page for every state, so it is not remounted when a day finishes loading (a tap that spans the remount is lost, #1032).

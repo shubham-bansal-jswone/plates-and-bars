@@ -137,6 +137,9 @@ describe('the up-next set in a superset of 3 (#1343)', () => {
     await waitFor(() => expect(scrollTo).toHaveBeenCalledTimes(1));
     await fireEvent(screen.getByLabelText('Rest timer'), 'layout', { nativeEvent: { layout: { x: 0, y: 0, width: 375, height: 240 } } });
     expect(spacer()).toBe(240 + DOCK_SPACER_MARGIN);
+    // The row just revealed is revealed again with the real height (it was placed with the fallback).
+    await waitFor(() => expect(scrollTo).toHaveBeenCalledTimes(2));
+    expect(scrollTo).toHaveBeenLastCalledWith({ x: 0, y: 1000 - (VIEW_H - 240 - 8), animated: false });
     scrollTo.mockClear();
     await tick(names[1]!, 0, 'B1');
     await waitFor(() => expect(scrollTo).toHaveBeenCalledTimes(1));
