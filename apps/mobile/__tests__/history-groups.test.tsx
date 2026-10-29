@@ -37,6 +37,26 @@ describe('history session labels', () => {
     const s = buildSessions({ [DATE]: { t: 'Pull' } } as never, { [DATE]: rest }, {}, { [DATE]: ['Barbell Row', 'Pull-up', 'Squat', 'Curl'].map((name, i) => ({ name, group: i < 3 ? 'g' : null })) });
     expect(s[0]!.exercises.map((e) => e.label)).toEqual(['A', 'B', undefined]);
   });
+  describe('letters follow the stored order, not the row order', () => {
+    // Every exercise's first set has set_index 0, so the day lists exercises in whatever order the rows come back.
+    const row = (name: string) => wset(name, 0);
+    const day = (rows: string[], stored: { name: string; group: string | null }[]) =>
+      buildSessions({ [DATE]: { t: 'Pull' } } as never, { [DATE]: rows.map(row) }, {}, { [DATE]: stored })[0]!.exercises.map((e) => [e.name, e.label]);
+    const stored = [{ name: 'Barbell Row', group: 'g' }, { name: 'Pull-up', group: 'g' }, { name: 'Squat', group: null }];
+    it('gives the same letters for any row order, including a re-saved set last', () => {
+      expect(day(['Barbell Row', 'Pull-up', 'Squat'], stored)).toEqual([['Barbell Row', 'A'], ['Pull-up', 'B'], ['Squat', undefined]]);
+      expect(day(['Pull-up', 'Barbell Row', 'Squat'], stored)).toEqual([['Pull-up', 'B'], ['Barbell Row', 'A'], ['Squat', undefined]]);
+      expect(day(['Barbell Row', 'Squat', 'Pull-up'], stored)).toEqual([['Barbell Row', 'A'], ['Squat', undefined], ['Pull-up', 'B']]);
+    });
+    it('a stored split group stays invalid when the exercise between is not done', () => {
+      const split = [{ name: 'Barbell Row', group: 'g' }, { name: 'Squat', group: null }, { name: 'Pull-up', group: 'g' }];
+      expect(day(['Barbell Row', 'Pull-up'], split).map((x) => x[1])).toEqual([undefined, undefined]);
+    });
+    it('a stored group of 7 stays invalid when one member is not done', () => {
+      const seven = Array.from({ length: 7 }, (_, i) => ({ name: `Ex${i}`, group: 'g' }));
+      expect(day(seven.slice(1).map((e) => e.name), seven).map((x) => x[1])).toEqual(Array(6).fill(undefined));
+    });
+  });
   it('ungrouped sessions carry no label key at all', () => {
     for (const s of [build(), build([null, null, null, null])]) for (const e of s[0]!.exercises) expect(Object.keys(e)).toEqual(['name', 'sets', 'volume']);
   });
@@ -53,6 +73,7 @@ describe('history day view', () => {
     await show(build(['g', 'g', null, null]));
     expect(screen.getByText('Superset A', { includeHiddenElements: true })).toBeTruthy();
     expect(screen.queryByText('Superset A')).toBeNull();
+    expect(screen.getByText('Superset A', { includeHiddenElements: true }).props['aria-hidden']).toBe(true);
     expect(screen.getByText('Superset B', { includeHiddenElements: true })).toBeTruthy();
     expect(screen.getByLabelText('Superset A: Barbell Row')).toBeTruthy();
     expect(screen.getByLabelText('Superset B: Pull-up')).toBeTruthy();

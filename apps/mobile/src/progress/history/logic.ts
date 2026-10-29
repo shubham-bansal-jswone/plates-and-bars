@@ -44,14 +44,17 @@ export function buildSessions(log: SessionLog, setsByDate: Readonly<Record<strin
     if (!done.length) return [];
     const by = new Map<string, WorkoutSet[]>();
     for (const s of [...done].sort((a, b) => a.set_index - b.set_index)) by.set(s.exercise, [...(by.get(s.exercise) ?? []), s]);
-    // Letters come from core's `groupLabels` run over the exercises listed for the day (done ones only) with their stored group,
-    // so a group with fewer than 2 listed members gets no label and the letters restart at A.
-    const storedGroup = new Map((storedByDate[date] ?? []).map((e) => [e.name, e.group] as const));
-    const names = [...by.keys()];
-    const letters = groupLabels(names.map((name) => ({ name, sets: 1, group: storedGroup.get(name) })));
-    const exercises = [...by].map(([name, sets], i): HistoryExercise => {
+    // Letters follow the STORED exercise order, never the order the set rows come back in. Core's `groupLabels` on the stored list
+    // decides which groups are valid (a split group or one over the limit stays invalid even if a member was not done); then only
+    // the exercises listed for the day are labelled, again by core, so a group with fewer than 2 listed members gets no label and the letters restart at A.
+    const stored = storedByDate[date] ?? [];
+    const valid = groupLabels(stored.map((e) => ({ name: e.name, sets: 1, group: e.group })));
+    const listed = stored.flatMap((e, i) => (by.has(e.name) ? [{ name: e.name, sets: 1, group: valid[i] ? e.group : null }] : []));
+    const listedLetters = groupLabels(listed);
+    const letters = new Map(listed.flatMap((e, i) => (listedLetters[i] ? [[e.name, listedLetters[i]!] as const] : [])));
+    const exercises = [...by].map(([name, sets]): HistoryExercise => {
       const mapped = sets.map((s) => ({ w: s.weight_kg, r: s.reps, rate: s.rate }));
-      const l = letters[i];
+      const l = letters.get(name);
       return { name, sets: mapped, volume: sessionVolume([{ sets: mapped.map((s) => ({ done: true, w: s.w, r: s.r })) }]), ...(l ? { label: l } : {}) };
     });
     // Time counts every ticked set of the day, ramp sets too: one without a tick makes the duration unknown, never a guess.
