@@ -42,7 +42,7 @@ fs.writeFileSync('test/fixtures/an-poses.json', JSON.stringify({ ks, colours: C,
 ## Exercise card keys
 
 The prototype's `CARDS` use one-letter keys. `content/exercises.json` uses these names, taken from how
-`openHowTo`, `learnHtml` and `feelHtml` in `docs/prototype/plate-and-bar.html` render each field.
+`openHowTo`, `learnHtml` and `feelHtml` in the original prototype (tag `prototype-final`) rendered each field.
 Values are unchanged. Tag keys are mapped separately (`TAG_KEYS` in `exercises-import/import.mjs`).
 
 | Prototype | Content name | Type | Required | How the prototype uses it |
