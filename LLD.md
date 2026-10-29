@@ -21,7 +21,7 @@ Monorepo components:
 | API contract | `packages/api` | `openapi.yaml` (0.1.26), generated client, test vectors |
 | Backend | `backend` | Spring Boot API: auth, sync, account rights, AI proxy, barcode proxy, content |
 | Content | `content/*.json` | Exercise, food, recipe, card, lab data bundles |
-| Content tools | `tools/` | Importers, validators, golden-fixture generator |
+| Content tools | `tools/` | Importers and validators |
 | Website | `apps/site` | Astro site: landing, privacy, terms, deletion, licences, blog |
 | Infra | `infra/`, `.github/workflows/` | Compose stack, Caddy, CI, deploy, backup, monitoring |
 | E2E | `tests/e2e` | Playwright (web) and Maestro (Android) |
@@ -127,7 +127,7 @@ Note: the generic stack description in `~/.claude/CLAUDE.md` (Maven, Postgres, D
 ### 3.3 Other packages
 - `packages/core/src` (about 9.2k lines, ~50 modules): `targets`, `setup`, `plan`, `progression`, `food`, `recipes`, `workout`, `progress`, `stalls`, `mealplan`, `meals`, ... Pure functions; anything date-dependent takes `now` as an argument (`packages/core/README.md`). `package.json` `main` points at `src/index.ts`; the app consumes it as a `file:` dependency and Metro watches it.
 - `packages/api`: `openapi.yaml`, `client/{index,schema.d,contract-guards}.ts`, `test-vectors/*.json` + `verify.mjs`.
-- `tools/`: `exercises-import`, `foods-import`, `cards-import`, `exercise-figures`, `exercise-motion`, `golden-gen`, `validate/*`, `check-no-ifct`.
+- `tools/`: `exercises-import`, `foods-import`, `cards-import`, `exercise-figures`, `exercise-motion`, `validate/*`, `check-no-ifct`.
 - `apps/site/src/pages`: `index`, `privacy`, `terms`, `delete-account`, `licenses`, `blog/`.
 
 ---

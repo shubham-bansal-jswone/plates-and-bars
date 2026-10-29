@@ -32,7 +32,7 @@ Rules for every agent working on Plate & Bar. Read this, the issue, the contract
 
 ## Behaviour source of truth
 
-- `docs/spec/PROTOTYPE_SPEC.md` and `docs/spec/golden/` are the spec of record for how the app behaves. Read the relevant section before writing code. The original HTML prototype is frozen at git tag `prototype-final` (commit f94c8e96) and is no longer maintained; the spec names its functions.
+- `docs/spec/PROTOTYPE_SPEC.md` and `docs/spec/golden/` are the spec of record for how the app behaves. Read the relevant section before writing code. The original HTML prototype is frozen at git tag `prototype-final` and is no longer maintained; the spec names its functions.
 - Port logic into `packages/core`; don't redesign it. If something looks wrong, open an issue labelled `spec-question` instead of "fixing" it silently.
 - Every ported rule needs a test that loads the matching file in `docs/spec/golden/` and reproduces it exactly (numbers rounded the same way).
 - Food data: only USDA, FSSAI-derived values, typical label values for packaged foods, our own recipes, kitchen tests and own estimates (ADR 005). Never add IFCT or INDB data.
@@ -40,6 +40,6 @@ Rules for every agent working on Plate & Bar. Read this, the issue, the contract
 
 ## When the spec changes
 
-1. A PR labelled `spec-change` edits `docs/spec/PROTOTYPE_SPEC.md` (dated entry at the top of section 0) and the matching `docs/spec/golden/` JSON together with the `packages/core` change. The review gate is the `spec-change` label plus a reviewer.
-2. CI fails any golden test that no longer matches; the owning agent updates the port in a follow-up PR that references the `spec-change` PR.
+1. One PR labelled `spec-change` edits `docs/spec/PROTOTYPE_SPEC.md` (dated entry at the top of section 0), the matching `docs/spec/golden/` JSON and the `packages/core` port together, so CI is green on that PR.
+2. One author may touch the core and docs/spec lanes in a `spec-change` PR; the label and a reviewer are the gate.
 3. Golden files are no longer generated; edit them in the `spec-change` PR only.

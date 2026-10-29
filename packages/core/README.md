@@ -159,9 +159,9 @@ npm run test:coverage # jest with a 90% line-coverage threshold
 
 ## How the golden tests work
 
-`docs/spec/golden/<area>.json` holds input/output pairs generated from the prototype. Tests load them
-from the repo root (`test/helpers.ts`, `loadGolden`) and check every case. Never edit or regenerate
-these files here; a prototype change lands them in a `spec-change` PR, and this package follows.
+`docs/spec/golden/<area>.json` holds the spec's input/output pairs (originally generated from the prototype, no longer regenerated). Tests load them
+from the repo root (`test/helpers.ts`, `loadGolden`) and check every case. Change these files only in a
+`spec-change` PR, which edits the spec, the fixture and this package's port together.
 
 The fixtures store display-rounded numbers, so the test projects the port's result onto the fixture
 shape before comparing (`toGolden` in `test/targets.test.ts`): energy values with `Math.round`,
