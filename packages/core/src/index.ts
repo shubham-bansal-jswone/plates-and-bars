@@ -494,6 +494,13 @@ export {
 export type { ProgressDay, RapidLoss, AdaptiveState, AdaptiveBurn, BurnProfile, CheckinInput, CheckinSuggestion, WeeklyCheckin, Habits } from './progress';
 
 /**
+ * Progress series (#1351 C1, new rules, no prototype counterpart): `rangeSeries` keeps the points from a 4w, 12w or all range,
+ * `downsampleWeekly` reduces a series over `DOWNSAMPLE_THRESHOLD` points to one per Monday-week, `measureSeries` is `waistSeries` for any tape part.
+ */
+export { rangeSeries, downsampleWeekly, DOWNSAMPLE_THRESHOLD, RANGE_DAYS } from './progressSeries';
+export type { SeriesRange, DownsampleMode } from './progressSeries';
+
+/**
  * Progress: weight and waist trend, the scale-jump note and entry limits (#233).
  * - `weightSeries` mirrors the series in prototype `weightChart()`; `waistSeries` mirrors `waistPts` in `measuresHtml()`;
  *   `WEIGHT_CHART_POINTS` and `WAIST_CHART_POINTS` are their 30 and 20.
@@ -509,6 +516,7 @@ export {
   round1,
   weightSeries,
   waistSeries,
+  measureSeries,
   trendChange,
   chartLayout,
   scaleJump,
