@@ -103,6 +103,7 @@ export interface PickSeed {
 }
 
 const NO_EARNED: Milestone[] = [];
+const NO_PRS: ReadonlySet<string> = new Set();
 const NOT_READY: Day = { ready: false, workout: null, exs: [], lifts: {}, sessions: {} };
 const clone = (d: Day): Day => ({ ...d, exs: structuredClone(d.exs) });
 
@@ -280,6 +281,35 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
   /** Today's ticked and unticked work sets of an exercise as core's record rules read them. */
   const todaySets = (ex: ExState): PrSet[] =>
     ex.sets.map((r) => ({ date, exercise: ex.name, kind: 'work', weight_kg: r.w === '' ? null : num(r.w), reps: r.r === '' ? null : Math.round(num(r.r)), done: r.done, rate: r.rate }));
+
+  /**
+   * Lifts of the viewed day that are a personal best now (#1372), for the completion panel's badge and the share picture: core's `isPrToday` over
+   * today's in-memory sets and the toast path's cached prior best, so the badge, the toast, History and the Recent PRs list use one rule and an untick
+   * removes it. `pbToast` only gates the toast. Worked out only while the session is complete (the only time the panel shows), so a day opened
+   * half-done reads no history for it.
+   */
+  /** `for`: the exercises the names were worked out for; a later edit makes them stale at once, so a badge never outlives the sets it was read from. */
+  const [prState, setPrState] = useState<{ for: unknown; names: ReadonlySet<string> }>({ for: null, names: NO_PRS });
+  useEffect(() => {
+    const exs = loaded === date ? day.exs : [];
+    const sets = exs.flatMap((e) => e.sets);
+    if (!profile || sets.length === 0 || sets.some((s) => !s.done)) return;
+    let live = true;
+    const ctx = progressionContext(date, day.lifts, profile, day.workout, tune);
+    void (async () => {
+      const names = new Set<string>();
+      for (const ex of exs) {
+        const { info } = guidance(ex, ctx, day.workout);
+        const prior = await priorBestFor(ex.name, info.type, profile.weight_kg).catch(() => null);
+        if (prior && isPrToday(prior, todaySets(ex), info.type, profile.weight_kg)) names.add(ex.name);
+      }
+      if (live) setPrState({ for: day.exs, names });
+    })();
+    return () => {
+      live = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- priorBestFor and todaySets read `date`, the db and refs; the sets, the day and the data version are the inputs
+  }, [day.exs, loaded, date, profile?.weight_kg, reloadKey]);
 
   /** Recomputes the exercise's lift record from its ticked sets; shows the personal-best toast when core says so. */
   // Runs inside the day queue and builds on the stored lift records, not the screen's copy: a pull may have stored a
@@ -1045,5 +1075,5 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
     notify(choice ? `Swapped in ${choice}` : gone);
   };
 
-  return { date, msSettled: () => msChain.current, earned: earnedIn.date === date ? earnedIn.list : NO_EARNED, day: loaded === date ? day : NOT_READY, cant, setCardio, editSet, tick, rate, setForm, setFeel, skipRemaining, rampStart, rampSkip, rampAdd, rampTick, rampRated, addSet, removeSet, groupWithNext, ungroup, addExercise, removeExercise, finishEarly, start, startPicked, startFromRoutine, addSecond };
+  return { date, msSettled: () => msChain.current, earned: earnedIn.date === date ? earnedIn.list : NO_EARNED, prs: loaded === date && prState.for === day.exs ? prState.names : NO_PRS, day: loaded === date ? day : NOT_READY, cant, setCardio, editSet, tick, rate, setForm, setFeel, skipRemaining, rampStart, rampSkip, rampAdd, rampTick, rampRated, addSet, removeSet, groupWithNext, ungroup, addExercise, removeExercise, finishEarly, start, startPicked, startFromRoutine, addSecond };
 }

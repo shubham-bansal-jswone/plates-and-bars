@@ -791,7 +791,7 @@ function SessionView({ reveal, dockH, now, db, reloadKey, w, profile, focus, rul
         </View>
       ))}
       <View style={{ width: '100%', maxWidth: 560, alignSelf: 'center' }}>
-        <CompletionPanel earned={w.earned} headingRef={panelHeading} db={db} date={date} profileKg={profile.weight_kg} exs={day.exs} cardio={wk.cardio_min} lifts={day.lifts} reloadKey={reloadKey} {...(routine.length ? { onSaveRoutine: () => setSavingRoutine(true) } : {})} />
+        <CompletionPanel earned={w.earned} headingRef={panelHeading} db={db} date={date} profileKg={profile.weight_kg} exs={day.exs} cardio={wk.cardio_min} prs={w.prs} reloadKey={reloadKey} {...(routine.length ? { onSaveRoutine: () => setSavingRoutine(true) } : {})} />
       </View>
     </>
   );

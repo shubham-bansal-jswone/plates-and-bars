@@ -20,7 +20,7 @@ export function memoryDb(): WorkoutDb & PullDb & { rows: Map<string, string>; se
       if (sql.includes('FROM workout_sets WHERE workout_date')) return [...sets.values()].filter((s) => s.date === p[0]).map((s) => ({ data: s.data })) as T[];
       if (sql.includes('SELECT workout_date, data FROM workout_sets')) {
         const live = (d: string) => { const w = rows.get(`workouts:${d}`); return w !== undefined && ((JSON.parse(w) as { deleted_at?: string | null }).deleted_at ?? null) === null; };
-        return [...sets.values()].filter((s) => s.kind === 'work' && s.done === 1 && s.deleted === 0 && (JSON.parse(s.data) as { exercise: string }).exercise === p[0] && live(s.date)).map((s) => ({ workout_date: s.date, data: s.data })) as T[];
+        return [...sets.values()].filter((s) => s.kind === 'work' && s.done === 1 && s.deleted === 0 && (p[0] === '' || (JSON.parse(s.data) as { exercise: string }).exercise === p[0]) && live(s.date)).map((s) => ({ workout_date: s.date, data: s.data })) as T[];
       }
       if (sql.includes('GROUP BY workout_date')) {
         const n = new Map<string, number>();

@@ -1,6 +1,6 @@
 import { type ComponentRef, type Ref } from 'react';
 import { Platform, StyleSheet, Text as RNText, View } from 'react-native';
-import { type LiftRecord, type Milestone } from '@plate-and-bar/core';
+import { type Milestone } from '@plate-and-bar/core';
 import { Text } from '../components/Text';
 import { Button, Card, Heading, MetricRow, Note } from '../components/ui';
 import { sessionTimeLine } from '../progress/e1rm';
@@ -17,16 +17,16 @@ import { useWeightUnit } from '../settings/weightUnit';
 
 /**
  * "Session done": shown while every set is ticked, read from today's exercises only. Nothing is stored and nothing is locked:
- * un-tick a set and it goes. The elapsed time is core's `sessionElapsed` over the ticks (`t`), shown only when every ticked set has one; no streak. A personal best is the lift record's `pbToast` being today, as `useWorkoutDay` sets it with core's `isPrToday`.
+ * un-tick a set and it goes. The elapsed time is core's `sessionElapsed` over the ticks (`t`), shown only when every ticked set has one; no streak. A personal best is a lift in `prs` (`useWorkoutDay`: core's `isPrToday` over today's sets), not the record's `pbToast`.
  */
-export function CompletionPanel({ earned = [], db, date, profileKg, exs, cardio, lifts, reloadKey, headingRef, onSaveRoutine }: { /** Milestones earned in this session (#1351 A9), one line each. */ earned?: readonly Milestone[]; /** Opens "Save as routine"; absent when the session has nothing to save. */ onSaveRoutine?: () => void; headingRef?: Ref<ComponentRef<typeof RNText>>; db: WorkoutDb; date: string; profileKg: number; exs: readonly ExState[]; cardio: number | null; lifts: Readonly<Record<string, LiftRecord>>; reloadKey: number }) {
+export function CompletionPanel({ earned = [], db, date, profileKg, exs, cardio, prs, reloadKey, headingRef, onSaveRoutine }: { /** Milestones earned in this session (#1351 A9), one line each. */ earned?: readonly Milestone[]; /** Opens "Save as routine"; absent when the session has nothing to save. */ onSaveRoutine?: () => void; headingRef?: Ref<ComponentRef<typeof RNText>>; db: WorkoutDb; date: string; profileKg: number; exs: readonly ExState[]; cardio: number | null; /** Lifts that are a personal best today. */ prs?: ReadonlySet<string>; reloadKey: number }) {
   const c = useTheme();
   const { unit } = useWeightUnit();
   const { cardRef, busy, note: shareNote, share } = useShareCard();
   const sets = exs.flatMap((e) => e.sets);
   const done = sets.filter((s) => s.done).length;
   if (sets.length === 0 || done !== sets.length) return null;
-  const card = buildShareCard({ date, exs, cardio, lifts, unit });
+  const card = buildShareCard({ date, exs, cardio, ...(prs ? { prs } : {}), unit });
   const elapsed = sessionTimeLine(exs.flatMap((e) => [...e.ramp, ...e.sets]));
   const twoSessions = exs.some((e) => e.part === 2);
   return (
@@ -39,7 +39,7 @@ export function CompletionPanel({ earned = [], db, date, profileKg, exs, cardio,
       {elapsed ? <Text testID="completion-elapsed" accessibilityLabel={`Time: ${elapsed}`} style={[type.caption, { color: c.body }]}>{`Time: ${elapsed}`}</Text> : null}
       {exs.map((e, i) => {
         const rates = [...new Set(e.sets.flatMap((s) => (s.rate ? [RATE_LABEL[s.rate]] : [])))];
-        const pr = lifts[e.name]?.pbToast === date;
+        const pr = prs?.has(e.name) ?? false;
         return (
           <View key={`${i}-${e.name}`} style={[styles.row, { borderColor: c.line }]}>
             <View style={{ flex: 1 }}>

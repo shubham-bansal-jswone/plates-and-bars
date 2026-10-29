@@ -33,7 +33,7 @@ jest.mock('expo-router', () => ({ useRouter: () => ({ replace: jest.fn(), push: 
 const row = (w: string, r: string, done: boolean, rate: Row['rate'] = null): Row => ({ ...blankRow(), w, r, done, rate });
 const ex = (name: string, sets: Row[]): ExState => ({ name, part: 1, bridge: false, form: null, found: null, skipRamp: true, feel: null, ramp: [], sets });
 const exs = [ex('Barbell Bench Press', [row('60', '8', true, 'hard'), row('62.5', '6', true)]), ex('Pec Deck Fly', [row('30', '12', true)])];
-const panel = () => render(<CompletionPanel db={memoryDb()} date="2026-10-08" profileKg={83.7} exs={exs} cardio={null} lifts={{ 'Barbell Bench Press': { pbToast: '2026-10-08' } as never }} reloadKey={0} />);
+const panel = () => render(<CompletionPanel db={memoryDb()} date="2026-10-08" profileKg={83.7} exs={exs} cardio={null} prs={new Set(['Barbell Bench Press'])} reloadKey={0} />);
 const original = Platform.OS;
 afterEach(() => {
   Platform.OS = original;
@@ -47,7 +47,7 @@ describe('share the workout summary picture', () => {
     expect(screen.getByLabelText('Share workout summary picture')).toBeTruthy();
     expect(screen.getByTestId('share-card', { includeHiddenElements: true })).toBeTruthy();
     await screen.unmount();
-    await render(<CompletionPanel db={memoryDb()} date="2026-10-08" profileKg={80} exs={[ex('Pec Deck Fly', [row('30', '12', false)])]} cardio={null} lifts={{}} reloadKey={0} />);
+    await render(<CompletionPanel db={memoryDb()} date="2026-10-08" profileKg={80} exs={[ex('Pec Deck Fly', [row('30', '12', false)])]} cardio={null} reloadKey={0} />);
     expect(screen.queryByLabelText('Share workout summary picture')).toBeNull();
   });
 
@@ -86,7 +86,7 @@ describe('share the workout summary picture', () => {
     g0.URL = { createObjectURL: () => 'blob:x', revokeObjectURL: revoke };
     try {
       const { shareWorkoutImage } = jest.requireActual<typeof import('../src/workout/shareImage')>('../src/workout/shareImage.ts'); // the web file, by name (the bare path picks .native.ts)
-      expect(await shareWorkoutImage(buildShareCard({ date: '2026-10-08', exs, cardio: null, lifts: {} }))).toBe('saved');
+      expect(await shareWorkoutImage(buildShareCard({ date: '2026-10-08', exs, cardio: null }))).toBe('saved');
       expect(anchor.download).toBe('plate-and-bar-workout-summary.png');
       expect(anchor.click).toHaveBeenCalled();
       expect(calls).toContain('Barbell Bench Press');
@@ -112,7 +112,7 @@ describe('share the workout summary picture', () => {
     try {
       const { shareWorkoutImage } = jest.requireActual<typeof import('../src/workout/shareImage')>('../src/workout/shareImage.ts');
       const name = 'A very long custom exercise name that would run under the best set'.repeat(2);
-      await shareWorkoutImage(buildShareCard({ date: '2026-10-08', exs: [ex(name, [row('60', '8', true)])], cardio: null, lifts: {} }));
+      await shareWorkoutImage(buildShareCard({ date: '2026-10-08', exs: [ex(name, [row('60', '8', true)])], cardio: null }));
       const drawn = widths.find((x) => x.s.endsWith('…'));
       expect(drawn).toBeTruthy();
       expect(drawn!.w).toBeLessThanOrEqual(1080 - 120);
@@ -160,7 +160,7 @@ describe('share the workout summary picture', () => {
 
 describe('what the card contains', () => {
   it('has the day, sets, volume, exercises, best sets and records, and none of the body weight, how a set felt or calories', async () => {
-    const m = buildShareCard({ date: '2026-10-08', exs, cardio: null, lifts: { 'Barbell Bench Press': { pbToast: '2026-10-08' } as never } });
+    const m = buildShareCard({ date: '2026-10-08', exs, cardio: null, prs: new Set(['Barbell Bench Press']) });
     expect(m.title).toBe('Thursday workout');
     expect(m.stats).toEqual([{ label: 'Sets', value: '3/3' }, { label: 'Volume (kg)', value: '1,215' }, { label: 'Exercises', value: '2' }]);
     expect(m.rows).toEqual([{ name: 'Barbell Bench Press', best: '62.5 x 6', pr: true }, { name: 'Pec Deck Fly', best: '30 x 12', pr: false }]);
@@ -176,7 +176,7 @@ describe('what the card contains', () => {
 
   it('keeps the fixed size: extra exercises become "+N more"', () => {
     const many = Array.from({ length: 10 }, (_, i) => ex(`Lift ${i}`, [row('10', '5', true)]));
-    const m = buildShareCard({ date: '2026-10-08', exs: many, cardio: 20, lifts: {} });
+    const m = buildShareCard({ date: '2026-10-08', exs: many, cardio: 20 });
     expect(m.rows).toHaveLength(7);
     expect(m.more).toBe(3);
     expect(m.stats.at(-1)).toEqual({ label: 'Cardio (min)', value: '20' });
@@ -187,7 +187,7 @@ describe('what the card contains', () => {
 
   it('the card stats are short: a 5-digit volume is 12.4k and labels fit a narrow box', () => {
     const heavy = [ex('Leg Press', [row('200', '60', true)])];
-    const m = buildShareCard({ date: '2026-10-08', exs: heavy, cardio: 45, lifts: {} });
+    const m = buildShareCard({ date: '2026-10-08', exs: heavy, cardio: 45 });
     expect(m.cardStats).toEqual([{ label: 'Sets', value: '1/1' }, { label: 'Volume kg', value: '12k' }, { label: 'Exercises', value: '1' }, { label: 'Cardio min', value: '45' }]);
     expect(m.stats[1]).toEqual({ label: 'Volume (kg)', value: '12,000' }); // the panel keeps the full figure
   });
@@ -196,12 +196,12 @@ describe('what the card contains', () => {
 describe('pounds', () => {
   it('shows volume and best sets in lb, as the panel does', () => {
     const heavy = [ex('Leg Press', [row('100', '5', true)])];
-    const m = buildShareCard({ date: '2026-10-08', exs: heavy, cardio: null, lifts: {}, unit: 'lb' });
+    const m = buildShareCard({ date: '2026-10-08', exs: heavy, cardio: null, unit: 'lb' });
     expect(m.stats[1]).toEqual({ label: 'Volume (lb)', value: fmt(fromKg(500, 'lb')) });
     expect(m.cardStats[1]?.label).toBe('Volume lb');
     expect(m.bests[0]).toBe(`${formatWeight(100, 'lb')} x 5`);
     expect(m.bests[0]).toBe('220.5 x 5');
-    expect(buildShareCard({ date: '2026-10-08', exs: heavy, cardio: null, lifts: {} }).bests[0]).toBe(`${formatWeight(100, 'kg')} x 5`);
+    expect(buildShareCard({ date: '2026-10-08', exs: heavy, cardio: null }).bests[0]).toBe(`${formatWeight(100, 'kg')} x 5`);
   });
 });
 

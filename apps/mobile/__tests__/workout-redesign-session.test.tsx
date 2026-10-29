@@ -15,7 +15,7 @@ jest.mock('expo-crypto', () => ({ randomUUID: () => globalThis.crypto.randomUUID
 const row = (w: string, r: string, done: boolean, rate: Row['rate'] = null): Row => ({ ...blankRow(), w, r, done, rate });
 const ex = (name: string, sets: Row[], part: 1 | 2 = 1): ExState => ({ name, part, bridge: false, form: null, found: null, skipRamp: true, feel: null, ramp: [], sets });
 const panel = (exs: ExState[], o: { cardio?: number | null; pbOn?: string } = {}) =>
-  render(<CompletionPanel db={memoryDb()} date="2026-10-08" profileKg={80} exs={exs} cardio={o.cardio ?? null} lifts={o.pbOn ? { 'Barbell Bench Press': { pbToast: o.pbOn } as never } : {}} reloadKey={0} />);
+  render(<CompletionPanel db={memoryDb()} date="2026-10-08" profileKg={80} exs={exs} cardio={o.cardio ?? null} prs={new Set(o.pbOn ? ['Barbell Bench Press'] : [])} reloadKey={0} />);
 
 describe('CompletionPanel', () => {
   it('shows only values derived from the sets: done/all, volume, exercises, best set, ratings', async () => {
@@ -39,11 +39,11 @@ describe('CompletionPanel', () => {
     expect(screen.queryByText('Session done')).toBeNull();
   });
 
-  it('marks a personal record only when the lift record says today set one', async () => {
+  it('marks a personal record only for a lift in prs (not the lift record pbToast)', async () => {
     await panel([ex('Barbell Bench Press', [row('60', '8', true)])], { pbOn: '2026-10-08' });
     expect(screen.getByText('Personal best')).toBeTruthy();
     await screen.unmount();
-    await panel([ex('Barbell Bench Press', [row('60', '8', true)])], { pbOn: '2026-10-01' });
+    await panel([ex('Barbell Bench Press', [row('60', '8', true)])]);
     expect(screen.queryByText('Personal best')).toBeNull();
   });
 

@@ -1,9 +1,10 @@
 import { act, render, renderHook, screen, waitFor } from '@testing-library/react-native';
 import { Vibration } from 'react-native';
-import type { ExType } from '@plate-and-bar/core';
-import { loadLifts, loadSets, loadWorkout, saveLift, saveSet, saveWorkout } from '../src/db/workouts';
+import { personalRecords, type ExType } from '@plate-and-bar/core';
+import { loadDoneSets, loadLifts, loadSets, loadWorkout, saveLift, saveSet, saveWorkout } from '../src/db/workouts';
 import { dayQueue } from '../src/workout/dayQueue';
 import { CompletionPanel } from '../src/workout/CompletionPanel';
+import { buildShareCard } from '../src/workout/shareModel';
 import { pbToastText } from '../src/workout/copy';
 import { useWorkoutDay } from '../src/workout/useWorkoutDay';
 import type { WorkoutSet } from '../src/workout/types';
@@ -270,15 +271,92 @@ describe('the personal-best toast uses the all-time rule (#1351 A4b)', () => {
     expect(reads).toBe(2);
   });
 
-  it('History and the completion panel read the same record: the day is marked a personal best', async () => {
+  // #1372: the badges (completion panel, share picture, History) come from core's personalRecords, not from pbToast.
+  /** Ticks every set of every exercise but `name`'s set `skip`: the others with 10 x 10 (no earlier history, so no PR), `name`'s with `w` x `r`. */
+  const completeWith = async (result: Hook, name: string, w: string, r: string, skip: number[] = []) => {
+    const exs = result.current.day.exs;
+    for (let i = 0; i < exs.length; i++) {
+      for (let j = 0; j < exs[i]!.sets.length; j++) {
+        if (exs[i]!.name === name && skip.includes(j)) continue;
+        const mine = exs[i]!.name === name;
+        await act(async () => result.current.editSet(i, 'work', j, 'w', mine ? w : '10'));
+        await act(async () => result.current.editSet(i, 'work', j, 'r', mine ? r : '10'));
+        await act(async () => result.current.tick(i, j));
+        await act(async () => void (await dayQueue.current));
+      }
+    }
+  };
+  const badges = async (db: Db, name: string, result: Hook, unit: 'kg' | 'lb' = 'kg') => {
+    const exs = result.current.day.exs;
+    const prs = result.current.prs;
+    const history = personalRecords(await loadDoneSets(db), { [name]: 'barbell' }, 82).filter((x) => x.date === DATE).map((x) => x.lift);
+    const share = buildShareCard({ date: DATE, exs, cardio: null, prs, unit }).rows.filter((x) => x.pr).map((x) => x.name);
+    return { panel: [...prs], history, share };
+  };
+
+  it('a personal best shows in the completion panel, the share picture and the records alike', async () => {
     const { db, name, result } = await started();
     await seedDay(db, name, '2026-09-01', [[80, 5]]);
     await seedDay(db, name, '2026-09-20', [[90, 5]], true);
-    await tickSet(result, 0, '100', '5');
-    const lifts = await loadLifts(db);
-    expect(lifts[name]?.pbToast).toBe(DATE);
-    expect(result.current.day.lifts[name]?.pbToast).toBe(DATE);
-    await render(<CompletionPanel db={db} date={DATE} profileKg={82} exs={[{ ...result.current.day.exs[0]!, sets: result.current.day.exs[0]!.sets.map((x) => ({ ...x, done: true })) }]} cardio={null} lifts={result.current.day.lifts} reloadKey={0} />);
+    await completeWith(result, name, '100', '5');
+    await waitFor(() => expect(result.current.prs.has(name)).toBe(true));
+    expect(await badges(db, name, result)).toEqual({ panel: [name], history: [name], share: [name] });
+    await render(<CompletionPanel db={db} date={DATE} profileKg={82} exs={result.current.day.exs} cardio={null} prs={result.current.prs} reloadKey={0} />);
     expect(screen.getAllByText('Personal best').length).toBeGreaterThan(0);
   });
+
+  it('tick a PR, untick it, tick a smaller set: no badge anywhere, and the toast stays once', async () => {
+    const { db, name, result } = await started();
+    await seedDay(db, name, '2026-09-01', [[80, 5]]);
+    await seedDay(db, name, '2026-09-20', [[90, 5]], true);
+    await tickSet(result, 0, '100', '5'); // PR: toasts, pbToast = today
+    expect(toasts()).toHaveLength(1);
+    await act(async () => result.current.tick(0, 0)); // untick
+    await act(async () => void (await dayQueue.current));
+    await completeWith(result, name, '60', '5'); // a smaller set on every set of the lift
+    await act(async () => void (await dayQueue.current));
+    expect(await pbToast(db, name)).toBe(DATE); // the toast gate is still set ...
+    expect(result.current.day.lifts[name]?.pbToast).toBe(DATE);
+    await waitFor(() => expect(result.current.day.exs.flatMap((e) => e.sets).every((x) => x.done)).toBe(true));
+    expect(await badges(db, name, result)).toEqual({ panel: [], history: [], share: [] }); // ... but nothing says Personal best
+    await render(<CompletionPanel db={db} date={DATE} profileKg={82} exs={result.current.day.exs} cardio={null} prs={result.current.prs} reloadKey={0} />);
+    expect(screen.queryByText('Personal best')).toBeNull();
+    expect(toasts()).toHaveLength(1);
+  });
+
+  it('an untick removes the badge', async () => {
+    const { db, name, result } = await started();
+    await seedDay(db, name, '2026-09-01', [[80, 5]]);
+    await seedDay(db, name, '2026-09-20', [[90, 5]], true);
+    await completeWith(result, name, '100', '5');
+    await waitFor(() => expect(result.current.prs.has(name)).toBe(true));
+    const sets = result.current.day.exs.find((e) => e.name === name)!.sets.length;
+    const idx = result.current.day.exs.findIndex((e) => e.name === name);
+    for (let j = 0; j < sets; j++) await act(async () => result.current.tick(idx, j));
+    await act(async () => void (await dayQueue.current));
+    await waitFor(() => expect(result.current.prs.size).toBe(0));
+  });
+
+  it('an imported lift (stored sets, no lift record) badges as personalRecords does', async () => {
+    const { db, name, result } = await started();
+    await seedDay(db, name, '2026-09-01', [[80, 5]]);
+    await seedDay(db, name, '2026-09-20', [[90, 5]]); // no lift record
+    await completeWith(result, name, '100', '5');
+    await waitFor(() => expect(result.current.prs.has(name)).toBe(true));
+    expect(await badges(db, name, result)).toEqual({ panel: [name], history: [name], share: [name] });
+  });
+
+  it('a pound user: the badge follows the stored kg, the picture words the best in lb', async () => {
+    const { db, name, result } = await started('lb');
+    await seedDay(db, name, '2026-09-01', [[80, 5]]);
+    await seedDay(db, name, '2026-09-20', [[90, 5]], true);
+    await completeWith(result, name, '100', '5'); // weights are typed and stored in kg
+    await waitFor(() => expect(result.current.prs.has(name)).toBe(true));
+    const got = await badges(db, name, result, 'lb');
+    expect(got).toEqual({ panel: [name], history: [name], share: [name] });
+    const card = buildShareCard({ date: DATE, exs: result.current.day.exs, cardio: null, prs: result.current.prs, unit: 'lb' });
+    expect(card.bests[result.current.day.exs.findIndex((e) => e.name === name)]).toBe('220.5 x 5');
+  });
+
+
 });

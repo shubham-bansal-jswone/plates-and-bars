@@ -133,7 +133,7 @@ describe('the quiet milestone toast (#1351 A9)', () => {
     expect(msToasts()).toEqual([]);
     expect(result.current.earned.map((m) => m.id)).toEqual(['plates-1']);
     const ex = result.current.day.exs[0]!;
-    await render(<CompletionPanel db={{} as WorkoutDb} date={DATE} profileKg={82} earned={result.current.earned} exs={[{ ...ex, sets: ex.sets.map((x) => ({ ...x, done: true })) }]} cardio={null} lifts={result.current.day.lifts} reloadKey={0} />);
+    await render(<CompletionPanel db={{} as WorkoutDb} date={DATE} profileKg={82} earned={result.current.earned} exs={[{ ...ex, sets: ex.sets.map((x) => ({ ...x, done: true })) }]} cardio={null} prs={result.current.prs} reloadKey={0} />);
     expect(screen.getByLabelText(`Milestone: One plate a side, ${name}, 60 kg`)).toBeTruthy();
   });
 
