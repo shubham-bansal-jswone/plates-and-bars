@@ -409,7 +409,6 @@ describe('routines in the device export and restore', () => {
     });
 
     it('the limits typed in the app match openapi.yaml', () => {
-      // js-yaml is in node_modules as a dependency of other tooling, not declared by this package.
       // eslint-disable-next-line @typescript-eslint/no-require-imports
       const { load } = require('js-yaml') as { load: (s: string) => { components: { schemas: Record<string, Record<string, unknown>> } } };
       const schemas = load(readFileSync(resolve(__dirname, '../../../packages/api/openapi.yaml'), 'utf8')).components.schemas;
