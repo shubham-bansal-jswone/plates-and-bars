@@ -121,7 +121,8 @@ export function WorkoutScreen({ db, now = () => new Date() }: Props) {
   const scroll = useScrollIntoView();
   // Each rest mounts a new dock, whose height is only known after its first layout (its label can be longer than the last one's), and a tick's rest can
   // start after the render that moved the marker. So the node revealed for a tick (`last`, cleared by the next tick: `reveal(null)`) is scrolled to again,
-  // once, on the first layout of a new rest's dock. A later height change never scrolls (the user may have scrolled), and nothing is timed.
+  // on the first layout of a new rest's dock, and again when that dock grows (large text, a longer label), since a taller dock covers the row. A dock that
+  // shrinks never scrolls (the user may have scrolled), and nothing is timed.
   const dock = useRef<{ id: number; h: number } | null>(null); // the last dock laid out: its rest and height
   const last = useRef<ComponentRef<typeof View> | null>(null);
   const reveal = (node: ComponentRef<typeof View> | null | undefined) => {
@@ -133,9 +134,10 @@ export function WorkoutScreen({ db, now = () => new Date() }: Props) {
   };
   const onDockHeight = (h: number, id: number) => {
     setMeasuredDock(h); // for the page spacer
-    const first = dock.current?.id !== id;
+    const prev = dock.current;
+    const grew = prev?.id !== id || h > prev.h;
     dock.current = { id, h };
-    if (first && last.current) scroll.reveal(last.current, h);
+    if (grew && last.current) scroll.reveal(last.current, h);
   };
   const restBar = <RestBar rest={rest} onAdd={addRest} onSkip={() => setRest(null)} onHeight={onDockHeight} />;
   // One tree for every state, the state's content in the one body slot: the rest bar and toast keep their place (and so are not remounted,

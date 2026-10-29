@@ -211,14 +211,25 @@ describe('the dock of a new rest', () => {
     expect(scrollTo).toHaveBeenCalledWith(expect.objectContaining({ y: 1000 - (VIEW_H - 8) }));
   });
 
-  it('does not scroll when the dock changes height later, with nothing waiting', async () => {
+  it('scrolls to the row again when the dock grows after its first layout (large text, #1361)', async () => {
     const names = await mount(['g', 'g', 'g'], false);
     nodeTop = 900;
     await tick(names[0]!, 0, 'A1');
     await layout(150);
-    expect(scrollTo).toHaveBeenCalledTimes(1);
     scrollTo.mockClear();
-    await layout(300); // a relabel, a font loading: the user may have scrolled since
+    await layout(300);
+    expect(scrollTo).toHaveBeenCalledTimes(1);
+    expect(scrollTo).toHaveBeenLastCalledWith({ x: 0, y: 1000 - (VIEW_H - 300 - 8), animated: false });
+  });
+
+  it('does not scroll when the dock shrinks or keeps its height', async () => {
+    const names = await mount(['g', 'g', 'g'], false);
+    nodeTop = 900;
+    await tick(names[0]!, 0, 'A1');
+    await layout(300);
+    scrollTo.mockClear();
+    await layout(300);
+    await layout(150); // the user may have scrolled since
     expect(scrollTo).not.toHaveBeenCalled();
   });
 
