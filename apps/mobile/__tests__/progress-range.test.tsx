@@ -1,4 +1,4 @@
-import { StyleSheet } from 'react-native';
+import { Platform, StyleSheet } from 'react-native';
 import { fireEvent, render, screen } from '@testing-library/react-native';
 import { addDays, mondayOf, WEIGHT_CHART_BOX, type TrendPoint } from '@plate-and-bar/core';
 import { dateWithYear, shortDate } from '../src/format';
@@ -159,6 +159,41 @@ describe('ChartTable', () => {
     expect(screen.getAllByLabelText(/, \d+ kg$/)).toHaveLength(12);
     await fireEvent.press(screen.getByRole('button', { name: 'Hide table' }));
     expect(screen.queryAllByLabelText(/, \d+ kg$/)).toHaveLength(0);
+  });
+
+  it('on web is a table of rows with columnheader and cell parts and no per-row labels', async () => {
+    const was = Platform.OS;
+    Platform.OS = 'web';
+    try {
+      const { toJSON } = await render(<ChartTable rows={rows(2)} noun="Weight" valueHeader="kg" />);
+      await fireEvent.press(screen.getByRole('button', { name: 'Show as table' }));
+      const found: Record<string, number> = {};
+      let table: Record<string, unknown> | undefined;
+      const visit = (n: unknown) => {
+        if (!n || typeof n !== 'object') return;
+        if (Array.isArray(n)) return n.forEach(visit);
+        const x = n as { props?: Record<string, unknown>; children?: unknown };
+        const r = x.props?.role as string | undefined;
+        if (r) found[r] = (found[r] ?? 0) + 1;
+        if (r === 'table') table = x.props;
+        if (x.props?.accessibilityRole === 'text' || x.props?.accessibilityRole === 'header') found.legacy = 1;
+        visit(x.children);
+      };
+      visit(toJSON());
+      expect(found).toMatchObject({ table: 1, row: 3, columnheader: 2, cell: 4 });
+      expect(found.legacy).toBeUndefined();
+      expect(table?.['aria-label']).toBe('Weight values by date');
+      // Show all is a sibling of the table, not a child: a table may only hold rows (axe aria-required-children).
+      await screen.unmount();
+      const big = await render(<ChartTable rows={rows(14)} noun="Weight" valueHeader="kg" />);
+      await fireEvent.press(screen.getByRole('button', { name: 'Show as table' }));
+      const inside = (n: unknown, within = false): boolean => !!n && typeof n === 'object' && (Array.isArray(n) ? n.some((x) => inside(x, within)) : (() => { const x = n as { props?: Record<string, unknown>; children?: unknown }; const now = within || x.props?.role === 'table'; return (now && (x.props?.accessibilityLabel === 'Show all' || x.props?.['aria-label'] === 'Show all')) || inside(x.children, now); })());
+      expect(inside(big.toJSON())).toBe(false);
+      expect(inside(big.toJSON(), true)).toBe(true); // the finder does see the button, so the check above is not vacuous
+      expect(screen.getByRole('button', { name: 'Show all' })).toBeTruthy();
+    } finally {
+      Platform.OS = was;
+    }
   });
 
   it('has no Show all with 12 rows or fewer, and nothing with no rows', async () => {

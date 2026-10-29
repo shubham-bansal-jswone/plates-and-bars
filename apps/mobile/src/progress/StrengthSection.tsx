@@ -163,7 +163,7 @@ function Chip({ label, selected, expanded, onPress }: { label: string; selected?
 const styles = StyleSheet.create({
   section: { gap: 8, marginTop: 16 },
   block: { gap: space.sm },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space.xs },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
   chip: { minHeight: 44, justifyContent: 'center', paddingHorizontal: space.lg, borderRadius: radius.full },
   list: { width: '100%' },
   row: { minHeight: 44, justifyContent: 'center', borderBottomWidth: 1 },
