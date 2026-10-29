@@ -22,6 +22,12 @@ const LANES = {
   reviewer: [],
 };
 
+// Agents not mirrored to OpenCode. ui-qa drives a browser through the
+// mcp__playwright__* tools, which the OpenCode setup does not provide, so the
+// agent cannot do its job there. Every other .claude agent (including the
+// read-only ui-designer, which needs only Read/Glob/Grep) is mirrored.
+const EXCLUDED = new Set(["ui-qa"]);
+
 import { readdirSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -97,6 +103,7 @@ function main() {
   const written = [];
   for (const file of files) {
     const name = file.replace(/\.md$/, "");
+    if (EXCLUDED.has(name)) continue;
     const text = readFileSync(join(srcDir, file), "utf8");
     const parsed = splitFrontmatter(text);
     const tools = new Set(
