@@ -35,7 +35,7 @@ export function useProgressSets(db: WorkoutDb, dataVersion: number, overrides?: 
   const [state, setState] = useState<{ read: string; all: PrSet[]; error: Error | null } | null>(null);
   const [shown, setShown] = useState(0);
   const seenFirst = useRef(false);
-  // The write count of the last applied read; a failed read leaves it, so the next focus tries again.
+  // The write count of the last applied read; a failed read clears it, so the next focus tries again.
   const readAt = useRef<number | null>(null);
   // useFocusEffect also fires on mount, where the effect below already reads. A later focus reads again only after a local write since the last read.
   useFocusEffect(
@@ -51,6 +51,8 @@ export function useProgressSets(db: WorkoutDb, dataVersion: number, overrides?: 
       readAt.current = dayWrites.current;
       setState({ read, all, error: null });
     }).catch((e: unknown) => {
+      // A failed read leaves no applied read: the next focus tries again even with no write since the last good one.
+      if (live) readAt.current = null;
       if (live) setState((s) => ({ read, all: s?.all ?? [], error: e instanceof Error ? e : new Error(String(e)) }));
     });
     return () => {

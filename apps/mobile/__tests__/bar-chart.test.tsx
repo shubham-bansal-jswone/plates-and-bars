@@ -272,3 +272,19 @@ describe('BarChart table and labels', () => {
     expect(screen.toJSON()).toBeNull();
   });
 });
+
+describe('BarChart wording', () => {
+  const wording = { targetRow: (t: string, u: string) => `Plan ${t} ${u}`, below: 'Below plan', countBelow: (n: number) => `${n} under plan` };
+  it('replaces the target words in the table and the spoken count, and keeps the default without it', async () => {
+    const bars: Bar[] = [{ label: '2026-10-05', value: 900 }, { label: '2026-10-12', value: 2400 }];
+    await render(<BarChart {...base} bars={bars} target={{ value: 2000, caption: 'Plan line' }} wording={wording} />);
+    await fireEvent.press(screen.getByRole('button', { name: 'Show as table' }));
+    expect(screen.getByText(/Plan 2,000 kcal.*Below plan$/)).toBeTruthy();
+    expect(screen.getByLabelText(/1 under plan/, hidden)).toBeTruthy();
+    expect(screen.queryByText(/Target 2,000/)).toBeNull();
+    await screen.unmount();
+    await render(<BarChart {...base} bars={bars} target={{ value: 2000 }} />);
+    await fireEvent.press(screen.getByRole('button', { name: 'Show as table' }));
+    expect(screen.getByText(/Target 2,000 kcal.*Below target$/)).toBeTruthy();
+  });
+});
