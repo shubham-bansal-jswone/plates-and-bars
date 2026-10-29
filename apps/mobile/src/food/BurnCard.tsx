@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useFocusEffect } from 'expo-router';
-import { addDays, BURN_RANGE, burnToday, latestWeight, stepsTarget, workoutBurn, type BurnToday } from '@plate-and-bar/core';
+import { addDays, BURN_RANGE, bodyweightOn, burnToday, stepsTarget, workoutBurn, type BurnToday } from '@plate-and-bar/core';
 import { Text } from '../components/Text';
 import { fmt } from '../format';
 import { dateSub } from '../state/ViewedDate';
@@ -44,7 +44,7 @@ export function BurnCard({ db, date, profile, steps, sleep, onSaveStepsSleep, kc
     let live = true;
     const before = Array.from({ length: 7 }, (_, i) => addDays(date, i - 7));
     Promise.all([loadWeights(db), loadSets(db, date), loadWorkout(db, date), Promise.all(before.map((d) => loadDayNote(db, d)))])
-      .then(([w, sets, workout, notes]) => live && setFacts({ kg: latestWeight(w, date) ?? profile.weight_kg, sets, cardio: workout?.cardio_min ?? null, stepsGoal: stepsTarget(notes.filter((n) => n !== null), date) }))
+      .then(([w, sets, workout, notes]) => live && setFacts({ kg: bodyweightOn(w, date, profile.weight_kg) ?? 0, sets, cardio: workout?.cardio_min ?? null, stepsGoal: stepsTarget(notes.filter((n) => n !== null), date) }))
       .catch(() => {});
     return () => {
       live = false;
