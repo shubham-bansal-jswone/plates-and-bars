@@ -501,6 +501,13 @@ export { rangeSeries, downsampleWeekly, DOWNSAMPLE_THRESHOLD, RANGE_DAYS } from 
 export type { SeriesRange, DownsampleMode } from './progressSeries';
 
 /**
+ * Progress volume (#1351 C2, new rules): `weeklyDoneSets` is `doneCoverage`'s counting per Monday-week (shared `addDoneSets`),
+ * `volumeVsPlan` is the 4-week average per `COVER_SHOW` muscle against the current plan's `plannedCoverage`.
+ */
+export { weeklyDoneSets, volumeVsPlan, VOLUME_AVG_WEEKS } from './progressVolume';
+export type { WeekSets, VolumeVsPlan, VolumeVsPlanResult } from './progressVolume';
+
+/**
  * Weekly intake and weeks-on-track series (#1351 C4, C5, new rules). `weeklyIntake` is the average kcal and protein per Monday-week over
  * the days with a live food log (the `weekSummary` rule), null for a week with none, `partial` under `WEEKLY_INTAKE_MIN_DAYS` (4) days.
  * `weeksOnTrackSeries` is the per-week form of `habits().weeks`; the goal rule it shares with `habits` stays internal
