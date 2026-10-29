@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { HAND_PICKED, ROUTINE_MAX_LIVE, planned, recoveryWeek } from '@plate-and-bar/core';
 import { WorkoutScreen } from '../src/screens/WorkoutScreen';
 import { createRoutine, deleteRoutine, loadRoutines, type RoutineExercise } from '../src/db/routines';
@@ -12,6 +12,7 @@ import { MY_ROUTINES as T, ROUTINE_COPY } from '../src/workout/copy';
 import { press, pressDay, tickFirstSets } from './disclosure-helpers';
 import { SyncContext, type SyncState } from '../src/sync/SyncProvider';
 import { focusNode } from '../src/labelscan/focus';
+import { Platform } from 'react-native';
 import { renameRoutine, undoDeleteRoutine } from '../src/db/routines';
 import { withProfile } from './helpers';
 import { openDb } from './sync-helpers';
@@ -23,7 +24,7 @@ jest.mock('expo-crypto', () => require('./sync-crypto-mock'));
 
 jest.mock('../src/db/routines', () => {
   const actual = jest.requireActual('../src/db/routines');
-  return { ...actual, undoDeleteRoutine: jest.fn(actual.undoDeleteRoutine) };
+  return { ...actual, undoDeleteRoutine: jest.fn(actual.undoDeleteRoutine), loadRoutines: jest.fn(actual.loadRoutines) };
 });
 jest.mock('../src/labelscan/focus', () => ({ ...jest.requireActual('../src/labelscan/focus'), focusNode: jest.fn() }));
 const focused = () => jest.mocked(focusNode).mock.calls.at(-1)?.[0] as { props?: { accessibilityLabel?: string; accessibilityRole?: string } } | undefined;
@@ -213,6 +214,7 @@ describe('Rename and delete', () => {
     for (let i = 0; i < ROUTINE_MAX_LIVE; i++) await createRoutine(db as never, `R${i}`, UPPER);
     await press(T.undoLabel('Upper'));
     expect((await screen.findAllByText(ROUTINE_COPY.tooMany(ROUTINE_MAX_LIVE))).length).toBeGreaterThan(0);
+    expect(screen.getByLabelText(T.undoLabel('Upper'))).toBeTruthy(); // the Undo row stays: delete another routine and try again
     expect((await loadRoutines(db as never)).some((r) => r.name === 'Upper')).toBe(false);
   });
 });
@@ -269,6 +271,68 @@ describe('Undo survives the section being hidden', () => {
     await view.rerender(at(1));
     expect(await screen.findByLabelText('Start Beta')).toBeTruthy();
     expect(screen.queryByText(T.deleted('Beta'))).toBeNull();
+  });
+});
+
+describe('A stale reload never undoes a delete', () => {
+  it('a sync reload still in flight when Delete lands, finishing last: Alpha stays gone and the Undo row stays', async () => {
+    const db = await openDb();
+    await saveSettings(db as never, defaultSettings('2026-10-08T00:00:00Z'));
+    await saveProfile(db as never, { ...profile, where: 'gym' });
+    await TWO(db);
+    const at = (dataVersion: number) => <SyncContext.Provider value={{ dataVersion } as SyncState}>{withProfile(db as never, <WorkoutScreen db={db as never} now={THURSDAY} />)}</SyncContext.Provider>;
+    const view = await render(at(0));
+    await screen.findByLabelText('Start Alpha');
+    const stale = await jest.requireActual('../src/db/routines').loadRoutines(db as never); // read before the delete: still has Alpha
+    let release!: () => void;
+    jest.mocked(loadRoutines).mockImplementationOnce(() => new Promise((r) => (release = () => r(stale))));
+    await view.rerender(at(1)); // the sync reload starts and waits
+    await press(T.moreLabel('Alpha'));
+    await press(T.delete);
+    await screen.findByText(T.deleted('Alpha'));
+    await act(async () => release()); // the stale read finishes last
+    expect(screen.queryByLabelText('Start Alpha')).toBeNull();
+    expect(screen.getByText(T.deleted('Alpha'))).toBeTruthy();
+  });
+});
+
+describe('Delete and Undo keep the Edit buttons in the tab order (web)', () => {
+  const os = Platform.OS;
+  const attrs = new WeakMap<object, Map<string, string>>();
+  // Stands in for the DOM element: a button already has tabindex 0, a heading has none.
+  const dom = (node: { props?: { accessibilityRole?: string } }) => {
+    const a = attrs.get(node) ?? new Map(node.props?.accessibilityRole === 'button' ? [['tabindex', '0']] : []);
+    attrs.set(node, a);
+    return { hasAttribute: (n: string) => a.has(n), setAttribute: (n: string, v: string) => void a.set(n, v), matches: () => false, focus: () => undefined };
+  };
+  beforeEach(() => {
+    Platform.OS = 'web';
+    jest.mocked(focusNode).mockImplementation((n) => jest.requireActual('../src/labelscan/focus').focusNode(dom(n as never)));
+  });
+  afterEach(() => {
+    Platform.OS = os;
+    jest.mocked(focusNode).mockReset();
+  });
+  const tabindex = (n: unknown) => attrs.get(n as object)?.get('tabindex');
+
+  it('after Delete the next Edit keeps its tab stop; after Undo so does the restored Edit', async () => {
+    await mount(TWO);
+    await press(T.moreLabel('Alpha'));
+    await press(T.delete);
+    await screen.findByText(T.deleted('Alpha'));
+    await waitFor(() => expect(focused()?.props?.accessibilityLabel).toBe(T.moreLabel('Beta')));
+    expect(tabindex(focused())).toBe('0');
+    await press(T.undoLabel('Alpha'));
+    await waitFor(() => expect(focused()?.props?.accessibilityLabel).toBe(T.moreLabel('Alpha')));
+    expect(tabindex(focused())).toBe('0');
+  });
+
+  it('the section heading still becomes focusable by script', async () => {
+    await mount((d) => createRoutine(d as never, 'Solo', UPPER).then(() => undefined));
+    await press(T.moreLabel('Solo'));
+    await press(T.delete);
+    await waitFor(() => expect(focused()?.props?.accessibilityRole).toBe('header'));
+    expect(tabindex(focused())).toBe('-1');
   });
 });
 

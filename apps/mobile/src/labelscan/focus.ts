@@ -8,7 +8,8 @@ export function focusNode(node: Node | null | undefined): void {
   if (!node) return;
   if (Platform.OS === 'web') {
     const el = node as unknown as HTMLElement;
-    el.setAttribute?.('tabindex', '-1'); // focusable by script, not in the tab order
+    // Containers and headings: focusable by script, not in the tab order. Never touch an element that is already focusable (a button's tab stop must survive).
+    if (!el.hasAttribute?.('tabindex') && !el.matches?.('button, a[href], input, select, textarea, [contenteditable]')) el.setAttribute?.('tabindex', '-1');
     el.focus?.();
     return;
   }
