@@ -7,7 +7,7 @@ import { saveSettings } from '../src/db/settings';
 import { defaultSettings } from '../src/settings/types';
 import { buildProfile, emptyDraft } from '../src/setup/logic';
 import { ROUTINE_COPY as T } from '../src/workout/copy';
-import { press } from './disclosure-helpers';
+import { expand, press, pressDay } from './disclosure-helpers';
 import { withProfile } from './helpers';
 import { openDb } from './sync-helpers';
 
@@ -31,14 +31,14 @@ describe('Save as routine on the Workout screen', () => {
   it('is not offered before a session has exercises', async () => {
     await mount();
     await screen.findByLabelText('Start Push B');
-    expect(screen.queryByLabelText(T.actionLabel)).toBeNull();
+    expect(screen.queryByLabelText(T.action)).toBeNull();
   });
 
   it('saves today’s generated session: template name, every exercise in order with its set count, then a toast', async () => {
     const db = await mount();
     await fireEvent.press(await screen.findByLabelText('Start Push B'));
     await screen.findByText('Push B');
-    await press(T.actionLabel);
+    await press(T.action);
     expect(screen.getByLabelText(T.nameLabel).props.value).toBe('Push B');
     await press(T.save);
     expect(await screen.findByText(T.saved('Push B'))).toBeTruthy();
@@ -47,6 +47,71 @@ describe('Save as routine on the Workout screen', () => {
     expect(r!.exercises.map((e) => e.name)).toEqual(['Barbell Bench Press', 'Machine Shoulder Press', 'Pec Deck Fly', 'Cable Lateral Raise', 'Overhead Cable Extension']);
     expect(r!.exercises.reduce((n, e) => n + e.sets, 0)).toBe(15);
     await waitFor(() => expect(screen.queryByLabelText(T.nameLabel)).toBeNull());
+  });
+
+  it('names the button by its visible text (label in name)', async () => {
+    await mount();
+    await fireEvent.press(await screen.findByLabelText('Start Push B'));
+    await screen.findByText('Push B');
+    const b = screen.getByText(T.action, { exact: true });
+    expect(b).toBeTruthy();
+    const named = screen.getByRole('button', { name: /^Save as routine/ });
+    expect(named.props.accessibilityLabel.startsWith('Save as routine')).toBe(true);
+  });
+
+  it('keeps each exercise’s own set count (an added set shows up for that exercise only)', async () => {
+    const db = await mount();
+    await fireEvent.press(await screen.findByLabelText('Start Push B'));
+    await screen.findByText('Push B');
+    await expand('Pec Deck Fly');
+    await press('Add set to Pec Deck Fly');
+    await press(T.action);
+    await press(T.save);
+    await waitFor(async () => expect(await loadRoutines(db)).toHaveLength(1));
+    const [r] = await loadRoutines(db);
+    expect(r!.exercises.map((e) => [e.name, e.sets])).toEqual([['Barbell Bench Press', 3], ['Machine Shoulder Press', 3], ['Pec Deck Fly', 4], ['Cable Lateral Raise', 3], ['Overhead Cable Extension', 3]]);
+  });
+
+  it('opens with an empty name for a hand-picked session (not the stored “Session”)', async () => {
+    await mount();
+    await pressDay('Pick exercises');
+    await press('Add Lat Pulldown from Pull A');
+    await press('Start this exercise');
+    await screen.findByText('Session');
+    await press(T.action);
+    expect(screen.getByLabelText(T.nameLabel).props.value).toBe('');
+  });
+
+  it('after Complete workout saves the planned session and offers one button, not two', async () => {
+    const db = await mount();
+    await fireEvent.press(await screen.findByLabelText('Start Push B'));
+    await screen.findByText('Push B');
+    await expand('Barbell Bench Press');
+    await fireEvent.changeText(screen.getByLabelText('Barbell Bench Press set 1 kg'), '10');
+    await fireEvent.changeText(screen.getByLabelText('Barbell Bench Press set 1 reps'), '10');
+    await press('Mark Barbell Bench Press set 1 done');
+    await press('Complete workout');
+    await press('Confirm');
+    await screen.findByText('Session done');
+    expect(screen.getAllByLabelText(T.action)).toHaveLength(1);
+    await press(T.action);
+    await press(T.save);
+    await waitFor(async () => expect(await loadRoutines(db)).toHaveLength(1));
+    const [r] = await loadRoutines(db);
+    expect(r!.exercises.map((e) => [e.name, e.sets])).toEqual([['Barbell Bench Press', 3], ['Machine Shoulder Press', 3], ['Pec Deck Fly', 3], ['Cable Lateral Raise', 3], ['Overhead Cable Extension', 3]]);
+  });
+
+  it('allows saving the same session twice, without a warning', async () => {
+    const db = await mount();
+    await fireEvent.press(await screen.findByLabelText('Start Push B'));
+    await screen.findByText('Push B');
+    for (let i = 0; i < 2; i++) {
+      await press(T.action);
+      await press(T.save);
+      await screen.findByText(T.saved('Push B'));
+      await waitFor(() => expect(screen.queryByLabelText(T.nameLabel)).toBeNull());
+    }
+    expect(await loadRoutines(db)).toHaveLength(2);
   });
 });
 
@@ -59,13 +124,13 @@ describe('Save as routine in the completion panel', () => {
   it('has the action, which calls back', async () => {
     const open = jest.fn();
     await panel(open);
-    await press(T.actionLabel);
+    await press(T.action);
     expect(open).toHaveBeenCalledTimes(1);
   });
 
   it('has no action when there is nothing to save', async () => {
     await panel();
     expect(screen.getByText('Session done')).toBeTruthy();
-    expect(screen.queryByLabelText(T.actionLabel)).toBeNull();
+    expect(screen.queryByLabelText(T.action)).toBeNull();
   });
 });

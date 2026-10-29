@@ -1,7 +1,7 @@
 /** @jest-environment node */
 import { JSDOM } from 'jsdom';
 import { Platform } from 'react-native';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { createRoutine, loadRoutines } from '../src/db/routines';
 import { SaveRoutineSheet } from '../src/workout/SaveRoutineSheet';
 import { ROUTINE_COPY as T } from '../src/workout/copy';
@@ -77,6 +77,61 @@ describe('SaveRoutineSheet', () => {
     expect(onSaved).not.toHaveBeenCalled();
     expect(onClose).not.toHaveBeenCalled();
     expect(await loadRoutines(db)).toHaveLength(100);
+  });
+
+  it('two presses in one tick create one routine and call onSaved once', async () => {
+    const db = await openDb();
+    const { onSaved } = await open(db);
+    const b = screen.getByLabelText(T.save);
+    await act(async () => {
+      void fireEvent.press(b);
+      void fireEvent.press(b);
+    });
+    await waitFor(() => expect(onSaved).toHaveBeenCalled());
+    expect(onSaved).toHaveBeenCalledTimes(1);
+    expect(await loadRoutines(db)).toHaveLength(1);
+  });
+
+  it('is not stuck after a refused name: fixing it saves', async () => {
+    const db = await openDb();
+    const { onSaved } = await open(db, '');
+    await save();
+    await screen.findByText(T.nameError(60));
+    await fireEvent.changeText(name(), 'Fixed');
+    await save();
+    await waitFor(() => expect(onSaved).toHaveBeenCalledWith('Fixed'));
+    expect(await loadRoutines(db)).toHaveLength(1);
+  });
+
+  it('tells the caller the trimmed name', async () => {
+    const db = await openDb();
+    const { onSaved } = await open(db);
+    await fireEvent.changeText(name(), '  Pull day  ');
+    await save();
+    await waitFor(() => expect(onSaved).toHaveBeenCalledWith('Pull day'));
+  });
+
+  it('shows the generic failure, not the name message, for a refusal that is not the name', async () => {
+    const db = await openDb();
+    const onSaved = jest.fn();
+    await render(<SaveRoutineSheet db={db as never} exercises={[]} defaultName="A" onSaved={onSaved} onClose={() => {}} />);
+    await save();
+    expect(await screen.findByText(T.failed)).toBeTruthy();
+    expect(screen.queryByText(T.nameError(60))).toBeNull();
+    expect(screen.queryByText(T.tooMany(100))).toBeNull();
+  });
+
+  it('says so when the session was cut to 50 exercises, and not otherwise', async () => {
+    const db = await openDb();
+    const view = await render(<SaveRoutineSheet db={db as never} exercises={EXS} defaultName="A" capped onSaved={() => {}} onClose={() => {}} />);
+    expect(screen.getByText(T.capped(50))).toBeTruthy();
+    await view.unmount();
+    await open(db);
+    expect(screen.queryByText(T.capped(50))).toBeNull();
+  });
+
+  it('words the name error by what is allowed, in code points', () => {
+    expect(T.nameError(60)).toBe('Give the routine a name, 60 characters or fewer.');
   });
 
   describe('on the web', () => {

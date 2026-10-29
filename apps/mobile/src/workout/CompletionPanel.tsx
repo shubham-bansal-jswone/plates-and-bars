@@ -53,7 +53,7 @@ export function CompletionPanel({ db, date, profileKg, exs, cardio, lifts, reloa
       })}
       <BurnLine db={db} date={date} profileKg={profileKg} exs={exs} cardio={cardio} reloadKey={reloadKey} />
       <Button kind="ghost" label="Share" a11yLabel="Share workout summary picture" onPress={() => share(card)} disabled={busy} busy={busy} />
-      {onSaveRoutine ? <Button kind="ghost" label={ROUTINE_COPY.action} a11yLabel={ROUTINE_COPY.actionLabel} onPress={onSaveRoutine} /> : null}
+      {onSaveRoutine ? <Button kind="ghost" label={ROUTINE_COPY.action} onPress={onSaveRoutine} /> : null}
       {shareNote ? <Note>{shareNote}</Note> : null}
       {Platform.OS === 'web' ? null : <ShareCard model={card} cardRef={cardRef} />}
     </Card>
