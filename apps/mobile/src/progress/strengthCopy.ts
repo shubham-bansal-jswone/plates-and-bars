@@ -1,5 +1,6 @@
 import type { ExType, PersonalRecord, WeightUnit } from '@plate-and-bar/core';
 import { weightNumber, weightWithUnit } from '../workout/unitText';
+import { e1rmChange } from './e1rm';
 
 export const STRENGTH_TITLE = 'Strength';
 export const STRENGTH_LOADING = 'Loading…';
@@ -12,17 +13,11 @@ export const PR_TITLE = 'Recent personal bests';
 export const PR_NONE = 'No personal bests yet.';
 export const PR_LABEL = 'Personal best';
 
-const DAY = 86_400_000;
-const days = (a: string, b: string): number => Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / DAY);
-
-/** "Bench Press e1RM 92 kg, up 5 kg in 12 weeks"; with no earlier point, just "Bench Press e1RM 92 kg". Amounts are taken in kg and converted once. */
+/** "Bench Press estimated 1-rep max 92 kg, up 5 kg in 12 weeks"; with no earlier point, just the first part. Spoken as it is shown (screen readers spell out "e1RM"). */
 export function strengthSentence(lift: string, last: { date: string; kg: number }, first: { date: string; kg: number } | null, unit: WeightUnit): string {
-  const now = `${lift} e1RM ${weightWithUnit(last.kg, unit)}`;
+  const now = `${lift} estimated 1-rep max ${weightWithUnit(last.kg, unit)}`;
   if (!first) return now;
-  const d = weightNumber(Math.abs(last.kg - first.kg), unit);
-  const n = days(first.date, last.date);
-  const span = n >= 14 ? `${Math.round(n / 7)} weeks` : n === 1 ? '1 day' : `${n} days`;
-  const move = d === 0 ? 'unchanged' : last.kg > first.kg ? `up ${d} ${unit}` : `down ${d} ${unit}`;
+  const { move, span } = e1rmChange(first, last, unit);
   return `${now}, ${move} in ${span}`;
 }
 

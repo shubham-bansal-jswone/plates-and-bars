@@ -1,4 +1,4 @@
-import { downsampleWeekly, e1rmHistory, mainLifts, type E1rmPoint, type ExType, type PrSet, type SeriesRange, type TrendPoint } from '@plate-and-bar/core';
+import { e1rmHistory, mainLifts, type ExType, type PrSet, type SeriesRange, type TrendPoint } from '@plate-and-bar/core';
 
 export interface LiftChoices {
   /** Core's top lifts (`mainLifts`), the chips. */
@@ -34,11 +34,7 @@ export function leadLift(c: LiftChoices, choice: string | null): string | null {
   return c.main[0] ?? c.more[0] ?? c.single;
 }
 
-/** e1RM points of one lift in each range, from the hook's per-range slices. Per range: one pass over that slice. */
-export function liftRanges(inRange: (end: string, range: SeriesRange) => PrSet[], end: string, lift: string, type: ExType | undefined): Record<SeriesRange, E1rmPoint[]> {
-  const of = (r: SeriesRange) => e1rmHistory(inRange(end, r).filter((s) => s.exercise === lift && !s.deleted_at), type);
-  return { '4w': of('4w'), '12w': of('12w'), all: of('all') };
+/** One lift's e1RM per day up to `end` (kg), oldest first, as chart points: from the hook's all-history slice, so RangedTrend picks the range. */
+export function liftSeries(inRange: (end: string, range: SeriesRange) => PrSet[], end: string, lift: string, type: ExType | undefined): TrendPoint[] {
+  return e1rmHistory(inRange(end, 'all').filter((s) => s.exercise === lift && !s.deleted_at), type).map((p) => ({ date: p.date, v: p.e1rm }));
 }
-
-/** Points as drawn: weekly past about 120 points. Kg, oldest first. */
-export const plotted = (pts: readonly E1rmPoint[]): TrendPoint[] => downsampleWeekly(pts.map((p) => ({ date: p.date, v: p.e1rm })), 'last');

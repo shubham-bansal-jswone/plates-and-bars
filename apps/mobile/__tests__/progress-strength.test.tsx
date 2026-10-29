@@ -1,6 +1,7 @@
 import { StyleSheet } from 'react-native';
 import { fireEvent, render, screen } from '@testing-library/react-native';
 import { addDays, type ExType, type PrSet } from '@plate-and-bar/core';
+import { dateWithYear } from '../src/format';
 import { StrengthSection } from '../src/progress/StrengthSection';
 import { setsBefore, setsInRange } from '../src/progress/setsView';
 import { E1RM_NOTE } from '../src/progress/E1rmTrend';
@@ -16,7 +17,8 @@ jest.mock('../src/state/ProfileProvider', () => ({ useProfile: () => ({ profile:
 jest.mock('../src/state/SettingsProvider', () => ({ useOptionalSettings: () => null }));
 jest.mock('../src/sync/useDataVersion', () => ({ useDataVersion: () => 0 }));
 let mockWidth = 800;
-jest.mock('react-native/Libraries/Utilities/useWindowDimensions', () => ({ __esModule: true, default: () => ({ width: mockWidth, height: 800, scale: 1, fontScale: 1 }) }));
+let mockFontScale = 1;
+jest.mock('react-native/Libraries/Utilities/useWindowDimensions', () => ({ __esModule: true, default: () => ({ width: mockWidth, height: 800, scale: 1, fontScale: mockFontScale }) }));
 
 const END = '2026-10-08';
 const hidden = { includeHiddenElements: true } as const;
@@ -31,7 +33,7 @@ const hook = (all: PrSet[], types: Record<string, ExType> = {}, o: Partial<Progr
 const show = (weights: { date: string; weight_kg: number; deleted_at?: string | null }[] = []) => render(<StrengthSection db={{} as never} date={END} weights={weights as never} />);
 const e1rm = (w: number, r = 5) => Math.round(w * (1 + r / 30) * 10) / 10;
 
-beforeEach(() => { mockUnit = 'kg'; mockWidth = 800; mockProfileKg = 80; });
+beforeEach(() => { mockFontScale = 1; mockUnit = 'kg'; mockWidth = 800; mockProfileKg = 80; });
 
 describe('lead lift and chips', () => {
   it('leads with the top lift by sessions and a sentence with the change over the range', async () => {
@@ -40,7 +42,7 @@ describe('lead lift and chips', () => {
     await show();
     const top = e1rm(77.5), first = e1rm(60);
     const d = Math.round((top - first) * 10) / 10;
-    const sentence = `Bench Press e1RM ${Math.round(top * 10) / 10} kg, up ${d} kg in 7 weeks`;
+    const sentence = `Bench Press estimated 1-rep max ${Math.round(top * 10) / 10} kg, up ${d} kg in 7 weeks`;
     expect(screen.getByLabelText(sentence)).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Bench Press' }).props.accessibilityState.selected).toBe(true);
     for (const n of ['Squat', 'Row']) expect(screen.getByRole('button', { name: n })).toBeTruthy();
@@ -50,7 +52,7 @@ describe('lead lift and chips', () => {
     mockHook = hook([...weekly('Bench Press', 8, 60), ...weekly('Squat', 4, 100)]);
     await show();
     await fireEvent.press(screen.getByRole('button', { name: 'Squat' }));
-    expect(screen.getByLabelText(new RegExp(`^Squat e1RM ${e1rm(107.5)} kg, up`))).toBeTruthy();
+    expect(screen.getByLabelText(new RegExp(`^Squat estimated 1-rep max ${e1rm(107.5)} kg, up`))).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Squat' }).props.accessibilityState.selected).toBe(true);
     expect(screen.getByRole('button', { name: 'Bench Press' }).props.accessibilityState.selected).toBe(false);
   });
@@ -85,7 +87,7 @@ describe('lead lift and chips', () => {
     mockHook = hook([...weekly('Push-up', 6, 0, 0).map((s) => ({ ...s, reps: 20 })), ...weekly('Squat', 4, 100)], { 'Push-up': 'bodyweight' });
     await show();
     expect(screen.queryByRole('button', { name: 'Push-up' })).toBeNull();
-    expect(screen.getByRole('image').props.accessibilityLabel).toMatch(/^Squat e1RM /);
+    expect(screen.getByRole('image').props.accessibilityLabel).toMatch(/^Squat estimated 1-rep max /);
   });
 });
 
@@ -184,6 +186,63 @@ describe('recent personal bests', () => {
   });
 });
 
+describe('more cases', () => {
+  it('a falling lift says "down" with a positive amount', async () => {
+    mockHook = hook(weekly('Bench Press', 4, 80, -2.5));
+    await show();
+    expect(screen.getByRole('image').props.accessibilityLabel).toMatch(/, down \d+(\.\d)? kg in 3 weeks$/);
+    expect(screen.queryByLabelText(/down -/)).toBeNull();
+  });
+
+  it('a chosen 4 weeks stays chosen: on a date where it has under 2 points the next wider range is drawn, and it comes back', async () => {
+    mockHook = hook([0, 7, 14, 21, 60, 90].map((n, i) => set(addDays(END, -n), 'Bench Press', 100 - i * 5, 5)));
+    const r = await show();
+    await fireEvent.press(screen.getByRole('button', { name: '4 weeks' }));
+    expect(screen.getByRole('image').props.accessibilityLabel).toMatch(/in 3 weeks$/);
+    const at = (d: string) => <StrengthSection db={{} as never} date={d} weights={[] as never} />;
+    await r.rerender(at(addDays(END, -40))); // 4 weeks holds one set; 12 weeks holds two, 30 days apart (4 weeks, rounded)
+    expect(screen.getByRole('button', { name: '4 weeks, not enough data' }).props.accessibilityState.disabled).toBe(true);
+    expect(screen.getByRole('image').props.accessibilityLabel).toMatch(/up 5.8 kg in 4 weeks$/);
+    await r.rerender(at(END));
+    expect(screen.getByRole('button', { name: '4 weeks' }).props.accessibilityState.selected).toBe(true);
+    expect(screen.getByRole('image').props.accessibilityLabel).toMatch(/in 3 weeks$/);
+  });
+
+  it('a timed-lift PR is worded in seconds', async () => {
+    mockHook = hook([set(addDays(END, -7), 'Plank', 0, 40), set(END, 'Plank', 0, 50)], { Plank: 'time' });
+    await show();
+    expect(screen.getByLabelText(/^Personal best, Plank, 50 sec in total, .*, \+10 sec on previous best$/)).toBeTruthy();
+  });
+
+  it('a record from a previous year shows its year', async () => {
+    mockHook = hook([set('2025-12-20', 'Squat', 100, 5), set('2025-12-27', 'Squat', 120, 5)]);
+    await show();
+    expect(screen.getByLabelText(new RegExp(`, ${dateWithYear('2025-12-27')}, `))).toBeTruthy();
+  });
+
+  it('only bodyweight lifts: the empty copy shows and the rep records still list', async () => {
+    mockHook = hook([set(addDays(END, -7), 'Push-up', 0, 20), set(END, 'Push-up', 0, 25)], { 'Push-up': 'bodyweight' });
+    await show();
+    expect(screen.getByText('Log a few sessions with weights and your strength trend shows here.')).toBeTruthy();
+    expect(screen.getAllByLabelText(/^Personal best, Push-up/)).toHaveLength(1);
+  });
+
+  it('the narrow rule counts large text: 3 rows at 768 with font scale 2, 5 at exactly 400 only with scale 1', async () => {
+    mockHook = hook(weekly('Bench Press', 9, 60));
+    mockWidth = 768; mockFontScale = 2;
+    await show();
+    expect(screen.getAllByLabelText(/^Personal best,/)).toHaveLength(3);
+    await screen.unmount();
+    mockWidth = 400; mockFontScale = 1;
+    await show();
+    expect(screen.getAllByLabelText(/^Personal best,/)).toHaveLength(3); // 400 is still narrow
+    await screen.unmount();
+    mockWidth = 401;
+    await show();
+    expect(screen.getAllByLabelText(/^Personal best,/)).toHaveLength(5);
+  });
+});
+
 describe('states', () => {
   it('loading shows "Loading…" and no lift', async () => {
     mockHook = hook([], {}, { loading: true });
@@ -205,7 +264,7 @@ describe('states', () => {
     mockHook = hook(weekly('Bench Press', 6, 60), {}, { loading: true });
     await show();
     expect(screen.queryByText('Loading…')).toBeNull();
-    expect(screen.getByRole('image').props.accessibilityLabel).toMatch(/^Bench Press e1RM /);
+    expect(screen.getByRole('image').props.accessibilityLabel).toMatch(/^Bench Press estimated 1-rep max /);
   });
 
   it('empty history shows the empty copy', async () => {
@@ -217,7 +276,7 @@ describe('states', () => {
   it('one point shows the number and the sentence only: no chart, range control or table', async () => {
     mockHook = hook([set(END, 'Bench Press', 80, 5)]);
     await show();
-    expect(screen.getByText(`Bench Press e1RM ${e1rm(80)} kg`)).toBeTruthy();
+    expect(screen.getByText(`Bench Press estimated 1-rep max ${e1rm(80)} kg`)).toBeTruthy();
     expect(screen.getByText(`${e1rm(80)} kg`, hidden)).toBeTruthy();
     expect(screen.queryByRole('image')).toBeNull();
     expect(screen.queryByRole('button', { name: '12 weeks' })).toBeNull();
@@ -231,7 +290,7 @@ describe('units and spoken label', () => {
     mockHook = hook(weekly('Bench Press', 4, 60));
     await show();
     // 67.5 kg x5 -> 78.75 kg = 173.6 lb; the change 78.8 - 70 = 8.8 kg = 19.4 lb, taken in kg and converted once
-    expect(screen.getByLabelText('Bench Press e1RM 173.7 lb, up 19.4 lb in 3 weeks')).toBeTruthy();
+    expect(screen.getByLabelText('Bench Press estimated 1-rep max 173.7 lb, up 19.4 lb in 3 weeks')).toBeTruthy();
     expect(screen.getByText('8 Oct · +6.6 lb on previous best')).toBeTruthy(); // 3 kg gain
     expect(screen.queryByText(/ kg/)).toBeNull();
   });
@@ -253,6 +312,6 @@ describe('units and spoken label', () => {
     mockHook = hook([set(END, 'Bench Press', 80, 5)]);
     await show();
     expect(screen.getByTestId('lead-number', hidden).props['aria-hidden']).toBe(true);
-    expect(screen.getByText(`Bench Press e1RM ${e1rm(80)} kg`).parent?.props['aria-hidden']).toBeUndefined();
+    expect(screen.getByText(`Bench Press estimated 1-rep max ${e1rm(80)} kg`).parent?.props['aria-hidden']).toBeUndefined();
   });
 });
