@@ -5,7 +5,7 @@ import { useFocusEffect } from 'expo-router';
 import { AccessibilityInfo, Platform, StyleSheet, Text as RNText, useWindowDimensions, View } from 'react-native';
 import { useDataVersion } from '../sync/useDataVersion';
 import { Text } from '../components/Text';
-import { HAND_PICKED, ROUTINE_EXERCISES_MAX, routineFromSession, modsNote, overridesFromSettings, plannedCoverage, type WeekPlan, secondSessionChoices, sessionVolume, beginnerRamp, checkinFlags, isFocus, nextInList, coverageTemplates, mondayOf, planned, restFor, warmupRamp, type Checkin, isLearning, exInfo, fromKg, infoForUnit, priorSessions, REST_EXTEND_SEC, type ExclusionReason } from '@plate-and-bar/core';
+import { HAND_PICKED, ROUTINE_EXERCISES_MAX, routineFromSession, modsNote, overridesFromSettings, isExcluded, plannedCoverage, type WeekPlan, secondSessionChoices, sessionVolume, beginnerRamp, checkinFlags, isFocus, nextInList, coverageTemplates, mondayOf, planned, restFor, warmupRamp, type Checkin, isLearning, exInfo, fromKg, infoForUnit, priorSessions, REST_EXTEND_SEC, type ExclusionReason } from '@plate-and-bar/core';
 import { fmt } from '../format';
 import { ClearanceCard } from '../components/ClearanceCard';
 import { Button, Card, Chip, Disclosure, H1, Hint, MetricRow, Note, Page, useScrollToTopOn } from '../components/ui';
@@ -17,7 +17,7 @@ import { useSettings } from '../state/SettingsProvider';
 import { useTheme } from '../theme/useTheme';
 import { buildSession } from '../workout/buildSession';
 import { getCatalog } from '../workout/catalog';
-import { CHECKIN, REASON_TEXT, listJoin, modsNoteText, muscleName, ROUTINE_COPY } from '../workout/copy';
+import { CHECKIN, REASON_TEXT, listJoin, modsNoteText, muscleName, ROUTINE_COPY, MY_ROUTINES } from '../workout/copy';
 import { ExerciseCard, type Actions } from '../workout/ExerciseCard';
 import { AddExerciseFlow } from '../workout/AddExerciseFlow';
 import { BodyMap } from '../workout/BodyMap';
@@ -32,6 +32,7 @@ import { ModeNote, WeekTools } from '../workout/ScheduleTools';
 import { CantSheet } from '../workout/CantSheet';
 import { CompletionPanel } from '../workout/CompletionPanel';
 import { SaveRoutineSheet } from '../workout/SaveRoutineSheet';
+import { RoutinesSection } from '../workout/RoutinesSection';
 import { FinishWorkout } from '../workout/FinishWorkout';
 import { focusNode } from '../labelscan/focus';
 import { LibraryEntryButton } from '../library/LibraryEntryButton';
@@ -127,7 +128,7 @@ export function WorkoutScreen({ db, now = () => new Date() }: Props) {
   else {
     const body =
       day.exs.length === 0 ? (
-        <StartView key={w.date} now={now} w={w} labHold={labHold === true} profile={profile} focus={focus} rules={rulesApi} notify={notify} tune={tune} />
+        <StartView key={w.date} now={now} db={db} w={w} labHold={labHold === true} profile={profile} focus={focus} rules={rulesApi} notify={notify} tune={tune} />
       ) : (
         <SessionView key={w.date} now={now} db={db} reloadKey={shown + dataVersion} w={w} profile={profile} focus={focus} rules={rulesApi} notify={notify} tune={tune} onHowTo={setHowTo} onCant={(i, name, reason) => setCantName(reason ? { i, name, reason } : { i, name })} />
       );
@@ -190,7 +191,7 @@ const WHERE_CHOICES: [NonNullable<Workout['where']>, string][] = [['gym', 'Norma
 type W = ReturnType<typeof useWorkoutDay>;
 type Prof = NonNullable<ReturnType<typeof useProfile>['profile']>;
 
-function StartView({ now, w, labHold, profile, focus, rules, notify, tune }: { now: () => Date; w: W; labHold: boolean; profile: Prof; focus: readonly string[]; rules: ReturnType<typeof useRules>; notify: (msg: string) => void; tune: Tuning }) {
+function StartView({ now, db, w, labHold, profile, focus, rules, notify, tune }: { now: () => Date; db: WorkoutDb; w: W; labHold: boolean; profile: Prof; focus: readonly string[]; rules: ReturnType<typeof useRules>; notify: (msg: string) => void; tune: Tuning }) {
   const c = useTheme();
   const { date, day } = w;
   const { settings } = useSettings();
@@ -308,6 +309,9 @@ function StartView({ now, w, labHold, profile, focus, rules, notify, tune }: { n
       {previewT ? <Button label="Back to workouts" kind="link" onPress={back} /> : null}
     </>
   ) : null;
+
+  // Saved routines sit beside the plan, not in place of it; they are hidden while a preview or a pick list is open.
+  const routinesView = previewT || picked.length ? null : <RoutinesSection db={db} notify={notify} onStart={(r) => void w.startFromRoutine(r.exercises, override, choice)} />;
 
   const cards = (
     <>
@@ -468,6 +472,7 @@ function StartView({ now, w, labHold, profile, focus, rules, notify, tune }: { n
             {hero}
             {checkin}
             {action}
+            {routinesView}
             {disclosures}
             {cardio}
           </View>
@@ -490,6 +495,7 @@ function StartView({ now, w, labHold, profile, focus, rules, notify, tune }: { n
       {musclesView}
       {exerciseList}
       {notes}
+      {routinesView}
       {disclosures}
       {cardio}
       {flow}
@@ -523,6 +529,8 @@ function SessionView({ now, db, reloadKey, w, profile, focus, rules, notify, tun
       if (s.done) done++;
     }
   const notes = modsNote(wk.mods).map(modsNoteText);
+  // A routine session (or any hand-picked one) can hold a name the library no longer has, or one the user's rules exclude: flagged, kept until removed.
+  const flagged = wk.template === HAND_PICKED ? day.exs.flatMap((e): [string, 'unknown' | 'excluded'][] => (!getCatalog().tags[e.name] ? [[e.name, 'unknown']] : isExcluded(e.name, rules.rules.exclusions, getCatalog().tags) ? [[e.name, 'excluded']] : [])) : [];
   const choices = secondSessionChoices({ exercises: day.exs, template: wk.template, base: wk.base }, profile);
   const vol = sessionVolume(day.exs);
   const { primary: mainMuscles, secondary: alsoMuscles } = musclesOf(day.exs.map((e) => e.name));
@@ -632,6 +640,14 @@ function SessionView({ now, db, reloadKey, w, profile, focus, rules, notify, tun
       {/* Once every set is ticked the completion panel shows the burn estimate; showing it here too would repeat it. */}
       {complete ? null : <BurnLine db={db} date={date} profileKg={profile.weight_kg} exs={day.exs} cardio={wk.cardio_min} reloadKey={reloadKey} />}
       {notes.length ? <Note>Today: {notes.join('; ')}.</Note> : null}
+      {flagged.map(([n, reason]) => (
+        <View key={n} style={styles.wrap}>
+          <View style={styles.fill}>
+            <Note>{reason === 'unknown' ? MY_ROUTINES.unknown(n) : MY_ROUTINES.excluded(n)}</Note>
+          </View>
+          <Chip label={MY_ROUTINES.removeLabel(n)} text={MY_ROUTINES.remove} onPress={() => void (w.removeExercise(n) && notify(`${n} removed`))} />
+        </View>
+      ))}
       <View style={{ width: '100%', maxWidth: 560, alignSelf: 'center' }}>
         <CompletionPanel headingRef={panelHeading} db={db} date={date} profileKg={profile.weight_kg} exs={day.exs} cardio={wk.cardio_min} lifts={day.lifts} reloadKey={reloadKey} {...(routine.length ? { onSaveRoutine: () => setSavingRoutine(true) } : {})} />
       </View>

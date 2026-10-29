@@ -140,3 +140,28 @@ export const ROUTINE_COPY = {
   failed: 'Couldn’t save the routine. Try again.',
   saved: (name: string) => `Saved “${name}” as a routine`,
 };
+
+/** "My routines" on the Workout start screen (#1184). */
+export const MY_ROUTINES = {
+  title: 'My routines',
+  count: (n: number) => `${n} ${n === 1 ? 'exercise' : 'exercises'}`,
+  start: 'Start',
+  startLabel: (name: string) => `Start ${name}`,
+  more: 'Edit',
+  moreLabel: (name: string) => `Edit ${name}`,
+  rename: 'Rename',
+  renameLabel: 'Routine name',
+  delete: 'Delete routine',
+  close: 'Close',
+  deleted: (name: string) => `Deleted “${name}”.`,
+  undo: 'Undo',
+  undoLabel: (name: string) => `Undo delete of ${name}`,
+  restored: (name: string) => `Restored “${name}”`,
+  renamed: (name: string) => `Renamed to “${name}”`,
+  failed: 'Couldn’t save that. Try again.',
+  missing: 'This routine is gone. It may have been deleted on another device.',
+  unknown: (name: string) => `${name} is no longer in the exercise library. Remove it, or keep it and log it yourself.`,
+  excluded: (name: string) => `${name} is excluded by your exercise rules. Remove it, or keep it for today.`,
+  removeLabel: (name: string) => `Remove ${name} from this session`,
+  remove: 'Remove',
+};
