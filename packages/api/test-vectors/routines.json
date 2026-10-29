@@ -687,6 +687,63 @@
    }
   },
   {
+   "note": "group of 37 characters",
+   "field": "exercises.group",
+   "record": {
+    "name": "R",
+    "exercises": [
+     {
+      "name": "Squat",
+      "sets": 3,
+      "group": "1111111111111111111111111111111111111"
+     },
+     {
+      "name": "Row",
+      "sets": 3,
+      "group": "1111111111111111111111111111111111111"
+     }
+    ]
+   }
+  },
+  {
+   "note": "group with a space",
+   "field": "exercises.group",
+   "record": {
+    "name": "R",
+    "exercises": [
+     {
+      "name": "Squat",
+      "sets": 3,
+      "group": "a b"
+     },
+     {
+      "name": "Row",
+      "sets": 3,
+      "group": "a b"
+     }
+    ]
+   }
+  },
+  {
+   "note": "group empty",
+   "field": "exercises.group",
+   "record": {
+    "name": "R",
+    "exercises": [
+     {
+      "name": "Squat",
+      "sets": 3,
+      "group": ""
+     },
+     {
+      "name": "Row",
+      "sets": 3,
+      "group": ""
+     }
+    ]
+   }
+  },
+  {
    "note": "21 unknown keys",
    "field": "exercises.unknown_key",
    "record": {
