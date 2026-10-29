@@ -224,10 +224,11 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
   };
 
   // First run: the milestones already earned count as shown before any tick, so old history never toasts (#1351 A9). Queued, so a tick waits for it.
-  const msRef = useRef({ profile, unit: tune.unit ?? 'kg', overrides: tune.overrides ?? {}, end: '' });
+  const unit = tune.unit ?? 'kg';
+  const msRef = useRef({ profile, unit, overrides: tune.overrides ?? {}, end: '' });
   useEffect(() => {
     const today = localDate(now());
-    msRef.current = { profile, unit: tune.unit ?? 'kg', overrides: tune.overrides ?? {}, end: date > today ? date : today };
+    msRef.current = { profile, unit, overrides: tune.overrides ?? {}, end: date > today ? date : today };
   });
   const hasProfile = !!profile;
   /**
