@@ -338,7 +338,7 @@ describe('kitchen test photos on a pulled delete', () => {
       const { db, server, deps } = await setup();
       await put(db, local('Dal'));
       server.seed('kitchen_tests', kt('k1', '2026-10-09T06:00:00Z'));
-      expect(await syncOnce(deps)).toMatchObject({ status: 'ok', conflicts: 1, pulled: 0 });
+      expect(await syncOnce(deps)).toMatchObject({ status: 'ok', conflicts: 1, pulled: 1 });
       expect(JSON.parse((await db.getFirstAsync<{ data: string }>("SELECT data FROM kitchen_tests WHERE key = 'k1'"))!.data).deleted_at).toMatch(/^2026-10-09T06:00:00/);
       expect(deleteKitchenPhoto).toHaveBeenCalledTimes(1);
       expect(deleteKitchenPhoto).toHaveBeenCalledWith('k1');

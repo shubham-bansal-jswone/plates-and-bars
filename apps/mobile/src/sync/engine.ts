@@ -46,7 +46,7 @@ export interface SyncResult {
   retryAfterSec?: number;
   /** Real conflicts the server resolved this run (idempotent retries are not counted). */
   conflicts: number;
-  /** Pulled records stored this run. */
+  /** Pulled records stored this run, plus server copies adopted or merged in on a push conflict (screens reload when it is above 0). */
   pulled?: number;
   /** Pushed records the server applied this run. */
   pushed?: number;
@@ -622,9 +622,13 @@ async function run(d: SyncDeps): Promise<SyncResult> {
         // is an idempotent `server_won` with no copy at all (the same content as this push): nothing to merge, the stored copy is adopted.
         const other = c.resolution === 'client_won' ? (c.replaced_record as unknown as Doc | undefined) : same ? undefined : server;
         let merged: Workout | null = null;
+        // True when a stored row's content changed on this device (the server copy was adopted, or another device's edits were merged in).
+        // Counted toward `pulled` so screens reload (`dataVersion`), like a pulled row.
+        let changed = false;
         // Another device's day against this device's: keep what this one added (see `mergedWorkout`); written after the clear, so it is pushed again.
         const merge = async (txn: WorkoutDb, clean: boolean) => {
           if (clean && other && s.entry.tbl === 'workouts') merged = await mergedWorkout(txn, s.entry.key, other, server, c.server_version, neverSeen, bases.get(s.entry.key));
+          if (merged) changed = true;
         };
         const requeue = async (txn: WorkoutDb) => {
           if (!merged) return;
@@ -647,6 +651,7 @@ async function run(d: SyncDeps): Promise<SyncResult> {
             },
             requeue,
           );
+          if (changed) pulled++;
           continue;
         }
         conflicts++;
@@ -664,6 +669,7 @@ async function run(d: SyncDeps): Promise<SyncResult> {
           },
           requeue,
         );
+        if (adopted) pulled++;
         // The server's copy of a kitchen test is a tombstone and now stands here: its vault photo goes too.
         if (adopted && s.entry.tbl === 'kitchen_tests' && server.deleted_at) await deleteKitchenPhoto(s.entry.key).catch(() => undefined);
       }

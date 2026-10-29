@@ -29,7 +29,7 @@ const LANES = {
 // its source tools list has no Bash.
 const EXCLUDED = new Set(["ui-qa"]);
 
-import { readdirSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { readdirSync, readFileSync, writeFileSync, mkdirSync, rmSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -119,6 +119,10 @@ function main() {
     const out = render(name, parsed, tools);
     writeFileSync(join(outDir, file), out, "utf8");
     written.push(name);
+  }
+  // Prune generated files whose source agent was removed, renamed or excluded.
+  for (const f of readdirSync(outDir).filter((f) => f.endsWith(".md"))) {
+    if (!written.includes(f.replace(/\.md$/, ""))) rmSync(join(outDir, f));
   }
   console.log(`Wrote ${written.length} agents to .opencode/agents: ${written.join(", ")}`);
 }
