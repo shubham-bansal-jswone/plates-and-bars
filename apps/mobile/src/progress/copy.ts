@@ -68,6 +68,7 @@ export const SCALE_JUMP_BODY = 'That’s almost certainly water, not fat. Your w
 // Chart range control and table alternative (#1351 A1).
 export const RANGE_LABEL: Readonly<Record<SeriesRange, string>> = { '4w': '4 weeks', '12w': '12 weeks', all: 'All' };
 export const RANGE_NO_DATA = (range: SeriesRange): string => `${RANGE_LABEL[range]}: not enough data`;
+export const RANGE_OFF_LABEL = (range: SeriesRange): string => `${RANGE_LABEL[range]}, not enough data`;
 export const RANGE_GROUP = (noun: string): string => `${noun} range`;
 export const CHART_TARGET = (value: string, unit: string): string => `Target ${value} ${unit}`;
 export const TABLE_SHOW = 'Show as table';

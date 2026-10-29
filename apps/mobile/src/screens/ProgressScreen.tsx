@@ -42,6 +42,7 @@ interface Props {
 }
 
 const RECENT_WEIGH_INS = 7;
+const sameCm = (cm: number): number => cm;
 const r1 = (n: number): string => round1(n).toString();
 
 /** Progress tab, body data: weight entry, tape measurements with the navy body-fat estimate, and steps and sleep. */
@@ -120,6 +121,7 @@ function WeightSection({ p }: { p: Progress }) {
   const [text, setText] = useStoredText(mine ? formatWeight(mine.weight_kg, unit) : '');
   const latest = latestWeight(p.weights, p.date);
   const recent = p.weights.filter((w) => !w.deleted_at && w.date <= p.date).sort((a, b) => b.date.localeCompare(a.date)).slice(0, RECENT_WEIGH_INS);
+  const toShown = useCallback((kg: number) => weightNumber(kg, unit), [unit]);
   const kgSeries = useMemo(() => weightSeries(p.weights, p.date, Infinity), [p.weights, p.date]);
   return (
     <Card style={styles.section}>
@@ -132,7 +134,7 @@ function WeightSection({ p }: { p: Progress }) {
       <RangedTrend
         series={kgSeries}
         end={p.date}
-        convert={(kg) => weightNumber(kg, unit)}
+        convert={toShown}
         unit={unit}
         noun="Weight"
         box={WEIGHT_CHART_BOX}
@@ -186,7 +188,7 @@ function MeasureSection({ p, isToday }: { p: Progress; isToday: boolean }) {
           <RangedTrend
             series={waist}
             end={p.date}
-            convert={(cm) => cm}
+            convert={sameCm}
             unit="cm"
             noun="Waist"
             box={WAIST_CHART_BOX}

@@ -4,29 +4,29 @@ import { Text } from '../components/Text';
 import { Press, a11yState } from '../components/ui';
 import { CHART_MAX_WIDTH, radius, space, type as typeScale } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
-import { RANGE_GROUP, RANGE_LABEL, RANGE_NO_DATA } from './copy';
+import { RANGE_GROUP, RANGE_LABEL, RANGE_OFF_LABEL } from './copy';
 
 export const RANGES: readonly SeriesRange[] = ['4w', '12w', 'all'];
 
 /**
  * A segmented control for a chart's range: three equal 44px segments, the chosen one filled and bold. A segment in `disabled` cannot
- * be chosen; its reason is spoken as its hint, and the caller shows `RANGE_NO_DATA` as text beside the control.
+ * be chosen; its reason is part of its label, and the caller shows `RANGE_NO_DATA` as text beside the control.
  */
 export function RangeControl({ value, disabled, onChange, noun }: { value: SeriesRange; disabled: ReadonlySet<SeriesRange>; onChange: (r: SeriesRange) => void; noun: string }) {
   const c = useTheme();
   return (
-    <View accessibilityRole="tablist" accessibilityLabel={RANGE_GROUP(noun)} style={styles.row}>
+    <View accessibilityRole="group" accessibilityLabel={RANGE_GROUP(noun)} style={styles.row}>
       {RANGES.map((r) => {
         const selected = r === value;
         const off = disabled.has(r);
         return (
           <Press
             key={r}
-            accessibilityRole="tab"
-            accessibilityLabel={RANGE_LABEL[r]}
-            accessibilityHint={off ? RANGE_NO_DATA(r) : undefined}
+            accessibilityRole="button"
+            // The reason is in the label: react-native-web does not carry accessibilityHint.
+            accessibilityLabel={off ? RANGE_OFF_LABEL(r) : RANGE_LABEL[r]}
             disabled={off}
-            {...a11yState({ selected, disabled: off || undefined })}
+            {...a11yState({ pressed: selected, disabled: off || undefined })}
             onPress={() => onChange(r)}
             style={[styles.seg, { backgroundColor: selected ? c.brand : c.surfaceSoft }, off && styles.off]}
           >

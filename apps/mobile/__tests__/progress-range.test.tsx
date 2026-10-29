@@ -1,6 +1,6 @@
 import { StyleSheet } from 'react-native';
 import { fireEvent, render, screen } from '@testing-library/react-native';
-import { addDays, WEIGHT_CHART_BOX, type TrendPoint } from '@plate-and-bar/core';
+import { addDays, mondayOf, WEIGHT_CHART_BOX, type TrendPoint } from '@plate-and-bar/core';
 import { dateWithYear, shortDate } from '../src/format';
 import { saveWeight } from '../src/db/progress';
 import { saveProfile } from '../src/db/records';
@@ -26,30 +26,32 @@ const END = '2026-10-08';
 /** One reading a week, `weeks` weeks back from END: 80 kg now, 0.5 kg heavier for each week further back. */
 const weekly = (weeks: number, end = END): TrendPoint[] =>
   Array.from({ length: weeks }, (_, i) => ({ date: addDays(end, -7 * (weeks - 1 - i)), v: 80 + (weeks - 1 - i) * 0.5 }));
+const same = (v: number): number => v;
 const change = (ch: { direction: string; amount: number; since: string }) => `${ch.direction} ${ch.amount} since ${ch.since}`;
 
 function trend(series: readonly TrendPoint[], end = END) {
   return render(<RangedTrend series={series} end={end} convert={(v) => v} unit="kg" noun="Weight" box={WEIGHT_CHART_BOX} changeLine={change} />);
 }
-const tab = (name: string) => screen.getByRole('tab', { name });
+const tab = (name: string) => screen.getByRole('button', { name });
+const hidden = { includeHiddenElements: true } as const;
 
 describe('RangedTrend range control', () => {
   it('defaults to 12 weeks and the summary and change line follow the first and last plotted points', async () => {
     await trend(weekly(30)); // 12 weeks back from END is 84 days: 13 weekly points, 86 kg to 80 kg
     expect(tab('12 weeks').props.accessibilityState.selected).toBe(true);
-    expect(screen.getAllByText('Weight from 86 to 80 kg')).toHaveLength(1);
+    expect(screen.getAllByText('Weight from 86 to 80 kg', hidden)).toHaveLength(1);
     expect(screen.getByText(`down 6 since ${addDays(END, -84)}`)).toBeTruthy();
   });
 
   it('4 weeks and All redraw with their own first point', async () => {
     await trend(weekly(30));
     await fireEvent.press(tab('4 weeks'));
-    expect(screen.getByText('Weight from 82 to 80 kg')).toBeTruthy(); // 28 days back is 82 kg
+    expect(screen.getByText('Weight from 82 to 80 kg', hidden)).toBeTruthy(); // 28 days back is 82 kg
     expect(screen.getByText(`down 2 since ${addDays(END, -28)}`)).toBeTruthy();
     expect(tab('4 weeks').props.accessibilityState.selected).toBe(true);
     expect(tab('12 weeks').props.accessibilityState.selected).toBe(false);
     await fireEvent.press(tab('All'));
-    expect(screen.getByText('Weight from 94.5 to 80 kg')).toBeTruthy(); // 29 weeks back
+    expect(screen.getByText('Weight from 94.5 to 80 kg', hidden)).toBeTruthy(); // 29 weeks back
     expect(screen.getByText(`down 14.5 since ${addDays(END, -203)}`)).toBeTruthy();
   });
 
@@ -67,38 +69,67 @@ describe('RangedTrend range control', () => {
     await fireEvent.press(screen.getByRole('button', { name: 'Show all' }));
     const rows = screen.getAllByLabelText(/, \d+(\.\d)? kg$/).length;
     expect(rows).toBeLessThan(40); // about 29 weeks, not 200 days
-    expect(screen.getByText(/^Weight from 89\.\d to 70 kg$/)).toBeTruthy();
+    // The change line starts at the plotted first point (the last day of the oldest Monday-week), not the raw first day.
+    const oldest = addDays(END, -199);
+    const since = daily.filter((p) => mondayOf(p.date) === mondayOf(oldest)).slice(-1)[0] as TrendPoint;
+    expect(screen.getByText(`down ${Math.round((since.v - 70) * 10) / 10} since ${since.date}`)).toBeTruthy();
+    expect(screen.getByText(/^Weight from 89\.\d to 70 kg$/, hidden)).toBeTruthy();
   });
 
   it('disables a range with fewer than 2 points and says why', async () => {
     await trend([{ date: addDays(END, -100), v: 85 }, { date: addDays(END, -90), v: 84 }, { date: END, v: 80 }]);
     // 12 weeks holds only the last point.
-    expect(tab('4 weeks').props.accessibilityState.disabled).toBe(true);
-    expect(tab('12 weeks').props.accessibilityState.disabled).toBe(true);
+    expect(tab('4 weeks, not enough data').props.accessibilityState.disabled).toBe(true);
+    expect(tab('12 weeks, not enough data').props.accessibilityState.disabled).toBe(true);
     expect(tab('All').props.accessibilityState.disabled).toBeFalsy();
     expect(screen.getByText('4 weeks: not enough data')).toBeTruthy();
     expect(screen.getByText('12 weeks: not enough data')).toBeTruthy();
     // The chosen range has no data, so the next wider one is drawn and selected.
     expect(tab('All').props.accessibilityState.selected).toBe(true);
-    expect(screen.getByText('Weight from 85 to 80 kg')).toBeTruthy();
-    await fireEvent.press(tab('4 weeks'));
+    expect(screen.getByText('Weight from 85 to 80 kg', hidden)).toBeTruthy();
+    await fireEvent.press(tab('4 weeks, not enough data'));
     expect(tab('All').props.accessibilityState.selected).toBe(true);
+  });
+
+  it('follows a new viewed date while mounted, with the same series object', async () => {
+    const series = weekly(30).filter((p) => p.date <= addDays(END, -98));
+    const view = (end: string) => <RangedTrend series={series} end={end} convert={same} unit="kg" noun="Weight" box={WEIGHT_CHART_BOX} changeLine={change} />;
+    const { rerender } = await render(view(addDays(END, -98)));
+    expect(screen.getByText(`down 6 since ${addDays(END, -182)}`)).toBeTruthy();
+    await rerender(view(addDays(END, -70))); // 12 weeks back from here starts 4 weeks later
+    expect(screen.getByText(`down 4 since ${addDays(END, -154)}`)).toBeTruthy();
+  });
+
+  it('keeps the choice through a fallback: only what is drawn changes, and 4 weeks returns with data', async () => {
+    const all = weekly(30);
+    const gap = addDays(END, -50); // up to here the last 4 weeks hold at most the last point... pick a date whose 4w window is empty of points
+    const series = all.filter((p) => p.date <= END && (p.date <= gap || p.date === END));
+    const view = (end: string) => <RangedTrend series={series.filter((p) => p.date <= end)} end={end} convert={same} unit="kg" noun="Weight" box={WEIGHT_CHART_BOX} changeLine={change} />;
+    const { rerender } = await render(view(addDays(gap, 0)));
+    await fireEvent.press(tab('4 weeks'));
+    expect(tab('4 weeks').props.accessibilityState.selected).toBe(true);
+    await rerender(view(END)); // 4 weeks holds one point: drawn as 12 weeks
+    expect(tab('4 weeks, not enough data').props.accessibilityState.selected).toBe(false);
+    expect(tab('12 weeks').props.accessibilityState.selected).toBe(true);
+    await rerender(view(addDays(gap, 0)));
+    expect(tab('4 weeks').props.accessibilityState.selected).toBe(true);
   });
 
   it('with fewer than 2 points anywhere it shows the log-more note and no control', async () => {
     await trend([{ date: END, v: 80 }]);
     expect(screen.getByText('Log a few weigh-ins to see your trend line here.')).toBeTruthy();
-    expect(screen.queryByRole('tab')).toBeNull();
+    expect(screen.queryByRole('button', { name: /weeks|^All/ })).toBeNull();
   });
 
   it('the chart label is the visible summary', async () => {
     await trend(weekly(30));
     const summary = 'Weight from 86 to 80 kg';
     expect(screen.getByRole('image').props.accessibilityLabel).toBe(summary);
-    expect(screen.getByText(summary)).toBeTruthy();
+    expect(screen.getByText(summary, hidden)).toBeTruthy();
+    expect(screen.queryByText(summary)).toBeNull(); // the visible copy is hidden from assistive tech: the image label says it once
     await fireEvent.press(tab('All'));
     expect(screen.getByRole('image').props.accessibilityLabel).toBe('Weight from 94.5 to 80 kg');
-    expect(screen.getByText('Weight from 94.5 to 80 kg')).toBeTruthy();
+    expect(screen.getByText('Weight from 94.5 to 80 kg', hidden)).toBeTruthy();
   });
 
   it('every segment is at least 44px tall', async () => {
@@ -186,6 +217,16 @@ describe('TrendChart additions', () => {
     expect(screen.getByText('Target 78 kg')).toBeTruthy();
   });
 
+  it('a target moves the line vertically only: every circle keeps its x', async () => {
+    const cx = () => walk('RNSVGCircle').map((n) => JSON.stringify(n.props).match(/"cx":([\d.]+)/)?.[1]);
+    await render(<TrendChart points={pts} box={box} label="Weight" unit="kg" />);
+    const without = cx();
+    await screen.unmount();
+    await render(<TrendChart points={pts} box={box} label="Weight" unit="kg" target={78} />);
+    expect(cx()).toEqual(without);
+    expect(without.length).toBe(2);
+  });
+
   it('is capped at CHART_MAX_WIDTH', async () => {
     expect(CHART_MAX_WIDTH).toBe(560);
     await render(<TrendChart points={pts} box={box} label="Weight" />);
@@ -210,15 +251,15 @@ describe('Progress screen range and unit', () => {
 
   it('switching to All on the weight card changes the summary (kg)', async () => {
     await mount('kg');
-    expect(screen.getByText('Weight from 86 to 80 kg')).toBeTruthy();
-    await fireEvent.press(screen.getByRole('tab', { name: 'All' }));
-    expect(screen.getByText('Weight from 94.5 to 80 kg')).toBeTruthy();
+    expect(screen.getByText('Weight from 86 to 80 kg', hidden)).toBeTruthy();
+    await fireEvent.press(screen.getByRole('button', { name: 'All' }));
+    expect(screen.getByText('Weight from 94.5 to 80 kg', hidden)).toBeTruthy();
     expect(screen.getByLabelText('Weight from 94.5 to 80 kg')).toBeTruthy();
   });
 
   it('in lb the summary, change line and table are converted once', async () => {
     await mount('lb');
-    expect(screen.getByText('Weight from 189.6 to 176.4 lb')).toBeTruthy(); // 86 kg to 80 kg
+    expect(screen.getByText('Weight from 189.6 to 176.4 lb', hidden)).toBeTruthy(); // 86 kg to 80 kg
     expect(screen.getByText(/^Down 13\.2 lb since /)).toBeTruthy(); // 6 kg
     await fireEvent.press(screen.getByRole('button', { name: 'Show as table' }));
     expect(screen.getByLabelText(`${dateWithYear(END)}, 176.4 lb`)).toBeTruthy();

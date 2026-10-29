@@ -15,7 +15,7 @@ interface Props {
   /** The date being viewed: ranges count back from it. */
   end: string;
   /** Stored unit to shown unit, applied to each point and to the size of the change (so the change is taken exactly, then converted once). */
-  convert: (stored: number) => number;
+  convert: (stored: number) => number; // keep it stable (useCallback): the series are recomputed when it changes
   unit: string;
   /** "Weight", "Waist". */
   noun: string;
@@ -35,22 +35,32 @@ export function RangedTrend({ series, end, convert, unit, noun, box, changeLine,
   const [choice, setChoice] = useState<SeriesRange>(DEFAULT_RANGE);
   const ranged = useMemo(() => Object.fromEntries(RANGES.map((r) => [r, rangeSeries(series, end, r)])) as Record<SeriesRange, TrendPoint[]>, [series, end]);
   const disabled = new Set(RANGES.filter((r) => ranged[r].length < 2));
-  if (disabled.has('all')) return <Hint>{none}</Hint>;
+  // Only what is drawn changes with the choice: the choice itself is kept, so moving back to a date with data restores it.
   const range = RANGES.slice(RANGES.indexOf(choice)).find((r) => !disabled.has(r)) ?? 'all';
-  const plotted = downsampleWeekly(ranged[range], 'last');
-  const shown = plotted.map((p) => ({ ...p, v: convert(p.v) }));
-  const t = trendChange(plotted);
-  const amount = t ? round1(convert(Math.abs(t.diff))) : 0;
-  const first = shown[0], last = shown[shown.length - 1];
-  const summary = first && last ? TREND_SUMMARY(noun, first.v, last.v, unit) : '';
+  const view = useMemo(() => {
+    const plotted = downsampleWeekly(ranged[range], 'last');
+    const shown = plotted.map((p) => ({ ...p, v: convert(p.v) }));
+    const t = trendChange(plotted);
+    const first = shown[0], last = shown[shown.length - 1];
+    return {
+      shown,
+      t,
+      amount: t ? round1(convert(Math.abs(t.diff))) : 0,
+      summary: first && last ? TREND_SUMMARY(noun, first.v, last.v, unit) : '',
+      rows: shown.map((p) => ({ date: p.date, value: `${round1(p.v)} ${unit}` })),
+    };
+  }, [ranged, range, convert, noun, unit]);
+  if (disabled.has('all')) return <Hint>{none}</Hint>;
+  const { shown, t, amount, summary, rows } = view;
   return (
     <View style={{ gap: 8 }}>
       <RangeControl value={range} disabled={disabled} onChange={setChoice} noun={noun} />
       {RANGES.filter((r) => disabled.has(r)).map((r) => <Hint key={r}>{RANGE_NO_DATA(r)}</Hint>)}
-      <Hint>{summary}</Hint>
+      {/* The image label below says the same: hidden here so a screen reader reads it once. */}
+      <View aria-hidden accessibilityElementsHidden importantForAccessibility="no-hide-descendants"><Hint>{summary}</Hint></View>
       <TrendChart points={shown} box={box} label={summary} unit={unit} />
       {t ? <Hint>{changeLine({ direction: amount === 0 ? 'none' : t.diff < 0 ? 'down' : 'up', amount, since: t.since })}</Hint> : null}
-      <ChartTable rows={shown.map((p) => ({ date: p.date, value: `${round1(p.v)} ${unit}` }))} noun={noun} valueHeader={unit} />
+      <ChartTable rows={rows} noun={noun} valueHeader={unit} />
     </View>
   );
 }

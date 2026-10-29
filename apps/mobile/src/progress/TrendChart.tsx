@@ -31,12 +31,14 @@ export function TrendChart({ points, box, label, unit, target }: Props) {
   const c = useTheme();
   const fontFamily = useFontFamily()('400');
   const [width, setWidth] = useState<number>(box.W);
-  // A target is laid out as one extra value so the axis always spans it; the extra point is dropped when drawing the line.
-  const layout = chartLayout(target === undefined ? points.map((p) => p.v) : [...points.map((p) => p.v), target], box);
+  const values = points.map((p) => p.v);
+  const own = chartLayout(values, box);
+  // A target is laid out as one extra value so the y axis always spans it; x comes from the points alone, so a target never moves them.
+  const layout = target === undefined ? own : chartLayout([...values, target], box);
   const first = points[0], last = points[points.length - 1];
-  if (!layout || !first || !last) return null;
+  if (!own || !layout || !first || !last) return null;
   const { W, H, px, py } = box;
-  const drawn = layout.points.slice(0, points.length);
+  const drawn = own.points.map((p, i) => ({ x: p.x, y: layout.points[i]?.y ?? p.y }));
   const line = drawn.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
   // The axis labels stay LABEL_PX as drawn: the SVG is scaled to its measured width, so the size is given in viewBox units.
   const fs = LABEL_PX / Math.max(width / W, 0.1);
@@ -57,7 +59,7 @@ export function TrendChart({ points, box, label, unit, target }: Props) {
             <Circle key={points[i]?.date} cx={p.x} cy={p.y} r={3} fill={c.brand} />
           ))}
         </Svg>
-        <View style={styles.dates} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+        <View style={styles.dates} aria-hidden accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
           <Text style={[typeScale.small, { color: c.muted }]}>{date(first.date)}</Text>
           <Text style={[typeScale.small, { color: c.muted }]}>
             {date(last.date)}
