@@ -6,7 +6,7 @@ import { answerSetup, axeSource, completeSetup, expect, label, openApp, reloadTo
 // KNOWN by screen, as `{ rule, issue, match }` (see support/axe.mjs): it matches the rule AND the element, so a new
 // violation still fails, and once the bug is fixed the entry matches nothing, goes stale and fails the test.
 // The scan runs page-has-heading-one with passForModal off, because react-native-web's full-screen layers would otherwise make it pass on every screen.
-const KNOWN = Object.fromEntries(['consent', 'setup', 'setup-errors', 'setup-screening', 'setup-results', 'food', 'workout', 'workout-session', 'progress', 'targets', 'data', 'library', 'library-exercise', 'about', 'recipes', 'sheet-food-add', 'sheet-workout-settings', 'sheet-workout-cant', 'sheet-workout-howto', 'sheet-workout-add', 'sheet-workout-custom', 'sheet-progress-checkin', 'sheet-targets-avoid', 'sheet-targets-cant'].map((n) => [n, []]));
+const KNOWN = Object.fromEntries(['consent', 'setup', 'setup-errors', 'setup-screening', 'setup-results', 'food', 'workout', 'workout-session', 'progress', 'progress-table', 'targets', 'data', 'library', 'library-exercise', 'about', 'recipes', 'sheet-food-add', 'sheet-workout-settings', 'sheet-workout-cant', 'sheet-workout-howto', 'sheet-workout-add', 'sheet-workout-custom', 'sheet-progress-checkin', 'sheet-targets-avoid', 'sheet-targets-cant'].map((n) => [n, []]));
 const RULES = ['region', 'landmark-one-main', 'landmark-no-duplicate-main', 'page-has-heading-one'];
 
 // Exactly one level-one heading in the accessibility tree: the other tabs stay mounted but are aria-hidden, so they do not count.
@@ -120,6 +120,25 @@ const screens = {
     await tab(page, 'Progress');
     await expect(label(page, 'Save weight')).toBeVisible();
     await expect(page.locator('[role=img][aria-label^="Mon, "][aria-label*=" kcal, "] >> visible=true')).toHaveCount(1);
+  },
+  // A chart's text alternative opened: the weight table (table > row > columnheader/cell on web, #1377).
+  'progress-table': async (page) => {
+    await tab(page, 'Progress');
+    // Two weigh-ins (today and yesterday) so the weight chart, and its table, exist.
+    await label(page, 'Weight in kg').fill('81.6');
+    await saved(page, () => label(page, 'Save weight').click());
+    await label(page, 'Previous day').click();
+    await label(page, 'Weight in kg').fill('82.1');
+    await saved(page, () => label(page, 'Save weight').click());
+    await label(page, 'Next day').click();
+    // Scoped to the weight chart's own button and table, so a chart added above it cannot be opened instead.
+    await page.locator('[aria-label="Show as table"]:below(:text("Body weight"))').filter({ visible: true }).first().click();
+    const table = page.locator('[role=table][aria-label="Weight values by date"] >> visible=true');
+    await expect(table).toHaveCount(1);
+    await expect(table.locator('[role=columnheader]')).toHaveCount(2);
+    // A header row plus the two weigh-ins saved above (completeSetup stores none), two cells each.
+    await expect(table.locator('[role=row]')).toHaveCount(3);
+    await expect(table.locator('[role=cell]')).toHaveCount(4);
   },
   targets: async (page) => {
     await tab(page, 'Targets');

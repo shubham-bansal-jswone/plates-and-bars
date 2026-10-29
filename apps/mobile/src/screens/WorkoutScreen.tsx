@@ -121,21 +121,36 @@ export function WorkoutScreen({ db, now = () => new Date() }: Props) {
   const scroll = useScrollIntoView();
   // Each rest mounts a new dock, whose height is only known after its first layout (its label can be longer than the last one's), and a tick's rest can
   // start after the render that moved the marker. So the node revealed for a tick (`last`, cleared by the next tick: `reveal(null)`) is scrolled to again,
-  // once, on the first layout of a new rest's dock. A later height change never scrolls (the user may have scrolled), and nothing is timed.
-  const dock = useRef<{ id: number; h: number } | null>(null); // the last dock laid out: its rest and height
+  // on the first layout of a new rest's dock. It scrolls again when that dock grows (large text, a longer label), since a taller dock covers the row, but only
+  // when the page has not moved since the last reveal (within 2 px): a user who scrolled away is left there. A dock that shrinks never scrolls. Nothing is timed.
+  const dock = useRef<{ id: number; h: number; y?: number } | null>(null); // the last dock laid out: its rest, height, and the page offset the last reveal left
   const last = useRef<ComponentRef<typeof View> | null>(null);
+  const revealAbove = (node: ComponentRef<typeof View>, h: number) =>
+    scroll.reveal(node, h, (y) => {
+      if (dock.current) dock.current.y = y;
+    });
   const reveal = (node: ComponentRef<typeof View> | null | undefined) => {
     last.current = node ?? null;
     if (!node) return;
     if (!rest) scroll.reveal(node, 0);
-    else if (dock.current?.id === rest.id) scroll.reveal(node, dock.current.h);
+    else if (dock.current?.id === rest.id) revealAbove(node, dock.current.h);
     // else: this rest's dock has no height yet; its first layout reveals the node
   };
   const onDockHeight = (h: number, id: number) => {
     setMeasuredDock(h); // for the page spacer
-    const first = dock.current?.id !== id;
-    dock.current = { id, h };
-    if (first && last.current) scroll.reveal(last.current, h);
+    const prev = dock.current;
+    const isNew = prev?.id !== id;
+    const grew = !isNew && h > prev.h;
+    dock.current = isNew ? { id, h } : prev.y === undefined ? { id, h } : { id, h, y: prev.y };
+    const node = last.current;
+    if (!node) return;
+    if (isNew) revealAbove(node, h);
+    else if (grew && prev.y !== undefined) {
+      const was = prev.y;
+      scroll.offset((y) => {
+        if (Math.abs(y - was) <= 2) revealAbove(node, h);
+      });
+    }
   };
   const restBar = <RestBar rest={rest} onAdd={addRest} onSkip={() => setRest(null)} onHeight={onDockHeight} />;
   // One tree for every state, the state's content in the one body slot: the rest bar and toast keep their place (and so are not remounted,
@@ -791,7 +806,7 @@ function SessionView({ reveal, dockH, now, db, reloadKey, w, profile, focus, rul
         </View>
       ))}
       <View style={{ width: '100%', maxWidth: 560, alignSelf: 'center' }}>
-        <CompletionPanel earned={w.earned} headingRef={panelHeading} db={db} date={date} profileKg={profile.weight_kg} exs={day.exs} cardio={wk.cardio_min} lifts={day.lifts} reloadKey={reloadKey} {...(routine.length ? { onSaveRoutine: () => setSavingRoutine(true) } : {})} />
+        <CompletionPanel earned={w.earned} headingRef={panelHeading} db={db} date={date} profileKg={profile.weight_kg} exs={day.exs} cardio={wk.cardio_min} prs={w.prs} settlePrs={w.settlePrs} reloadKey={reloadKey} {...(routine.length ? { onSaveRoutine: () => setSavingRoutine(true) } : {})} />
       </View>
     </>
   );

@@ -72,7 +72,7 @@ describe('client_won returns the replaced record (#818)', () => {
     server.seed('workouts', { ...cardioDay(30, '2026-10-08T10:00:00Z'), id, version: 1 });
     await saveWorkout(a.db, sessionDay('2026-10-08T11:00:00.000Z'));
     await saveSet(a.db, DATE, benchSet('2026-10-08T11:00:00.000Z'));
-    await a.sync(); // client_won with replaced_record
+    expect(await a.sync()).toMatchObject({ conflicts: 0, pulled: 1 }); // client_won with replaced_record: the other device's edits were merged in
     expect(await shows(a.db)).toEqual(BOTH);
     const queued = await a.db.getFirstAsync("SELECT 1 FROM sync_outbox WHERE tbl = 'workouts'");
     expect(queued).not.toBeNull();
@@ -169,10 +169,20 @@ describe('client_won returns the replaced record (#818)', () => {
     await a.sync();
     server.seed('workouts', { ...cardioDay(30, '2026-10-08T10:00:00Z'), id, version: 1 });
     await saveWorkout(a.db, sessionDay('2026-10-08T11:00:00.000Z'));
-    await a.sync();
+    expect(await a.sync()).toMatchObject({ conflicts: 0, pulled: 0 }); // the stored copy is this push: nothing was merged, so nothing changed on screen
     await a.sync();
     expect((await load(a.db)).cardio_min).toBeNull();
     expect(workoutPushes(server)).toHaveLength(1);
+  });
+
+  it('a server_won conflict on a day edited again in flight only patches the version and is not counted as pulled', async () => {
+    const { server, a, beforePush, id } = await devices();
+    await a.sync();
+    server.seed('workouts', { ...cardioDay(30, '2026-10-08T12:00:00Z'), id, version: 1 }); // newer than this device's edit: server_won
+    await saveWorkout(a.db, sessionDay('2026-10-08T11:00:00.000Z'));
+    beforePush(() => saveWorkout(a.db, sessionDay('2026-10-08T11:30:00.000Z', 45))); // an edit while the request is in flight
+    expect(await a.sync()).toMatchObject({ conflicts: 1, pulled: 0 });
+    expect((await load(a.db)).cardio_min).toBe(45); // the newer local edit was kept, not replaced by the server copy
   });
 
   it('the account changed while the request was in flight: nothing is merged, stored or queued', async () => {

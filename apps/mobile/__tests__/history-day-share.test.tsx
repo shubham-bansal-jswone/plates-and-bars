@@ -18,7 +18,7 @@ const wset = (id: string, exercise: string, i: number, w: number | null, r: numb
 const DATE = '2026-10-08';
 const sessions = (sets: WorkoutSet[], cardio: number | null = null) => buildSessions({ [DATE]: { t: 'Push' } } as never, { [DATE]: sets }, { [DATE]: cardio });
 const finished = () => sessions([wset('a', 'Barbell Bench Press', 0, 100, 5), wset('b', 'Barbell Bench Press', 1, 100, 5)], 20);
-const day = (s = finished(), lifts = {}) => render(<WorkoutDay session={s[0]!} sessions={s} lifts={lifts} onBack={() => {}} />);
+const day = (s = finished(), lifts: ReadonlySet<string> = new Set()) => render(<WorkoutDay session={s[0]!} sessions={s} prs={lifts} onBack={() => {}} />);
 const LABEL = 'Share summary picture of 8 Oct';
 
 afterEach(() => {
@@ -36,7 +36,7 @@ describe('History day: share a summary picture', () => {
     const s = sessions([wset('a', 'Row', 0, 60, 8, false)]);
     expect(s).toEqual([]); // nothing is logged, so there is no day to open
     const empty = { date: DATE, name: 'Push', setsDone: 0, finished: false, volume: 0, exercises: [], elapsed: null, cardio: null };
-    await render(<WorkoutDay session={empty} sessions={[empty]} lifts={{}} onBack={() => {}} />);
+    await render(<WorkoutDay session={empty} sessions={[empty]} prs={new Set()} onBack={() => {}} />);
     expect(screen.queryByLabelText(LABEL)).toBeNull();
   });
 
@@ -67,8 +67,8 @@ describe('History day: share a summary picture', () => {
     expect(card.stats).toContainEqual({ label: 'Cardio (min)', value: '25' });
   });
 
-  it('builds the card from the stored day: sets, cardio, PR from the lift record, kg', async () => {
-    await day(finished(), { 'Barbell Bench Press': { pbToast: DATE } as never });
+  it('builds the card from the stored day: sets, cardio, PR from the personal records, kg', async () => {
+    await day(finished(), new Set(['Barbell Bench Press']));
     fireEvent.press(screen.getByLabelText(LABEL));
     await waitFor(() => expect(mockShare).toHaveBeenCalledTimes(1));
     const card = mockShare.mock.calls[0]![0] as { stats: { label: string; value: string }[]; rows: { name: string; best: string; pr: boolean }[] };

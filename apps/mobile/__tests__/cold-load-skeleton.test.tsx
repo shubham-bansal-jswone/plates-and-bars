@@ -17,6 +17,14 @@ describe('cold load (#1144)', () => {
     expect(screen.queryByRole('main')).toBeNull();
   });
 
+  it('the Loading line is a polite status, so a screen reader announces it', async () => {
+    mockStatus = 'loading';
+    await render(<Gate />);
+    const line = screen.getByText('Loading…');
+    expect(line.props.role).toBe('status');
+    expect(line.props.accessibilityLiveRegion).toBe('polite');
+  });
+
   it('the Gate renders nothing once the profile is ready', async () => {
     mockStatus = 'ready';
     await render(<Gate />);

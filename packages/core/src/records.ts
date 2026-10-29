@@ -123,7 +123,12 @@ function dayScore(sets: readonly PrSet[], type: ExType | undefined, bodyweight: 
  */
 export function priorBestOf(sets: readonly PrSet[], type: ExType | undefined, date: string, bodyweight?: number | null): PriorBest {
   const byDay = new Map<string, PrSet[]>();
-  for (const s of sets) if (s.date < date) byDay.set(s.date, [...(byDay.get(s.date) ?? []), s]);
+  for (const s of sets) {
+    if (s.date >= date) continue;
+    const day = byDay.get(s.date);
+    if (day) day.push(s);
+    else byDay.set(s.date, [s]);
+  }
   let best = 0;
   let sessions = 0;
   for (const day of byDay.values()) {
@@ -165,9 +170,14 @@ export function isPrToday(prior: PriorBest, todaySets: readonly PrSet[], type?: 
 export function personalRecords(sets: readonly PrSet[], types: Readonly<Record<string, ExType>>, bodyweight?: number | null): PersonalRecord[] {
   const byLift = new Map<string, Map<string, PrSet[]>>();
   for (const s of sets) {
-    const days = byLift.get(s.exercise) ?? new Map<string, PrSet[]>();
-    days.set(s.date, [...(days.get(s.date) ?? []), s]);
-    byLift.set(s.exercise, days);
+    let days = byLift.get(s.exercise);
+    if (!days) {
+      days = new Map<string, PrSet[]>();
+      byLift.set(s.exercise, days);
+    }
+    const day = days.get(s.date);
+    if (day) day.push(s);
+    else days.set(s.date, [s]);
   }
   const out: PersonalRecord[] = [];
   for (const [lift, days] of byLift) {
@@ -209,7 +219,9 @@ export function mainLifts(sets: readonly PrSet[], types: Readonly<Record<string,
   for (const s of sets) {
     if (s.deleted_at || s.date < from || s.date > end) continue;
     const { session: _session, ...day } = s; // days, not sessions
-    byLift.set(s.exercise, [...(byLift.get(s.exercise) ?? []), day]);
+    const rows = byLift.get(s.exercise);
+    if (rows) rows.push(day);
+    else byLift.set(s.exercise, [day]);
   }
   const picked: MainLift[] = [];
   for (const [lift, rows] of byLift) {
