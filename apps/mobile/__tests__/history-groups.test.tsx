@@ -43,10 +43,9 @@ describe('history session labels', () => {
     const day = (rows: string[], stored: { name: string; group: string | null }[]) =>
       buildSessions({ [DATE]: { t: 'Pull' } } as never, { [DATE]: rows.map(row) }, {}, { [DATE]: stored })[0]!.exercises.map((e) => [e.name, e.label]);
     const stored = [{ name: 'Barbell Row', group: 'g' }, { name: 'Pull-up', group: 'g' }, { name: 'Squat', group: null }];
-    it('gives the same letters for any row order, including a re-saved set last', () => {
-      expect(day(['Barbell Row', 'Pull-up', 'Squat'], stored)).toEqual([['Barbell Row', 'A'], ['Pull-up', 'B'], ['Squat', undefined]]);
-      expect(day(['Pull-up', 'Barbell Row', 'Squat'], stored)).toEqual([['Pull-up', 'B'], ['Barbell Row', 'A'], ['Squat', undefined]]);
-      expect(day(['Barbell Row', 'Squat', 'Pull-up'], stored)).toEqual([['Barbell Row', 'A'], ['Squat', undefined], ['Pull-up', 'B']]);
+    it('gives the same cards and letters for any row order, including a re-saved set last', () => {
+      const want = [['Barbell Row', 'A'], ['Pull-up', 'B'], ['Squat', undefined]];
+      for (const rows of [['Barbell Row', 'Pull-up', 'Squat'], ['Pull-up', 'Barbell Row', 'Squat'], ['Barbell Row', 'Squat', 'Pull-up']]) expect(day(rows, stored)).toEqual(want);
     });
     it('a stored split group stays invalid when the exercise between is not done', () => {
       const split = [{ name: 'Barbell Row', group: 'g' }, { name: 'Squat', group: null }, { name: 'Pull-up', group: 'g' }];
@@ -58,6 +57,18 @@ describe('history session labels', () => {
       expect(day(names.slice(1), seven).map((x) => x[1])).toEqual(['A', 'B', 'C', 'D', 'E', undefined]);
       expect(day(names, seven).map((x) => x[1])).toEqual(['A', 'B', 'C', 'D', 'E', 'F', undefined]);
     });
+  });
+  describe('cards follow the stored exercise order (#1339)', () => {
+    const stored = [{ name: 'Barbell Row', group: null }, { name: 'Pull-up', group: null }, { name: 'Squat', group: null }];
+    const names = (rows: string[], st = stored) => buildSessions({ [DATE]: { t: 'Pull' } } as never, { [DATE]: rows.map((n) => wset(n, 0)) }, {}, { [DATE]: st })[0]!.exercises.map((e) => e.name);
+    it('shuffled rows, every first set at set_index 0', () => expect(names(['Squat', 'Barbell Row', 'Pull-up'])).toEqual(['Barbell Row', 'Pull-up', 'Squat']));
+    it('a re-saved set (row last) does not move its exercise', () => expect(names(['Pull-up', 'Squat', 'Barbell Row'])).toEqual(['Barbell Row', 'Pull-up', 'Squat']));
+    it('a repeated stored name sits at its first stored position (#1329 plan)', () => {
+      const plan = ['Machine Chest Press', 'Lat Pulldown', 'Seated Dumbbell Press', 'Seated Cable Row', 'Machine Chest Press'].map((name) => ({ name, group: null }));
+      expect(names(['Seated Cable Row', 'Machine Chest Press', 'Lat Pulldown'], plan)).toEqual(['Machine Chest Press', 'Lat Pulldown', 'Seated Cable Row']);
+    });
+    it('names missing from the stored list keep row order, after the stored ones', () =>
+      expect(names(['Zottman', 'Squat', 'Face pull', 'Barbell Row'], stored)).toEqual(['Barbell Row', 'Squat', 'Zottman', 'Face pull']));
   });
   it('ungrouped sessions carry no label key at all', () => {
     for (const s of [build(), build([null, null, null, null])]) for (const e of s[0]!.exercises) expect(Object.keys(e)).toEqual(['name', 'sets', 'volume']);
@@ -96,8 +107,17 @@ describe('history day view', () => {
 });
 
 describe('history Share', () => {
+  it('the picture follows the stored order, not the row order (#1339)', async () => {
+    (shareWorkoutImage as jest.Mock).mockClear().mockResolvedValue('shared');
+    const rows = ['Squat', 'Curl', 'Barbell Row', 'Pull-up'].map((n) => wset(n, 0));
+    await show(buildSessions({ [DATE]: { t: 'Pull' } } as never, { [DATE]: rows }, {}, { [DATE]: NAMES.map((name) => ({ name, group: null })) }));
+    fireEvent.press(screen.getByLabelText(/Share summary picture/));
+    await waitFor(() => expect(shareWorkoutImage).toHaveBeenCalled());
+    const card = (shareWorkoutImage as jest.Mock).mock.calls[0]![0] as { rows: { name: string }[] };
+    expect(card.rows.map((r) => r.name)).toEqual(NAMES);
+  });
   it('passes the day letters to the picture', async () => {
-    (shareWorkoutImage as jest.Mock).mockResolvedValue('shared');
+    (shareWorkoutImage as jest.Mock).mockClear().mockResolvedValue('shared');
     await show(build(['g', 'g', null, null]));
     fireEvent.press(screen.getByLabelText(/Share summary picture/));
     await waitFor(() => expect(shareWorkoutImage).toHaveBeenCalled());
