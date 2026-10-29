@@ -1,4 +1,4 @@
-import { HAND_PICKED, groupLabels, normalizeGroups, sessionVolume, type ExType, type LiftRecord, type SessionLog, type WeightUnit } from '@plate-and-bar/core';
+import { HAND_PICKED, groupLabels, normalizeGroups, sessionVolume, type ExType, type PersonalRecord, type SessionLog, type WeightUnit } from '@plate-and-bar/core';
 import type { WorkoutExercise, WorkoutSet } from '../../workout/types';
 import { weightFieldText } from '../../workout/unitText';
 import { e1rmPoints, sessionTimeLine } from '../e1rm';
@@ -74,21 +74,16 @@ export interface ExerciseTrend {
   points: { date: string; volume: number }[];
   /** Heaviest logged weight among those sessions, kg; null when none had a weight. */
   heaviest: number | null;
-  /** Latest session date when core stored a personal-best toast for it (`pbToast`), else null. */
-  pbDate: string | null;
 }
 
-/** Recent sessions of one exercise from the stored sets, plus a personal best only when core's lift record says the toast fired that day. */
-export function exerciseTrend(sessions: readonly HistorySession[], name: string, lift: LiftRecord | undefined): ExerciseTrend {
+/** Recent sessions of one exercise from the stored sets. The personal-best badge is not here: it comes from core's `personalRecords` (`prLiftsOn`). */
+export function exerciseTrend(sessions: readonly HistorySession[], name: string): ExerciseTrend {
   const mine = sessions.flatMap((s) => {
     const e = s.exercises.find((x) => x.name === name);
     return e ? [{ date: s.date, ex: e }] : [];
   }).reverse();
   const weights = mine.flatMap((m) => m.ex.sets.map((s) => s.w ?? 0)).filter((w) => w > 0);
-  // Core decided the best when the set was ticked (`updateLift`, on the full history); the app does not re-derive it from the capped `hist`.
-  const last = lift?.hist?.[lift.hist.length - 1];
-  const pbDate = last && lift?.pbToast === last.date ? last.date : null;
-  return { points: mine.map((m) => ({ date: m.date, volume: m.ex.volume })), heaviest: weights.length ? Math.max(...weights) : null, pbDate };
+  return { points: mine.map((m) => ({ date: m.date, volume: m.ex.volume })), heaviest: weights.length ? Math.max(...weights) : null };
 }
 
 /** Core's e1RM trend of one exercise over the read sessions, oldest first (`type` as the library knows it). */
@@ -103,3 +98,6 @@ export function setText(s: HistorySet, unit: WeightUnit = 'kg'): string {
   if (s.w) return w;
   return 'done';
 }
+
+/** Lifts with a personal record on `date`: core's `personalRecords` over all stored sets, the rule of the toast and the Recent PRs list. */
+export const prLiftsOn = (records: readonly PersonalRecord[], date: string): ReadonlySet<string> => new Set(records.filter((r) => r.date === date).map((r) => r.lift));

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ComponentRef } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
-import { fromKg, type LiftRecord, type WeightUnit } from '@plate-and-bar/core';
+import { fromKg, type WeightUnit } from '@plate-and-bar/core';
 import { Text } from '../../components/Text';
 import { PR_LABEL } from '../../workout/copy';
 import { Button, Card, Note, Heading, Hint, MetricRow, Press } from '../../components/ui';
@@ -71,7 +71,7 @@ export function RecentWorkouts({ sessions, onOpen, focusDate = null }: { session
 }
 
 /** One day: its exercises with the sets that were ticked, and each exercise's trend over the recent sessions. */
-export function WorkoutDay({ session, sessions, lifts, onBack }: { session: HistorySession; sessions: readonly HistorySession[]; lifts: Readonly<Record<string, LiftRecord>>; onBack: () => void }) {
+export function WorkoutDay({ session, sessions, prs, onBack }: { session: HistorySession; sessions: readonly HistorySession[]; /** Lifts with a personal record this day (`prLiftsOn`, core's `personalRecords`). */ prs: ReadonlySet<string>; onBack: () => void }) {
   const c = useTheme();
   const { unit } = useWeightUnit();
   const focus = useFocusOnMount();
@@ -81,7 +81,7 @@ export function WorkoutDay({ session, sessions, lifts, onBack }: { session: Hist
     name: e.name, part: 1, bridge: false, form: null, found: null, skipRamp: true, feel: null, ramp: [],
     sets: e.sets.map((s) => ({ ...blankRow(), w: s.w ? String(s.w) : '', r: s.r ? String(s.r) : '', done: true })),
   }));
-  const card = session.finished ? buildShareCard({ date: session.date, exs, cardio: session.cardio, lifts, unit, labels: session.exercises.map((e) => e.label) }) : null;
+  const card = session.finished ? buildShareCard({ date: session.date, exs, cardio: session.cardio, prs, unit, labels: session.exercises.map((e) => e.label) }) : null;
   return (
     <View style={styles.section}>
       <Button kind="link" label="Back to progress" onPress={onBack} />
@@ -105,7 +105,7 @@ export function WorkoutDay({ session, sessions, lifts, onBack }: { session: Hist
         </>
       ) : null}
       {session.exercises.map((e) => {
-        const t = exerciseTrend(sessions, e.name, lifts[e.name]);
+        const t = exerciseTrend(sessions, e.name);
         const e1 = exerciseE1rm(sessions, e.name, typeOf(e.name));
         const max = Math.max(...t.points.map((p) => p.volume), 0);
         return (
@@ -117,7 +117,7 @@ export function WorkoutDay({ session, sessions, lifts, onBack }: { session: Hist
             {e.sets.map((s, i) => (
               <Text key={i} style={[typeScale.textBody, tabular, { color: c.body }]}>{`Set ${i + 1}: ${setText(s, unit)}`}</Text>
             ))}
-            {t.pbDate === session.date ? <Text style={[typeScale.small, { color: c.brand }]}>{PR_LABEL}</Text> : null}
+            {prs.has(e.name) ? <Text style={[typeScale.small, { color: c.brand }]}>{PR_LABEL}</Text> : null}
             {t.points.length >= 2 && max > 0 ? (
               <View accessible accessibilityRole="image" accessibilityLabel={`${e.name} volume over ${t.points.length} sessions, ${t.points.map((p) => volumeText(p.volume, unit)).join(', ')}`}>
                 <View style={styles.bars}>

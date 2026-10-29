@@ -1,5 +1,4 @@
 import { render, screen, fireEvent } from '@testing-library/react-native';
-import type { LiftRecord } from '@plate-and-bar/core';
 import { loadExerciseSets, saveSet, saveWorkout } from '../src/db/workouts';
 import { ExerciseLibraryScreen } from '../src/library/ExerciseLibraryScreen';
 import { getLibrary } from '../src/library/exercises';
@@ -64,7 +63,7 @@ describe('history day view', () => {
   it('renders the trend and shows the time only when every done set has a tick', async () => {
     const s = sessions();
     const open = s.find((x) => x.date === '2026-10-08')!;
-    await render(<WorkoutDay session={open} sessions={s} lifts={{} as Record<string, LiftRecord>} onBack={() => {}} />);
+    await render(<WorkoutDay session={open} sessions={s} prs={new Set()} onBack={() => {}} />);
     expect(screen.getByTestId('e1rm-trend')).toBeTruthy();
     expect(screen.getByTestId('session-elapsed').props.children).toBe('Time: 1 h 10 min');
     expect(screen.getAllByText(/weight x \(1 \+ reps \/ 30\)/)).toHaveLength(1); // the note once per day
@@ -74,7 +73,7 @@ describe('history day view', () => {
   it('hides the time when a done set has no tick', async () => {
     const d = day('2026-10-08', [wset('c', 'Row', 0, 70, 8, { t: '2026-10-08T10:00:00Z' }), wset('d', 'Row', 1, 70, 6)]);
     const s = buildSessions(d.log, d.sets);
-    await render(<WorkoutDay session={s[0]!} sessions={s} lifts={{}} onBack={() => {}} />);
+    await render(<WorkoutDay session={s[0]!} sessions={s} prs={new Set()} onBack={() => {}} />);
     expect(screen.queryByTestId('session-elapsed')).toBeNull();
     expect(screen.queryByTestId('e1rm-trend')).toBeNull(); // one session: no trend
   });
@@ -83,7 +82,7 @@ describe('history day view', () => {
 describe('completion panel time', () => {
   const row = (t: string | null): Row => ({ id: String(Math.random()), version: 0, w: '60', r: '8', done: true, rate: null, t });
   const ex = (sets: Row[]): ExState => ({ name: 'Row', part: 1, bridge: false, form: null, found: null, skipRamp: true, feel: null, sets, ramp: [] });
-  const panel = (exs: ExState[]) => render(withProfile(memoryDb(), <CompletionPanel db={memoryDb()} date="2026-10-08" profileKg={80} exs={exs} cardio={null} lifts={{}} reloadKey={0} />));
+  const panel = (exs: ExState[]) => render(withProfile(memoryDb(), <CompletionPanel db={memoryDb()} date="2026-10-08" profileKg={80} exs={exs} cardio={null} prs={new Set()} reloadKey={0} />));
 
   it('shows the elapsed time when every set has a tick', async () => {
     await panel([ex([row('2026-10-08T10:00:00Z'), row('2026-10-08T10:45:00Z')])]);
@@ -150,7 +149,7 @@ describe('history span at the cap', () => {
     const log = Object.fromEntries(dates.map((d) => [d, { t: 'Pull A', n: 1 }]));
     const sets = Object.fromEntries(dates.map((d, i) => [d, [wset(`s${i}`, 'Row', 0, 60 + i, 8)]]));
     const s = buildSessions(log, sets);
-    await render(<WorkoutDay session={s[0]!} sessions={s} lifts={{}} onBack={() => {}} />);
+    await render(<WorkoutDay session={s[0]!} sessions={s} prs={new Set()} onBack={() => {}} />);
     expect(screen.getByText('Last 20 sessions')).toBeTruthy();
   });
 });

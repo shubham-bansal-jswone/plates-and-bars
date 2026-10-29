@@ -4,7 +4,7 @@ import { DailyRead } from '../why/DailyRead';
 import { useOptionalSettings } from '../state/SettingsProvider';
 import { profileWhyValues } from '../why/values';
 import { StyleSheet, View } from 'react-native';
-import { DEFAULT_KCAL_TARGET, formatWeight, round1, waterRetentionPhase, latestWeight, navyBodyFat, stepsTarget, weightSeries, WEIGHT_CHART_BOX, type MeasureKey } from '@plate-and-bar/core';
+import { DEFAULT_KCAL_TARGET, formatWeight, round1, waterRetentionPhase, latestWeight, navyBodyFat, personalRecords, stepsTarget, weightSeries, WEIGHT_CHART_BOX, type MeasureKey } from '@plate-and-bar/core';
 import { useDataVersion } from '../sync/useDataVersion';
 import { useStepsVersion } from '../steps/DeviceStepsProvider';
 import { Text } from '../components/Text';
@@ -15,6 +15,7 @@ import { BF_HINT, BF_MISSING, BF_NO_PROFILE, HOW_TO_MEASURE, HOW_TO_MEASURE_HIPS
 import { CheckinCard, RapidLossCard } from '../progress/CheckinCard';
 import { RecentWorkouts, WorkoutDay } from '../progress/history/History';
 import { useHistory } from '../progress/history/useHistory';
+import { prLiftsOn } from '../progress/history/logic';
 import { StrengthSection } from '../progress/StrengthSection';
 import { WeekCard } from '../progress/WeekCard';
 import { useCheckin } from '../progress/useCheckin';
@@ -51,6 +52,8 @@ interface Props {
 const RECENT_WEIGH_INS = 7;
 const r1 = (n: number): string => round1(n).toString();
 
+const NO_PRS: ReadonlySet<string> = new Set();
+
 /** Progress tab, body data: weight entry, tape measurements with the navy body-fat estimate, and steps and sleep. */
 export function ProgressScreen({ db, now = () => new Date() }: Props) {
   const { status, profile } = useProfile();
@@ -84,13 +87,15 @@ export function ProgressScreen({ db, now = () => new Date() }: Props) {
     setClosedDay(openDay);
     setOpenDay(null);
   }
+  // The open day's personal bests: core's `personalRecords` over the shared all-history read, the same rule as the toast and the Recent PRs list (bodyweight as the toast has it).
+  const dayPrs = useMemo(() => (opened ? prLiftsOn(personalRecords(sets.all, sets.types, profile?.weight_kg ?? null), opened.date) : NO_PRS), [opened, sets.all, sets.types, profile?.weight_kg]);
   const ready = status === 'ready' && p.ready;
   const showDay = ready && !!hist && !!opened;
   return (
     <View style={styles.fill}>
       <DateAnnouncer v={v} />
       <Page resetKey={openDay}>
-        {showDay && hist && opened ? <WorkoutDay session={opened} sessions={hist.sessions} lifts={hist.lifts} onBack={() => { setClosedDay(openDay); setOpenDay(null); }} /> : null}
+        {showDay && hist && opened ? <WorkoutDay session={opened} sessions={hist.sessions} prs={dayPrs} onBack={() => { setClosedDay(openDay); setOpenDay(null); }} /> : null}
         {/* Hidden, not unmounted, while a day is open: typed weights and the sections' state survive going back. */}
         <View style={showDay ? styles.hidden : styles.body}>
         {ready ? <H1>Progress</H1> : null}
