@@ -2493,7 +2493,7 @@ export interface components {
          *     comparison, so a `W/` prefix added by a proxy still matches); a list of tags and
          *     `*` are accepted. A value longer than 1024 characters, or one that cannot be
          *     parsed, is ignored: the server answers as if the header were absent, never 400.
-         * @example "0d02e9ec905f62923446eb4f9f0ce3832f7ac4d784872257fe37abc207c3647b"
+         * @example "47879bcc79ada5af3087e918fb4976174d90b9a65c71fa0656bb3211232516bb"
          */
         IfNoneMatch: string;
         /**
@@ -2532,7 +2532,7 @@ export interface components {
          *     The server sends it strong. A compressing proxy may weaken it to `W/"<sha256>"`, so
          *     clients accept either form. The app checks integrity against the body's SHA-256,
          *     not the `ETag`.
-         * @example "0d02e9ec905f62923446eb4f9f0ce3832f7ac4d784872257fe37abc207c3647b"
+         * @example "47879bcc79ada5af3087e918fb4976174d90b9a65c71fa0656bb3211232516bb"
          */
         ContentETag: string;
         /**
@@ -3213,7 +3213,7 @@ export interface operations {
                  *     comparison, so a `W/` prefix added by a proxy still matches); a list of tags and
                  *     `*` are accepted. A value longer than 1024 characters, or one that cannot be
                  *     parsed, is ignored: the server answers as if the header were absent, never 400.
-                 * @example "0d02e9ec905f62923446eb4f9f0ce3832f7ac4d784872257fe37abc207c3647b"
+                 * @example "47879bcc79ada5af3087e918fb4976174d90b9a65c71fa0656bb3211232516bb"
                  */
                 "If-None-Match"?: components["parameters"]["IfNoneMatch"];
             };
@@ -3250,7 +3250,7 @@ export interface operations {
                  *     comparison, so a `W/` prefix added by a proxy still matches); a list of tags and
                  *     `*` are accepted. A value longer than 1024 characters, or one that cannot be
                  *     parsed, is ignored: the server answers as if the header were absent, never 400.
-                 * @example "0d02e9ec905f62923446eb4f9f0ce3832f7ac4d784872257fe37abc207c3647b"
+                 * @example "47879bcc79ada5af3087e918fb4976174d90b9a65c71fa0656bb3211232516bb"
                  */
                 "If-None-Match"?: components["parameters"]["IfNoneMatch"];
             };
