@@ -103,6 +103,19 @@ export interface CoverageDay {
 }
 
 /**
+ * Adds one day's done sets to `out`: each ticked work set (not ramp, not deleted) of an exercise in the
+ * workout's `exercises` counts, primary muscles 1 per set, secondary one half. The caller has already
+ * dropped a missing or deleted workout. Shared by `doneCoverage` and `weeklyDoneSets` so the two cannot drift.
+ *
+ * Mirrors the per-day body of prototype `actualCoverage()`.
+ */
+export function addDoneSets(out: MuscleSets, tags: ExerciseCatalog['tags'], workout: Pick<CoverageWorkout, 'exercises'>, sets: readonly CoverageSet[]): void {
+  const done = new Map<string, number>();
+  for (const s of sets) if (!s.deleted_at && s.kind === 'work' && s.done) done.set(s.exercise, (done.get(s.exercise) ?? 0) + 1);
+  for (const e of workout.exercises) add(out, tags, e.name, done.get(e.name) ?? 0);
+}
+
+/**
  * Sets done per muscle in the 7 days ending on `date` (that day and the 6 before it): each ticked work
  * set (not ramp, not deleted) of an exercise in the day's workout (not deleted), primary muscles 1,
  * secondary one half. A day's sets only count toward its own workout; sets whose exercise is not in
@@ -118,9 +131,7 @@ export function doneCoverage(date: string, days: readonly CoverageDay[], tags: E
   for (const d of days) {
     const w = d.workout;
     if (!w || w.deleted_at || !week.has(d.date)) continue;
-    const done = new Map<string, number>();
-    for (const s of d.sets) if (!s.deleted_at && s.kind === 'work' && s.done) done.set(s.exercise, (done.get(s.exercise) ?? 0) + 1);
-    for (const e of w.exercises) add(out, tags, e.name, done.get(e.name) ?? 0);
+    addDoneSets(out, tags, w, d.sets);
   }
   return out;
 }
