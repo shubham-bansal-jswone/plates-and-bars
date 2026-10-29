@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from 'react';
 import { StyleSheet, View, useWindowDimensions } from 'react-native';
-import { latestWeight, personalRecords, WEIGHT_CHART_BOX } from '@plate-and-bar/core';
+import { latestWeight, milestones as milestonesOf, personalRecords, WEIGHT_CHART_BOX, type SessionLog } from '@plate-and-bar/core';
 import { Text } from '../components/Text';
 import { Card, Heading, Hint, Press, a11yState } from '../components/ui';
 import { dateWithYear, shortDate } from '../format';
@@ -10,6 +10,7 @@ import { radius, space, type as typeScale } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { PR_LABEL, prText } from '../workout/copy';
 import { weightNumber } from '../workout/unitText';
+import { Milestones } from './Milestones';
 import { E1RM_NOTE } from './E1rmTrend';
 import { RangedTrend } from './RangedTrend';
 import { leadLift, liftChoices, liftSeries } from './strength';
@@ -28,13 +29,15 @@ interface Props {
   date: string;
   /** Weigh-ins, for the bodyweight that scores assisted lifts. */
   weights: Parameters<typeof latestWeight>[0];
+  /** The session log from `useCheckin` (null until read), for the workout-count and plan milestones. */
+  sessions?: SessionLog | null | undefined;
 }
 
 /**
  * Progress, Strength: the lead lift's estimated 1-rep max with its change, chips to switch lift, a ranged e1RM line with a table alternative,
  * and recent personal bests from all history. All history is read once by `useProgressSets`; nothing here reads the db again.
  */
-export function StrengthSection({ sets, date, weights }: Props) {
+export function StrengthSection({ sets, date, weights, sessions = null }: Props) {
   const c = useTheme();
   const { profile } = useProfile();
   const { all, types, inRange, loading, error } = sets;
@@ -48,7 +51,7 @@ export function StrengthSection({ sets, date, weights }: Props) {
       ) : loading && all.length === 0 ? (
         <Hint>{STRENGTH_LOADING}</Hint>
       ) : (
-        <StrengthBody all={all} types={types} inRange={inRange} date={date} bodyweight={bodyweight} />
+        <StrengthBody all={all} types={types} inRange={inRange} date={date} bodyweight={bodyweight} weights={weights} sessions={sessions} />
       )}
     </Card>
   );
@@ -56,9 +59,10 @@ export function StrengthSection({ sets, date, weights }: Props) {
 
 type Loaded = Pick<ProgressSets, 'all' | 'types' | 'inRange'>;
 
-function StrengthBody({ all, types, inRange, date, bodyweight }: Loaded & { date: string; bodyweight: number | null }) {
+function StrengthBody({ all, types, inRange, date, bodyweight, weights, sessions }: Loaded & { date: string; bodyweight: number | null; weights: Props['weights']; sessions: SessionLog | null }) {
   const c = useTheme();
   const { unit } = useWeightUnit();
+  const { profile } = useProfile();
   // Large text counts as a narrower screen: rows wrap and five tall rows would push the page down.
   const { width, fontScale } = useWindowDimensions();
   const narrow = width / (fontScale || 1) <= NARROW;
@@ -71,6 +75,8 @@ function StrengthBody({ all, types, inRange, date, bodyweight }: Loaded & { date
   const toShown = useCallback((kg: number) => weightNumber(kg, unit), [unit]);
   const records = useMemo(() => personalRecords(all, types, bodyweight), [all, types, bodyweight]);
   const recent = useMemo(() => records.filter((r) => r.date <= date), [records, date]);
+
+  const milestoneList = useMemo(() => (sessions ? milestonesOf(all, sessions, weights, types, unit, date, profile) : null), [all, sessions, weights, types, unit, date, profile]);
 
   const summary = useCallback((f: { date: string; v: number }, l: { date: string; v: number }) => (lift ? strengthSentence(lift, { date: l.date, kg: l.v }, { date: f.date, kg: f.v }, unit) : ''), [lift, unit]);
   const last = series[series.length - 1];
@@ -134,6 +140,7 @@ function StrengthBody({ all, types, inRange, date, bodyweight }: Loaded & { date
           </View>
         );
       })}
+      <Milestones milestones={milestoneList} />
     </>
   );
 }

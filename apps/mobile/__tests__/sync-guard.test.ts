@@ -99,7 +99,9 @@ describe('sign-out and account switch guard (#31)', () => {
     await db.runAsync("INSERT INTO profiles (key, data) VALUES ('me', '{}')");
     await db.runAsync('DELETE FROM sync_outbox'); // already synced
     await db.runAsync("INSERT INTO settings (key, value) VALUES ('device.flag', '1')");
+    await db.runAsync("INSERT INTO settings (key, value) VALUES ('device.milestones_shown', '[\"plates-1\"]')"); // belongs to the wiped history (#1351)
     expect(await acceptTokenPair(db, tokens, pair(USER_B))).toEqual({ kind: 'signed_in', wiped: true });
+    expect(await db.getFirstAsync("SELECT value FROM settings WHERE key = 'device.milestones_shown'")).toBeNull();
     expect(await db.getFirstAsync('SELECT key FROM profiles')).toBeNull();
     expect(await getUserId(db)).toBe(USER_B);
     expect(await db.getFirstAsync("SELECT value FROM settings WHERE key = 'device.flag'")).not.toBeNull();

@@ -102,7 +102,7 @@ export function ProgressScreen({ db, now = () => new Date() }: Props) {
             <RapidLossCard c={ci} />
             <DailyRead sex={profile?.sex} values={profile ? profileWhyValues(profile, { date: p.date, flex: settings?.settings.flex, labHold: labs.holdOn }) : undefined} now={now} />
             <SummaryCard checkin={ci.checkin} profile={profile} />
-            <StrengthSection sets={sets} date={v.date} weights={p.weights} />
+            <StrengthSection sets={sets} date={v.date} weights={p.weights} sessions={ci.sessions} />
             <WeightSection p={p} />
             <VolumeSection db={db} sets={sets} date={v.date} today={v.today} profile={profile} settings={settings?.settings ?? null} />
             <MeasureSection p={p} isToday={v.isToday} />
