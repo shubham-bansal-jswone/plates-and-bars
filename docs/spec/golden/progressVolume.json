@@ -1,0 +1,1163 @@
+{
+ "description": "Progress volume rules (#1351 C2, new, no prototype counterpart). weekly: sets per muscle for each of `weeks` Monday-weeks ending at the week containing `end` (oldest first), by the doneCoverage rule (work, done, not deleted, workout not deleted, exercise in the workout, primary 1, secondary 0.5, untagged nothing); every COVER_SHOW muscle is present, 0 when none (expected lists only the muscles below with every other muscle 0). The last week is the whole Monday-Sunday week (days after end count) and `partial` is true when end is not its Sunday. Tags: A chest/triceps, B quads/glutes, U untagged. vs_plan: avg over the last 4 complete (non-partial) weeks, gap = avg - target, below = target > 0 and avg < target, low = avg < 6 (COVER_LOW), barPct = min(100, avg/12*100); target is the CURRENT plan's (plannedCoverage). Weeks lists only some muscles; the rest are 0.",
+ "tags": {
+  "A": {
+   "primary": [
+    "chest"
+   ],
+   "secondary": [
+    "triceps"
+   ]
+  },
+  "B": {
+   "primary": [
+    "quads"
+   ],
+   "secondary": [
+    "glutes"
+   ]
+  }
+ },
+ "weekly": [
+  {
+   "note": "three weeks: deleted, ramp, undone, untagged, foreign-exercise sets and a null workout count nothing; last week is partial and holds a day after end",
+   "end": "2026-10-29",
+   "weeks": 3,
+   "days": [
+    {
+     "date": "2026-10-13",
+     "workout": {
+      "exercises": [
+       {
+        "name": "A"
+       },
+       {
+        "name": "B"
+       }
+      ]
+     },
+     "sets": [
+      {
+       "exercise": "A",
+       "kind": "work",
+       "done": true
+      },
+      {
+       "exercise": "A",
+       "kind": "work",
+       "done": true
+      },
+      {
+       "exercise": "A",
+       "kind": "work",
+       "done": true
+      },
+      {
+       "exercise": "A",
+       "kind": "ramp",
+       "done": true
+      },
+      {
+       "exercise": "A",
+       "kind": "work",
+       "done": false
+      },
+      {
+       "exercise": "A",
+       "kind": "work",
+       "done": true,
+       "deleted_at": "x"
+      },
+      {
+       "exercise": "B",
+       "kind": "work",
+       "done": true
+      },
+      {
+       "exercise": "B",
+       "kind": "work",
+       "done": true
+      }
+     ]
+    },
+    {
+     "date": "2026-10-14",
+     "workout": {
+      "exercises": [
+       {
+        "name": "A"
+       }
+      ],
+      "deleted_at": "x"
+     },
+     "sets": [
+      {
+       "exercise": "A",
+       "kind": "work",
+       "done": true
+      },
+      {
+       "exercise": "A",
+       "kind": "work",
+       "done": true
+      },
+      {
+       "exercise": "A",
+       "kind": "work",
+       "done": true
+      },
+      {
+       "exercise": "A",
+       "kind": "work",
+       "done": true
+      },
+      {
+       "exercise": "A",
+       "kind": "work",
+       "done": true
+      }
+     ]
+    },
+    {
+     "date": "2026-10-20",
+     "workout": {
+      "exercises": [
+       {
+        "name": "A"
+       },
+       {
+        "name": "U"
+       }
+      ]
+     },
+     "sets": [
+      {
+       "exercise": "A",
+       "kind": "work",
+       "done": true
+      },
+      {
+       "exercise": "A",
+       "kind": "work",
+       "done": true
+      },
+      {
+       "exercise": "A",
+       "kind": "work",
+       "done": true
+      },
+      {
+       "exercise": "A",
+       "kind": "work",
+       "done": true
+      },
+      {
+       "exercise": "U",
+       "kind": "work",
+       "done": true
+      },
+      {
+       "exercise": "U",
+       "kind": "work",
+       "done": true
+      },
+      {
+       "exercise": "U",
+       "kind": "work",
+       "done": true
+      },
+      {
+       "exercise": "B",
+       "kind": "work",
+       "done": true
+      },
+      {
+       "exercise": "B",
+       "kind": "work",
+       "done": true
+      }
+     ]
+    },
+    {
+     "date": "2026-10-26",
+     "workout": {
+      "exercises": [
+       {
+        "name": "B"
+       }
+      ]
+     },
+     "sets": [
+      {
+       "exercise": "B",
+       "kind": "work",
+       "done": true
+      },
+      {
+       "exercise": "B",
+       "kind": "work",
+       "done": true
+      }
+     ]
+    },
+    {
+     "date": "2026-10-31",
+     "workout": {
+      "exercises": [
+       {
+        "name": "A"
+       }
+      ]
+     },
+     "sets": [
+      {
+       "exercise": "A",
+       "kind": "work",
+       "done": true
+      }
+     ]
+    },
+    {
+     "date": "2026-10-11",
+     "workout": {
+      "exercises": [
+       {
+        "name": "A"
+       }
+      ]
+     },
+     "sets": [
+      {
+       "exercise": "A",
+       "kind": "work",
+       "done": true
+      },
+      {
+       "exercise": "A",
+       "kind": "work",
+       "done": true
+      },
+      {
+       "exercise": "A",
+       "kind": "work",
+       "done": true
+      },
+      {
+       "exercise": "A",
+       "kind": "work",
+       "done": true
+      },
+      {
+       "exercise": "A",
+       "kind": "work",
+       "done": true
+      },
+      {
+       "exercise": "A",
+       "kind": "work",
+       "done": true
+      },
+      {
+       "exercise": "A",
+       "kind": "work",
+       "done": true
+      },
+      {
+       "exercise": "A",
+       "kind": "work",
+       "done": true
+      },
+      {
+       "exercise": "A",
+       "kind": "work",
+       "done": true
+      }
+     ]
+    },
+    {
+     "date": "2026-10-21",
+     "workout": null,
+     "sets": [
+      {
+       "exercise": "A",
+       "kind": "work",
+       "done": true
+      },
+      {
+       "exercise": "A",
+       "kind": "work",
+       "done": true
+      },
+      {
+       "exercise": "A",
+       "kind": "work",
+       "done": true
+      },
+      {
+       "exercise": "A",
+       "kind": "work",
+       "done": true
+      }
+     ]
+    }
+   ],
+   "expected": [
+    {
+     "week": "2026-10-12",
+     "sets": {
+      "chest": 3,
+      "lats": 0,
+      "upper-back": 0,
+      "side-delt": 0,
+      "rear-delt": 0,
+      "biceps": 0,
+      "triceps": 1.5,
+      "quads": 2,
+      "hams": 0,
+      "glutes": 1,
+      "calves": 0,
+      "abs": 0
+     },
+     "partial": false
+    },
+    {
+     "week": "2026-10-19",
+     "sets": {
+      "chest": 4,
+      "lats": 0,
+      "upper-back": 0,
+      "side-delt": 0,
+      "rear-delt": 0,
+      "biceps": 0,
+      "triceps": 2,
+      "quads": 0,
+      "hams": 0,
+      "glutes": 0,
+      "calves": 0,
+      "abs": 0
+     },
+     "partial": false
+    },
+    {
+     "week": "2026-10-26",
+     "sets": {
+      "chest": 1,
+      "lats": 0,
+      "upper-back": 0,
+      "side-delt": 0,
+      "rear-delt": 0,
+      "biceps": 0,
+      "triceps": 0.5,
+      "quads": 2,
+      "hams": 0,
+      "glutes": 1,
+      "calves": 0,
+      "abs": 0
+     },
+     "partial": true
+    }
+   ]
+  },
+  {
+   "note": "a week with no sessions is 0 for every muscle",
+   "end": "2026-10-29",
+   "weeks": 2,
+   "days": [
+    {
+     "date": "2026-10-13",
+     "workout": {
+      "exercises": [
+       {
+        "name": "A"
+       },
+       {
+        "name": "B"
+       }
+      ]
+     },
+     "sets": [
+      {
+       "exercise": "A",
+       "kind": "work",
+       "done": true
+      },
+      {
+       "exercise": "A",
+       "kind": "work",
+       "done": true
+      },
+      {
+       "exercise": "A",
+       "kind": "work",
+       "done": true
+      },
+      {
+       "exercise": "A",
+       "kind": "ramp",
+       "done": true
+      },
+      {
+       "exercise": "A",
+       "kind": "work",
+       "done": false
+      },
+      {
+       "exercise": "A",
+       "kind": "work",
+       "done": true,
+       "deleted_at": "x"
+      },
+      {
+       "exercise": "B",
+       "kind": "work",
+       "done": true
+      },
+      {
+       "exercise": "B",
+       "kind": "work",
+       "done": true
+      }
+     ]
+    }
+   ],
+   "expected": [
+    {
+     "week": "2026-10-19",
+     "sets": {
+      "chest": 0,
+      "lats": 0,
+      "upper-back": 0,
+      "side-delt": 0,
+      "rear-delt": 0,
+      "biceps": 0,
+      "triceps": 0,
+      "quads": 0,
+      "hams": 0,
+      "glutes": 0,
+      "calves": 0,
+      "abs": 0
+     },
+     "partial": false
+    },
+    {
+     "week": "2026-10-26",
+     "sets": {
+      "chest": 0,
+      "lats": 0,
+      "upper-back": 0,
+      "side-delt": 0,
+      "rear-delt": 0,
+      "biceps": 0,
+      "triceps": 0,
+      "quads": 0,
+      "hams": 0,
+      "glutes": 0,
+      "calves": 0,
+      "abs": 0
+     },
+     "partial": true
+    }
+   ]
+  },
+  {
+   "note": "end on a Sunday is a complete week; EU DST ends that day",
+   "end": "2026-10-25",
+   "weeks": 2,
+   "days": [
+    {
+     "date": "2026-10-25",
+     "workout": {
+      "exercises": [
+       {
+        "name": "A"
+       }
+      ]
+     },
+     "sets": [
+      {
+       "exercise": "A",
+       "kind": "work",
+       "done": true
+      },
+      {
+       "exercise": "A",
+       "kind": "work",
+       "done": true
+      }
+     ]
+    },
+    {
+     "date": "2026-10-26",
+     "workout": {
+      "exercises": [
+       {
+        "name": "A"
+       }
+      ]
+     },
+     "sets": [
+      {
+       "exercise": "A",
+       "kind": "work",
+       "done": true
+      },
+      {
+       "exercise": "A",
+       "kind": "work",
+       "done": true
+      },
+      {
+       "exercise": "A",
+       "kind": "work",
+       "done": true
+      },
+      {
+       "exercise": "A",
+       "kind": "work",
+       "done": true
+      },
+      {
+       "exercise": "A",
+       "kind": "work",
+       "done": true
+      },
+      {
+       "exercise": "A",
+       "kind": "work",
+       "done": true
+      },
+      {
+       "exercise": "A",
+       "kind": "work",
+       "done": true
+      }
+     ]
+    },
+    {
+     "date": "2026-10-12",
+     "workout": {
+      "exercises": [
+       {
+        "name": "B"
+       }
+      ]
+     },
+     "sets": [
+      {
+       "exercise": "B",
+       "kind": "work",
+       "done": true
+      }
+     ]
+    }
+   ],
+   "expected": [
+    {
+     "week": "2026-10-12",
+     "sets": {
+      "chest": 0,
+      "lats": 0,
+      "upper-back": 0,
+      "side-delt": 0,
+      "rear-delt": 0,
+      "biceps": 0,
+      "triceps": 0,
+      "quads": 1,
+      "hams": 0,
+      "glutes": 0.5,
+      "calves": 0,
+      "abs": 0
+     },
+     "partial": false
+    },
+    {
+     "week": "2026-10-19",
+     "sets": {
+      "chest": 2,
+      "lats": 0,
+      "upper-back": 0,
+      "side-delt": 0,
+      "rear-delt": 0,
+      "biceps": 0,
+      "triceps": 1,
+      "quads": 0,
+      "hams": 0,
+      "glutes": 0,
+      "calves": 0,
+      "abs": 0
+     },
+     "partial": false
+    }
+   ]
+  },
+  {
+   "note": "US DST week (ends Sunday 2026-11-01), Monday and Sunday of the week both count",
+   "end": "2026-11-01",
+   "weeks": 1,
+   "days": [
+    {
+     "date": "2026-10-26",
+     "workout": {
+      "exercises": [
+       {
+        "name": "A"
+       }
+      ]
+     },
+     "sets": [
+      {
+       "exercise": "A",
+       "kind": "work",
+       "done": true
+      }
+     ]
+    },
+    {
+     "date": "2026-11-01",
+     "workout": {
+      "exercises": [
+       {
+        "name": "A"
+       }
+      ]
+     },
+     "sets": [
+      {
+       "exercise": "A",
+       "kind": "work",
+       "done": true
+      }
+     ]
+    },
+    {
+     "date": "2026-11-02",
+     "workout": {
+      "exercises": [
+       {
+        "name": "A"
+       }
+      ]
+     },
+     "sets": [
+      {
+       "exercise": "A",
+       "kind": "work",
+       "done": true
+      },
+      {
+       "exercise": "A",
+       "kind": "work",
+       "done": true
+      },
+      {
+       "exercise": "A",
+       "kind": "work",
+       "done": true
+      },
+      {
+       "exercise": "A",
+       "kind": "work",
+       "done": true
+      },
+      {
+       "exercise": "A",
+       "kind": "work",
+       "done": true
+      }
+     ]
+    }
+   ],
+   "expected": [
+    {
+     "week": "2026-10-26",
+     "sets": {
+      "chest": 2,
+      "lats": 0,
+      "upper-back": 0,
+      "side-delt": 0,
+      "rear-delt": 0,
+      "biceps": 0,
+      "triceps": 1,
+      "quads": 0,
+      "hams": 0,
+      "glutes": 0,
+      "calves": 0,
+      "abs": 0
+     },
+     "partial": false
+    }
+   ]
+  },
+  {
+   "note": "no weeks asked",
+   "end": "2026-10-29",
+   "weeks": 0,
+   "days": [
+    {
+     "date": "2026-10-13",
+     "workout": {
+      "exercises": [
+       {
+        "name": "A"
+       },
+       {
+        "name": "B"
+       }
+      ]
+     },
+     "sets": [
+      {
+       "exercise": "A",
+       "kind": "work",
+       "done": true
+      },
+      {
+       "exercise": "A",
+       "kind": "work",
+       "done": true
+      },
+      {
+       "exercise": "A",
+       "kind": "work",
+       "done": true
+      },
+      {
+       "exercise": "A",
+       "kind": "ramp",
+       "done": true
+      },
+      {
+       "exercise": "A",
+       "kind": "work",
+       "done": false
+      },
+      {
+       "exercise": "A",
+       "kind": "work",
+       "done": true,
+       "deleted_at": "x"
+      },
+      {
+       "exercise": "B",
+       "kind": "work",
+       "done": true
+      },
+      {
+       "exercise": "B",
+       "kind": "work",
+       "done": true
+      }
+     ]
+    },
+    {
+     "date": "2026-10-14",
+     "workout": {
+      "exercises": [
+       {
+        "name": "A"
+       }
+      ],
+      "deleted_at": "x"
+     },
+     "sets": [
+      {
+       "exercise": "A",
+       "kind": "work",
+       "done": true
+      },
+      {
+       "exercise": "A",
+       "kind": "work",
+       "done": true
+      },
+      {
+       "exercise": "A",
+       "kind": "work",
+       "done": true
+      },
+      {
+       "exercise": "A",
+       "kind": "work",
+       "done": true
+      },
+      {
+       "exercise": "A",
+       "kind": "work",
+       "done": true
+      }
+     ]
+    },
+    {
+     "date": "2026-10-20",
+     "workout": {
+      "exercises": [
+       {
+        "name": "A"
+       },
+       {
+        "name": "U"
+       }
+      ]
+     },
+     "sets": [
+      {
+       "exercise": "A",
+       "kind": "work",
+       "done": true
+      },
+      {
+       "exercise": "A",
+       "kind": "work",
+       "done": true
+      },
+      {
+       "exercise": "A",
+       "kind": "work",
+       "done": true
+      },
+      {
+       "exercise": "A",
+       "kind": "work",
+       "done": true
+      },
+      {
+       "exercise": "U",
+       "kind": "work",
+       "done": true
+      },
+      {
+       "exercise": "U",
+       "kind": "work",
+       "done": true
+      },
+      {
+       "exercise": "U",
+       "kind": "work",
+       "done": true
+      },
+      {
+       "exercise": "B",
+       "kind": "work",
+       "done": true
+      },
+      {
+       "exercise": "B",
+       "kind": "work",
+       "done": true
+      }
+     ]
+    },
+    {
+     "date": "2026-10-26",
+     "workout": {
+      "exercises": [
+       {
+        "name": "B"
+       }
+      ]
+     },
+     "sets": [
+      {
+       "exercise": "B",
+       "kind": "work",
+       "done": true
+      },
+      {
+       "exercise": "B",
+       "kind": "work",
+       "done": true
+      }
+     ]
+    },
+    {
+     "date": "2026-10-31",
+     "workout": {
+      "exercises": [
+       {
+        "name": "A"
+       }
+      ]
+     },
+     "sets": [
+      {
+       "exercise": "A",
+       "kind": "work",
+       "done": true
+      }
+     ]
+    },
+    {
+     "date": "2026-10-11",
+     "workout": {
+      "exercises": [
+       {
+        "name": "A"
+       }
+      ]
+     },
+     "sets": [
+      {
+       "exercise": "A",
+       "kind": "work",
+       "done": true
+      },
+      {
+       "exercise": "A",
+       "kind": "work",
+       "done": true
+      },
+      {
+       "exercise": "A",
+       "kind": "work",
+       "done": true
+      },
+      {
+       "exercise": "A",
+       "kind": "work",
+       "done": true
+      },
+      {
+       "exercise": "A",
+       "kind": "work",
+       "done": true
+      },
+      {
+       "exercise": "A",
+       "kind": "work",
+       "done": true
+      },
+      {
+       "exercise": "A",
+       "kind": "work",
+       "done": true
+      },
+      {
+       "exercise": "A",
+       "kind": "work",
+       "done": true
+      },
+      {
+       "exercise": "A",
+       "kind": "work",
+       "done": true
+      }
+     ]
+    },
+    {
+     "date": "2026-10-21",
+     "workout": null,
+     "sets": [
+      {
+       "exercise": "A",
+       "kind": "work",
+       "done": true
+      },
+      {
+       "exercise": "A",
+       "kind": "work",
+       "done": true
+      },
+      {
+       "exercise": "A",
+       "kind": "work",
+       "done": true
+      },
+      {
+       "exercise": "A",
+       "kind": "work",
+       "done": true
+      }
+     ]
+    }
+   ],
+   "expected": []
+  }
+ ],
+ "vs_plan": [
+  {
+   "note": "last 4 complete weeks of 6; the partial week and the older week are left out; no target is never below; zero planned vs zero done is not below",
+   "weeks": [
+    {
+     "week": "2026-09-21",
+     "partial": false,
+     "sets": {
+      "chest": 100,
+      "quads": 4,
+      "biceps": 3,
+      "lats": 0
+     }
+    },
+    {
+     "week": "2026-09-28",
+     "partial": false,
+     "sets": {
+      "chest": 0,
+      "quads": 4,
+      "biceps": 3,
+      "lats": 0
+     }
+    },
+    {
+     "week": "2026-10-05",
+     "partial": false,
+     "sets": {
+      "chest": 12,
+      "quads": 4,
+      "biceps": 3,
+      "lats": 0
+     }
+    },
+    {
+     "week": "2026-10-12",
+     "partial": false,
+     "sets": {
+      "chest": 6,
+      "quads": 4,
+      "biceps": 3,
+      "lats": 0
+     }
+    },
+    {
+     "week": "2026-10-19",
+     "partial": false,
+     "sets": {
+      "chest": 6,
+      "quads": 4,
+      "biceps": 3,
+      "lats": 0
+     }
+    },
+    {
+     "week": "2026-10-26",
+     "partial": true,
+     "sets": {
+      "chest": 3,
+      "quads": 0,
+      "biceps": 0,
+      "lats": 0
+     }
+    }
+   ],
+   "planned": {
+    "chest": 9,
+    "lats": 10,
+    "biceps": 3
+   },
+   "expected": {
+    "basis": "current-plan",
+    "weeksUsed": 4,
+    "rows": [
+     {
+      "muscle": "chest",
+      "avg": 6,
+      "target": 9,
+      "gap": -3,
+      "below": true,
+      "low": false,
+      "barPct": 50
+     },
+     {
+      "muscle": "lats",
+      "avg": 0,
+      "target": 10,
+      "gap": -10,
+      "below": true,
+      "low": true,
+      "barPct": 0
+     },
+     {
+      "muscle": "upper-back",
+      "avg": 0,
+      "target": 0,
+      "gap": 0,
+      "below": false,
+      "low": true,
+      "barPct": 0
+     },
+     {
+      "muscle": "side-delt",
+      "avg": 0,
+      "target": 0,
+      "gap": 0,
+      "below": false,
+      "low": true,
+      "barPct": 0
+     },
+     {
+      "muscle": "rear-delt",
+      "avg": 0,
+      "target": 0,
+      "gap": 0,
+      "below": false,
+      "low": true,
+      "barPct": 0
+     },
+     {
+      "muscle": "biceps",
+      "avg": 3,
+      "target": 3,
+      "gap": 0,
+      "below": false,
+      "low": true,
+      "barPct": 25
+     },
+     {
+      "muscle": "triceps",
+      "avg": 0,
+      "target": 0,
+      "gap": 0,
+      "below": false,
+      "low": true,
+      "barPct": 0
+     },
+     {
+      "muscle": "quads",
+      "avg": 4,
+      "target": 0,
+      "gap": 4,
+      "below": false,
+      "low": true,
+      "barPct": 33.333333333333336
+     },
+     {
+      "muscle": "hams",
+      "avg": 0,
+      "target": 0,
+      "gap": 0,
+      "below": false,
+      "low": true,
+      "barPct": 0
+     },
+     {
+      "muscle": "glutes",
+      "avg": 0,
+      "target": 0,
+      "gap": 0,
+      "below": false,
+      "low": true,
+      "barPct": 0
+     },
+     {
+      "muscle": "calves",
+      "avg": 0,
+      "target": 0,
+      "gap": 0,
+      "below": false,
+      "low": true,
+      "barPct": 0
+     },
+     {
+      "muscle": "abs",
+      "avg": 0,
+      "target": 0,
+      "gap": 0,
+      "below": false,
+      "low": true,
+      "barPct": 0
+     }
+    ]
+   }
+  }
+ ],
+ "avg_weeks": 4
+}

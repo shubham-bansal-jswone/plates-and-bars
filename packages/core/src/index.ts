@@ -501,6 +501,13 @@ export { rangeSeries, downsampleWeekly, DOWNSAMPLE_THRESHOLD, RANGE_DAYS } from 
 export type { SeriesRange, DownsampleMode } from './progressSeries';
 
 /**
+ * Progress volume (#1351 C2, new rules): `weeklyDoneSets` is `doneCoverage`'s counting per Monday-week (shared `addDoneSets`),
+ * `volumeVsPlan` is the 4-week average per `COVER_SHOW` muscle against the current plan's `plannedCoverage`.
+ */
+export { weeklyDoneSets, volumeVsPlan, VOLUME_AVG_WEEKS } from './progressVolume';
+export type { WeekSets, VolumeVsPlan, VolumeVsPlanResult } from './progressVolume';
+
+/**
  * Progress: weight and waist trend, the scale-jump note and entry limits (#233).
  * - `weightSeries` mirrors the series in prototype `weightChart()`; `waistSeries` mirrors `waistPts` in `measuresHtml()`;
  *   `WEIGHT_CHART_POINTS` and `WAIST_CHART_POINTS` are their 30 and 20.
