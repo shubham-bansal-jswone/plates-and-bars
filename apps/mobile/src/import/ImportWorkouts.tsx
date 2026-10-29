@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { View } from 'react-native';
+import importAliases from '../../../../content/import-aliases.json';
 import { matchAll, parseWorkoutCsv, planImport, type ImportMatches, type ImportParsed, type ImportSource, type WeightUnit } from '@plate-and-bar/core';
 import { Button, Card, Choice, Chip, ErrorText, Group, H1, Hint, Label, Note, Page } from '../components/ui';
 import type { PullDb } from '../db/outbox';
@@ -48,7 +49,7 @@ export function ImportWorkouts({ db, onClose }: { db: WorkoutDb & PullDb; onClos
       if (picked.kind !== 'text') return setError(t.badFile[picked.kind]);
       const r = parseWorkoutCsv(picked.text, source, chosenUnit, localDate(new Date()));
       if (!r.ok) return setError(t.badFile[r.error]);
-      const matches = matchAll(r.parsed.days, Object.keys(getCatalog().tags));
+      const matches = matchAll(r.parsed.days, Object.keys(getCatalog().tags), importAliases.aliases);
       const occupied = await occupiedDates(db, r.parsed.days.map((d) => d.date));
       setOwn(new Set());
       setMatchTo({});

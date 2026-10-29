@@ -794,12 +794,12 @@ export type { E1rmSet, E1rmPoint, SessionElapsed } from './e1rm';
 /**
  * Workout import from a Strong or Hevy CSV (#1179, new, no prototype counterpart).
  * - `parseWorkoutCsv` reads the export into work sets by day (warm-up, distance/time-only and unreadable rows counted, not stored; weights to kg with `lbToKg`; a Strong file needs the unit, a Hevy header gives it); `parseCsv` is its CSV reader.
- * - `matchExercise`, `matchAll` sort the imported names into catalogue matches (exact, then case and form insensitive) and unmatched.
+ * - `matchExercise`, `matchAll` sort the imported names into catalogue matches (exact, then case and form insensitive, then the optional alias table) and unmatched.
  * - `planImport` applies the user's mapping (skip or a name), leaves out days the app already has, and numbers the sets.
  * - `IMPORT_MAX_CHARS`, `IMPORT_MAX_ROWS`, `IMPORT_MAX_DAYS` are the caps; `importDate` reads a file date.
  */
 export { parseWorkoutCsv, parseCsv, importDate, exerciseKey, matchExercise, matchAll, planImport, IMPORT_MAX_CHARS, IMPORT_MAX_ROWS, IMPORT_MAX_DAYS, IMPORT_MAX_EXERCISES } from './workoutImport';
-export type { ImportSource, ImportError, ImportSet, ImportDay, ImportSkipped, ImportParsed, ImportResult, ImportMatches, ImportWorkoutDay, ImportPlan } from './workoutImport';
+export type { ImportSource, ImportError, ImportSet, ImportDay, ImportSkipped, ImportParsed, ImportResult, ImportMatches, ImportAliases, ImportWorkoutDay, ImportPlan } from './workoutImport';
 
 /**
  * Exercise groups (supersets; #1182, ADR 012). New, not a prototype port: no prototype behaviour, no golden fixture.

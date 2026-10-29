@@ -18,6 +18,7 @@
     "fixture:motion": "node exercise-motion/make-fixture.mjs",
     "import:foods": "node foods-import/cli.mjs",
     "validate:foods": "node validate/foods-cli.mjs",
+    "validate:import-aliases": "node validate/import-aliases-cli.mjs",
     "validate:cards": "node validate/cards-cli.mjs",
     "validate:recipes": "node validate/recipes-cli.mjs",
     "validate:labs": "node validate/labs-cli.mjs",
