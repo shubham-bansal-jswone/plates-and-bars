@@ -54,8 +54,12 @@ interface Props {
 
 const defaultFormat = (n: number): string => round1(n).toLocaleString('en-IN');
 
-/** A bar is below target when it is logged, not partial (too few days to compare) and under the target, both as shown (to 0.1), so "On target" never carries the flag. */
-const isBelow = (b: Bar, target: number | undefined): boolean => target !== undefined && !b.partial && b.value !== null && round1(b.value) < round1(target);
+/** Whether a value reads the same as the target in the chart's number format: "On target", never flagged. */
+const isOn = (value: number, target: number, format: (n: number) => string): boolean => format(value) === format(target);
+
+/** A bar is below target when it is logged, not partial (too few days to compare) and under the target, and does not read as on target in `format`. */
+const isBelow = (b: Bar, target: number | undefined, format: (n: number) => string): boolean =>
+  target !== undefined && !b.partial && b.value !== null && b.value < target && !isOn(b.value, target, format);
 
 /**
  * Weekly bar chart on core's `barLayout`, at most `CHART_MAX_WIDTH` wide. Bars are `c.bar`. A null value is a gap. A partial week is hollow
@@ -78,7 +82,7 @@ export function BarChart({ bars, box, label, unit, noun, valueHeader, target, fo
     return n > 0 ? [text(n)] : [];
   };
   const counts = [
-    ...count(BAR_COUNT_BELOW, (b) => isBelow(b, t)),
+    ...count(BAR_COUNT_BELOW, (b) => isBelow(b, t, format)),
     ...count(BAR_COUNT_PARTIAL, (b) => b.value !== null && !!b.partial),
     ...count(BAR_COUNT_NOT_LOGGED, (b) => b.value === null),
   ];
@@ -88,8 +92,8 @@ export function BarChart({ bars, box, label, unit, noun, valueHeader, target, fo
     const gap = t === undefined ? null : b.value - t;
     const parts = t === undefined || gap === null ? [] : [
       BAR_TARGET_ROW(format(t), unit),
-      BAR_DELTA(format(Math.abs(gap)), unit, round1(gap) === 0 ? 'on' : gap < 0 ? 'under' : 'over'),
-      ...(isBelow(b, t) ? [BAR_BELOW] : []),
+      BAR_DELTA(format(Math.abs(gap)), unit, isOn(b.value, t, format) ? 'on' : gap < 0 ? 'under' : 'over'),
+      ...(isBelow(b, t, format) ? [BAR_BELOW] : []),
     ];
     return { date: b.label, value: `${format(b.value)} ${unit}${b.partial ? `, ${BAR_PARTIAL}` : ''}`, note: parts.join(', ') || undefined };
   });
@@ -106,7 +110,7 @@ export function BarChart({ bars, box, label, unit, noun, valueHeader, target, fo
             const b = bars[i];
             if (!r || !b) return null;
             if (b.partial) return <Rect key={b.label} testID={`bar-${b.label}`} x={r.x + 1} y={r.y + 1} width={Math.max(r.width - 2, 0)} height={Math.max(r.height - 1, 0)} fill="none" stroke={c.bar} strokeWidth={2} />;
-            const ring = isBelow(b, t) && r.width > RING * 4 && r.height > RING * 4;
+            const ring = isBelow(b, t, format) && r.width > RING * 4 && r.height > RING * 4;
             return (
               <Fragment key={b.label}>
                 <Rect testID={`bar-${b.label}`} x={r.x} y={r.y} width={r.width} height={r.height} fill={c.bar} />

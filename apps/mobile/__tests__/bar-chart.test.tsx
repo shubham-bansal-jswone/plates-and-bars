@@ -198,12 +198,32 @@ describe('BarChart table and labels', () => {
     expect(screen.queryByText('Date')).toBeNull();
   });
 
-  it('compares as shown: a week that rounds to the target is On target, not flagged', async () => {
+  it('compares by the number format: with whole kcal, 1799.6 and 1800.4 are On target, 1799.4 is 1 under', async () => {
+    const fmt = (n: number) => Math.round(n).toLocaleString('en-IN');
+    const bars = [{ label: '2026-09-14', value: 1799.6 }, { label: '2026-09-21', value: 1800.4 }, { label: '2026-09-28', value: 1799.4 }];
+    await render(<BarChart {...base} bars={bars} target={{ value: 1800 }} format={fmt} />);
+    await fireEvent.press(screen.getByRole('button', { name: 'Show as table' }));
+    expect(screen.getByLabelText('14 Sept 2026, 1,800 kcal, Target 1,800 kcal, On target')).toBeTruthy();
+    expect(screen.getByLabelText('21 Sept 2026, 1,800 kcal, Target 1,800 kcal, On target')).toBeTruthy();
+    expect(screen.getByLabelText('28 Sept 2026, 1,799 kcal, Target 1,800 kcal, 1 kcal under, Below target')).toBeTruthy();
+    expect(rect('ring-2026-09-14')).toBeUndefined();
+    expect(rect('ring-2026-09-21')).toBeUndefined();
+    expect(rect('ring-2026-09-28')).toBeDefined();
+    expect(screen.getByRole('image').props.accessibilityLabel).toContain('1 below target');
+  });
+
+  it('with the default format, a week 0.04 under reads On target', async () => {
     await render(<BarChart {...base} bars={[{ label: '2026-09-14', value: 1799.96 }, { label: '2026-09-21', value: 1799.94 }]} target={{ value: 1800 }} />);
     await fireEvent.press(screen.getByRole('button', { name: 'Show as table' }));
     expect(screen.getByLabelText('14 Sept 2026, 1,800 kcal, Target 1,800 kcal, On target')).toBeTruthy();
     expect(screen.getByLabelText('21 Sept 2026, 1,799.9 kcal, Target 1,800 kcal, 0.1 kcal under, Below target')).toBeTruthy();
     expect(rect('ring-2026-09-14')).toBeUndefined();
+  });
+
+  it('names the date column "Week of" in the header\'s spoken label too', async () => {
+    await render(<BarChart {...base} bars={weeks} />);
+    await fireEvent.press(screen.getByRole('button', { name: 'Show as table' }));
+    expect(screen.getByLabelText('Week of, Average')).toBeTruthy();
   });
 
   it('draws a real 0 as a short stub in the bar colour, unlike a gap', async () => {
