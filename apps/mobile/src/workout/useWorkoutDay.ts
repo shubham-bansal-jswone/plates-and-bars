@@ -3,6 +3,7 @@ import { buzz, PB_BUZZ } from '../haptics';
 import {
   cantRule,
   restAfterTick,
+  restFor,
   noLoad,
   rampRate,
   infoForUnit,
@@ -66,7 +67,7 @@ interface Options {
   labHold?: boolean;
   /** Short message for the toast. */
   notify: (msg: string) => void;
-  /** A set was ticked and core says a rest follows: start the rest timer for `seconds`, then show `next` (the dock follows it by position). */
+  /** A set was ticked and a rest follows: start the rest timer for `seconds`, then show `next` (a grouped session's dock follows it by position). */
   startRest: (seconds: number, next: RestNext) => void;
   /** The global "rest timer" setting is off: no rest starts (core's `restAfterTick`). Off when not given. */
   restOff?: boolean;
@@ -473,9 +474,19 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
         s.r = f.r;
         s.done = true;
         s.t = stamp(now());
-        // Only here, when the set has just been ticked: core treats it as done, so this must not run on an untick or a later render.
-        const r = restAfterTick(d.exs.map((e) => ({ name: e.name, sets: e.sets.length, group: e.group })), i, j, (k, n) => !!d.exs[k]?.sets[n]?.done, { restOff, tags: getCatalog().tags });
-        if (r.kind !== 'none' && r.next) startRest(r.seconds, restTarget(d.exs, i, r.next));
+        if (d.exs.some((e) => e.group)) {
+          // A grouped session: core's restAfterTick says whether a rest follows and what comes next. Only here, when the set has just been ticked: core treats it as done.
+          const r = restAfterTick(d.exs.map((e) => ({ name: e.name, sets: e.sets.length, group: e.group })), i, j, (k, n) => !!d.exs[k]?.sets[n]?.done, { restOff, tags: getCatalog().tags });
+          if (r.kind !== 'none' && r.next) startRest(r.seconds, restTarget(d.exs, i, r.next));
+        } else if (!restOff) {
+          // An ungrouped session: as before groups.
+          const nj = ex.sets.findIndex((x) => !x.done);
+          const nx = d.exs.slice(i + 1).find((e) => e.sets.some((x) => !x.done));
+          const from = d.exs.slice(i).map((e) => e.name);
+          const total = restFor(ex.name, getCatalog().tags);
+          if (nj >= 0) startRest(total, { label: `Next: set ${nj + 1} of ${ex.name}`, from });
+          else if (nx) startRest(total, { label: `Next: ${nx.name}`, from });
+        }
       },
       async (name) => {
         if (dropped.current.get(id) === null) return;

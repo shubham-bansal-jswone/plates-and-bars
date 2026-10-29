@@ -8,7 +8,7 @@ export function parseRest(raw: string | null, date: string, now: number): RestSt
   if (!raw) return null;
   try {
     const r = JSON.parse(raw) as Partial<RestState>;
-    const ok = typeof r.id === 'number' && typeof r.end === 'number' && typeof r.total === 'number' && typeof r.label === 'string' && (!r.from || Array.isArray(r.from)) && (!r.ids || (Array.isArray(r.ids) && Array.isArray(r.from) && r.ids.length === r.from.length && r.ids.every((l) => Array.isArray(l) && l.every((x) => typeof x === 'string')))) && (!r.at || (typeof r.at.i === 'number' && typeof r.at.name === 'string')) && (!r.to || (typeof r.to.ex === 'number' && typeof r.to.set === 'number' && typeof r.to.name === 'string'));
+    const ok = typeof r.id === 'number' && typeof r.end === 'number' && typeof r.total === 'number' && typeof r.label === 'string' && (!r.from || Array.isArray(r.from)) && (!r.at || (typeof r.at.i === 'number' && typeof r.at.name === 'string')) && (!r.to || (typeof r.to.ex === 'number' && typeof r.to.set === 'number' && typeof r.to.name === 'string'));
     return ok && r.date === date && (r.end as number) > now ? (r as RestState) : null;
   } catch {
     return null;

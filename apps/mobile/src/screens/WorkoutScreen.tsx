@@ -37,8 +37,8 @@ import { FinishWorkout } from '../workout/FinishWorkout';
 import { focusNode } from '../labelscan/focus';
 import { LibraryEntryButton } from '../library/LibraryEntryButton';
 import { Hero, IndexThumb, SegmentBar, StartButton } from '../workout/SessionHeader';
-import { HowToSheet, RestBar, ToastBar, type RestNext, type RestState } from '../workout/parts';
-import { renameSwapped, restRetarget } from '../workout/restNext';
+import { HowToSheet, RestBar, ToastBar, type GroupNext, type RestNext, type RestState } from '../workout/parts';
+import { restRetarget } from '../workout/restNext';
 import { useRestNotification } from '../reminders/useRestNotification';
 import { usePersistedRest } from '../workout/restStore';
 import { useRules } from '../workout/useRules';
@@ -94,12 +94,18 @@ export function WorkoutScreen({ db, now = () => new Date() }: Props) {
   usePersistedRest(db, rest, setRest, v.date);
   // The rest as a notification while the app is in the background (#1068); its +30 s and Skip come back through setRest.
   useRestNotification({ db, rest, setRest, sessionActive: day.exs.length > 0 });
-  // The dock never names an exercise that is gone or finished: it moves on to the next undone set (by position, #1329), or closes when none is left.
+  // The dock never names an exercise that is gone or finished: it moves on to the next one with an undone set, or closes when none is left.
   // Only on the day it started on (the rest keeps running while another day is read). Adjusting state while rendering, as React documents.
-  if ((rest?.from || (rest?.at && rest.to)) && rest.date === v.date && day.ready) {
-    const t = restRetarget(day.exs, rest as RestNext);
+  if (rest?.from && rest.date === v.date && day.ready) {
+    // Only exercises from the ticked one onward (the prototype's tick rule), never an earlier skipped one.
+    const open = new Set(day.exs.filter((e) => e.sets.some((x) => !x.done)).map((e) => e.name));
+    const first = rest.from.find((n) => open.has(n));
+    if (first !== rest.from[0] || !first) setRest(first ? { ...rest, label: `Next: ${first}`, from: rest.from.slice(rest.from.indexOf(first)) } : null);
+  } else if (rest?.at && rest.to && rest.date === v.date && day.ready) {
+    // A grouped session: the dock follows it by position.
+    const t = restRetarget(day.exs, rest as GroupNext);
     if (!t) setRest(null);
-    else if (t !== (rest as RestNext)) setRest({ ...rest, ...t });
+    else if (t !== (rest as GroupNext)) setRest({ ...rest, ...t });
   }
   const addRest = () => setRest((r) => (r ? { ...r, end: r.end + REST_EXTEND_SEC * 1000, total: r.total + REST_EXTEND_SEC } : r));
   const [cantName, setCantName] = useState<{ i: number; name: string; reason?: ExclusionReason } | null>(null);
@@ -145,11 +151,8 @@ export function WorkoutScreen({ db, now = () => new Date() }: Props) {
           lifts={day.lifts}
           setsFor={(m) => planned()[m] ?? 0}
           onPick={(draft, choice) => {
-            // Renames the swapped exercise in the rest dock's list (by its set rows when the list has them). The label changes only when it named that exercise: the replacement starts at set 1.
-            if (cantName && choice) {
-              const rows = (day.exs[cantName.i]?.sets ?? []).map((x) => x.id);
-              setRest((r) => (r?.from && r.date === v.date ? renameSwapped(r, cantName.name, rows, choice) : r));
-            }
+            // Renames the swapped exercise in the rest dock's list (it tracks names). The label changes only when it named that exercise: the replacement starts at set 1.
+            if (cantName && choice) setRest((r) => (r?.from?.includes(cantName.name) && r.date === v.date ? { ...r, ...(r.from[0] === cantName.name ? { label: `Next: ${choice}` } : {}), from: r.from.map((n) => (n === cantName.name ? choice : n)) } : r));
             w.cant(cantName ? cantName.i : null, draft, choice);
             setCantName(null);
           }}
