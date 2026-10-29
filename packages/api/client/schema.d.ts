@@ -1941,6 +1941,8 @@ export interface components {
             skip_ramp: boolean;
             /** @description Where the user felt the last set: `target`, `pain`, or the index of the guide card's "felt it somewhere else" entry. Null or absent when not answered. Optional so older clients that omit it still validate; a client that does not know the field may drop it when it rewrites the exercise. Prototype: `ex.feel`. */
             feel?: string | null;
+            /** @description Superset group (#1182, ADR 012): a short id shared by the members of one group. Members of a group are contiguous in `exercises` and there is no position field; the order of the array is the order. Null or absent means ungrouped. A group has 2 to 6 members, but that is a core rule, not enforced by this schema. The labels A and B are derived by the app, not stored. Optional so older clients that omit it still validate; a client that does not know the field may drop it when it rewrites the exercise. To ungroup, write an explicit null so the three-way merge sees the change. */
+            group?: string | null;
         } & {
             [key: string]: boolean | number | string | null;
         };
@@ -2222,8 +2224,7 @@ export interface components {
         };
         /**
          * @description One exercise of a routine. Open on purpose, as `WorkoutExercise`: the app keeps
-         *     keys it does not know, written by a newer client (for example a superset group,
-         *     #1182), when it rewrites the routine. At most 20 keys; an unlisted key's name is
+         *     keys it does not know, written by a newer client, when it rewrites the routine. At most 20 keys; an unlisted key's name is
          *     at most 50 characters and its value is a boolean, number, string of at most 200
          *     characters or null, so its size is bounded by these limits. A field a later
          *     contract adds is listed here with its own shape. A routine always starts a fresh
@@ -2238,6 +2239,8 @@ export interface components {
              *     actually shown.
              */
             sets: number;
+            /** @description Superset group (#1182, ADR 012): a short id shared by the members of one group. Members of a group are contiguous in `exercises` and there is no position field; the order of the array is the order. Null or absent means ungrouped. A group has 2 to 6 members, but that is a core rule, not enforced by this schema. The labels A and B are derived by the app, not stored. Optional so older clients that omit it still validate; a client that does not know the field may drop it when it rewrites the routine. To ungroup, write an explicit null so the three-way merge sees the change. */
+            group?: string | null;
         } & {
             [key: string]: boolean | number | string | null;
         };
