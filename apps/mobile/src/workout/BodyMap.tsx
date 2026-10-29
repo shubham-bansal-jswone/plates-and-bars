@@ -1,3 +1,4 @@
+import { useId } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Svg, { Defs, G, Line, Pattern, Polygon, Rect, Text as SvgText } from 'react-native-svg';
 import { Text } from '../components/Text';
@@ -23,6 +24,10 @@ function shades(map: Record<string, string[]>, primary: readonly string[], secon
 /** The front and back muscle map (`bodyMapSvg`): main muscles in the brand colour, also-working in `muscleAlso`, the rest in `surfaceSoft`; every region is stroked with `muscleOff` so the silhouette shows. */
 export function BodyMap({ primary, secondary }: { primary: readonly string[]; secondary: readonly string[] }) {
   const c = useTheme();
+  // Pattern ids are document-global on web, and a hidden screen's map can stay mounted: an id per instance, without the colons useId adds.
+  const uid = useId().replace(/[^A-Za-z0-9]/g, '');
+  const hatch = `also-hatch-${uid}`;
+  const hatchKey = `also-hatch-key-${uid}`;
   const fontFamily = useFontFamily()('400');
   const also = c.muscleAlso;
   const fill = (v: number) => (v === 2 ? c.brand : v === 1 ? also : c.surfaceSoft);
@@ -35,7 +40,7 @@ export function BodyMap({ primary, secondary }: { primary: readonly string[]; se
     <View accessible accessibilityRole="image" accessibilityLabel={label} style={styles.wrap}>
       <Svg width="100%" viewBox="0 0 210 222" style={styles.svg}>
         <Defs>
-          <Pattern id="also-hatch" width={4} height={4} patternUnits="userSpaceOnUse">
+          <Pattern id={hatch} width={4} height={4} patternUnits="userSpaceOnUse">
             <Line x1={0} y1={4} x2={4} y2={0} stroke={c.bg} strokeWidth={1} />
           </Pattern>
         </Defs>
@@ -45,7 +50,7 @@ export function BodyMap({ primary, secondary }: { primary: readonly string[]; se
             <G key={view} transform={`translate(${dx} 0)`}>
               {REGIONS[view].map(([region, polygons]) => polygons.map((points, i) => <Polygon key={`${region}${i}`} points={points} fill={fill(state.get(region) ?? 0)} stroke={c.muscleOff} strokeWidth={0.6} />))}
               {/* Also-working is hatched on top of its fill, so the main-vs-also distinction does not rest on colour alone. */}
-              {REGIONS[view].map(([region, polygons]) => (state.get(region) === 1 ? polygons.map((points, i) => <Polygon key={`${region}${i}h`} points={points} fill="url(#also-hatch)" stroke={c.muscleOff} strokeWidth={0.6} />) : null))}
+              {REGIONS[view].map(([region, polygons]) => (state.get(region) === 1 ? polygons.map((points, i) => <Polygon key={`${region}${i}h`} points={points} fill={`url(#${hatch})`} stroke={c.muscleOff} strokeWidth={0.6} />) : null))}
               <SvgText x={50} y={216} textAnchor="middle" fontSize={12} fill={c.muted} fontFamily={fontFamily}>
                 {name}
               </SvgText>
@@ -62,11 +67,11 @@ export function BodyMap({ primary, secondary }: { primary: readonly string[]; se
           <View style={[styles.swatch, { backgroundColor: also }]}>
             <Svg width={12} height={12} viewBox="0 0 12 12" aria-hidden>
               <Defs>
-                <Pattern id="also-hatch-key" width={4} height={4} patternUnits="userSpaceOnUse">
+                <Pattern id={hatchKey} width={4} height={4} patternUnits="userSpaceOnUse">
                   <Line x1={0} y1={4} x2={4} y2={0} stroke={c.bg} strokeWidth={1} />
                 </Pattern>
               </Defs>
-              <Rect width={12} height={12} fill="url(#also-hatch-key)" />
+              <Rect width={12} height={12} fill={`url(#${hatchKey})`} />
             </Svg>
           </View>
           <Text style={{ color: c.muted, fontSize: 13 }}>Also working</Text>

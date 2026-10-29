@@ -351,7 +351,9 @@ describe('Workout tab: logging sets', () => {
     for (let k = n + 1; k > 1; k--) await press('Remove last set of Barbell Bench Press');
     await waitFor(() => expect(sets()).toBe(1));
     expect(screen.queryByLabelText('Remove last set of Barbell Bench Press')).toBeNull();
-    expect(screen.getByText('Set removed')).toBeTruthy();
+    const removed = StyleSheet.flatten(screen.getByText('Set removed').parent?.props.style);
+    expect(removed).toMatchObject({ position: 'absolute', bottom: 90 }); // every other Workout toast stays at the bottom
+    expect('top' in removed).toBe(false);
   });
 
   it('the set chips are named from their visible text (WCAG 2.5.3, #800)', async () => {
@@ -749,8 +751,9 @@ describe('Workout tab: logging sets', () => {
     await press('Mark Barbell Bench Press set 1 done');
     const toast = await screen.findByText('Enter the weight and reps first.');
     const wrap = StyleSheet.flatten(toast.parent?.props.style);
-    expect(wrap.top).toBe(12);
-    expect(wrap.bottom).toBeUndefined();
+    // The top variant carries no `bottom` at all (react-native-web would keep a `bottom: undefined` override's base value).
+    expect(wrap).toMatchObject({ position: 'absolute', top: 12 });
+    expect('bottom' in wrap).toBe(false);
   });
 
   it('refuses to tick a first-time set with nothing to fill from', async () => {

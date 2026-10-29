@@ -30,6 +30,7 @@ import { guidance, progressionContext, type Tuning } from '../workout/guidance';
 import { ExerciseCards, RecheckCards, StartCards } from '../workout/ExerciseCards';
 import { BurnLine } from '../workout/BurnLine';
 import { CardioBlock } from '../workout/CardioBlock';
+import { RING_SIZE } from '../workout/Ring';
 import { ModeNote, WeekTools } from '../workout/ScheduleTools';
 import { CantSheet } from '../workout/CantSheet';
 import { CompletionPanel } from '../workout/CompletionPanel';
@@ -61,6 +62,9 @@ interface Props {
 }
 
 /** Workout tab: today's planned session with Start, then the session itself. */
+/** The set-row refusal toasts (`useWorkoutDay`): "Enter the weight and reps first.", "Enter the sec first.", "Enter the weight first.". */
+const SET_ROW_TOAST = /^Enter the (weight and )?(reps|sec|weight) first\.$/;
+
 export function WorkoutScreen({ db, now = () => new Date() }: Props) {
   const { profile, status } = useProfile();
   const { ready, settings } = useSettings();
@@ -69,8 +73,11 @@ export function WorkoutScreen({ db, now = () => new Date() }: Props) {
   const [rest, setRest] = useState<RestState | null>(null);
   const [howTo, setHowTo] = useState<string | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [toastTop, setToastTop] = useState(false);
   const notify = useCallback((msg: string) => {
     setToast(msg);
+    // Only the set-row refusal ("Enter the weight and reps first.") goes to the top, so it does not cover the row and tick; the rest stay at the bottom above the rest dock.
+    setToastTop(SET_ROW_TOAST.test(msg));
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => setToast(null), 2200);
   }, []);
@@ -199,7 +206,7 @@ export function WorkoutScreen({ db, now = () => new Date() }: Props) {
       </Page>
       {sheets}
       {restBar}
-      <ToastBar message={toast} top />
+      <ToastBar message={toast} top={toastTop} lift={rest ? RING_SIZE + 30 : 0} />
     </View>
   );
 }
