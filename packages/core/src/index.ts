@@ -826,6 +826,14 @@ export { PR_THRESHOLD, PR_MIN_PRIOR_SESSIONS, MAIN_LIFT_WEEKS, MAIN_LIFT_MIN_POI
 export type { PrSet, PrSetRef, PrMetric, PrImprovement, PersonalRecord, PriorBest, MainLift } from './records';
 
 /**
+ * Milestones (#1351 C6, new rule, no prototype counterpart): `milestones(sets, sessions, weights, types, unit, end, profile?)` lists the earned
+ * ones with the date first earned, newest first: 1/2/3 plates a side (barbell), bench at bodyweight, squat at 1.5 x bodyweight, the 10th/50th/100th
+ * workout (`sessionDates`) and the first 4 on-track weeks (`habits`). Derived from stored data, never stored. New best 1RM is not one (Recent PRs).
+ */
+export { PLATE_MILESTONES, KG_EPSILON, EZ_BAR_LIFTS, BENCH_LIFTS, SQUAT_LIFTS, BENCH_BODYWEIGHT_X, SQUAT_BODYWEIGHT_X, WORKOUT_MILESTONES, PLAN_BLOCK_WEEKS, milestones } from './milestones';
+export type { Milestone, MilestoneKind, MilestoneProfile } from './milestones';
+
+/**
  * Workout import from a Strong or Hevy CSV (#1179, new, no prototype counterpart).
  * - `parseWorkoutCsv` reads the export into work sets by day (warm-up, distance/time-only and unreadable rows counted, not stored; weights to kg with `lbToKg`; a Strong file needs the unit, a Hevy header gives it); `parseCsv` is its CSV reader.
  * - `matchExercise`, `matchAll` sort the imported names into catalogue matches (exact, then case and form insensitive, then the optional alias table) and unmatched.
