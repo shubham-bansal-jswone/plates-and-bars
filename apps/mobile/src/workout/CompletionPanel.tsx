@@ -8,7 +8,7 @@ import type { WorkoutDb } from '../db/workouts';
 import { radius, tabular, type } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { BurnLine } from './BurnLine';
-import { milestoneLine, RATE_LABEL, ROUTINE_COPY } from './copy';
+import { milestoneLine, PR_LABEL, RATE_LABEL, ROUTINE_COPY } from './copy';
 import type { ExState } from './model';
 import { buildShareCard } from './shareModel';
 import { ShareCard } from './ShareCard';
@@ -46,7 +46,7 @@ export function CompletionPanel({ earned = [], db, date, profileKg, exs, cardio,
               <Text style={[type.bodyStrong, { color: c.ink }]}>{e.name}</Text>
               {rates.length ? <Text style={[type.caption, { color: c.muted }]}>Felt: {rates.join(', ')}</Text> : null}
             </View>
-            {pr ? <Text style={[type.small, styles.pr, { backgroundColor: c.brand, color: c.onBrand }]}>Personal best</Text> : null}
+            {pr ? <Text style={[type.small, styles.pr, { backgroundColor: c.brand, color: c.onBrand }]}>{PR_LABEL}</Text> : null}
             {card.bests[i] ? <Text style={[type.heading, tabular, { color: c.ink }]}>{card.bests[i]}</Text> : null}
           </View>
         );

@@ -167,16 +167,19 @@ export const MY_ROUTINES = {
   remove: 'Remove',
 };
 
+/** The quiet label on a personal best, in the History day, the completion panel and Recent personal bests. */
+export const PR_LABEL = 'Personal best';
+
 /**
- * The personal-best toast: what improved, in the user's unit (#1351 A4b). Loaded lifts say the set and the estimated 1RM;
- * bodyweight and timed lifts the total; assisted lifts the set. Weights arrive in kg.
+ * What a personal best was, in the user's unit (#1351), shared by the toast and the Progress rows: loaded lifts say the set and the
+ * estimated 1RM; bodyweight and timed lifts the total; assisted lifts the set. Weights arrive in kg. `lift` is the exercise name.
  */
-export function pbToastText(name: string, pr: PrImprovement, unit: WeightUnit, type: ExType): string {
+export function prText(lift: string, pr: PrImprovement, unit: WeightUnit, type: ExType): string {
   const w = (value: number) => `${formatWeight(value, unit)} ${unit}`;
   const up = (value: number) => `+${formatWeight(value, unit)}${pr.metric === 'e1rm' ? ` ${unit}` : ''}`;
-  if (pr.metric === 'e1rm') return `New personal best: ${name} ${w(pr.set.w)} x ${pr.set.r}, estimated 1RM ${w(pr.score)} (${up(pr.delta)})`;
-  if (pr.metric === 'reps') return `New personal best: ${name}, ${pr.score} ${repWord(type)} in total (+${pr.delta})`;
-  return `New personal best: ${name}, ${pr.set.r} reps with ${w(pr.set.w)} of assistance`;
+  if (pr.metric === 'e1rm') return `${lift} ${w(pr.set.w)} x ${pr.set.r}, estimated 1RM ${w(pr.score)} (${up(pr.delta)})`;
+  if (pr.metric === 'reps') return `${lift}, ${pr.score} ${repWord(type)} in total (+${pr.delta})`;
+  return `${lift}, ${pr.set.r} reps with ${w(pr.set.w)} of assistance`;
 }
 
 /** The quiet toast for a milestone just earned (#1351 A9): the title and detail core wrote, in the user's unit. One line, no points. */
@@ -184,3 +187,6 @@ export const milestoneToastText = (m: { title: string; detail: string }): string
 
 /** One milestone as a line (the completion panel and the Progress list): title and detail. */
 export const milestoneLine = (m: { title: string; detail: string }): string => `${m.title}, ${m.detail}`;
+
+/** The personal-best toast: "New personal best: " and `prText`. */
+export const pbToastText = (name: string, pr: PrImprovement, unit: WeightUnit, type: ExType): string => `New personal best: ${prText(name, pr, unit, type)}`;
