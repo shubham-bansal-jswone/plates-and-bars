@@ -53,7 +53,7 @@ export interface BurnSet {
   deleted_at?: string | null | undefined;
 }
 
-const live = <T extends { deleted_at?: string | null | undefined }>(xs: readonly T[]): T[] => xs.filter((x) => x.deleted_at == null);
+export const live = <T extends { deleted_at?: string | null | undefined }>(xs: readonly T[]): T[] => xs.filter((x) => x.deleted_at == null);
 
 /**
  * The latest weigh-in on or before `upTo` (any date when `upTo` is omitted), or null.
@@ -574,16 +574,35 @@ export interface Habits {
 }
 
 /**
+ * Sessions a week to be on track: plan days minus 1, at least 2. The one goal rule, shared by `habits` and `weeksOnTrackSeries`.
+ *
+ * Mirrors the goal in prototype `consistencyHtml()`.
+ */
+export function weeklySessionGoal(profile: PlanProfile | null | undefined): number {
+  return Math.max(2, splitFor(profile).list.length - 1);
+}
+
+/**
+ * Whether the Monday-week starting `monday` was on track: at least `goal` session dates in `[monday, monday + 7)`.
+ * Shared by `habits` and `weeksOnTrackSeries`.
+ *
+ * Mirrors the per-week test in prototype `consistencyHtml()`.
+ */
+export function weekOnTrack(dates: readonly string[], monday: string, goal: number): boolean {
+  const we = addDays(monday, 7);
+  return dates.filter((d) => d >= monday && d < we).length >= goal;
+}
+
+/**
  * Gentle habits: on-track weeks in a row, not streaks of days.
  *
  * Mirrors prototype `consistencyHtml()` (its numbers and choice of line, not its HTML).
  */
 export function habits(date: string, sessions: SessionLog, profile: PlanProfile | null | undefined, days: readonly ProgressDay[]): Habits {
-  const goal = Math.max(2, splitFor(profile).list.length - 1), dates = Object.keys(sessions), monday = mondayOf(date);
+  const goal = weeklySessionGoal(profile), dates = Object.keys(sessions), monday = mondayOf(date);
   let weeks = 0;
   for (let k = 1; k <= 26; k++) {
-    const ws = addDays(monday, -7 * k), we = addDays(ws, 7);
-    if (dates.filter((d) => d >= ws && d < we).length >= goal) weeks++;
+    if (weekOnTrack(dates, addDays(monday, -7 * k), goal)) weeks++;
     else break;
   }
   const logged = daysEnding(days, date, 7).filter((d) => live(d.logs).length).length;
