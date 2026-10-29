@@ -23,20 +23,27 @@ const VIEW_H = 700; // the page: top 0, 700 high
 // Layout is mocked: the page (the scroll view, which the jest mock lets share View's measure) is 700 high; any other node asked is the one being revealed, at `nodeTop`, 100 high.
 let nodeTop = 0;
 let scrollY = 0; // where the page is scrolled to: its content starts that far above the page
-const scrollTo = jest.spyOn(ScrollView.prototype, 'scrollTo').mockImplementation(() => {});
+let contentH = 5000; // the page's content height: a scroll cannot go past contentH - VIEW_H
+// A scroll lands: the page moves (to where it can reach), and every node with it.
+const scrollTo = jest.spyOn(ScrollView.prototype, 'scrollTo').mockImplementation(((o: { y: number }) => {
+  const y = Math.min(o.y, Math.max(0, contentH - VIEW_H));
+  nodeTop += scrollY - y;
+  scrollY = y;
+}) as never);
 const measured = jest.spyOn(View.prototype, 'measureInWindow').mockImplementation(function (this: { props: object }, ...args: unknown[]) {
   const cb = args[0] as (x: number, y: number, w: number, h: number) => void;
   if ('contentContainerStyle' in this.props) cb(0, 0, 375, VIEW_H);
   else cb(0, nodeTop, 300, 100);
 });
 // The page's inner content view: its window top is the page top less the offset (react-native-web and native both have it; jest's mock does not).
-(ScrollView.prototype as unknown as { getInnerViewRef: () => unknown }).getInnerViewRef = () => ({ measureInWindow: (cb: (x: number, y: number) => void) => cb(0, -scrollY) });
+(ScrollView.prototype as unknown as { getInnerViewRef: () => unknown }).getInnerViewRef = () => ({ measureInWindow: (cb: (x: number, y: number, w: number, h: number) => void) => cb(0, -scrollY, 375, contentH) });
 const focus = jest.spyOn(TextInput.prototype, 'focus');
 beforeEach(() => {
   scrollTo.mockClear();
   measured.mockClear();
   focus.mockClear();
   scrollY = 0;
+  contentH = 5000;
   setReducedMotionForTests(undefined);
 });
 
@@ -240,7 +247,8 @@ describe('the dock of a new rest', () => {
     const names = await mount(['g', 'g', 'g'], false);
     nodeTop = 900;
     await tick(names[0]!, 0, 'A1');
-    await layout(300);
+    await layout(300); // the reveal lands: the page is at 608
+    nodeTop = 600; // the row is out of view with the page where it was (a card above grew), so any reveal would show as a scroll
     scrollTo.mockClear();
     await layout(300);
     await layout(150);
@@ -252,12 +260,37 @@ describe('the dock of a new rest', () => {
     nodeTop = 900;
     await tick(names[0]!, 0, 'A1');
     await layout(300);
-    scrollY = 608; // the reveal's scroll lands (jest's scrollTo moves nothing)
-    nodeTop = 392;
     await layout(150);
     scrollTo.mockClear();
-    await layout(300);
+    await layout(350); // taller than the first time: the row is covered again
     expect(scrollTo).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the offset the page could reach, so growth with the page unmoved still re-reveals', async () => {
+    contentH = 1100; // the page can scroll to 400 at most, the row asks for 608
+    const names = await mount(['g', 'g', 'g'], false);
+    nodeTop = 900;
+    await tick(names[0]!, 0, 'A1');
+    await layout(300);
+    expect(scrollY).toBe(400);
+    scrollTo.mockClear();
+    await layout(350);
+    expect(scrollTo).toHaveBeenCalledTimes(1);
+  });
+
+  it('re-reveals when the page has drifted 2 px since the reveal, not 3 px', async () => {
+    const names = await mount(['g', 'g', 'g'], false);
+    nodeTop = 900;
+    await tick(names[0]!, 0, 'A1');
+    await layout(150);
+    scrollTo.mockClear();
+    scrollY += 2; // the page's own offset, as the reveal left it, plus 2
+    await layout(200);
+    expect(scrollTo).toHaveBeenCalledTimes(1);
+    scrollTo.mockClear();
+    scrollY += 3;
+    await layout(250);
+    expect(scrollTo).not.toHaveBeenCalled();
   });
 
   it('scrolls to the last tick\'s row again, with the new height, when the next rest\'s dock is laid out', async () => {

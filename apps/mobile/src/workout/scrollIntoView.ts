@@ -39,11 +39,12 @@ export function useScrollIntoView() {
       // The offset is read from where the content sits (its top is the page top less the offset), not from `onScroll`, which lags a scroll that has just happened.
       node.measureInWindow((_x, nodeTop, _w, nodeH) => {
         page.measureInWindow((_px, viewTop, _pw, viewH) => {
-          content.measureInWindow((_cx, contentTop) => {
+          content.measureInWindow((_cx, contentTop, _cw, contentH) => {
             const d = revealDelta(nodeTop, nodeH, viewTop, viewH, bottomClear);
-            const y = d !== 0 ? Math.max(0, viewTop - contentTop + d) : viewTop - contentTop;
-            if (d !== 0) page.scrollTo({ x: 0, y, animated });
-            onOffset?.(y); // the offset the reveal left, for a later check that the page has not moved
+            const want = Math.max(0, viewTop - contentTop + d);
+            if (d !== 0) page.scrollTo({ x: 0, y: want, animated });
+            // What the page can reach: a scroll past the end of the content stops there.
+            onOffset?.(d !== 0 ? Math.min(want, Math.max(0, contentH - viewH)) : viewTop - contentTop); // the offset the reveal left, for a later check that the page has not moved
           });
         });
       });
