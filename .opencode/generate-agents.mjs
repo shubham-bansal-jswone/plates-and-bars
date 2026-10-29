@@ -24,8 +24,9 @@ const LANES = {
 
 // Agents not mirrored to OpenCode. ui-qa drives a browser through the
 // mcp__playwright__* tools, which the OpenCode setup does not provide, so the
-// agent cannot do its job there. Every other .claude agent (including the
-// read-only ui-designer, which needs only Read/Glob/Grep) is mirrored.
+// agent cannot do its job there. Every other .claude agent is mirrored,
+// including the read-only ui-designer, whose output gets no shell rule because
+// its source tools list has no Bash.
 const EXCLUDED = new Set(["ui-qa"]);
 
 import { readdirSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
@@ -57,8 +58,11 @@ function permissionsFor(name, tools) {
     { action: "read", resource: "*", effect: "allow" },
     { action: "glob", resource: "*", effect: "allow" },
     { action: "grep", resource: "*", effect: "allow" },
-    { action: "shell", resource: "*", effect: "allow" },
   ];
+  // Shell only when the source agent lists Bash (ui-designer does not).
+  if (tools.has("Bash")) {
+    list.push({ action: "shell", resource: "*", effect: "allow" });
+  }
   if (tools.has("WebFetch")) {
     list.push({ action: "webfetch", resource: "*", effect: "allow" });
   }

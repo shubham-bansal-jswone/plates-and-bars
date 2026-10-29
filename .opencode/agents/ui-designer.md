@@ -11,9 +11,6 @@ permissions:
   - action: grep
     resource: "*"
     effect: allow
-  - action: shell
-    resource: "*"
-    effect: allow
   - action: subagent
     resource: "*"
     effect: deny
