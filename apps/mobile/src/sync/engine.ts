@@ -46,7 +46,7 @@ export interface SyncResult {
   retryAfterSec?: number;
   /** Real conflicts the server resolved this run (idempotent retries are not counted). */
   conflicts: number;
-  /** Pulled records stored this run. */
+  /** Pulled records stored this run, plus server copies adopted or merged in on a push conflict (screens reload when it is above 0). */
   pulled?: number;
   /** Pushed records the server applied this run. */
   pushed?: number;
