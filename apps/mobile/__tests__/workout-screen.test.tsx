@@ -79,6 +79,14 @@ async function seedLift(db: Db, name: string, w: number, scores?: number[]) {
   db.rows.set(`lift_stats:${name}`, JSON.stringify(rec));
 }
 
+/** Two earlier days of stored sets for the lift (best estimated 1RM 90 kg): the all-time best the personal-best toast compares against (#1351). */
+async function seedEarlier(db: Db, name: string) {
+  for (const [date, w] of [['2026-09-20', 60], ['2026-09-21', 67.5]] as const) {
+    db.rows.set(`workouts:${date}`, JSON.stringify({ date, deleted_at: null }));
+    await saveSet(db, date, { id: `earlier-${date}`, version: 0, updated_at: `${date}T09:00:00Z`, deleted_at: null, workout_id: null, exercise: name, kind: 'work', set_index: 0, weight_kg: w, reps: 10, done: true, rate: null, t: null });
+  }
+}
+
 /** Lets everything already queued run: promise callbacks, then one macrotask turn. No wall-clock delay. */
 const flush = () => act(async () => { await new Promise<void>((r) => setImmediate(r)); });
 
@@ -1134,13 +1142,14 @@ describe('Workout tab: personal best', () => {
   it('toasts a personal best once a day and records pb_toast_date', async () => {
     const lifts = { 'Barbell Bench Press': 60 };
     const db = await setup({ lifts, hist: { 'Barbell Bench Press': [80, 90] } });
+    await seedEarlier(db, 'Barbell Bench Press');
     await press('Start Push B');
     await screen.findByText('Push B');
     await fireEvent.changeText(screen.getByLabelText('Barbell Bench Press set 1 kg'), '70');
     await fireEvent.changeText(screen.getByLabelText('Barbell Bench Press set 1 reps'), '10');
     await press('Mark Barbell Bench Press set 1 done');
     // 70 kg x 10 scores 93.3 against a best of 90: more than 0.5% better.
-    expect(await screen.findByText('New personal best on Barbell Bench Press')).toBeTruthy();
+    expect(await screen.findByText('New personal best: Barbell Bench Press 70 kg x 10, estimated 1RM 93.3 kg (+3.3 kg)')).toBeTruthy();
     expect(stored<LiftRecord>(db, 'lift_stats:Barbell Bench Press').pbToast).toBe(DATE);
 
     await act(async () => void jest.advanceTimersByTime(3000));
@@ -1148,7 +1157,7 @@ describe('Workout tab: personal best', () => {
     await fireEvent.changeText(screen.getByLabelText('Barbell Bench Press set 2 kg'), '72.5');
     await fireEvent.changeText(screen.getByLabelText('Barbell Bench Press set 2 reps'), '10');
     await press('Mark Barbell Bench Press set 2 done');
-    await waitFor(() => expect(storedSets(db).filter((s) => s.done)).toHaveLength(2));
+    await waitFor(() => expect(storedSets(db).filter((s) => s.done && !s.id.startsWith('earlier-'))).toHaveLength(2));
     expect(screen.queryByText(/New personal best/)).toBeNull();
     expect(stored<LiftRecord>(db, 'lift_stats:Barbell Bench Press').pbToast).toBe(DATE);
   });
@@ -1157,18 +1166,19 @@ describe('Workout tab: personal best', () => {
     const vibrate = jest.spyOn(Vibration, 'vibrate').mockImplementation(() => undefined);
     const lifts = { 'Barbell Bench Press': 60 };
     const db = await setup({ lifts, hist: { 'Barbell Bench Press': [80, 90] } });
+    await seedEarlier(db, 'Barbell Bench Press');
     await press('Start Push B');
     await screen.findByText('Push B');
     vibrate.mockClear(); // starting the session or ticking a set may start a rest; only the PB buzz is counted here
     await fireEvent.changeText(screen.getByLabelText('Barbell Bench Press set 1 kg'), '70');
     await fireEvent.changeText(screen.getByLabelText('Barbell Bench Press set 1 reps'), '10');
     await press('Mark Barbell Bench Press set 1 done');
-    expect(await screen.findByText('New personal best on Barbell Bench Press')).toBeTruthy();
+    expect(await screen.findByText('New personal best: Barbell Bench Press 70 kg x 10, estimated 1RM 93.3 kg (+3.3 kg)')).toBeTruthy();
     expect(vibrate.mock.calls.filter(([p]) => p === 60)).toHaveLength(1);
     await fireEvent.changeText(screen.getByLabelText('Barbell Bench Press set 2 kg'), '72.5');
     await fireEvent.changeText(screen.getByLabelText('Barbell Bench Press set 2 reps'), '10');
     await press('Mark Barbell Bench Press set 2 done');
-    await waitFor(() => expect(storedSets(db).filter((s) => s.done)).toHaveLength(2));
+    await waitFor(() => expect(storedSets(db).filter((s) => s.done && !s.id.startsWith('earlier-'))).toHaveLength(2));
     expect(vibrate.mock.calls.filter(([p]) => p === 60)).toHaveLength(1);
     vibrate.mockRestore();
   });

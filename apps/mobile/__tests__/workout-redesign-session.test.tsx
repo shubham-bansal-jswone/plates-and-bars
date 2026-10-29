@@ -28,7 +28,7 @@ describe('CompletionPanel', () => {
     expect(screen.getByText('62.5 x 6')).toBeTruthy(); // the heaviest set
     expect(screen.getByText('Felt: Just right, Hard')).toBeTruthy();
     expect(screen.queryByText(/streak|crushed|duration/i)).toBeNull();
-    expect(screen.queryByText('Personal record')).toBeNull();
+    expect(screen.queryByText('Personal best')).toBeNull();
   });
 
   it('is nothing while any set is undone, and nothing for an empty session', async () => {
@@ -41,10 +41,10 @@ describe('CompletionPanel', () => {
 
   it('marks a personal record only when the lift record says today set one', async () => {
     await panel([ex('Barbell Bench Press', [row('60', '8', true)])], { pbOn: '2026-10-08' });
-    expect(screen.getByText('Personal record')).toBeTruthy();
+    expect(screen.getByText('Personal best')).toBeTruthy();
     await screen.unmount();
     await panel([ex('Barbell Bench Press', [row('60', '8', true)])], { pbOn: '2026-10-01' });
-    expect(screen.queryByText('Personal record')).toBeNull();
+    expect(screen.queryByText('Personal best')).toBeNull();
   });
 
   it('a bodyweight session shows total reps in place of volume; cardio minutes and a second session are labelled', async () => {
