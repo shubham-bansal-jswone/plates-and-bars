@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "origin": "docs/prototype/plate-and-bar.html (KB, LEARN), with CARD_OVERRIDES in tools/cards-import/import.mjs",
+  "origin": "imported once from the prototype (frozen at tag prototype-final) (KB, LEARN); content is now the source of record",
   "split_names": {
     "2": "two full-body sessions",
     "3": "three full-body sessions",

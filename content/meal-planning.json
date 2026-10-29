@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "source": "docs/prototype/plate-and-bar.html (GROC, MEAL_W, PROT_W, MAXQ, MINQ, ROLE)",
+  "source": "imported once from the prototype (frozen at tag prototype-final) (GROC, MEAL_W, PROT_W, MAXQ, MINQ, ROLE); content is now the source of record",
   "updated_at": "2026-10-17T00:00:00Z",
   "needs_dietitian_review": true,
   "meal_weights": {

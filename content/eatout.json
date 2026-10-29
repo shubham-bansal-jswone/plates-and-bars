@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "source": "docs/prototype/plate-and-bar.html (EATOUT)",
+  "source": "imported once from the prototype (frozen at tag prototype-final) (EATOUT); content is now the source of record",
   "cuisines": [
     {
       "name": "North Indian",

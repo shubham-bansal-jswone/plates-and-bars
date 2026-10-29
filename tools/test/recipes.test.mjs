@@ -6,7 +6,10 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { validateRaw, validateRecipes, validatePlanning } from '../validate/recipes.mjs';
-import { idFor, VALUE_OVERRIDE } from '../recipes-import/import.mjs';
+import { assertIds, pinned } from './pinned-ids.mjs';
+
+// The one deliberate content-over-prototype value (#576): FDC 171314 instead of the prototype's 876 kcal row.
+const VALUE_OVERRIDE = { Ghee: { from: [876, 0.3, 0, 99.5], set: [900, 0, 0, 100] } };
 
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const load = (f) => JSON.parse(readFileSync(`${repo}/content/${f}`, 'utf8'));
@@ -22,12 +25,17 @@ test('content files pass validation', () => {
   assert.deepEqual(validatePlanning(load('meal-planning.json'), foodNames()), []);
 });
 
-test('raw ingredient: Toor dal values, the fatty ones and the stable id', () => {
+test('raw ingredient, library and preset ids equal the pinned snapshot', () => {
+  assertIds(load('raw-ingredients.json').ingredients, pinned.raw, 'raw');
+  assertIds(load('recipes.json').library, pinned.recipes.library, 'library');
+  assertIds(load('recipes.json').presets, pinned.recipes.presets, 'presets');
+});
+
+test('raw ingredient: Toor dal values and the fatty ones', () => {
   const c = load('raw-ingredients.json');
   const toor = c.ingredients.find((i) => i.name === 'Toor dal (dry)');
   assert.deepEqual(toor.per_100g, { kcal: 343, protein_g: 21.7, carbs_g: 62.8, fibre_g: 15, fat_g: 1.5 });
   assert.deepEqual(c.ingredients.filter((i) => i.fatty).map((i) => i.name).sort(), ['Butter', 'Fresh cream', 'Ghee', 'Oil']);
-  assert.equal(idFor('raw', 'Toor dal (dry)'), toor.id);
 });
 
 test('sources: only ADR 005 codes, FSSAI for dairy, label values for packaged, every row flagged for dietitian review', () => {
@@ -165,7 +173,6 @@ test('every usda_fdc raw row names its FDC id, except the listed generic one; ot
     if (i.source.code !== 'usda_fdc') assert.equal(i.source.reference, null, i.name);
     else assert.match(i.source.reference, /^FDC \d+ \(SR Legacy: .+\), per 100 g/, i.name);
   }
-  assert.deepEqual(Object.keys(VALUE_OVERRIDE), ['Ghee']);
 });
 
 test('#576: Ghee uses FDC 171314 in both files with one value; Oil stays generic with source label typical', () => {
