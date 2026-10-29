@@ -1,12 +1,14 @@
 /** @jest-environment node */
 import { buildLocalExport } from '../src/account/exportLocal';
-import { applyRestore, parseRestore, previewRestore } from '../src/account/restoreLocal';
+import { readFileSync } from 'fs';
+import { resolve } from 'path';
+import { CI_CHOICE, MODS_VALUE_MAX, TEXT_MAX, WHERE, applyRestore, parseRestore, previewRestore } from '../src/account/restoreLocal';
 import { normalizeGroups, ROUTINE_EXERCISES_MAX, ROUTINE_MAX_LIVE, EXERCISE_NAME_MAX, ROUTINE_NAME_MAX, ROUTINE_SETS_MAX, ROUTINE_SETS_MIN } from '@plate-and-bar/core';
 import { RoutineError, createRoutine, deleteRoutine, loadRoutines, renameRoutine, undoDeleteRoutine, type RoutineExercise } from '../src/db/routines';
 import { pendingChanges } from '../src/db/outbox';
 import { wipeLocalStore } from '../src/sync/guard';
 import { RESTORE_COPY } from '../src/account/copy';
-import { VALUE_MAX, exerciseProblem, routineNameOk } from '../src/db/routineRules';
+import { KEY_MAX, MAX_KEYS, VALUE_MAX, exerciseProblem, routineNameOk } from '../src/db/routineRules';
 import { exclusive } from '../src/db/exclusive';
 import { openDb } from './sync-helpers';
 
@@ -385,13 +387,52 @@ describe('routines in the device export and restore', () => {
       expect(JSON.parse((await ok.dst.getFirstAsync<{ data: string }>('SELECT data FROM workouts'))!.data)).toMatchObject({ template: 'Push', where: 'gym', cardio_min: 20, ci_choice: 'swap', mods: { light: true, reentry: 0.3 } });
     });
 
-    it('workout fields at their limits stay: 200 code point text, 20 mods keys, a 50 character mods string; a fractional cardio_min and 201 code points are nulled', async () => {
+    it('workout fields at their limits stay: 200 code point text, 20 mods keys, a 50 character mods string; a non-numeric cardio_min and 201 code points are nulled', async () => {
       const mods = { ...Object.fromEntries(Array.from({ length: 19 }, (_, i) => [`k${i}`, 1])), note: 'n'.repeat(50) };
       const ok = await restored(await fileWith([], [[W({})]], { template: '🏋'.repeat(200), mods }));
       expect(ok.summary.tables.workouts).toMatchObject({ added: 1 });
       expect(ok.summary.tables.workouts!.repaired).toBeUndefined();
-      const bad = await restored(await fileWith([], [[W({})]], { template: '🏋'.repeat(201), cardio_min: 1.5 }));
+      const bad = await restored(await fileWith([], [[W({})]], { template: '🏋'.repeat(201), cardio_min: '20' }));
       expect(JSON.parse((await bad.dst.getFirstAsync<{ data: string }>('SELECT data FROM workouts'))!.data)).toMatchObject({ template: null, cardio_min: null });
+    });
+
+    it('a fractional cardio_min is rounded, not lost, and counted as repaired', async () => {
+      const { dst, summary } = await restored(await fileWith([], [[W({})]], { cardio_min: 12.5 }));
+      expect(JSON.parse((await dst.getFirstAsync<{ data: string }>('SELECT data FROM workouts'))!.data)).toMatchObject({ cardio_min: 13 });
+      expect(summary.tables.workouts).toMatchObject({ added: 1, repaired: 1 });
+    });
+
+    it('a mods key of 50 emoji is within the limit (code points, as the contract counts) and the workout is kept', async () => {
+      const { dst, summary } = await restored(await fileWith([], [[W({})]], { mods: { ['🏋'.repeat(50)]: 1 } }));
+      expect(await dst.getAllAsync('SELECT key FROM workouts')).toHaveLength(1);
+      expect(summary.tables.workouts!.invalid).toBeUndefined();
+    });
+
+    it('the limits typed in the app match openapi.yaml', () => {
+      // js-yaml is in node_modules as a dependency of other tooling, not declared by this package.
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { load } = require('js-yaml') as { load: (s: string) => { components: { schemas: Record<string, Record<string, unknown>> } } };
+      const schemas = load(readFileSync(resolve(__dirname, '../../../packages/api/openapi.yaml'), 'utf8')).components.schemas;
+      type Obj = Record<string, any>;
+      const workout = (schemas.Workout as Obj).allOf[1].properties as Obj;
+      const wex = schemas.WorkoutExercise as Obj;
+      const rex = schemas.RoutineExercise as Obj;
+      for (const s of [wex, rex]) {
+        expect(s.maxProperties).toBe(MAX_KEYS);
+        expect(s.propertyNames.maxLength).toBe(KEY_MAX);
+        expect(s.additionalProperties.maxLength).toBe(VALUE_MAX);
+      }
+      expect(workout.mods.maxProperties).toBe(MAX_KEYS);
+      expect(workout.mods.propertyNames.maxLength).toBe(KEY_MAX);
+      expect(workout.mods.additionalProperties.maxLength).toBe(MODS_VALUE_MAX);
+      expect(workout.mods.properties.where.enum).toEqual(WHERE);
+      expect(workout.where.enum.filter((x: unknown) => x !== null)).toEqual(WHERE);
+      expect(workout.ci_choice.enum.filter((x: unknown) => x !== null)).toEqual(CI_CHOICE);
+      expect(workout.template.maxLength).toBe(TEXT_MAX);
+      expect(workout.base.maxLength).toBe(TEXT_MAX);
+      expect(workout.mods.properties.reentry).toMatchObject({ minimum: 0, maximum: 1 });
+      expect((wex.properties as Obj).group.maxLength).toBe(36);
+      expect(workout.exercises.maxItems).toBe(ROUTINE_EXERCISES_MAX);
     });
 
     it.each([['missing', undefined], ['not an object', 'x'], ['reentry 5', { reentry: 5 }], ['light not boolean', { light: 'yes' }], ['where not allowed', { where: 'home' }], ['key of 51 characters', { ['k'.repeat(51)]: 1 }], ['a nested object', { a: { b: 1 } }], ['21 keys', Object.fromEntries(Array.from({ length: 21 }, (_, i) => [`k${i}`, 1]))], ['a string value of 51 characters', { note: 'n'.repeat(51) }]])('a workout whose mods is %s is skipped with its sets and counted', async (_n, mods) => {

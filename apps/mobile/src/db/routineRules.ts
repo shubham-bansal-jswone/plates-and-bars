@@ -5,8 +5,8 @@ import { ROUTINE_NAME_MAX, ROUTINE_SETS_MAX, ROUTINE_SETS_MIN, isBlank, validId 
 // and packages/api/test-vectors/routines.json. Pure: no database, no screen.
 
 /** Contract unlisted-key limits of `RoutineExercise` and `WorkoutExercise`: at most 20 keys, key names up to 50, string values up to 200. */
-const MAX_KEYS = 20;
-const KEY_MAX = 50;
+export const MAX_KEYS = 20;
+export const KEY_MAX = 50;
 /** Also the exercise name limit (core's EXERCISE_NAME_MAX): a name is a string value, so it is bounded here. */
 export const VALUE_MAX = 200;
 

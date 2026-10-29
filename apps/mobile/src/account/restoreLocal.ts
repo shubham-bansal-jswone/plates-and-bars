@@ -8,7 +8,7 @@ import { InvalidRecord, normalizeTimestamps, parseTimestamp, storeRecord, type D
 import { naturalId } from '../sync/ids';
 import { getLiftVersion } from '../sync/store';
 import { ROUTINE_EXERCISES_MAX, ROUTINE_MAX_LIVE, ROUTINE_SETS_MAX, ROUTINE_SETS_MIN, normalizeGroups } from '@plate-and-bar/core';
-import { boundedOpenOk, exerciseProblem, routineNameOk } from '../db/routineRules';
+import { KEY_MAX, MAX_KEYS, boundedOpenOk, exerciseProblem, len, routineNameOk } from '../db/routineRules';
 import { deleteKitchenPhoto } from '../photos/vault';
 
 // Restore from a device export file (#1177). It merges by record id using the record version and tombstones, the rule sync
@@ -127,22 +127,22 @@ function repairRoutine(rec: Doc): Fixed | null {
 }
 
 const FEEL = /^(target|pain|[0-9]{1,2})$/;
-const WHERE = ['gym', 'dumbbells', 'bodyweight'];
-const CI_CHOICE = ['light', 'swap', 'orig'];
-const TEXT_MAX = 200; // Workout.template and Workout.base
-const MODS_VALUE_MAX = 50; // Workout.mods unknown-key string values
+export const WHERE = ['gym', 'dumbbells', 'bodyweight'];
+export const CI_CHOICE = ['light', 'swap', 'orig'];
+export const TEXT_MAX = 200; // Workout.template and Workout.base
+export const MODS_VALUE_MAX = 50; // Workout.mods unknown-key string values
 
 /** Contract `Workout.mods`: an object of at most 20 keys (names up to 50), the listed keys typed, any other value a boolean, number, string up to 50 or null. */
 function modsOk(m: unknown): boolean {
   if (!isObj(m)) return false;
   const e = Object.entries(m);
-  if (e.length > 20) return false;
+  if (e.length > MAX_KEYS) return false;
   return e.every(([k, v]) => {
-    if (k.length > 50) return false;
+    if (len(k) > KEY_MAX) return false;
     if (k === 'light' || k === 'short' || k === 'deload') return typeof v === 'boolean';
     if (k === 'where') return typeof v === 'string' && WHERE.includes(v);
     if (k === 'reentry') return typeof v === 'number' && v >= 0 && v <= 1;
-    return v === null || typeof v === 'boolean' || typeof v === 'number' || (typeof v === 'string' && [...v].length <= MODS_VALUE_MAX);
+    return v === null || typeof v === 'boolean' || typeof v === 'number' || (typeof v === 'string' && len(v) <= MODS_VALUE_MAX);
   });
 }
 
@@ -152,7 +152,7 @@ function modsOk(m: unknown): boolean {
  * ROUTINE_EXERCISES_MAX exercises, or an exercise that is not an object, has a name over 200 characters (a string value of the
  * bounded-open rule) or breaks the bounded-open key rule. Repaired and kept, and counted as repaired. Top-level fields, required
  * and nullable, get null when invalid or missing: `template` and `base` (not a string of at most 200 code points), `where` (not
- * gym, dumbbells or bodyweight), `cardio_min` (not an integer from 0) and `ci_choice` (not light, swap or orig). Exercises:
+ * gym, dumbbells or bodyweight), `cardio_min` (not a number from 0; a fraction is rounded) and `ci_choice` (not light, swap or orig). Exercises:
  * `part` outside 1 or 2 becomes 1, a missing or mistyped `bridge` or `skip_ramp` becomes false, `form`, `found_kg` or `feel` become
  * null, and `normalizeGroups` nulls an invalid group id or dissolves a broken group.
  */
@@ -174,13 +174,13 @@ function repairWorkout(rec: Doc): Fixed | null {
     if (!boundedOpenOk(f)) return null; // the neutral values added a key past the 20-key limit
     fixed.push(f);
   }
-  const text = (v: unknown) => (typeof v === 'string' && [...v].length <= TEXT_MAX ? v : null);
+  const text = (v: unknown) => (typeof v === 'string' && len(v) <= TEXT_MAX ? v : null);
   const out: Doc = {
     ...rec,
     template: text(rec.template),
     base: text(rec.base),
     where: typeof rec.where === 'string' && WHERE.includes(rec.where) ? rec.where : null,
-    cardio_min: typeof rec.cardio_min === 'number' && Number.isInteger(rec.cardio_min) && rec.cardio_min >= 0 ? rec.cardio_min : null,
+    cardio_min: typeof rec.cardio_min === 'number' && Number.isFinite(rec.cardio_min) && rec.cardio_min >= 0 ? Math.round(rec.cardio_min) : null,
     ci_choice: typeof rec.ci_choice === 'string' && CI_CHOICE.includes(rec.ci_choice) ? rec.ci_choice : null,
     exercises: normalizeGroups(fixed as unknown as Groupable),
   };
