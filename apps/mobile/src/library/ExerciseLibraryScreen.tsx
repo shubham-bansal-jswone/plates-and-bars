@@ -129,10 +129,12 @@ export function ExerciseLibraryScreen({ onBack, list: given, session }: { onBack
             </View>
           ) : null}
           {isFiltered(f) ? <Button label="Clear filters" kind="ghost" onPress={() => setF(NO_FILTER)} /> : null}
-          {shown.length ? <Hint>{`${shown.length} of ${list.length} exercises`}</Hint> : null}
+          {/* One polite status line: the count, or the no-match message. It is the only place that message shows, so it is read once. */}
+          <View testID="library-status" role="status" accessibilityLiveRegion="polite">
+            <Hint>{shown.length ? `${shown.length} of ${list.length} exercises` : 'No exercises match. Try fewer filters or a different word.'}</Hint>
+          </View>
         </View>
       }
-      ListEmptyComponent={<Hint>No exercises match. Try fewer filters or a different word.</Hint>}
     />
   );
 }

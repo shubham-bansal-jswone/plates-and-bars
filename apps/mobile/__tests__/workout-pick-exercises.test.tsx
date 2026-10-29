@@ -100,13 +100,14 @@ describe('Workout start: Pick exercises', () => {
 });
 
 describe('Enter in the custom exercise field', () => {
-  it('adds the typed name like the Add button, including a long one', async () => {
+  it('adds the typed name like the Add button', async () => {
     const db = await setup(0);
     await screen.findByText('Rest day');
     await pressDay('Pick exercises');
     const field = screen.getByLabelText('Your own exercise');
     await fireEvent.changeText(field, 'barbell bench press');
     await fireEvent(field, 'submitEditing');
+    expect(field.props.blurOnSubmit).toBe(false);
     await press('Start this exercise');
     await screen.findByText('Session');
     expect(stored<Workout>(db, `workouts:${DATE}`).exercises.map((e) => e.name)).toEqual(['Barbell Bench Press']);

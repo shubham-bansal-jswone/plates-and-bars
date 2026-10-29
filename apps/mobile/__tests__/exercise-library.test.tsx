@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, within } from '@testing-library/react-native';
 import { ExerciseLibraryScreen } from '../src/library/ExerciseLibraryScreen';
 import labels from '../../../content/labels.json';
 import { BackHandler } from 'react-native';
@@ -67,6 +67,11 @@ describe('exercise library screen', () => {
     await fireEvent.changeText(screen.getByLabelText('Search exercises'), 'zzzz');
     expect(screen.getByText(/No exercises match/)).toBeTruthy();
     expect(screen.queryByText(/0 of 71 exercises/)).toBeNull();
+    // One polite status line carries the message (read once); the count is its text otherwise.
+    expect(screen.getAllByText(/No exercises match/)).toHaveLength(1);
+        expect(screen.getByTestId('library-status').props.accessibilityLiveRegion).toBe('polite');
+    await fireEvent.changeText(screen.getByLabelText('Search exercises'), 'barbell bench press');
+    expect(within(screen.getByTestId('library-status')).getByText(/^1 of 71 exercises$/)).toBeTruthy();
   });
 
   it('opens a detail with tags and notes, and goes back', async () => {
