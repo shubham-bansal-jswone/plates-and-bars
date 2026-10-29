@@ -11,7 +11,8 @@ git config user.email t@example.com
 git config user.name t
 mkdir -p apps/mobile/src/about apps/site/src/pages tests/e2e/store backend/src/main/resources/db/migration backend/src/test/resources/golden backend/src/main/java packages/api/test-vectors packages/core apps/mobile/scripts apps/mobile/src/content apps/site backend/scripts tools content docs tests/e2e
 for d in packages/api packages/core apps/mobile apps/site tools tests/e2e; do echo '{}' > "$d/package.json"; done
-touch backend/build.gradle apps/mobile/scripts/content-meta.mjs docs/check-play-listing.mjs
+mkdir -p .opencode
+touch backend/build.gradle apps/mobile/scripts/content-meta.mjs docs/check-play-listing.mjs .opencode/generate-agents.mjs
 git add -A && git commit -qm base
 
 fail=0
