@@ -216,10 +216,24 @@ describe('the dock of a new rest', () => {
     nodeTop = 900;
     await tick(names[0]!, 0, 'A1');
     await layout(150);
+    scrollY = 458; // the reveal's scroll lands (jest's scrollTo moves nothing)
+    nodeTop = 442;
     scrollTo.mockClear();
     await layout(300);
     expect(scrollTo).toHaveBeenCalledTimes(1);
     expect(scrollTo).toHaveBeenLastCalledWith({ x: 0, y: 1000 - (VIEW_H - 300 - 8), animated: false });
+  });
+
+  it('does not scroll when the dock grows after the user scrolled since the reveal (#1361)', async () => {
+    const names = await mount(['g', 'g', 'g'], false);
+    nodeTop = 900;
+    await tick(names[0]!, 0, 'A1');
+    await layout(150);
+    scrollTo.mockClear();
+    scrollY = 100; // the user scrolled up to read an earlier card
+    nodeTop = 1258;
+    await layout(300);
+    expect(scrollTo).not.toHaveBeenCalled();
   });
 
   it('does not scroll when the dock shrinks or keeps its height', async () => {
@@ -229,8 +243,21 @@ describe('the dock of a new rest', () => {
     await layout(300);
     scrollTo.mockClear();
     await layout(300);
-    await layout(150); // the user may have scrolled since
+    await layout(150);
     expect(scrollTo).not.toHaveBeenCalled();
+  });
+
+  it('scrolls again when the dock shrinks and then regrows with the page unmoved', async () => {
+    const names = await mount(['g', 'g', 'g'], false);
+    nodeTop = 900;
+    await tick(names[0]!, 0, 'A1');
+    await layout(300);
+    scrollY = 608; // the reveal's scroll lands (jest's scrollTo moves nothing)
+    nodeTop = 392;
+    await layout(150);
+    scrollTo.mockClear();
+    await layout(300);
+    expect(scrollTo).toHaveBeenCalledTimes(1);
   });
 
   it('scrolls to the last tick\'s row again, with the new height, when the next rest\'s dock is laid out', async () => {

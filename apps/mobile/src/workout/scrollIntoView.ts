@@ -32,7 +32,7 @@ export function useScrollIntoView() {
   const animated = reduced === false;
   const scroller = useMemo<PageScroller>(() => ({ attach: (n) => void (ref.current = n) }), []);
   const reveal = useCallback(
-    (node: ComponentRef<typeof View> | null | undefined, bottomClear: number) => {
+    (node: ComponentRef<typeof View> | null | undefined, bottomClear: number, onOffset?: (y: number) => void) => {
       const page = ref.current;
       const content = page?.getInnerViewRef();
       if (!node || !page || !content) return;
@@ -41,12 +41,21 @@ export function useScrollIntoView() {
         page.measureInWindow((_px, viewTop, _pw, viewH) => {
           content.measureInWindow((_cx, contentTop) => {
             const d = revealDelta(nodeTop, nodeH, viewTop, viewH, bottomClear);
-            if (d !== 0) page.scrollTo({ x: 0, y: Math.max(0, viewTop - contentTop + d), animated });
+            const y = d !== 0 ? Math.max(0, viewTop - contentTop + d) : viewTop - contentTop;
+            if (d !== 0) page.scrollTo({ x: 0, y, animated });
+            onOffset?.(y); // the offset the reveal left, for a later check that the page has not moved
           });
         });
       });
     },
     [animated],
   );
-  return { scroller, reveal };
+  /** Where the page is scrolled to now, read the way `reveal` reads it. */
+  const offset = useCallback((then: (y: number) => void) => {
+    const page = ref.current;
+    const content = page?.getInnerViewRef();
+    if (!page || !content) return;
+    page.measureInWindow((_px, viewTop) => content.measureInWindow((_cx, contentTop) => then(viewTop - contentTop)));
+  }, []);
+  return { scroller, reveal, offset };
 }
