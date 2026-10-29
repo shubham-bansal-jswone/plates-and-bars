@@ -12,7 +12,7 @@ export type GroupEx = { name: string; sets: number; group?: string | null };
 
 const ID = /^[A-Za-z0-9_-]{1,36}$/;
 /** Contract pattern for a group id (`^[A-Za-z0-9_-]{1,36}$`). */
-const validId = (g: unknown): g is string => typeof g === 'string' && ID.test(g);
+export const validId = (g: unknown): g is string => typeof g === 'string' && ID.test(g);
 const gid = (e: GroupEx): string | null => (validId(e.group) ? e.group : null);
 
 /** Runs of equal non-null ids as [start, end) pairs, in order. */

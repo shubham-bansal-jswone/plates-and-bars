@@ -3,7 +3,7 @@ import { sessionMods, type SessionMods, type SessionModsInput } from './day';
 import { isExcluded, type Exclusion } from './exclusions';
 import { adjustSets, type ExerciseCatalog } from './session';
 import { isBlank } from './blank';
-import { normalizeGroups } from './groups';
+import { normalizeGroups, validId } from './groups';
 
 /** Contract `Routine` bounds (ADR 011): exercises per routine, and sets per exercise. */
 export const ROUTINE_EXERCISES_MAX = 50;
@@ -22,10 +22,19 @@ export type RoutineExercise = { name: string; sets: number; group?: string };
  * Ungrouped (and dissolved) exercises get no `group` key. Shared by `routineFromSession` and `startRoutine`.
  */
 function regroup<E extends { name: string; sets: number; group?: string | null }>(exs: readonly E[], make: () => string): (string | undefined)[] {
-  const ids = new Map<string, string>();
+  const ids = new Map<string, string | undefined>();
+  const used = new Set<string>();
   return normalizeGroups(exs).map((e) => {
     if (e.group == null) return undefined;
-    if (!ids.has(e.group)) ids.set(e.group, make());
+    if (!ids.has(e.group)) {
+      // a made id that throws, is not a contract id or was handed out already leaves THIS group ungrouped (never merges two runs)
+      let id: unknown;
+      try { id = make(); } catch { id = undefined; }
+      if (validId(id) && !used.has(id)) {
+        used.add(id);
+        ids.set(e.group, id);
+      } else ids.set(e.group, undefined);
+    }
     return ids.get(e.group);
   });
 }
@@ -105,7 +114,8 @@ export function missingExercises(
  * no beginner ramp, no calf bump, no balance override); only the deload and light-day steps (`adjustSets`, shared with
  * `sessionSets`) apply on top. The check-in, re-entry and `needsClearance` come from `sessionMods`; no lab hold (#1088:
  * hand-picked sessions get none). No focus, no bridge. Groups (ADR 012): a stored group that is a valid run becomes a session group
- * with an id from `newId` (one per group, never the stored id); an invalid one is dropped. Swapped or removed exercises keep their stored name.
+ * with an id from `newId` (one per group, never the stored id); an invalid one is dropped. A `newId` result that is not a contract id,
+ * repeats an earlier one in the call, or a `newId` that throws, leaves that group ungrouped. Swapped or removed exercises keep their stored name.
  *
  * New (#1184, decision D2), not a prototype port: no prototype behaviour, no golden fixture.
  */
