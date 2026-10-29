@@ -42,6 +42,7 @@ import { LabsSection } from '../labs/LabsSection';
 import { useLabs } from '../labs/useLabs';
 import { DateAnnouncer, DateBar } from '../components/DateBar';
 import { useViewedDate } from '../state/ViewedDate';
+import { bodyweightOn } from '../progress/bodyweight';
 
 interface Props {
   db: WorkoutDb;
@@ -87,8 +88,8 @@ export function ProgressScreen({ db, now = () => new Date() }: Props) {
     setClosedDay(openDay);
     setOpenDay(null);
   }
-  // The open day's personal bests: core's `personalRecords` over the shared all-history read, the same rule as the toast and the Recent PRs list (bodyweight as the toast has it).
-  const dayPrs = useMemo(() => (opened ? prLiftsOn(personalRecords(sets.all, sets.types, profile?.weight_kg ?? null), opened.date) : NO_PRS), [opened, sets.all, sets.types, profile?.weight_kg]);
+  // The open day's personal bests: core's `personalRecords` over the shared all-history read, the same rule as the toast and the Recent PRs list (bodyweight from `bodyweightOn` at the viewed date, as the Recent PRs list has it).
+  const dayPrs = useMemo(() => (opened ? prLiftsOn(personalRecords(sets.all, sets.types, bodyweightOn(p.weights, v.date, profile?.weight_kg)), opened.date) : NO_PRS), [opened, sets.all, sets.types, p.weights, v.date, profile?.weight_kg]);
   const ready = status === 'ready' && p.ready;
   const showDay = ready && !!hist && !!opened;
   return (
