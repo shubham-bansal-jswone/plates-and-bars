@@ -129,7 +129,7 @@ describe('recent personal bests', () => {
     // 3 records (the first session never counts)
     const rows = screen.getAllByLabelText(/^Personal best, Bench Press/);
     expect(rows).toHaveLength(3);
-    expect(rows[0]?.props.accessibilityLabel).toBe(`Personal best, Bench Press, e1RM ${e1rm(67.5)} kg, 8 Oct, +3 kg on previous best`);
+    expect(rows[0]?.props.accessibilityLabel).toBe(`Personal best, Bench Press 67.5 kg x 5, estimated 1RM 78.8 kg (+3 kg), 8 Oct`);
     expect(screen.getAllByText('Personal best')).toHaveLength(3);
   });
 
@@ -139,10 +139,10 @@ describe('recent personal bests', () => {
     await show();
     const rows = screen.getAllByLabelText(/^Personal best, Squat/).map((r) => r.props.accessibilityLabel as string);
     // 125 beats the all-time 120 (140 to 145.8: +5.8); 118 is not a record, and a range-only view would not know the 120.
-    expect(rows[0]).toContain('e1RM 145.8 kg');
-    expect(rows[0]).toContain('+5.8 kg on previous best');
+    expect(rows[0]).toContain('estimated 1RM 145.8 kg');
+    expect(rows[0]).toContain('(+5.8 kg)');
     expect(rows).toHaveLength(2);
-    expect(rows[1]).toContain('e1RM 140 kg'); // the old record, outside the range
+    expect(rows[1]).toContain('estimated 1RM 140 kg'); // the old record, outside the range
   });
 
   it('shows up to 5 rows, 3 on a narrow screen', async () => {
@@ -167,16 +167,24 @@ describe('recent personal bests', () => {
     mockHook = hook(sets, { 'Assisted Pull-up': 'assisted' });
     await show([{ date: addDays(END, -3), weight_kg: 90 }, { date: addDays(END, 5), weight_kg: 200 }]);
     // 90 kg: 8*(90-20)=560 vs 8*(90-30)=480 => +80
-    expect(screen.getByLabelText(/^Personal best, Assisted Pull-up, assisted score 560, .*, \+80 on previous best$/)).toBeTruthy();
+    expect(screen.getByLabelText(/^Personal best, Assisted Pull-up, 8 reps with 20 kg of assistance, /)).toBeTruthy();
     await screen.unmount();
     await show([]); // profile 80 kg: 8*60=480 vs 8*50=400
-    expect(screen.getByLabelText(/assisted score 480, .*\+80 on previous best$/)).toBeTruthy();
+    expect(screen.getByLabelText(/^Personal best, Assisted Pull-up, 8 reps with 20 kg of assistance, /)).toBeTruthy();
+  });
+
+  it('an assisted row in lb gives the assistance in lb: 30 kg is 66.1 lb', async () => {
+    mockUnit = 'lb';
+    mockHook = hook([set(addDays(END, -7), 'Assisted Pull-up', 40, 10), set(END, 'Assisted Pull-up', 30, 10)], { 'Assisted Pull-up': 'assisted' });
+    await show([{ date: END, weight_kg: 90 }]);
+    expect(screen.getByLabelText(/^Personal best, Assisted Pull-up, 10 reps with 66\.1 lb of assistance, /)).toBeTruthy();
+    expect(screen.queryByText(/ kg/)).toBeNull();
   });
 
   it('words rep-based records by their metric', async () => {
     mockHook = hook([set(addDays(END, -7), 'Push-up', 0, 20), set(END, 'Push-up', 0, 25)], { 'Push-up': 'bodyweight' });
     await show();
-    expect(screen.getByLabelText(/^Personal best, Push-up, 25 reps in total, .*, \+5 reps on previous best$/)).toBeTruthy();
+    expect(screen.getByLabelText(/^Personal best, Push-up, 25 reps in total \(\+5\), /)).toBeTruthy();
   });
 
   it('with no records it says so', async () => {
@@ -211,13 +219,13 @@ describe('more cases', () => {
   it('a timed-lift PR is worded in seconds', async () => {
     mockHook = hook([set(addDays(END, -7), 'Plank', 0, 40), set(END, 'Plank', 0, 50)], { Plank: 'time' });
     await show();
-    expect(screen.getByLabelText(/^Personal best, Plank, 50 sec in total, .*, \+10 sec on previous best$/)).toBeTruthy();
+    expect(screen.getByLabelText(/^Personal best, Plank, 50 sec in total \(\+10\), /)).toBeTruthy();
   });
 
   it('a record from a previous year shows its year', async () => {
     mockHook = hook([set('2025-12-20', 'Squat', 100, 5), set('2025-12-27', 'Squat', 120, 5)]);
     await show();
-    expect(screen.getByLabelText(new RegExp(`, ${dateWithYear('2025-12-27')}, `))).toBeTruthy();
+    expect(screen.getByLabelText(new RegExp(`, ${dateWithYear('2025-12-27')}$`))).toBeTruthy();
   });
 
   it('only bodyweight lifts: the empty copy shows and the rep records still list', async () => {
@@ -291,7 +299,7 @@ describe('units and spoken label', () => {
     await show();
     // 67.5 kg x5 -> 78.75 kg = 173.6 lb; the change 78.8 - 70 = 8.8 kg = 19.4 lb, taken in kg and converted once
     expect(screen.getByLabelText('Bench Press estimated 1-rep max 173.7 lb, up 19.4 lb in 3 weeks')).toBeTruthy();
-    expect(screen.getByText('8 Oct · +6.6 lb on previous best')).toBeTruthy(); // 3 kg gain
+    expect(screen.getByText('Bench Press 148.8 lb x 5, estimated 1RM 173.7 lb (+6.6 lb)')).toBeTruthy(); // 67.5 kg, 3 kg gain
     expect(screen.queryByText(/ kg/)).toBeNull();
   });
 
