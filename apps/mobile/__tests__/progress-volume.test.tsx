@@ -8,7 +8,7 @@ import { firstLogged, indexSets, loadWorkoutRows, volumeDays, volumeFrom } from 
 import { useProgressSets } from '../src/progress/useProgressSets';
 import { useDataVersion } from '../src/sync/useDataVersion';
 import { defaultMuscle, noVolumeYet, rankRows, volumeBars } from '../src/progress/volumeView';
-import { VOL_EMPTY, VOL_ERROR, VOL_NO_FULL_WEEK, VOL_NO_SETUP, VOL_PLAN_LINE } from '../src/progress/copy';
+import { VOL_EMPTY, VOL_ERROR, VOL_MUSCLE_NONE, VOL_NO_FULL_WEEK, VOL_NO_SETUP, VOL_PLAN_LINE } from '../src/progress/copy';
 import { defaultSettings } from '../src/settings/types';
 import { buildProfile, emptyDraft } from '../src/setup/logic';
 import { getCatalog } from '../src/workout/catalog';
@@ -381,7 +381,40 @@ describe('VolumeSection', () => {
     if (target === 0) {
       expect(screen.getByText(/Your current plan has no sets for calves/)).toBeTruthy();
       expect(screen.getByText('Calves 0 sets this week', hidden)).toBeTruthy();
-    } else expect(screen.getByText(VOL_PLAN_LINE(String(round1(target))))).toBeTruthy();
+    } else expect(screen.getByText(VOL_MUSCLE_NONE('Calves'))).toBeTruthy(); // no sets in range: words, not a flat plan line
+  });
+
+  it('a muscle with no sets in the 12 weeks shows a sentence, no chart, no plan line and no table; one with sets keeps the chart (#1393)', async () => {
+    const db = await openDb();
+    await history(db);
+    await show(db, { focus: ['calves'] });
+    await screen.findByText(VOL_MUSCLE_NONE('Calves'));
+    expect(screen.queryByRole('image')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Show as table' })).toBeNull();
+    expect(screen.queryByText(/Your current plan: about/)).toBeNull();
+    await fireEvent.press(chip('Chest'));
+    expect(screen.queryByText(VOL_MUSCLE_NONE('Chest'))).toBeNull();
+    expect(screen.getByRole('button', { name: 'Show as table' })).toBeTruthy();
+  });
+
+  it('the muscle headline is read when there is no chart, and hidden (the chart says it) when there is one (#1393)', async () => {
+    const db = await openDb();
+    await history(db);
+    await show(db, { focus: ['calves'] });
+    await screen.findByText(VOL_MUSCLE_NONE('Calves'));
+    expect(screen.getByText(/^Calves 0 /)).toBeTruthy(); // no includeHiddenElements: it is accessible
+    await fireEvent.press(chip('Chest'));
+    await screen.findByRole('button', { name: 'Show as table' });
+    expect(screen.queryByText(/^Chest \d/)).toBeNull();
+    expect(screen.getByText(/^Chest \d/, hidden)).toBeTruthy();
+  });
+
+  it('the table is named by muscle and weekly sets, not "sets values by date" (#1393)', async () => {
+    const db = await openDb();
+    await history(db);
+    await show(db, { focus: ['chest'] });
+    await fireEvent.press(await screen.findByRole('button', { name: 'Show as table' }));
+    expect(screen.getByLabelText('Chest weekly sets: table, newest first')).toBeTruthy();
   });
 
   it('a new user: no complete week gives no averages; one gives a note that it settles after 4', async () => {

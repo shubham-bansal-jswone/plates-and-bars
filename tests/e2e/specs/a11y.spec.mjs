@@ -132,7 +132,7 @@ const screens = {
     await label(page, 'Next day').click();
     // Scoped to the weight chart's own button and table, so a chart added above it cannot be opened instead.
     await page.locator('[aria-label="Show as table"]:below(:text("Body weight"))').filter({ visible: true }).first().click();
-    const table = page.locator('[role=table][aria-label="Weight values by date"] >> visible=true');
+    const table = page.locator('[role=table][aria-label="Weight: table, newest first"] >> visible=true');
     await expect(table).toHaveCount(1);
     await expect(table.locator('[role=columnheader]')).toHaveCount(2);
     // A header row plus the two weigh-ins saved above (setup stores today's 82 kg weigh-in, but saving 81.6 for the same day replaces it, so today and yesterday are the only rows), two cells each.

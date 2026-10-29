@@ -118,7 +118,7 @@ describe('table and note', () => {
     await show();
     expect(screen.getAllByText(E1RM_NOTE)).toHaveLength(1);
     await fireEvent.press(screen.getByRole('button', { name: 'Show as table' }));
-    expect(screen.getByLabelText('Bench Press estimated 1-rep max values by date')).toBeTruthy();
+    expect(screen.getByLabelText('Bench Press estimated 1-rep max: table, newest first')).toBeTruthy();
   });
 });
 
