@@ -1,6 +1,6 @@
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
-import { GROUP_MAX, GROUP_MIN, GROUP_TRANSITION_SEC, groupLabels, nextInRound, normalizeGroups, restAfterTick, restFor, type GroupEx } from '../src/index';
+import { canGroupWithNext, GROUP_MAX, GROUP_MIN, GROUP_TRANSITION_SEC, groupLabels, nextInRound, normalizeGroups, restAfterTick, restFor, type GroupEx } from '../src/index';
 
 type Row = [string, number, unknown];
 const v = JSON.parse(readFileSync(resolve(__dirname, '../../../docs/spec/golden/groups.json'), 'utf8')) as {
@@ -203,4 +203,42 @@ describe('groups (#1182)', () => {
       expect(restAfterTick(ex, 9, 0, fin(), on)).toEqual({ ...none, next: null });
     });
   });
+});
+
+describe('canGroupWithNext (#1182 S5)', () => {
+  const ex = (...r: ([string, number] | [string, number, string | null])[]): GroupEx[] => r.map(([name, sets, group]) => ({ name, sets, group: group ?? null }));
+  const none = () => false;
+  const can = (e: GroupEx[], i: number, done: (k: number, s: number) => boolean = none) => canGroupWithNext(e, i, done);
+
+  it('two ungrouped exercises may be grouped', () => expect(can(ex(['a', 3], ['b', 3]), 0)).toEqual({ ok: true }));
+  it('the last exercise has no next one', () => expect(can(ex(['a', 3], ['b', 3]), 1)).toEqual({ ok: false, why: 'last', ex: 1 }));
+  it('an ungrouped exercise joins the group that starts at the next one', () => expect(can(ex(['a', 3], ['b', 3, 'g'], ['c', 3, 'g']), 0)).toEqual({ ok: true }));
+  it('the last member takes an ungrouped next exercise', () => expect(can(ex(['a', 3, 'g'], ['b', 3, 'g'], ['c', 3]), 1)).toEqual({ ok: true }));
+  it('a member that is not the last has no offer', () => expect(can(ex(['a', 3, 'g'], ['b', 3, 'g'], ['c', 3]), 0)).toEqual({ ok: false, why: 'inner', ex: 0 }));
+  it('two groups are not merged', () => expect(can(ex(['a', 3, 'g'], ['b', 3, 'g'], ['c', 3, 'h'], ['d', 3, 'h']), 1)).toEqual({ ok: false, why: 'other', ex: 2 }));
+  it('the cap counts the result: 5 + 1 fits, 5 + 2 and 6 + 1 do not', () => {
+    const five = (): [string, number, string][] => ['a', 'b', 'c', 'd', 'e'].map((n) => [n, 3, 'g']);
+    expect(can(ex(...five(), ['f', 3]), 4)).toEqual({ ok: true });
+    expect(can(ex(['x', 3], ...five()), 0).ok).toBe(true); // 1 + 5
+    expect(can(ex(['x', 3], ['y', 3, 'h'], ['z', 3, 'h'], ['w', 3, 'h'], ['v', 3, 'h'], ['u', 3, 'h'], ['t', 3, 'h']), 0)).toEqual({ ok: false, why: 'full', ex: 0 }); // 1 + 6
+    expect(can(ex(...five(), ['f', 3, 'g'], ['z', 3]), 5)).toEqual({ ok: false, why: 'full', ex: 5 }); // a group of 6 takes no seventh
+  });
+  it('an exercise with every set done cannot join, and the reason names it', () => {
+    const e = ex(['a', 2], ['b', 2]);
+    expect(can(e, 0, (k) => k === 0)).toEqual({ ok: false, why: 'done', ex: 0 });
+    expect(can(e, 0, (k) => k === 1)).toEqual({ ok: false, why: 'done', ex: 1 });
+    expect(can(e, 0, (k, s) => k === 0 && s === 0).ok).toBe(true); // one set ticked is not done
+  });
+  it('the same name twice is refused, also across a joined group', () => {
+    expect(can(ex(['a', 3], ['a', 3]), 0)).toEqual({ ok: false, why: 'same', ex: 0 });
+    expect(can(ex(['a', 3, 'g'], ['b', 3, 'g'], ['a', 3]), 1)).toEqual({ ok: false, why: 'same', ex: 2 });
+  });
+  it('a group that is not a valid run counts as ungrouped', () => expect(can(ex(['a', 3, 'g'], ['b', 3]), 0)).toEqual({ ok: true }));
+  it('the same-name reason names the exercise that would join', () => {
+    expect(can(ex(['a', 3], ['b', 3, 'g'], ['a', 3, 'g']), 0)).toEqual({ ok: false, why: 'same', ex: 0 }); // joins as first member
+    expect(can(ex(['a', 3, 'g'], ['b', 3, 'g'], ['a', 3]), 1)).toEqual({ ok: false, why: 'same', ex: 2 }); // appended
+    expect(can(ex(['a', 3], ['a', 3]), 0).ok).toBe(false);
+  });
+  it('an exercise with no sets is not finished', () => expect(can(ex(['a', 0], ['b', 2]), 0)).toEqual({ ok: true }));
+  it('a singleton id is no group: the next valid group can still be joined', () => expect(can(ex(['a', 3, 'g'], ['b', 3, 'h'], ['c', 3, 'h']), 0)).toEqual({ ok: true }));
 });
