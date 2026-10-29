@@ -235,6 +235,7 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
    * and the session log without the viewed day, the weigh-ins and the shown ids. The same reload marks every milestone already earned as
    * shown, silently: only a tick on the viewed day may announce one (#1351 A9). A tick reads nothing from the db.
    */
+  const msChain = useRef<Promise<void>>(Promise.resolve());
   const ms = useRef<{ data: Promise<MilestoneData | null>; foreign: number } | null>(null);
   const foreignNow = () => dayWrites.current - ownWrites.current;
   const loadMs = (): Promise<MilestoneData | null> => {
@@ -248,7 +249,10 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
     }
     // Not in the day queue: a tick (which runs in it) waits for this read, so queueing it behind that tick would deadlock. It leaves the viewed day out,
     // the only day this hook writes, so queued writes of its own cannot change it.
-    ms.current = { data: loadMs(), foreign: foreignNow() };
+    // On `msChain` like every evaluation, so it reads the shown ids after the write of every earlier tick and a tick's new id is never overwritten.
+    const data = msChain.current.then(loadMs);
+    msChain.current = data.then(() => undefined, () => undefined);
+    ms.current = { data, foreign: foreignNow() };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- loadMs reads the latest values through refs
   }, [db, hasProfile, reloadKey, date]);
 
@@ -340,7 +344,6 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
       msChain.current = msChain.current.then(() => evaluateMilestones(snap)).catch(() => undefined);
     }
   };
-  const msChain = useRef<Promise<void>>(Promise.resolve());
   const evaluateMilestones = async (snap: { date: string; sets: PrSet[]; entry: { t: string; n: number } | null; pr: boolean; m: typeof msRef.current; cache: typeof ms.current; foreign: number }) => {
     if (!snap.cache) return;
     let data = await snap.cache.data;
@@ -1041,5 +1044,5 @@ export function useWorkoutDay({ db, date: shown, profile, now, focus, adjustment
     notify(choice ? `Swapped in ${choice}` : gone);
   };
 
-  return { date, earned: earnedIn.date === date ? earnedIn.list : NO_EARNED, day: loaded === date ? day : NOT_READY, cant, setCardio, editSet, tick, rate, setForm, setFeel, skipRemaining, rampStart, rampSkip, rampAdd, rampTick, rampRated, addSet, removeSet, groupWithNext, ungroup, addExercise, removeExercise, finishEarly, start, startPicked, startFromRoutine, addSecond };
+  return { date, msSettled: () => msChain.current, earned: earnedIn.date === date ? earnedIn.list : NO_EARNED, day: loaded === date ? day : NOT_READY, cant, setCardio, editSet, tick, rate, setForm, setFeel, skipRemaining, rampStart, rampSkip, rampAdd, rampTick, rampRated, addSet, removeSet, groupWithNext, ungroup, addExercise, removeExercise, finishEarly, start, startPicked, startFromRoutine, addSecond };
 }

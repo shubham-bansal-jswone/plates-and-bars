@@ -8,6 +8,7 @@ import { useWorkoutDay } from '../src/workout/useWorkoutDay';
 import type { WorkoutSet } from '../src/workout/types';
 import { parseShown } from '../src/progress/milestoneStore';
 import { KEY_MILESTONES_SHOWN, getKv } from '../src/sync/store';
+import { bumpStoreEpoch } from '../src/db/storeEpoch';
 import { buildProfile, emptyDraft } from '../src/setup/logic';
 import { openDb } from './sync-helpers';
 
@@ -58,20 +59,19 @@ async function seedDay(db: Db, name: string, date: string, sets: [number, number
 }
 
 /** The milestone step runs off the day queue: let it settle. */
-const settle = () => act(async () => void (await new Promise((r) => setTimeout(r, 20))));
-
 type Hook = Awaited<ReturnType<typeof started>>['result'];
+const settle = (result: Hook) => act(async () => void (await result.current.msSettled()));
 const tickSet = async (result: Hook, j: number, w: string, r: string) => {
   await act(async () => result.current.editSet(0, 'work', j, 'w', w));
   await act(async () => result.current.editSet(0, 'work', j, 'r', r));
   await act(async () => result.current.tick(0, j));
   await act(async () => void (await dayQueue.current));
-  await settle();
+  await settle(result);
 };
 const untick = async (result: Hook, j: number) => {
   await act(async () => result.current.tick(0, j));
   await act(async () => void (await dayQueue.current));
-  await settle();
+  await settle(result);
 };
 const msToasts = () => notify.mock.calls.map(([m]) => String(m)).filter((m) => m.startsWith('Milestone:'));
 const prToasts = () => notify.mock.calls.map(([m]) => String(m)).filter((m) => m.startsWith('New personal best'));
@@ -211,7 +211,7 @@ describe('the quiet milestone toast (#1351 A9)', () => {
     expect((await loadSets(db, DATE)).some((x) => x.done)).toBe(true);
     expect(msToasts()).toEqual([]);
     await act(async () => release());
-    await settle();
+    await settle(result);
     expect(msToasts()).toHaveLength(1);
     spy.mockRestore();
   });
@@ -233,7 +233,7 @@ describe('the quiet milestone toast (#1351 A9)', () => {
     await rerender({ k: 1, date: '2026-10-07' });
     spy.mockRestore();
     await act(async () => release());
-    await settle();
+    await settle(result);
     expect(msToasts()).toEqual([]);
     expect(result.current.earned).toEqual([]);
   });
@@ -242,7 +242,7 @@ describe('the quiet milestone toast (#1351 A9)', () => {
     const { db, name, result, rerender } = await started();
     await seedDay(db, name, DATE, [[60, 5]]); // the day already holds a done plate set whose own tick has not been evaluated
     await rerender({ k: 1 });
-    await settle();
+    await settle(result);
     expect(await shown(db)).toEqual(new Set());
     await tickSet(result, 0, '60', '5');
     expect(msToasts()).toEqual([`Milestone: One plate a side, ${name}, 60 kg`]);
@@ -254,5 +254,93 @@ describe('the quiet milestone toast (#1351 A9)', () => {
     });
     await tickSet(result, 0, '20', '5');
     expect(msToasts()).toEqual(['Milestone: 10th workout, 10 workouts completed']);
+  });
+
+  /** Holds every all-history read until `release()`. */
+  const hold = () => {
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((r) => (release = r));
+    const real = workoutsDb.loadDoneSets;
+    const spy = jest.spyOn(workoutsDb, 'loadDoneSets').mockImplementation(async (...a) => {
+      await gate;
+      return real(...a);
+    });
+    return { release: () => act(async () => release()), restore: () => spy.mockRestore() };
+  };
+  const edit = async (result: Hook, j: number, w: string, r: string) => {
+    await act(async () => result.current.editSet(0, 'work', j, 'w', w));
+    await act(async () => result.current.editSet(0, 'work', j, 'r', r));
+    await act(async () => result.current.tick(0, j));
+    await act(async () => void (await dayQueue.current));
+  };
+
+  it('a tick id written while a newer reload is in flight is not lost: the next tick does not announce it again', async () => {
+    const { db, result, rerender } = await started();
+    const h = hold();
+    await rerender({ k: 1 }); // a reload read, held
+    await edit(result, 0, '60', '5'); // its evaluation waits on that read
+    await rerender({ k: 2 }); // another reload starts before the evaluation has written its id
+    await h.release();
+    await settle(result);
+    h.restore();
+    await tickSet(result, 1, '60', '5');
+    expect(msToasts().map((m) => m.split(',')[0])).toEqual(['Milestone: One plate a side']);
+    expect([...(await shown(db))!]).toEqual(['plates-1']);
+  });
+
+  it('a wipe during a pending evaluation writes and announces nothing, and the new account first milestone still toasts', async () => {
+    const { db, name, result, rerender } = await started();
+    const h = hold();
+    await rerender({ k: 1 });
+    await edit(result, 0, '60', '5'); // waits for the held read
+    bumpStoreEpoch(); // sign-out wipe
+    await db.runAsync('DELETE FROM settings WHERE key = ?', KEY_MILESTONES_SHOWN);
+    await h.release();
+    await settle(result);
+    h.restore();
+    expect(msToasts()).toEqual([]);
+    expect(result.current.earned).toEqual([]);
+    expect(await getKv(db, KEY_MILESTONES_SHOWN)).toBeNull(); // the old account's ids are not written into the new one
+    await rerender({ k: 2 }); // the new account
+    await settle(result);
+    await tickSet(result, 1, '60', '5');
+    expect(msToasts()).toEqual([`Milestone: One plate a side, ${name}, 60 kg`]);
+  });
+
+  it('a failed evaluation does not stop the later ones', async () => {
+    const { name, result } = await started();
+    notify.mockImplementationOnce(() => {
+      throw new Error('toast failed');
+    });
+    await tickSet(result, 0, '60', '5'); // its toast throws
+    notify.mockClear();
+    await tickSet(result, 1, '100', '5');
+    expect(msToasts()).toEqual([`Milestone: Two plates a side, ${name}, 100 kg`]);
+  });
+
+  it('ticks are evaluated in order, even while the reload read is held', async () => {
+    const { result, rerender } = await started();
+    const h = hold();
+    await rerender({ k: 1 });
+    await edit(result, 0, '60', '5');
+    await edit(result, 1, '100', '5');
+    await h.release();
+    await settle(result);
+    h.restore();
+    expect(msToasts().map((m) => m.split(',')[0])).toEqual(['Milestone: One plate a side', 'Milestone: Two plates a side']);
+  });
+
+  it('an id is cached as shown only after its write succeeds: a failed write stays unshown and toasts on a later tick', async () => {
+    const { db, name, result } = await started();
+    const real = db.runAsync.bind(db);
+    let fail = true;
+    db.runAsync = (async (sql: string, ...a: never[]) => (fail && /INSERT OR REPLACE INTO settings/.test(sql) && a[0] === KEY_MILESTONES_SHOWN ? Promise.reject(new Error('full')) : real(sql, ...a))) as typeof db.runAsync;
+    await tickSet(result, 0, '60', '5');
+    expect(msToasts()).toEqual([]);
+    expect(result.current.earned).toEqual([]);
+    expect(await shown(db)).toEqual(new Set());
+    fail = false;
+    await tickSet(result, 1, '60', '5');
+    expect(msToasts()).toEqual([`Milestone: One plate a side, ${name}, 60 kg`]);
   });
 });

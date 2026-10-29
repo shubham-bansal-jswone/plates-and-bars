@@ -3,6 +3,7 @@ import type { Weight } from './types';
 import { loadWeights } from '../db/progress';
 import { loadDoneSets, loadSessionLog, type WorkoutDb } from '../db/workouts';
 import { getCatalog } from '../workout/catalog';
+import { storeEpoch } from '../db/storeEpoch';
 import { KEY_MILESTONES_SHOWN, getKv, setKv } from '../sync/store';
 
 type Overrides = Readonly<Record<string, ExerciseOverride>>;
@@ -30,6 +31,8 @@ export interface MilestoneData {
   sessions: SessionLog;
   weights: Weight[];
   shown: Set<string>;
+  /** `storeEpoch()` when the read started: after a wipe the account is another one, so nothing here may be written or announced. */
+  epoch: number;
 }
 
 type Shared = { profile: MilestoneProfile | null; overrides: Overrides; unit: WeightUnit; end: string };
@@ -43,6 +46,7 @@ const run = (d: Pick<MilestoneData, 'sets' | 'sessions' | 'weights'>, a: Shared)
  * viewed day (`takeNewMilestones`) may announce one. The viewed day is left out so a milestone its own ticks will earn is not swallowed.
  */
 export async function loadMilestoneData(db: WorkoutDb, a: Shared, day: string): Promise<MilestoneData> {
+  const epoch = storeEpoch();
   const [sets, sessions, weights, raw] = await Promise.all([loadDoneSets(db), loadSessionLog(db), loadWeights(db), getKv(db, KEY_MILESTONES_SHOWN)]);
   const before = sets.filter((s) => s.date !== day);
   const { [day]: _day, ...log } = sessions;
@@ -50,8 +54,8 @@ export async function loadMilestoneData(db: WorkoutDb, a: Shared, day: string): 
   const shown = parseShown(raw) ?? new Set<string>();
   const have = shown.size;
   for (const m of run(data, a)) shown.add(m.id);
-  if (raw === null || shown.size !== have) await setKv(db, KEY_MILESTONES_SHOWN, JSON.stringify([...shown]));
-  return { ...data, shown };
+  if ((raw === null || shown.size !== have) && storeEpoch() === epoch) await setKv(db, KEY_MILESTONES_SHOWN, JSON.stringify([...shown]));
+  return { ...data, shown, epoch };
 }
 
 /** The most significant new milestone of the newest date: the highest step of each kind (two plates over one), then by id. */
@@ -71,9 +75,15 @@ export function toastPick(fresh: readonly Milestone[]): Milestone | undefined {
 export async function takeNewMilestones(db: WorkoutDb, data: MilestoneData, today: { date: string; sets: PrSet[]; entry: { t: string; n: number } | null }, a: Shared): Promise<Milestone[]> {
   const list = run({ sets: [...data.sets, ...today.sets], sessions: today.entry ? { ...data.sessions, [today.date]: today.entry } : data.sessions, weights: data.weights }, a);
   const fresh = list.filter((m) => !data.shown.has(m.id));
-  if (fresh.length > 0) {
-    for (const m of fresh) data.shown.add(m.id);
-    await setKv(db, KEY_MILESTONES_SHOWN, JSON.stringify([...data.shown]));
+  if (fresh.length === 0) return fresh;
+  if (storeEpoch() !== data.epoch) return []; // a wipe since the read: another account, so nothing is written or announced
+  try {
+    await setKv(db, KEY_MILESTONES_SHOWN, JSON.stringify([...data.shown, ...fresh.map((m) => m.id)]));
+  } catch {
+    return []; // not stored: left unshown, so it can still be announced by a later tick
   }
+  // Only after the write succeeded, and not if a wipe happened during it.
+  if (storeEpoch() !== data.epoch) return [];
+  for (const m of fresh) data.shown.add(m.id);
   return fresh;
 }
