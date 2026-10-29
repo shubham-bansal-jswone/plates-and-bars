@@ -1,6 +1,7 @@
-import { render, screen } from '@testing-library/react-native';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { WorkoutDay } from '../src/progress/history/History';
 import { buildSessions } from '../src/progress/history/logic';
+import { shareWorkoutImage } from '../src/workout/shareImage';
 import { buildShareCard, rowName } from '../src/workout/shareModel';
 import { blankRow, type ExState } from '../src/workout/model';
 import type { WorkoutSet } from '../src/workout/types';
@@ -26,6 +27,16 @@ describe('history session labels', () => {
     expect(labels(['bad id', 'bad id', null, null])).toEqual([undefined, undefined, undefined, undefined]);
     expect(labels(['g', null, 'g', 'g'])).toEqual([undefined, undefined, undefined, undefined]);
   });
+  it('a group with one listed member (the other has no done sets) shows no label', () => {
+    const only = [wset('Pull-up', 0), wset('Squat', 1)];
+    const s = buildSessions({ [DATE]: { t: 'Pull' } } as never, { [DATE]: only }, {}, { [DATE]: [{ name: 'Barbell Row', group: 'g' }, { name: 'Pull-up', group: 'g' }, { name: 'Squat', group: null }] });
+    expect(s[0]!.exercises.map((e) => e.label)).toEqual([undefined, undefined]);
+  });
+  it('a 3-member group with the first undone relabels the rest A and B', () => {
+    const rest = [wset('Pull-up', 0), wset('Squat', 1), wset('Curl', 2)];
+    const s = buildSessions({ [DATE]: { t: 'Pull' } } as never, { [DATE]: rest }, {}, { [DATE]: ['Barbell Row', 'Pull-up', 'Squat', 'Curl'].map((name, i) => ({ name, group: i < 3 ? 'g' : null })) });
+    expect(s[0]!.exercises.map((e) => e.label)).toEqual(['A', 'B', undefined]);
+  });
   it('ungrouped sessions carry no label key at all', () => {
     for (const s of [build(), build([null, null, null, null])]) for (const e of s[0]!.exercises) expect(Object.keys(e)).toEqual(['name', 'sets', 'volume']);
   });
@@ -41,6 +52,7 @@ describe('history day view', () => {
   it('shows a Superset tag and a screen reader label for members', async () => {
     await show(build(['g', 'g', null, null]));
     expect(screen.getByText('Superset A', { includeHiddenElements: true })).toBeTruthy();
+    expect(screen.queryByText('Superset A')).toBeNull();
     expect(screen.getByText('Superset B', { includeHiddenElements: true })).toBeTruthy();
     expect(screen.getByLabelText('Superset A: Barbell Row')).toBeTruthy();
     expect(screen.getByLabelText('Superset B: Pull-up')).toBeTruthy();
@@ -57,6 +69,17 @@ describe('history day view', () => {
     expect(base).not.toMatch(/Superset/);
     expect(await tree([null, null, null, null])).toBe(base);
     expect(await tree(['g', null, null, null])).toBe(base);
+  });
+});
+
+describe('history Share', () => {
+  it('passes the day letters to the picture', async () => {
+    (shareWorkoutImage as jest.Mock).mockResolvedValue('shared');
+    await show(build(['g', 'g', null, null]));
+    fireEvent.press(screen.getByLabelText(/Share summary picture/));
+    await waitFor(() => expect(shareWorkoutImage).toHaveBeenCalled());
+    const card = (shareWorkoutImage as jest.Mock).mock.calls[0]![0] as { rows: { label?: string }[] };
+    expect(card.rows.map((r) => r.label)).toEqual(['A', 'B', undefined, undefined]);
   });
 });
 

@@ -44,16 +44,15 @@ export function buildSessions(log: SessionLog, setsByDate: Readonly<Record<strin
     if (!done.length) return [];
     const by = new Map<string, WorkoutSet[]>();
     for (const s of [...done].sort((a, b) => a.set_index - b.set_index)) by.set(s.exercise, [...(by.get(s.exercise) ?? []), s]);
-    // Letters come from the stored exercise list (core decides which runs are valid); the day lists done exercises only.
-    const stored = storedByDate[date] ?? [];
-    const letters = groupLabels(stored.map((e) => ({ name: e.name, sets: 1, group: e.group })));
-    const letterOf = (name: string): { label?: string } => {
-      const l = letters[stored.findIndex((e) => e.name === name)];
-      return l ? { label: l } : {};
-    };
-    const exercises = [...by].map(([name, sets]): HistoryExercise => {
+    // Letters come from core's `groupLabels` run over the exercises listed for the day (done ones only) with their stored group,
+    // so a group with fewer than 2 listed members gets no label and the letters restart at A.
+    const storedGroup = new Map((storedByDate[date] ?? []).map((e) => [e.name, e.group] as const));
+    const names = [...by.keys()];
+    const letters = groupLabels(names.map((name) => ({ name, sets: 1, group: storedGroup.get(name) })));
+    const exercises = [...by].map(([name, sets], i): HistoryExercise => {
       const mapped = sets.map((s) => ({ w: s.weight_kg, r: s.reps, rate: s.rate }));
-      return { name, sets: mapped, volume: sessionVolume([{ sets: mapped.map((s) => ({ done: true, w: s.w, r: s.r })) }]), ...letterOf(name) };
+      const l = letters[i];
+      return { name, sets: mapped, volume: sessionVolume([{ sets: mapped.map((s) => ({ done: true, w: s.w, r: s.r })) }]), ...(l ? { label: l } : {}) };
     });
     // Time counts every ticked set of the day, ramp sets too: one without a tick makes the duration unknown, never a guess.
     const ticked = (setsByDate[date] ?? []).filter((s) => s.done && !s.deleted_at);

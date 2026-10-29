@@ -110,7 +110,7 @@ export function WorkoutDay({ session, sessions, lifts, onBack }: { session: Hist
         return (
           <Card key={e.name} style={e.label ? [styles.gap, styles.member, { borderLeftColor: c.brand }] : styles.gap}>
             {e.label ? (
-              <Text accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={[typeScale.small, { color: c.brand }]}>{`Superset ${e.label}`}</Text>
+              <Text aria-hidden accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={[typeScale.small, { color: c.brand }]}>{`Superset ${e.label}`}</Text>
             ) : null}
             <Heading level={3} style={[typeScale.label, { color: c.ink }]} a11yLabel={e.label ? `Superset ${e.label}: ${e.name}` : undefined}>{e.name}</Heading>
             {e.sets.map((s, i) => (
