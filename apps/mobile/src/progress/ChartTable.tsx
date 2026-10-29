@@ -36,7 +36,7 @@ export function ChartTable({ rows, noun, valueHeader, dateHeader = TABLE_DATE }:
       </Press>
       {open ? (
         <View accessibilityRole="list" accessibilityLabel={TABLE_LABEL(noun)}>
-          <View style={[styles.row, { borderBottomColor: c.line }]} accessible accessibilityRole="header" accessibilityLabel={`${dateHeader}, ${valueHeader}`}>
+          <View style={[styles.row, { borderBottomColor: c.line }]} accessible accessibilityRole="text" accessibilityLabel={`${dateHeader}, ${valueHeader}`}>
             <Text style={[typeScale.small, { color: c.muted }]}>{dateHeader}</Text>
             <Text style={[typeScale.small, { color: c.muted }]}>{valueHeader}</Text>
           </View>
