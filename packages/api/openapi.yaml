@@ -2287,8 +2287,8 @@ paths:
                         updated_at: '2026-10-08T10:49:05Z'
                       - name: measures
                         schema_version: 1
-                        sha256: 0d02e9ec905f62923446eb4f9f0ce3832f7ac4d784872257fe37abc207c3647b
-                        size_bytes: 699
+                        sha256: 47879bcc79ada5af3087e918fb4976174d90b9a65c71fa0656bb3211232516bb
+                        size_bytes: 767
                         updated_at: '2026-10-09T08:54:10Z'
         '304':
           $ref: '#/components/responses/NotModified'
@@ -2350,7 +2350,7 @@ paths:
                 $ref: '#/components/schemas/ContentBundle'
               examples:
                 default:
-                  summary: content/measures.json (ETag "0d02e9ec905f62923446eb4f9f0ce3832f7ac4d784872257fe37abc207c3647b")
+                  summary: content/measures.json (ETag "47879bcc79ada5af3087e918fb4976174d90b9a65c71fa0656bb3211232516bb")
                   value:
                     schema_version: 1
                     origin: imported once from the prototype (frozen at tag prototype-final) (MEASURES, measuresHtml); content is now the source of record
@@ -2417,7 +2417,7 @@ components:
         parsed, is ignored: the server answers as if the header were absent, never 400.
       schema:
         type: string
-      example: '"0d02e9ec905f62923446eb4f9f0ce3832f7ac4d784872257fe37abc207c3647b"'
+      example: '"47879bcc79ada5af3087e918fb4976174d90b9a65c71fa0656bb3211232516bb"'
     AuthTransport:
       name: X-Auth-Transport
       in: header
@@ -2471,7 +2471,7 @@ components:
       schema:
         type: string
         pattern: '^(W/)?"[0-9a-f]{64}"$'
-      example: '"0d02e9ec905f62923446eb4f9f0ce3832f7ac4d784872257fe37abc207c3647b"'
+      example: '"47879bcc79ada5af3087e918fb4976174d90b9a65c71fa0656bb3211232516bb"'
     VaryAcceptEncoding:
       description: Includes `Accept-Encoding`. Required whenever the server may compress the body.
       schema:
