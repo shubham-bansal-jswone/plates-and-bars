@@ -28,7 +28,7 @@ export function Milestones({ milestones }: { milestones: readonly Milestone[] | 
       ) : (
         <>
           {shown.map((m) => (
-            <Card key={m.id} accessible accessibilityLabel={`${milestoneLine(m)}, ${shortDate(m.date)}`} style={styles.row}>
+            <Card key={m.id} accessible accessibilityLabel={`${milestoneLine(m)}, ${shortDate(m.date)}`} style={[styles.row, { backgroundColor: c.surfaceSoft }]}>
               <View style={styles.grow}>
                 <Text style={[typeScale.bodyStrong, { color: c.ink }]}>{m.title}</Text>
                 <Text style={[typeScale.small, { color: c.muted }]}>{m.detail}</Text>
@@ -45,6 +45,6 @@ export function Milestones({ milestones }: { milestones: readonly Milestone[] | 
 
 const styles = StyleSheet.create({
   section: { gap: space.sm },
-  row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: space.sm },
+  row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: space.sm, paddingVertical: space.sm },
   grow: { flex: 1 },
 });

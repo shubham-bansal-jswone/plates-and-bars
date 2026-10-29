@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { weeksOnTrackSeries, type PlanProfile, type SessionLog } from '@plate-and-bar/core';
-import { Heading, Hint } from '../components/ui';
+import { Card, Heading, Hint } from '../components/ui';
 import { radius, space, type as typeScale } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { WEEKS_COUNT, WEEKS_EMPTY, WEEKS_TITLE } from './copy';
@@ -17,7 +17,7 @@ export function WeeksOnTrack({ sessions, date, profile }: { /** From `useCheckin
   const any = weeks.some((w) => w.sessions > 0);
   const sentence = WEEKS_COUNT(weeks.filter((w) => w.onTrack).length, weeks.length);
   return (
-    <View style={styles.section}>
+    <Card style={styles.section}>
       <Heading level={2} style={[typeScale.heading, { color: c.ink }]}>{WEEKS_TITLE}</Heading>
       {any ? (
         <>
@@ -40,7 +40,7 @@ export function WeeksOnTrack({ sessions, date, profile }: { /** From `useCheckin
       ) : (
         <Hint>{WEEKS_EMPTY}</Hint>
       )}
-    </View>
+    </Card>
   );
 }
 
