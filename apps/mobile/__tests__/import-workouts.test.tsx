@@ -172,6 +172,32 @@ describe('import workouts (#1179)', () => {
     expect([set.exercise, set.weight_kg, set.reps]).toEqual(['Barbell Bench Press', 60, 8]);
   });
 
+  it('carries Hevy superset_id into exercise groups with a fresh id, and writes no group key without it (S8 of #1182)', async () => {
+    const db = await setup();
+    await open();
+    await fireEvent.press(screen.getByLabelText(t.hevy));
+    const head = 'title,start_time,end_time,description,exercise_title,superset_id,exercise_notes,set_index,set_type,weight_kg,reps,distance_km,duration_seconds,rpe';
+    const w = '"27 Mar 2024, 18:30","27 Mar 2024, 19:30"';
+    const w2 = '"28 Mar 2024, 18:30","28 Mar 2024, 19:30"';
+    await chooseFile([
+      head,
+      `Upper,${w},,Bench Press (Barbell),0,,0,normal,60,8,,,`,
+      `Upper,${w},,Barbell Row,0,,0,normal,80,5,,,`,
+      `Upper,${w},,Seated Cable Row,,,0,normal,100,5,,,`,
+      `Lower,${w2},,Bench Press (Barbell),,,0,normal,60,8,,,`,
+    ].join('\n'));
+    expect(await screen.findByText(t.workouts(2, 4))).toBeTruthy();
+    await fireEvent.press(screen.getByLabelText(t.importBtn));
+    expect(await screen.findByText(t.imported(2, 4))).toBeTruthy();
+    const day = JSON.parse(db.rows.get('workouts:2024-03-27')!);
+    const [a, b, c] = day.exercises;
+    expect(a.group).toMatch(/^[A-Za-z0-9_-]{1,36}$/);
+    expect(a.group).not.toBe('0');
+    expect(b.group).toBe(a.group);
+    expect('group' in c).toBe(false);
+    expect(JSON.parse(db.rows.get('workouts:2024-03-28')!).exercises.every((e: object) => !('group' in e))).toBe(true);
+  });
+
   it('refuses a wrong file with a message and writes nothing', async () => {
     const db = await setup();
     await open();

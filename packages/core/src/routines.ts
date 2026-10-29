@@ -21,7 +21,7 @@ export type RoutineExercise = { name: string; sets: number; group?: string };
  * Valid-run group ids of `exs` (after `normalizeGroups`) replaced by `make(n)` for the n-th group in order of first appearance.
  * Ungrouped (and dissolved) exercises get no `group` key. Shared by `routineFromSession` and `startRoutine`.
  */
-function regroup<E extends { name: string; sets: number; group?: string | null }>(exs: readonly E[], make: () => string): (string | undefined)[] {
+export function regroup<E extends { name: string; sets: number; group?: string | null }>(exs: readonly E[], make: () => string): (string | undefined)[] {
   const ids = new Map<string, string | undefined>();
   const used = new Set<string>();
   return normalizeGroups(exs).map((e) => {

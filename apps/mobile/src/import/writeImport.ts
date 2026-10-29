@@ -62,7 +62,7 @@ export async function writeImport(db: Db, plan: ImportPlan, now: Date = new Date
           where: null,
           cardio_min: null,
           mods: {},
-          exercises: names.map((name) => ({ name, part: 1, bridge: false, form: null, found_kg: null, skip_ramp: true })),
+          exercises: names.map((name) => ({ name, part: 1, bridge: false, form: null, found_kg: null, skip_ramp: true, ...(d.groups?.[name] ? { group: d.groups[name] } : {}) })),
           ci_choice: null,
         };
         await saveWorkout(txn, workout);
