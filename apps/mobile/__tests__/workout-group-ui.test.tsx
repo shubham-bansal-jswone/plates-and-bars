@@ -7,6 +7,7 @@ import { defaultSettings } from '../src/settings/types';
 import { buildProfile, emptyDraft } from '../src/setup/logic';
 import type { Workout } from '../src/workout/types';
 import { focusNode } from '../src/labelscan/focus';
+import { ringUntilBlur } from '../src/workout/focusRing';
 import { press } from './disclosure-helpers';
 import { memoryDb, withProfile } from './helpers';
 
@@ -293,5 +294,44 @@ describe('review round 2', () => {
     }
     expect(screen.queryByLabelText(`Superset ${names[0]} with ${names[1]}`)).toBeNull();
     expect(screen.queryByText(/is already done/)).toBeNull();
+  });
+
+  it('a finished block has no up-next cue anywhere: no filled badge, no caption, no announcement (the dock goes on to the next exercise)', async () => {
+    const { names } = await mount(['g', 'g'], { restOff: false });
+    const [a, b] = [names[0]!, names[1]!];
+    for (let j = 0; j < 3; j++) {
+      await tick(a, j, `A${j + 1}`);
+      await tick(b, j, `B${j + 1}`);
+    }
+    expect(screen.getByText('Done')).toBeTruthy();
+    expect(screen.queryByText('Up next')).toBeNull();
+    expect(upNextOf([a, b])).toEqual([]);
+    expect(live()).not.toMatch(/Up next/);
+    expect(screen.getByText(`Next: ${names[2]}`)).toBeTruthy();
+  });
+
+  it('the chip is hidden on a finished last member even when another rule would also apply', async () => {
+    const { names } = await mount(['g', 'g', 'h', 'h']);
+    expect(screen.getByLabelText(`Superset ${names[1]} with ${names[2]}`)).toBeTruthy(); // disabled: another superset
+    for (let j = 0; j < 3; j++) await tick(names[1]!, j, `B${j + 1}`);
+    expect(screen.queryByLabelText(`Superset ${names[1]} with ${names[2]}`)).toBeNull();
+  });
+
+  it('a member that joins a ticked group is announced as joining, not as a move of the marker', async () => {
+    const { names } = await mount(['g', 'g', null]);
+    await tick(names[0]!, 0, 'A1');
+    await press(`Superset ${names[1]} with ${names[2]}`);
+    expect(live()).toBe(`${names[0]}, ${names[1]} and ${names[2]} are now a superset.`);
+  });
+});
+
+describe('ringUntilBlur', () => {
+  it('draws the ring and removes it on blur', () => {
+    let blur = () => {};
+    const el = { style: { outline: '', outlineOffset: '' }, addEventListener: (_: string, f: () => void) => void (blur = f) };
+    ringUntilBlur(el as never, '#123456');
+    expect(el.style.outline).toBe('2px solid #123456');
+    blur();
+    expect(el.style.outline).toBe('');
   });
 });

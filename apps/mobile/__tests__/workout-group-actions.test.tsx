@@ -68,6 +68,12 @@ describe('groupWithNext', () => {
     expect(result.current.groupWithNext(0)).toBeNull();
   });
 
+  it('joins the id of the valid run, not a lone exercise\'s leftover id', async () => {
+    const { result } = await session(['x', 'h', 'h']); // x is a singleton: core reads it as ungrouped
+    await act(async () => void result.current.groupWithNext(0));
+    expect(groups(result).slice(0, 3)).toEqual(['h', 'h', 'h']);
+  });
+
   it('refuses what core refuses and changes nothing: two groups, a finished exercise, the last exercise', async () => {
     const two = await session(['g', 'g', 'h', 'h']);
     expect(two.result.current.groupWithNext(1)).toBeNull();

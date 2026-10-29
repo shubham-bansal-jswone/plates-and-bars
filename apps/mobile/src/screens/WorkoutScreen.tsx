@@ -19,6 +19,7 @@ import { buildSession } from '../workout/buildSession';
 import { getCatalog } from '../workout/catalog';
 import { CHECKIN, REASON_TEXT, listJoin, modsNoteText, muscleName, ROUTINE_COPY, MY_ROUTINES } from '../workout/copy';
 import { ExerciseCard, type Actions } from '../workout/ExerciseCard';
+import { ringUntilBlur } from '../workout/focusRing';
 import { SupersetBlock } from '../workout/SupersetBlock';
 import { groupEx, groupReason, groupRounds, groupUnits, removalNote, upNext, type Unit } from '../workout/groupUnits';
 import { AddExerciseFlow } from '../workout/AddExerciseFlow';
@@ -575,18 +576,18 @@ function SessionView({ now, db, reloadKey, w, profile, focus, rules, notify, tun
   const [nodes] = useState(() => new Map<string, ComponentRef<typeof RNText>>());
   const [focusOn, setFocusOn] = useState<{ key: string } | null>(null);
   const reg = (key: string) => (n: ComponentRef<typeof RNText> | null) => void (n ? nodes.set(key, n) : nodes.delete(key));
+  // The ring colour is read when focus is applied, not a dependency: a theme change must not move focus again.
+  const ring = useRef(c.focus);
+  useEffect(() => void (ring.current = c.focus));
   useEffect(() => {
     const node = focusOn ? nodes.get(focusOn.key) : null;
     if (!node) return;
     focusNode(node);
     // After a click the browser draws no ring on a script-focused node (:focus-visible); the user must see where focus went, as after a key press.
     if (Platform.OS === 'web') {
-      const el = node as unknown as HTMLElement;
-      el.style.outline = `2px solid ${c.focus}`;
-      el.style.outlineOffset = '2px';
-      el.addEventListener('blur', () => (el.style.outline = ''), { once: true });
+      ringUntilBlur(node as unknown as HTMLElement, ring.current);
     }
-  }, [focusOn, nodes, c.focus]);
+  }, [focusOn, nodes]);
   // The marker moved inside the open superset (a tick): say where. Not on first show, and not when another unit opened.
   const open0 = units.find((u) => u.labels.length > 0 && inUnit(u) >= 0);
   const marker = open0 ? upNext(day.exs, open0.start, open0.end) : null;
@@ -596,6 +597,7 @@ function SessionView({ now, db, reloadKey, w, profile, focus, rules, notify, tun
     const before = lastMarker.current;
     lastMarker.current = markerKey;
     // Same unit, same members (a member just added is announced as a new superset, not as a move of the marker).
+    if (before && !markerKey) setSaid(''); // the block is done (or closed): an old "Up next" must not stay in the live region
     if (!before || !markerKey || before === markerKey || before.split(':')[0] !== markerKey.split(':')[0] || !open0 || !marker) return;
     say(`Up next: ${day.exs[marker.ex]?.name}, ${String.fromCharCode(65 + marker.ex - open0.start)}${marker.set + 1}.`);
   }, [markerKey]); // eslint-disable-line react-hooks/exhaustive-deps -- says once per move
@@ -662,7 +664,8 @@ function SessionView({ now, db, reloadKey, w, profile, focus, rules, notify, tun
     const nx = day.exs[i + 1];
     const rule = canGroupWithNext(groupEx(day.exs), i, (k, s) => !!day.exs[k]?.sets[s]?.done);
     // Hidden: no offer here, or this exercise is itself finished (a finished card stays open; it says nothing about supersets).
-    const hidden = !rule.ok && (rule.why === 'last' || rule.why === 'inner' || (rule.why === 'done' && rule.ex === i));
+    const finished = ex.sets.length > 0 && ex.sets.every((x) => x.done);
+    const hidden = finished || (!rule.ok && (rule.why === 'last' || rule.why === 'inner'));
     if (expanded && nx && nx.part === ex.part && !hidden) {
       const ramping = (e: ExState) => guidance(e, ctx, wk).sug.mode === 'new' && !e.skipRamp && e.found === null && !e.sets.some((x) => x.done);
       const pending = [ex, nx].find(ramping);
@@ -673,7 +676,7 @@ function SessionView({ now, db, reloadKey, w, profile, focus, rules, notify, tun
       <ExerciseCard
         key={ex.name}
         {...(superset ? { superset } : {})}
-        {...(m ? { member: { letter: String.fromCharCode(65 + i - m.unit.start), upNext: lead === i }, compact: expanded && lead !== i, currentSet: m.next && m.next.ex === i ? m.next.set : -1 } : {})}
+        {...(m ? { member: { letter: String.fromCharCode(65 + i - m.unit.start), upNext: !!m.next && m.next.ex === i }, compact: expanded && lead !== i, currentSet: m.next && m.next.ex === i ? m.next.set : -1 } : {})}
         headingRef={reg(`ex:${ex.name}`)}
         expanded={expanded}
         onToggle={pin}
