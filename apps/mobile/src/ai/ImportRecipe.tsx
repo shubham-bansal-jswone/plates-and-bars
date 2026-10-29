@@ -3,7 +3,7 @@ import { Image, StyleSheet, View } from 'react-native';
 import { Button, ErrorText, Field, Hint, Label } from '../components/ui';
 import { CameraDenied } from '../photos/capture';
 import { useTheme } from '../theme/useTheme';
-import { isBlank } from '../text/blank';
+import { isBlank } from '@plate-and-bar/core';
 import { useAi } from './AiProvider';
 import type { AiFailure, AiImage } from './client';
 import { AI_COPY, failureMessage, imageFailureMessage } from './copy';

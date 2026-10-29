@@ -1,7 +1,6 @@
 import { useState } from 'react';
-import { exerciseNameTooLong } from '@plate-and-bar/core';
+import { exerciseNameTooLong, isBlank } from '@plate-and-bar/core';
 import { useSettings } from '../state/SettingsProvider';
-import { isBlank } from '../text/blank';
 import { exerciseNamed } from './catalog';
 import { AddExerciseSheet } from './AddExerciseSheet';
 import { CustomTagsSheet } from './CustomTagsSheet';

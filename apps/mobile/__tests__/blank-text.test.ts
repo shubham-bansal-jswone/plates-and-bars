@@ -1,4 +1,4 @@
-import { isBlank } from '../src/text/blank';
+import { isBlank } from '@plate-and-bar/core';
 
 // The contract's vectors (#510), read directly so they cannot drift.
 const vectors = require('../../../packages/api/test-vectors/blank-text.json') as { pattern: string; must_fail: string[]; must_pass: string[] };

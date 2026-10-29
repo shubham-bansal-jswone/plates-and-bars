@@ -1,5 +1,5 @@
 import { bundle, contentGeneration } from './loader';
-import { isBlank } from '../text/blank';
+import { isBlank } from '@plate-and-bar/core';
 
 export const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 export const isStr = (v: unknown): v is string => typeof v === 'string';
