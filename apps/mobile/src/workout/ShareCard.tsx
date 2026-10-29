@@ -2,7 +2,7 @@ import { type ComponentRef, type Ref } from 'react';
 import { StyleSheet, useWindowDimensions, View } from 'react-native';
 import { Text } from '../components/Text';
 import { radius, tabular, type, dark as c } from '../theme/tokens';
-import { CARD_H, CARD_PAD, CARD_W, HEADER_H, MORE_H, ROW_H, STATS_H, type ShareCardModel } from './shareModel';
+import { CARD_H, CARD_PAD, CARD_W, HEADER_H, MORE_H, ROW_H, STATS_H, rowName, type ShareCardModel } from './shareModel';
 
 /**
  * The picture that is shared. Always the dark identity, whatever the app theme, so it looks the same in every chat. It sits
@@ -29,7 +29,7 @@ export function ShareCard({ model, cardRef }: { model: ShareCardModel; cardRef: 
       </View>
       {model.rows.map((r, i) => (
         <View key={`${i}-${r.name}`} style={styles.row}>
-          <Text allowFontScaling={false} numberOfLines={1} ellipsizeMode="tail" style={[type.bodyStrong, styles.name, { color: c.ink }]}>{r.name}</Text>
+          <Text allowFontScaling={false} numberOfLines={1} ellipsizeMode="tail" style={[type.bodyStrong, styles.name, { color: c.ink }]}>{rowName(r)}</Text>
           {r.pr ? <Text allowFontScaling={false} style={[type.small, styles.pr]}>PR</Text> : null}
           <Text allowFontScaling={false} numberOfLines={1} style={[type.bodyStrong, tabular, styles.best, { color: c.ink }]}>{r.best}</Text>
         </View>

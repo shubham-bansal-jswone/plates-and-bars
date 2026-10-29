@@ -19,8 +19,10 @@ export function useHistory(db: WorkoutDb, reloadKey: number) {
       async () => {
         const log = await loadSessionLog(db);
         const sets = Object.fromEntries(await Promise.all(recentDates(log).map(async (d) => [d, await loadSets(db, d)] as const)));
-        const cardio = Object.fromEntries(await Promise.all(recentDates(log).map(async (d) => [d, (await loadWorkout(db, d))?.cardio_min ?? null] as const)));
-        return { sessions: buildSessions(log, sets, cardio), lifts: await loadLifts(db) };
+        const stored = Object.fromEntries(await Promise.all(recentDates(log).map(async (d) => [d, await loadWorkout(db, d)] as const)));
+        const cardio = Object.fromEntries(Object.entries(stored).map(([d, w]) => [d, w?.cardio_min ?? null] as const));
+        const groups = Object.fromEntries(Object.entries(stored).map(([d, w]) => [d, w?.exercises ?? []] as const));
+        return { sessions: buildSessions(log, sets, cardio, groups), lifts: await loadLifts(db) };
       },
       () => live,
       setState,
