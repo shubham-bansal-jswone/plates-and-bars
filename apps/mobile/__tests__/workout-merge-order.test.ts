@@ -49,25 +49,38 @@ describe('mergeWorkout order (#1331)', () => {
     }
   });
 
-  it('two devices converge in at most 3 rounds, with no churn once settled', () => {
-    // The server holds one copy. Device c pushed first. Device a (stale base) merges with the server and pushes; c then pulls.
-    const base = row(list('A B C'));
-    let server = row(list('A B C E'));
-    let a = row(list('A B C:g D:g')), aBase = base, c = server, cBase = server, rounds = 0;
-    for (; rounds < 3; rounds++) {
-      const before = view(server);
-      // device a: merges when the server moved past its base, then pushes its list
-      const merged = aBase !== server ? mergeWorkout(aBase, a, server) : a;
-      a = merged; aBase = merged; server = merged;
-      // device c: nothing of its own to merge once it has pulled; it adopts the server copy
-      c = server; cBase = server;
-      if (view(server).join() === before.join()) break;
+  // The real flow (ADR 007): a push is version-checked; on a conflict the device merges with the server copy and pushes the
+  // merged result back at the server's version; a clean device pulls. Runs until both outboxes are empty.
+  function converge(base: Workout, aList: string, cList: string) {
+    const server = { w: base, v: 1 };
+    const mk = (l: string) => ({ mine: row(list(l)), base, baseV: 1 });
+    const devs = [mk(cList), mk(aList)]; // c pushes first, so a is the one that conflicts
+    let rounds = 0;
+    const pending = () => devs.some((d) => view(d.mine).join() !== view(d.base).join() || d.baseV !== server.v);
+    while (pending() && rounds < 10) {
+      rounds++;
+      for (const d of devs) {
+        if (view(d.mine).join() !== view(d.base).join()) {
+          if (d.baseV !== server.v) d.mine = mergeWorkout(d.base, d.mine, server.w);
+          if (view(d.mine).join() !== view(server.w).join()) { server.w = d.mine; server.v++; }
+          d.base = server.w; d.baseV = server.v; d.mine = server.w;
+        } else if (d.baseV !== server.v) { d.base = d.mine = server.w; d.baseV = server.v; }
+      }
     }
+    return { rounds, server, devs };
+  }
+
+  it.each([
+    ['the issue example', 'A B C', 'A B C:g D:g', 'A B C E', ['A', 'B', 'C:g', 'D:g', 'E']],
+    ['a grouped variant', 'A B C:g D:g', 'A B C:g D:g X:g', 'A B C:g D:g Y:g', null],
+  ])('two devices adding after the same predecessor converge: %s', (_n, baseL, aL, cL, expected) => {
+    const { rounds, server, devs } = converge(row(list(baseL)), aL, cL);
     expect(rounds).toBeLessThanOrEqual(3);
-    expect(view(server)).toEqual(['A', 'B', 'C:g', 'D:g', 'E']);
-    // settled: another merge round on either side changes nothing
-    expect(view(mergeWorkout(aBase, a, server))).toEqual(view(server));
-    expect(view(mergeWorkout(cBase, c, server))).toEqual(view(server));
-    expect(fixGroups(server.exercises)).toEqual(server.exercises);
+    expect(view(devs[0]!.mine)).toEqual(view(devs[1]!.mine));
+    expect(view(devs[0]!.mine)).toEqual(view(server.w));
+    expect(devs.every((d) => view(d.mine).join() === view(d.base).join() && d.baseV === server.v)).toBe(true); // outbox empty
+    if (expected) expect(view(server.w)).toEqual(expected);
+    else { expect(view(server.w).sort()).toEqual(['A', 'B', 'C:g', 'D:g', 'X:g', 'Y:g'].sort()); expect(fixGroups(server.w.exercises)).toEqual(server.w.exercises); } // one group, not split
+    expect(fixGroups(server.w.exercises)).toEqual(server.w.exercises);
   });
 });
