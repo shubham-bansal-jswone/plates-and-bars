@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "note": "Names as Strong and Hevy write them, mapped to the library exercise they are. Each target must be a name in exercises.json tags. Not a suffix rule: Deadlift (Dumbbell) and Crunch (Machine) are different exercises and stay unmatched.",
+  "aliases": {
+    "Squat (Barbell)": "Barbell Back Squat",
+    "Deadlift (Barbell)": "Deadlift",
+    "Lateral Raise (Dumbbell)": "Lateral Raise",
+    "Leg Press (Machine)": "Leg Press",
+    "Lat Pulldown (Cable)": "Lat Pulldown",
+    "Hip Thrust (Barbell)": "Hip Thrust",
+    "Leg Extension (Machine)": "Leg Extension",
+    "Push Up (Bodyweight)": "Push-ups"
+  }
+}
