@@ -253,6 +253,8 @@ export function weightDrift(weighIns: readonly WeighIn[], setupWeightKg: number)
 
 /** Kcal per kg of body weight (prototype `KCAL_PER_KG`). */
 export const KCAL_PER_KG = 7700;
+/** Kcal per lb of body weight: the rounded-to-100 lb equivalent of `KCAL_PER_KG` (7700 x 0.4536 = 3,493, shown as 3,500). Display-only; the maths stays in kg. */
+export const KCAL_PER_LB = 3500;
 /** Calories added when weight drops fast (prototype `calorieCard`'s 150). */
 export const RAPID_LOSS_KCAL = 150;
 /** Minimum change before the check-in suggests a new calorie target (prototype `renderCheckin`'s 100). */

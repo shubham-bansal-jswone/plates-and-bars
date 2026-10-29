@@ -2272,23 +2272,23 @@ paths:
                     bundles:
                       - name: cards
                         schema_version: 1
-                        sha256: a2ccbf40d3e72ac60aaf08167ebea7df4f62bc88069a0fac778c14a4b872a337
-                        size_bytes: 16095
+                        sha256: 3b8be9db044adb4ef311d7d7b130021f5686c4b9b5272cab27b33e87731896c8
+                        size_bytes: 25469
                         updated_at: '2026-10-09T08:54:10Z'
                       - name: exercises
                         schema_version: 1
-                        sha256: 266b72969634c59a493b27f56f67af9f33972031e2201a9e2db05535c5905934
-                        size_bytes: 87778
+                        sha256: ccdd7b1b462d6cad93b0e13c555ce3038c98e71d80ab061341a4c069a905bc44
+                        size_bytes: 87783
                         updated_at: '2026-10-08T14:57:42Z'
                       - name: foods
                         schema_version: 1
-                        sha256: f5f8e78fc2503b188d7f85747b30eee016cfc03b00a560c32fa5c95b6cbb7459
-                        size_bytes: 29139
+                        sha256: 005335d67010c04e8df4dc85e57687eae39760f54abba2e80f85cd4c25d07353
+                        size_bytes: 33046
                         updated_at: '2026-10-08T10:49:05Z'
                       - name: measures
                         schema_version: 1
-                        sha256: 0d02e9ec905f62923446eb4f9f0ce3832f7ac4d784872257fe37abc207c3647b
-                        size_bytes: 699
+                        sha256: 47879bcc79ada5af3087e918fb4976174d90b9a65c71fa0656bb3211232516bb
+                        size_bytes: 767
                         updated_at: '2026-10-09T08:54:10Z'
         '304':
           $ref: '#/components/responses/NotModified'
@@ -2350,7 +2350,7 @@ paths:
                 $ref: '#/components/schemas/ContentBundle'
               examples:
                 default:
-                  summary: content/measures.json (ETag "0d02e9ec905f62923446eb4f9f0ce3832f7ac4d784872257fe37abc207c3647b")
+                  summary: content/measures.json (ETag "47879bcc79ada5af3087e918fb4976174d90b9a65c71fa0656bb3211232516bb")
                   value:
                     schema_version: 1
                     origin: imported once from the prototype (frozen at tag prototype-final) (MEASURES, measuresHtml); content is now the source of record
@@ -2417,7 +2417,7 @@ components:
         parsed, is ignored: the server answers as if the header were absent, never 400.
       schema:
         type: string
-      example: '"0d02e9ec905f62923446eb4f9f0ce3832f7ac4d784872257fe37abc207c3647b"'
+      example: '"47879bcc79ada5af3087e918fb4976174d90b9a65c71fa0656bb3211232516bb"'
     AuthTransport:
       name: X-Auth-Transport
       in: header
@@ -2471,7 +2471,7 @@ components:
       schema:
         type: string
         pattern: '^(W/)?"[0-9a-f]{64}"$'
-      example: '"0d02e9ec905f62923446eb4f9f0ce3832f7ac4d784872257fe37abc207c3647b"'
+      example: '"47879bcc79ada5af3087e918fb4976174d90b9a65c71fa0656bb3211232516bb"'
     VaryAcceptEncoding:
       description: Includes `Accept-Encoding`. Required whenever the server may compress the body.
       schema:
