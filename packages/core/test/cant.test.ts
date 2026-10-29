@@ -115,6 +115,30 @@ describe('replaceAt', () => {
     expect(kept.exercises.map((e) => [e.name, e.part])).toEqual([['A', 1], ['B', 2], ['C', 2], ['D', 2]]);
   });
 
+  it('the pick takes the group of the exercise it replaces, at the exact index (#1331)', () => {
+    const w = [ex('A'), ex('B', { group: 'g' }), ex('C', { group: 'g' }), ex('D')];
+    expect(replaceAt(w, [], 2, 'X', noLifts).exercises.map((e) => [e.name, e.group ?? null])).toEqual([['A', null], ['B', 'g'], ['X', 'g'], ['D', null]]);
+    const kept = replaceAt(w, [set('b0', 'B', 'work', 0, true)], 1, 'X', noLifts);
+    expect(kept.exercises.map((e) => [e.name, e.group ?? null])).toEqual([['A', null], ['B', 'g'], ['X', 'g'], ['C', 'g'], ['D', null]]);
+  });
+
+  it('a ticked swap in a full group of 6 leaves the new exercise ungrouped (#1331)', () => {
+    const w = ['A', 'B', 'C', 'D', 'E', 'F'].map((n) => ex(n, { group: 'g' }));
+    const got = replaceAt(w, [set('b0', 'B', 'work', 0, true)], 1, 'X', noLifts);
+    expect(got.exercises.map((e) => [e.name, e.group ?? null])).toEqual([['A', 'g'], ['B', 'g'], ['C', 'g'], ['D', 'g'], ['E', 'g'], ['F', 'g'], ['X', null]]);
+    // (it goes right after the group); unticked: the same size, the pick is a member
+    expect(replaceAt(w, [], 1, 'X', noLifts).exercises[1]?.group).toBe('g');
+  });
+
+  it('removing a member without a pick dissolves a group left with one (#1331)', () => {
+    const w = [ex('A', { group: 'g' }), ex('B', { group: 'g' })];
+    expect(replaceAt(w, [], 1, null, noLifts).exercises).toEqual([{ ...ex('A'), group: null }]);
+  });
+
+  it('ungrouped sessions come back without a group key (#1331)', () => {
+    expect(replaceAt([ex('A'), ex('B')], [], 1, 'C', noLifts).exercises.every((e) => !('group' in e))).toBe(true);
+  });
+
   it('leaves tombstoned sets as they are', () => {
     const dead = { ...set('d0', 'Leg Press', 'work', 0, true), deleted_at: '2026-10-08T10:00:00Z' };
     const got = replaceAt(session, [dead, ...sets], 0, null, noLifts);

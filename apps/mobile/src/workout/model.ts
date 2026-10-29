@@ -151,19 +151,27 @@ function pick<T extends object>(base: T | undefined, mine: T, theirs: T): T {
 /**
  * Today's workout row when the stored copy changed since this screen last loaded or wrote it (`base`): a sync pull or a
  * rule saved on Targets. A three-way merge by field and by exercise name: the stored list and order are kept, edits made
- * here win field by field, exercises added here are appended, and exercises removed on either side stay removed (#410).
+ * here win field by field, exercises added here go after their predecessor here, and exercises removed on either side stay removed (#410).
  */
 export function mergeWorkout(base: Workout, mine: Workout, theirs: Workout): Workout {
   const byName = (l: readonly WorkoutExercise[]) => new Map(l.map((e) => [e.name, e]));
   const b = byName(base.exercises), m = byName(mine.exercises), t = byName(theirs.exercises);
-  const exercises = [
-    ...theirs.exercises.flatMap((e) => {
-      const own = m.get(e.name);
-      if (own) return [pick(b.get(e.name), own, e)];
-      return b.has(e.name) ? [] : [e]; // in the base but not here: removed on this device, so it stays removed
-    }),
-    ...mine.exercises.filter((e) => !t.has(e.name) && !b.has(e.name)),
-  ];
+  const exercises = theirs.exercises.flatMap((e) => {
+    const own = m.get(e.name);
+    if (own) return [pick(b.get(e.name), own, e)];
+    return b.has(e.name) ? [] : [e]; // in the base but not here: removed on this device, so it stays removed
+  });
+  // An exercise added here goes right after its predecessor in this device's order (the nearest earlier one that is in the
+  // merged list), at the front when none, so a group built around it stays together when the other device appended too (#1331).
+  mine.exercises.forEach((e, i) => {
+    if (t.has(e.name) || b.has(e.name)) return;
+    let at = 0;
+    for (let k = i - 1; k >= 0; k--) {
+      const p = exercises.findIndex((x) => x.name === mine.exercises[k]?.name);
+      if (p >= 0) { at = p + 1; break; }
+    }
+    exercises.splice(at, 0, e);
+  });
   const { exercises: _b, ...baseRest } = base;
   const { exercises: _m, ...mineRest } = mine;
   const { exercises: _t, ...theirsRest } = theirs;
