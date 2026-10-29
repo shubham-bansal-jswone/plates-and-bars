@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useFocusEffect } from 'expo-router';
-import { addDays, plannedCoverage, volumeVsPlan, weeklyDoneSets, type MuscleSets, type VolumeVsPlanResult, type WeekPlan, type WeekSets } from '@plate-and-bar/core';
+import { mondayOf, plannedCoverage, volumeVsPlan, weeklyDoneSets, type MuscleSets, type VolumeVsPlanResult, type WeekPlan, type WeekSets } from '@plate-and-bar/core';
 import { loadExclusions, loadSwaps } from '../db/rules';
 import { loadLifts, type WorkoutDb } from '../db/workouts';
 import type { Profile } from '../setup/types';
 import { freshRead } from '../state/freshRead';
 import { getCatalog } from '../workout/catalog';
 import { dayQueue, dayWrites } from '../workout/dayQueue';
-import { loadVolumeInputs, volumeFrom, type VolumeInputs } from './volumeRead';
+import type { ProgressSets } from './useProgressSets';
+import { firstLogged, indexSets, loadWorkoutRows, volumeDays, type WorkoutRow } from './volumeRead';
 
 /** Weeks the section draws. The range control offers 4 weeks, 12 weeks and All, not 8, so the chart is a fixed 12. */
 export const VOLUME_WEEKS = 12;
@@ -21,21 +22,22 @@ export interface ProgressVolume {
   since: string | null;
 }
 
-interface State {
-  /** The first Monday the data covers: data for another range is never shown. */
-  from: string;
-  data: (VolumeInputs & { lifts: Awaited<ReturnType<typeof loadLifts>>; exclusions: Awaited<ReturnType<typeof loadExclusions>>; swaps: Awaited<ReturnType<typeof loadSwaps>> }) | null;
-  error: Error | null;
+interface Rows {
+  workouts: WorkoutRow[];
+  lifts: Awaited<ReturnType<typeof loadLifts>>;
+  exclusions: Awaited<ReturnType<typeof loadExclusions>>;
+  swaps: Awaited<ReturnType<typeof loadSwaps>>;
 }
 
 /**
- * Weekly done sets for the 12 weeks ending at `end`'s week, read through `freshRead` after the first paint, when `dataVersion` changes,
- * when the week being viewed changes, and on a focus only when a local write happened since the last read (as `useProgressSets`).
- * `planned` is the CURRENT plan's (`plannedCoverage` for `today`), not a past one. While a read for another week runs, or after a failed read,
- * `volume` is null: the last result is never shown as current (`error` tells a failure from loading).
+ * Weekly done sets for the 12 weeks ending at `end`'s week. The done sets are `sets.all` (`useProgressSets`, called once by the screen); this reads
+ * what the plan and the weeks need besides: every workout (all history, one query) and the lifts, exclusions and swaps. It reloads by the same
+ * rules as `useProgressSets`: after the first paint, on `dataVersion`, and on a focus only when a local write happened since the last read.
+ * Browsing to another day or week reads nothing: the weeks are built in memory, kept per Monday. A reload keeps the previous rows while it runs.
+ * `planned` is the CURRENT plan's (`plannedCoverage` for `today`). After a failed read, `volume` is null and `error` is set: the old rows are never shown as current.
  */
-export function useProgressVolume(db: WorkoutDb, end: string, today: string, dataVersion: number, profile: Profile | null, weekPlan: WeekPlan | undefined): { volume: ProgressVolume | null; loading: boolean; error: Error | null } {
-  const [state, setState] = useState<State | null>(null);
+export function useProgressVolume(db: WorkoutDb, sets: ProgressSets, end: string, today: string, dataVersion: number, profile: Profile | null, weekPlan: WeekPlan | undefined): { volume: ProgressVolume | null; loading: boolean; error: Error | null } {
+  const [state, setState] = useState<{ rows: Rows | null; error: Error | null } | null>(null);
   const [shown, setShown] = useState(0);
   const seenFirst = useRef(false);
   const readAt = useRef<number | null>(null);
@@ -45,37 +47,41 @@ export function useProgressVolume(db: WorkoutDb, end: string, today: string, dat
       seenFirst.current = true;
     }, []),
   );
-  const from = volumeFrom(end, VOLUME_WEEKS);
-  // The read depends on the viewed week only: moving to another day of it does not read again.
-  const lastMonday = addDays(from, 7 * (VOLUME_WEEKS - 1));
   useEffect(() => {
     let live = true;
     freshRead(
       { queue: dayQueue, writes: dayWrites },
-      async () => {
-        const [inputs, lifts, exclusions, swaps] = await Promise.all([loadVolumeInputs(db, lastMonday, VOLUME_WEEKS), loadLifts(db), loadExclusions(db), loadSwaps(db)]);
-        return { ...inputs, lifts, exclusions, swaps };
+      async (): Promise<Rows> => {
+        const [workouts, lifts, exclusions, swaps] = await Promise.all([loadWorkoutRows(db), loadLifts(db), loadExclusions(db), loadSwaps(db)]);
+        return { workouts, lifts, exclusions, swaps };
       },
       () => live,
-      (data) => {
+      (rows) => {
         readAt.current = dayWrites.current;
-        setState({ from, data, error: null });
+        setState({ rows, error: null });
       },
     ).catch((e: unknown) => {
-      if (live) setState({ from, data: null, error: e instanceof Error ? e : new Error(String(e)) });
+      if (!live) return;
+      readAt.current = null; // the next focus tries again, even with no write since
+      setState({ rows: null, error: e instanceof Error ? e : new Error(String(e)) });
     });
     return () => {
       live = false;
     };
-  }, [db, from, lastMonday, dataVersion, shown]);
-  const same = state !== null && state.from === from ? state : null;
-  const volume = useMemo((): ProgressVolume | null => {
-    const d = same?.data;
-    if (!d) return null;
-    const catalog = getCatalog();
-    const planned = profile ? plannedCoverage({ date: today, profile, weekPlan, exclusions: d.exclusions, swaps: d.swaps, lifts: d.lifts }, catalog) : {};
-    const weeks = weeklyDoneSets(d.days, end, VOLUME_WEEKS, catalog.tags);
-    return { weeks, planned, since: d.since, result: volumeVsPlan(weeks, planned, d.since) };
-  }, [same, end, today, profile, weekPlan]);
-  return { volume, loading: same === null, error: same?.error ?? null };
+  }, [db, dataVersion, shown]);
+  const rows = state?.rows ?? null;
+  const byDate = useMemo(() => indexSets(sets.all), [sets.all]);
+  const since = useMemo(() => (rows ? firstLogged(rows.workouts) : null), [rows]);
+  const planned = useMemo((): MuscleSets => {
+    if (!rows || !profile) return {};
+    return plannedCoverage({ date: today, profile, weekPlan, exclusions: rows.exclusions, swaps: rows.swaps, lifts: rows.lifts }, getCatalog());
+  }, [rows, today, profile, weekPlan]);
+  // Kept per Monday (and the sets it was built from), so moving between days of a week rebuilds nothing but the partial flag.
+  const monday = mondayOf(end);
+  const days = useMemo(() => (rows ? volumeDays(rows.workouts, byDate, monday, VOLUME_WEEKS) : null), [rows, byDate, monday]);
+  const weeks = useMemo(() => (days ? weeklyDoneSets(days, end, VOLUME_WEEKS, getCatalog().tags) : null), [days, end]);
+  const volume = useMemo((): ProgressVolume | null => (weeks ? { weeks, planned, since, result: volumeVsPlan(weeks, planned, since) } : null), [weeks, planned, since]);
+  const error = state?.error ?? sets.error;
+  const loading = !error && (state === null || (sets.loading && sets.all.length === 0));
+  return { volume: error || loading ? null : volume, loading, error };
 }

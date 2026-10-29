@@ -25,9 +25,9 @@ export function volumeBars(weeks: readonly WeekSets[], muscle: string, since: st
   }));
 }
 
-/** Lowest first: rows below their plan by the biggest gap, then the other low rows and the rest by average. */
+/** Lowest first: rows below their plan by the biggest gap, then the rest by average (which puts the low ones first). */
 export function rankRows(rows: readonly VolumeVsPlan[]): VolumeVsPlan[] {
-  const tier = (r: VolumeVsPlan): number => (r.below ? 0 : r.low ? 1 : 2);
+  const tier = (r: VolumeVsPlan): number => (r.below ? 0 : 1);
   const key = (r: VolumeVsPlan): number => (r.below ? r.gap : r.avg);
   return rows
     .map((r, i) => ({ r, i }))

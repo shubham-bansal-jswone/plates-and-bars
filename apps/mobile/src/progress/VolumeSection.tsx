@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { StyleSheet, View, useWindowDimensions } from 'react-native';
-import { COVER_SHOW, mondayOf, round1, WEIGHT_CHART_BOX, type VolumeVsPlan } from '@plate-and-bar/core';
+import { COVER_SHOW, mondayOf, round1, WEIGHT_CHART_BOX, type VolumeVsPlan, type WeekPlan } from '@plate-and-bar/core';
 import { Skeleton } from '../components/Skeleton';
 import { Text } from '../components/Text';
 import { Card, Chip, Heading, Hint, Press, a11yState } from '../components/ui';
@@ -9,6 +9,7 @@ import { shortDate } from '../format';
 import type { Settings } from '../settings/types';
 import type { Profile } from '../setup/types';
 import { useDataVersion } from '../sync/useDataVersion';
+import type { ProgressSets } from './useProgressSets';
 import { CHART_MAX_WIDTH, radius, space, tabular, type as typeScale } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { muscleName } from '../workout/copy';
@@ -59,6 +60,8 @@ const num = (n: number): string => round1(n).toLocaleString('en-IN');
 
 interface Props {
   db: WorkoutDb;
+  /** From `useProgressSets`, called once by the screen. */
+  sets: ProgressSets;
   /** The viewed date: the last week drawn is the one it falls in. */
   date: string;
   today: string;
@@ -70,10 +73,10 @@ interface Props {
  * Progress tab, Training volume: one muscle at a time as weekly done sets over 12 weeks, against the CURRENT plan, and a ranked
  * list of every muscle's last-4-week average (the text alternative to the chart). The muscle is held in memory only.
  */
-export function VolumeSection({ db, date, today, profile, settings }: Props) {
+export function VolumeSection({ db, sets, date, today, profile, settings }: Props) {
   const c = useTheme();
   const dataVersion = useDataVersion();
-  const { volume, loading, error } = useProgressVolume(db, date, today, dataVersion, profile, settings?.adjustments.weekPlan as Parameters<typeof useProgressVolume>[5]);
+  const { volume, loading, error } = useProgressVolume(db, sets, date, today, dataVersion, profile, settings?.adjustments.weekPlan as WeekPlan | undefined);
   const focus = settings?.focus ?? [];
   const [choice, setChoice] = useState<string | null>(null);
   return (

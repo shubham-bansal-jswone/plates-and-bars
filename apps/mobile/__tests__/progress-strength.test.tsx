@@ -30,7 +30,7 @@ const hook = (all: PrSet[], types: Record<string, ExType> = {}, o: Partial<Progr
   const names = new Set(sorted.map((s) => s.exercise));
   return { all: sorted, types: { ...Object.fromEntries([...names].map((n) => [n, 'barbell' as ExType])), ...types }, inRange: (e, r) => setsInRange(sorted, e, r), before: (d) => setsBefore(sorted, d), loading: false, error: null, ...o };
 };
-const show = (weights: { date: string; weight_kg: number; deleted_at?: string | null }[] = []) => render(<StrengthSection db={{} as never} date={END} weights={weights as never} />);
+const show = (weights: { date: string; weight_kg: number; deleted_at?: string | null }[] = []) => render(<StrengthSection sets={mockHook} date={END} weights={weights as never} />);
 const e1rm = (w: number, r = 5) => Math.round(w * (1 + r / 30) * 10) / 10;
 
 beforeEach(() => { mockFontScale = 1; mockUnit = 'kg'; mockWidth = 800; mockProfileKg = 80; });
@@ -214,7 +214,7 @@ describe('more cases', () => {
     const r = await show();
     await fireEvent.press(screen.getByRole('button', { name: '4 weeks' }));
     expect(screen.getByRole('image').props.accessibilityLabel).toMatch(/in 3 weeks$/);
-    const at = (d: string) => <StrengthSection db={{} as never} date={d} weights={[] as never} />;
+    const at = (d: string) => <StrengthSection sets={mockHook} date={d} weights={[] as never} />;
     await r.rerender(at(addDays(END, -40))); // 4 weeks holds one set; 12 weeks holds two, 30 days apart (4 weeks, rounded)
     expect(screen.getByRole('button', { name: '4 weeks, not enough data' }).props.accessibilityState.disabled).toBe(true);
     expect(screen.getByRole('image').props.accessibilityLabel).toMatch(/up 5.8 kg in 4 weeks$/);

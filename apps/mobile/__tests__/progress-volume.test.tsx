@@ -1,10 +1,12 @@
 import { Dimensions } from 'react-native';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { COVER_SHOW, addDays, round1, doneCoverage, plannedCoverage, volumeVsPlan, weeklyDoneSets, type VolumeVsPlan } from '@plate-and-bar/core';
-import { saveSet, saveWorkout } from '../src/db/workouts';
+import { loadDoneSets, saveSet, saveWorkout, type WorkoutDb } from '../src/db/workouts';
 import { SyncContext } from '../src/sync/SyncProvider';
 import { VolumeSection } from '../src/progress/VolumeSection';
-import { loadVolumeInputs, volumeFrom } from '../src/progress/volumeRead';
+import { firstLogged, indexSets, loadWorkoutRows, volumeDays, volumeFrom } from '../src/progress/volumeRead';
+import { useProgressSets } from '../src/progress/useProgressSets';
+import { useDataVersion } from '../src/sync/useDataVersion';
 import { defaultMuscle, noVolumeYet, rankRows, volumeBars } from '../src/progress/volumeView';
 import { VOL_EMPTY, VOL_ERROR, VOL_NO_FULL_WEEK, VOL_NO_SETUP, VOL_PLAN_LINE } from '../src/progress/copy';
 import { defaultSettings } from '../src/settings/types';
@@ -58,12 +60,20 @@ async function history(db: Db, weeksBack = 12) {
   await train(db, '2026-10-26', { 'Barbell Bench Press': 5 }); // this week so far
 }
 
+/** What ProgressScreen does: one `useProgressSets`, shared with the section. */
+function Harness({ db, ...p }: { db: Db; date: string; today: string; profile: typeof profile | null; settings: ReturnType<typeof defaultSettings> }) {
+  const sets = useProgressSets(db as WorkoutDb, useDataVersion());
+  return <VolumeSection db={db as WorkoutDb} sets={sets} {...p} />;
+}
+/** The in-memory days for `end`, as the section builds them. */
+const daysFor = async (db: Db, end: string) => volumeDays(await loadWorkoutRows(db), indexSets(await loadDoneSets(db)), end, 12);
+
 interface Over { focus?: string[]; profile?: typeof profile | null; date?: string; version?: number }
 function view(db: Db, o: Over = {}) {
   const settings = { ...defaultSettings('2026-01-01T00:00:00Z'), focus: o.focus ?? [] };
   const ui = (version: number) => (
     <SyncContext.Provider value={{ dataVersion: version } as never}>
-      <VolumeSection db={db} date={o.date ?? TODAY} today={TODAY} profile={o.profile === undefined ? profile : o.profile} settings={settings} />
+      <Harness db={db} date={o.date ?? TODAY} today={TODAY} profile={o.profile === undefined ? profile : o.profile} settings={settings} />
     </SyncContext.Provider>
   );
   return { ui };
@@ -79,16 +89,21 @@ const hidden = { includeHiddenElements: true } as const;
 
 beforeEach(() => { n = 0; });
 
-describe('loadVolumeInputs', () => {
-  it('matches doneCoverage for the last complete week, in two range reads plus since (not a read per day)', async () => {
+describe('volume data', () => {
+  it('matches doneCoverage for the last complete week; one workouts query for all history, then nothing per week', async () => {
     const db = await openDb();
     await history(db);
     await train(db, '2026-10-21', { 'Dumbbell Curl': 2 }, { deleted_at: '2026-10-22T00:00:00Z' }); // a deleted workout counts nothing
     await train(db, '2026-07-01', { 'Dumbbell Curl': 2 }, { deleted_at: '2026-07-02T00:00:00Z' });
     const spy = jest.spyOn(db, 'getAllAsync');
-    const { days, since } = await loadVolumeInputs(db, TODAY, 12);
-    expect(spy).toHaveBeenCalledTimes(3);
-    expect(since).toBe('2026-08-03'); // the deleted workout does not move it
+    const rows = await loadWorkoutRows(db);
+    expect(spy).toHaveBeenCalledTimes(1);
+    const byDate = indexSets(await loadDoneSets(db));
+    spy.mockClear();
+    const days = volumeDays(rows, byDate, TODAY, 12);
+    volumeDays(rows, byDate, '2026-09-01', 12);
+    expect(spy).not.toHaveBeenCalled();
+    expect(firstLogged(rows)).toBe('2026-08-03'); // the deleted workout does not move it
     const week = weeklyDoneSets(days, TODAY, 12, getCatalog().tags).find((w) => w.week === '2026-10-19')!;
     const done = doneCoverage('2026-10-25', days, getCatalog().tags);
     for (const m of COVER_SHOW) expect(week.sets[m]).toBe(done[m] ?? 0);
@@ -97,19 +112,22 @@ describe('loadVolumeInputs', () => {
     expect(week.sets['biceps']).toBe(3); // Lat Pulldown: biceps are secondary, half a set each
   });
 
-  it('reads from the first Monday of the 12 weeks and not past the viewed week', async () => {
+  it('days run from the first Monday of the 12 weeks to the end of the viewed week; since is the whole history', async () => {
     const db = await openDb();
     await train(db, addDays(volumeFrom(TODAY, 12), -1), { 'Barbell Bench Press': 3 });
     await train(db, volumeFrom(TODAY, 12), { 'Barbell Bench Press': 3 });
     await train(db, '2026-11-02', { 'Barbell Bench Press': 3 }); // next week
-    const { days, since } = await loadVolumeInputs(db, TODAY, 12);
+    const rows = await loadWorkoutRows(db);
     expect(volumeFrom(TODAY, 12)).toBe('2026-08-10');
-    expect(days.map((d) => d.date)).toEqual(['2026-08-10']);
-    expect(since).toBe('2026-08-09'); // the whole history, not the window
+    expect(volumeDays(rows, indexSets(await loadDoneSets(db)), TODAY, 12).map((d) => d.date)).toEqual(['2026-08-10']);
+    expect(firstLogged(rows)).toBe('2026-08-09');
   });
 
-  it('has no since without a workout', async () => {
-    expect((await loadVolumeInputs(await openDb(), TODAY, 12)).since).toBeNull();
+  it('has no since without a live workout', async () => {
+    const db = await openDb();
+    expect(firstLogged(await loadWorkoutRows(db))).toBeNull();
+    await train(db, '2026-10-01', {}, { deleted_at: '2026-10-02T00:00:00Z' });
+    expect(firstLogged(await loadWorkoutRows(db))).toBeNull();
   });
 });
 
@@ -135,6 +153,11 @@ describe('volumeView', () => {
     expect(bars.map((b) => b.value)).toEqual([null, 0, 0]); // 10-12 week ended 10-18, before 10-21; 10-19 week holds it
     expect(bars.map((b) => b.partial)).toEqual([undefined, undefined, true]);
     expect(volumeBars(weeks, 'chest', null).every((b) => b.value === null)).toBe(true);
+  });
+  it('a week that ends on the first workout\'s day (a Sunday) shows a bar, the week before a gap', () => {
+    const weeks = weeklyDoneSets([], TODAY, 3, getCatalog().tags);
+    expect(volumeBars(weeks, 'chest', '2026-10-18').map((b) => b.value)).toEqual([0, 0, 0]);
+    expect(volumeBars(weeks, 'chest', '2026-10-19').map((b) => b.value)).toEqual([null, 0, 0]);
   });
   it('noVolumeYet: no workout, or workouts with nothing ticked inside the window', () => {
     const weeks = weeklyDoneSets([], TODAY, 12, getCatalog().tags);
@@ -179,7 +202,7 @@ describe('VolumeSection', () => {
     await history(db); // only chest, back and arms have sets: legs and abs are 0 of a plan
     await show(db);
     await waitFor(() => expect(screen.queryByTestId('skeleton')).toBeNull());
-    const rows = volumeVsPlan(weeklyDoneSets((await loadVolumeInputs(db, TODAY, 12)).days, TODAY, 12, getCatalog().tags), planned, '2026-08-03').rows;
+    const rows = volumeVsPlan(weeklyDoneSets(await daysFor(db, TODAY), TODAY, 12, getCatalog().tags), planned, '2026-08-03').rows;
     const expected = defaultMuscle([], rows);
     const label = expected.charAt(0).toUpperCase() + expected.slice(1);
     expect(screen.getAllByRole('button').filter((b) => b.props.accessibilityState?.selected).map((b) => b.props.accessibilityLabel)).toEqual([expect.stringContaining(label.split('-')[0]!)]);
@@ -218,6 +241,40 @@ describe('VolumeSection', () => {
     await history(db);
     await show(db, { focus: ['chest'], date: '2026-10-21' });
     await screen.findByText(new RegExp(`^Chest 3 of about ${chestPlan} sets in the week of 19 Oct$`), hidden);
+  });
+
+  it('the sets read still pending: a skeleton, not an empty or zero chart; when it fails, the error', async () => {
+    const db = await openDb();
+    await history(db);
+    const real = db.getAllAsync.bind(db);
+    let open: () => void = () => undefined;
+    const gate = new Promise<void>((r) => { open = r; });
+    const fail = { on: false };
+    jest.spyOn(db, 'getAllAsync').mockImplementation((async (sql: string, ...a: (string | number)[]) => {
+      if (!sql.includes('workout_sets')) return real(sql, ...a);
+      await gate;
+      if (fail.on) throw new Error('disk');
+      return real(sql, ...a);
+    }) as never);
+    await show(db, { focus: ['chest'] });
+    await waitFor(() => expect(screen.getByTestId('skeleton')).toBeTruthy());
+    await new Promise((r) => setTimeout(r, 20)); // the workouts read is long done
+    expect(screen.getByTestId('skeleton')).toBeTruthy();
+    expect(screen.queryByText(VOL_EMPTY)).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Chest' })).toBeNull();
+    fail.on = true;
+    await act(async () => open());
+    await screen.findByText(VOL_ERROR);
+    expect(screen.queryByRole('button', { name: 'Chest' })).toBeNull();
+  });
+
+  it('the headline is hidden from the accessibility tree; the chart label carries it', async () => {
+    const db = await openDb();
+    await history(db);
+    await show(db, { focus: ['chest'] });
+    await screen.findByText(/^Chest 5 of/, hidden);
+    expect(screen.queryByText(/^Chest 5 of/)).toBeNull(); // not in the default (accessible) tree
+    expect(screen.getByLabelText(/^Chest: done sets by week\. Chest 5 of/, hidden)).toBeTruthy();
   });
 
   it('empty: no workout yet', async () => {
@@ -304,7 +361,7 @@ describe('VolumeSection', () => {
       await screen.findByText(/^Average of your last 4/);
       const rows = () => screen.getAllByLabelText(/, average .* sets a week/);
       expect(rows()).toHaveLength(3);
-      const rows12 = volumeVsPlan(weeklyDoneSets((await loadVolumeInputs(db, TODAY, 12)).days, TODAY, 12, getCatalog().tags), planned, '2026-08-03').rows;
+      const rows12 = volumeVsPlan(weeklyDoneSets(await daysFor(db, TODAY), TODAY, 12, getCatalog().tags), planned, '2026-08-03').rows;
       const lowest = rankRows(rows12).slice(0, 3).map((r) => muscleName(r.muscle));
       expect(rows().map((r) => String(r.props.accessibilityLabel).split(',')[0]!.toLowerCase())).toEqual(lowest);
       const btn = screen.getByRole('button', { name: 'Show all' });
@@ -362,30 +419,45 @@ describe('VolumeSection', () => {
       await screen.findByText(/^Chest 6 of/, hidden);
     });
 
-    it('moving within the viewed week does not read; moving to another week does, and shows loading, not the old week', async () => {
+    it('moving to another day or week reads nothing, shows no skeleton, and shows that week\'s numbers', async () => {
       const db = await openDb();
       await history(db);
+      await train(db, '2026-10-21', { 'Barbell Bench Press': 2 }); // a Wednesday of the week before: 3 + 2 chest sets
       const { v, rerender } = await show(db, { focus: ['chest'] });
       await screen.findByText(/^Chest 5 of/, hidden);
+      const spy = jest.spyOn(db, 'getAllAsync');
+      await rerender(view(db, { focus: ['chest'], date: '2026-10-28' }).ui(0));
+      expect(screen.getByText(/^Chest 5 of/, hidden)).toBeTruthy();
+      await rerender(view(db, { focus: ['chest'], date: '2026-10-21' }).ui(0));
+      expect(screen.queryByTestId('skeleton')).toBeNull();
+      expect(screen.getByText(new RegExp(`^Chest 5 of about ${chestPlan} sets in the week of 19 Oct$`), hidden)).toBeTruthy();
+      await rerender(v.ui(0));
+      expect(screen.getByText(/^Chest 5 of/, hidden)).toBeTruthy();
+      expect(spy).not.toHaveBeenCalled();
+    });
+
+    it('an earlier day of the current week still says "this week"', async () => {
+      const db = await openDb();
+      await history(db);
+      await show(db, { focus: ['chest'], date: '2026-10-27' });
+      await screen.findByText(/^Chest 5 of about [\d.]+ sets this week$/, hidden);
+    });
+
+    it('a failed reload after a good read: the old numbers go, and the next focus reads again with no write between', async () => {
+      const db = await openDb();
+      await history(db);
       const real = db.getAllAsync.bind(db);
       const spy = jest.spyOn(db, 'getAllAsync');
-      const same = view(db, { focus: ['chest'], date: '2026-10-28' });
-      await rerender(same.ui(0));
-      expect(spy).not.toHaveBeenCalled();
-      void v;
-      const other = view(db, { focus: ['chest'], date: '2026-10-21' });
-      let open: () => void = () => undefined;
-      const gate = new Promise<void>((r) => { open = r; });
-      spy.mockImplementation((async (...a: Parameters<typeof real>) => {
-        await gate;
-        return real(...a);
-      }) as never);
-      await rerender(other.ui(0));
-      expect(screen.getByTestId('skeleton')).toBeTruthy(); // the read is pending: the old week is not shown
+      const { v, rerender } = await show(db, { focus: ['chest'] });
+      await screen.findByText(/^Chest 5 of/, hidden);
+      spy.mockRejectedValue(new Error('disk'));
+      await rerender(v.ui(1));
+      await screen.findByText(VOL_ERROR);
       expect(screen.queryByText(/^Chest 5 of/, hidden)).toBeNull();
-      await act(async () => open());
-      await screen.findByText(/in the week of 19 Oct/, hidden);
-      expect(spy).toHaveBeenCalled();
+      spy.mockImplementation(real as never);
+      await focus(); // no write since the last good read
+      await screen.findByText(/^Chest 5 of/, hidden);
+      expect(screen.queryByText(VOL_ERROR)).toBeNull();
     });
   });
 });
