@@ -6,9 +6,9 @@ type Tapes = Parameters<typeof measureSeries>[0];
 export const partName = (label: string): string => label.replace(/\s*\(.*\)\s*$/, '');
 
 export interface PartChoice {
-  /** Parts to offer as chips, in content order: two or more readings, plus the shown part itself. */
+  /** Parts to offer as chips, in content order: every part with a reading. */
   chips: MeasureKey[];
-  /** The part drawn: the user's choice while it has a reading, else waist while it has one, else the first part with two, else waist. */
+  /** The part drawn: the user's choice while it has a reading, else waist while it has one, else the first part with a reading, else waist. */
   shown: MeasureKey;
   /** Every point of the shown part on or before `end`. */
   series: TrendPoint[];
@@ -19,6 +19,6 @@ export function choosePart(tapes: Tapes, keys: readonly MeasureKey[], end: strin
   const all = new Map(keys.map((k) => [k, measureSeries(tapes, k, end, Infinity)] as const));
   const n = (k: MeasureKey): number => all.get(k)?.length ?? 0;
   const shown: MeasureKey =
-    choice && n(choice) >= 1 ? choice : n('waist_cm') >= 1 ? 'waist_cm' : (keys.find((k) => n(k) >= 2) ?? 'waist_cm');
-  return { chips: keys.filter((k) => n(k) >= 2 || (k === shown && n(k) >= 1)), shown, series: all.get(shown) ?? [] };
+    choice && n(choice) >= 1 ? choice : n('waist_cm') >= 1 ? 'waist_cm' : (keys.find((k) => n(k) >= 1) ?? 'waist_cm');
+  return { chips: keys.filter((k) => n(k) >= 1), shown, series: all.get(shown) ?? [] };
 }

@@ -120,4 +120,4 @@ export const MEASURE_PART_GROUP = 'Measurement part';
 export const MEASURE_TREND_NONE = (part: string): string => `Log a few ${part.toLowerCase()} measurements to see your trend line here.`;
 export const WEEKS_TITLE = 'Weeks on track';
 export const WEEKS_COUNT = (on: number, of: number): string => `${on} of the last ${of} weeks on track`;
-export const WEEKS_EMPTY = 'Your weeks on track will show here once you have logged some workouts.';
+export const WEEKS_EMPTY = 'Your weeks on track will show here after your first full week of workouts.';

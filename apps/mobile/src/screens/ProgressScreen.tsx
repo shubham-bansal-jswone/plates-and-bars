@@ -101,7 +101,7 @@ export function ProgressScreen({ db, now = () => new Date() }: Props) {
             <LabsSection labs={labs} today={v.today} />
             <StepsSleepSection key={`steps-${p.date}`} p={p} />
             <WeekCard date={v.today} pastDay={!v.isToday} days={ci.weekDays} kcalTarget={profile?.targets.kcal ?? DEFAULT_KCAL_TARGET} />
-            <WeeksOnTrack db={db} date={p.date} profile={profile} reloadKey={dataVersion} />
+            <WeeksOnTrack sessions={ci.sessions} date={p.date} profile={profile} />
           </>
         ) : (
           <Hint>Loading…</Hint>
@@ -187,16 +187,15 @@ function MeasureSection({ p, isToday }: { p: Progress; isToday: boolean }) {
       <MeasureTrend
         tapes={p.tapes}
         end={p.date}
-        waistExtras={
+        estimate={
           bf !== null ? (
             <>
               <Text style={{ color: c.ink, fontWeight: '700' }}>{`Estimated body fat: about ${fmt(bf)}%`}</Text>
               <Hint>{BF_HINT(female)}</Hint>
             </>
-          ) : (
-            <Hint>{profile ? BF_MISSING(female) : BF_NO_PROFILE}</Hint>
-          )
+          ) : null
         }
+        missing={bf === null ? <Hint>{profile ? BF_MISSING(female) : BF_NO_PROFILE}</Hint> : null}
       />
       <Hint>{`How to measure. ${HOW_TO_MEASURE}${shown.some((m) => m.key === 'hips_cm') ? ` ${HOW_TO_MEASURE_HIPS}` : ''}`}</Hint>
     </Card>

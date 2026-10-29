@@ -1,7 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { weeksOnTrackSeries, type PlanProfile, type SessionLog } from '@plate-and-bar/core';
-import { loadSessionLog, type WorkoutDb } from '../db/workouts';
 import { Heading, Hint } from '../components/ui';
 import { radius, space, type as typeScale } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
@@ -10,16 +9,8 @@ import { WEEKS_COUNT, WEEKS_EMPTY, WEEKS_TITLE } from './copy';
 export const WEEKS_SHOWN = 12;
 
 /** Progress tab: the last 12 completed weeks as ticks, filled when the week met the session goal (the rule of `habits()`), no streak. */
-export function WeeksOnTrack({ db, date, profile, reloadKey }: { db: WorkoutDb; date: string; profile: PlanProfile | null; reloadKey: number }) {
+export function WeeksOnTrack({ sessions, date, profile }: { /** From `useCheckin`, the log `habits()` counts, so the strip and "N weeks in a row" agree. Null until read. */ sessions: SessionLog | null; date: string; profile: PlanProfile | null }) {
   const c = useTheme();
-  const [sessions, setSessions] = useState<SessionLog | null>(null);
-  useEffect(() => {
-    let live = true;
-    loadSessionLog(db).then((s) => live && setSessions(s), () => undefined);
-    return () => {
-      live = false;
-    };
-  }, [db, reloadKey]);
   const weeks = useMemo(() => (sessions ? weeksOnTrackSeries(sessions, profile, date, WEEKS_SHOWN) : null), [sessions, profile, date]);
   if (!weeks) return null;
   // No session in any of the 12 weeks: a row of empty ticks would read as a verdict, so say when it will fill instead.
