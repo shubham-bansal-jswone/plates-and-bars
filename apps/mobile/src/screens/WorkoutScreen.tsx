@@ -613,7 +613,11 @@ function SessionView({ now, db, reloadKey, w, profile, focus, rules, notify, tun
         </Card>
       ) : null}
       <CardioBlock value={wk.cardio_min} onSave={w.setCardio} />
-      {done > 0 && !complete ? <FinishWorkout done={done} all={all} onFinish={() => (setFinished({ routine, total, sig: null }), (focusPanel.current = w.finishEarly()))} /> : null}
+      {done > 0 && !complete ? <FinishWorkout done={done} all={all} onFinish={() => {
+          if (!w.finishEarly()) return;
+          setFinished({ routine, total, sig: null });
+          focusPanel.current = true;
+        }} /> : null}
     </>
   );
 

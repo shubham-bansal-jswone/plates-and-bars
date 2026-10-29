@@ -161,6 +161,16 @@ describe('Save as routine after Complete workout keeps the planned session only 
     expect(await saved(db)).toEqual([['Barbell Bench Press', 1], ['Goblet Squat', 3]]);
   });
 
+  it('an edit undone after Complete does not bring the old plan back (the snapshot is thrown away for good)', async () => {
+    const db = await mount();
+    await completeEarly();
+    await expand('Barbell Bench Press');
+    await press('Add set to Barbell Bench Press');
+    await press('Remove last set of Barbell Bench Press');
+    await press(T.action);
+    expect(await saved(db)).toEqual([['Barbell Bench Press', 1]]);
+  });
+
   it('a second session added after an early finish is saved with the current session', async () => {
     const db = await mount();
     await completeEarly();
