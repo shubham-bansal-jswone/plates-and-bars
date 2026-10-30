@@ -1029,7 +1029,7 @@ Owner rules now: **at most 7 agents in parallel**; "don't stop until everything 
 
 ## State at 2026-10-30 evening (read this first)
 
-**Repo:** 0 open PRs, 0 agents running. `design-overhaul` is the default and working branch; `main` was promoted from it (#1421, merge commit) and is now 1 commit behind (#1432, gitleaks re-pin). Promote again with a `design-overhaul` -> `main` PR (merge commit, not squash); nothing deploys on a `main` push because no `*_DEPLOY_ENABLED` / `SITE_DEPLOY_TARGET` variable is set.
+**Repo:** no open PRs once this HANDOFF update (#1433) merges; 0 agents running. `design-overhaul` is the default and working branch; `main` was promoted from it (#1421, merge commit) and is now 1 commit behind (#1432, gitleaks re-pin). Promote again with a `design-overhaul` -> `main` PR (merge commit, not squash); nothing deploys on a `main` push because no `*_DEPLOY_ENABLED` / `SITE_DEPLOY_TARGET` variable is set.
 
 **History rewrite: DONE (2026-10-30).** `git filter-repo --replace-text` replaced every `data:image/jpeg;base64,...` in history with `data:image/jpeg;base64,REMOVED` (old versions of `docs/prototype/plate-and-bar.html`). All 170 branches and the `prototype-final` tag were force-pushed with per-ref leases. Checks: tip trees of `main`, `design-overhaul` and `prototype-final` are identical to before; the only file that changed on any branch tip is the prototype HTML (121 old branches); no embedded JPEG is left in any object; repo 82 MB -> 36 MB.
 - Every commit ID changed. Old SHAs in issues, PR comments and the older sections of this file no longer resolve on branches.
