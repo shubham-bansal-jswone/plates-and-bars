@@ -215,8 +215,8 @@ const styles = StyleSheet.create({
   toast: { ...type.textBody, paddingHorizontal: 16, paddingVertical: 12, borderRadius: radius.md, maxWidth: 520 },
   srOnly: { position: 'absolute', width: 1, height: 1, margin: -1, overflow: 'hidden', opacity: 0, pointerEvents: 'none' },
   restDock: { position: 'absolute', left: 0, right: 0, bottom: 0, padding: 12, alignItems: 'center' },
-  rest: { width: '100%', flexDirection: 'row', alignItems: 'center', gap: 16, maxWidth: 560, padding: 4 },
-  restSide: { flex: 1, gap: 4 },
+  rest: { width: '100%', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 16, maxWidth: 560, padding: 4 },
+  restSide: { flexShrink: 1, gap: 4 },
   // The 56 px metric size is wider than the ring holds for "2:30"; 34 sits inside the 100 px ring.
   count: { fontSize: 34, lineHeight: 38 },
   // 'Rest done, go!' wraps in short lines well inside the 100px ring (17px touched the stroke).
