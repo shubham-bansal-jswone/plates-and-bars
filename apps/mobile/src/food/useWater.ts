@@ -35,6 +35,9 @@ export function useWater({ db, date, now, profile, adjustments, notify, reloadKe
   const logsRef = useRef(logs);
   /** The day the shown drinks belong to: not ready while the viewed day is another one, so Undo cannot tombstone another day's drink. */
   const [loaded, setLoaded] = useState<string | null>(null);
+  /** A read failed and nothing has been read yet: the card is not held in place any longer. */
+  const [logsFailedAt, setLogsFailedAt] = useState<string | null>(null);
+  const [targetFailedAt, setTargetFailedAt] = useState<string | null>(null);
   const loadedRef = useRef<string | null>(null);
   const queue = useRef<Promise<void>>(Promise.resolve());
   /** Counts this screen's writes, so a read that overlapped one is redone. */
@@ -44,6 +47,9 @@ export function useWater({ db, date, now, profile, adjustments, notify, reloadKe
   // added elsewhere changes it), as in src/targets/sections.tsx.
   const [shown, setShown] = useState(0);
   useFocusEffect(useCallback(() => setShown((n) => n + 1), []));
+  // A failure belongs to the read it came from: the next read (another day, the tab shown again, a pull) holds the card's place again.
+  const logsKey = `${date}:${reloadKey}`;
+  const targetKey = `${date}:${shown}:${reloadKey}`;
 
   useEffect(() => {
     let live = true;
@@ -55,12 +61,15 @@ export function useWater({ db, date, now, profile, adjustments, notify, reloadKe
         setLoaded(date);
       });
     })().catch(() => {
-      if (live) notify('Couldn’t read your saved water.');
+      if (live) {
+        setLogsFailedAt(logsKey);
+        notify('Couldn’t read your saved water.');
+      }
     });
     return () => {
       live = false;
     };
-  }, [db, date, notify, reloadKey]);
+  }, [db, date, notify, reloadKey, logsKey]);
 
   useEffect(() => {
     let live = true;
@@ -83,12 +92,15 @@ export function useWater({ db, date, now, profile, adjustments, notify, reloadKe
           ),
       );
     })().catch(() => {
-      if (live) notify('Couldn’t read your saved water.');
+      if (live) {
+        setTargetFailedAt(targetKey);
+        notify('Couldn’t read your saved water.');
+      }
     });
     return () => {
       live = false;
     };
-  }, [db, date, profile, adjustments, notify, shown, reloadKey]);
+  }, [db, date, profile, adjustments, notify, shown, reloadKey, targetKey]);
 
   const enqueue = useCallback(
     (write: () => Promise<void>) => {
@@ -122,5 +134,5 @@ export function useWater({ db, date, now, profile, adjustments, notify, reloadKe
     enqueue(() => saveWaterLog(db, tomb));
   }, [db, date, now, enqueue]);
 
-  return { ready: loaded === date, ml: logs.reduce((a, l) => a + l.ml, 0), count: logs.length, target, add, undo };
+  return { failed: logsFailedAt === logsKey || targetFailedAt === targetKey, ready: loaded === date, ml: logs.reduce((a, l) => a + l.ml, 0), count: logs.length, target, add, undo };
 }

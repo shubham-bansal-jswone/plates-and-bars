@@ -214,7 +214,7 @@ export function FoodScreen({ db, now = () => new Date() }: Props) {
             <Button label="Start setup" onPress={() => router.push('/setup' as never)} />
           </View>
         )}
-        {water.target && water.ready ? <WaterCard ml={water.ml} count={water.count} target={water.target} sizes={settings.water_sizes} profile={profile} onAdd={water.add} onUndo={water.undo} /> : null}
+        {water.failed && !(water.target && water.ready) ? null : <WaterCard ml={water.ml} count={water.count} target={water.target} ready={water.ready} sizes={settings.water_sizes} profile={profile} onAdd={water.add} onUndo={water.undo} />}
         {ai.available('meal_photo') ? (
           <View style={styles.snap}>
             <Button label={AI_COPY.photoSnap} a11yLabel={AI_COPY.photoSnap} onPress={() => { setAddMode('photo'); setAdding(mealByTime(now().getHours())); }} />

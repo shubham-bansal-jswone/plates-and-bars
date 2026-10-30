@@ -11,7 +11,10 @@ import { litres } from './water';
 interface Props {
   ml: number;
   count: number;
-  target: { ml: number; trained: boolean };
+  /** Null while today's reads are pending: the card is drawn at once with dashes and disabled buttons, so it never pops in above the meals (#1411). */
+  target: { ml: number; trained: boolean } | null;
+  /** The drinks are read; false holds the buttons and the count. */
+  ready?: boolean;
   sizes: { glass_ml: number; bottle_ml: number };
   profile: Profile | null;
   onAdd: (ml: number) => void;
@@ -19,31 +22,36 @@ interface Props {
 }
 
 /** Hydration card on Food: today's water against core's target, glass and bottle buttons, undo, and the tips. */
-export function WaterCard({ ml, count, target, sizes, profile, onAdd, onUndo }: Props) {
+export function WaterCard({ ml, count, target, ready = true, sizes, profile, onAdd, onUndo }: Props) {
   const c = useTheme();
   const [tips, setTips] = useState(false);
-  const pct = target.ml > 0 ? (ml / target.ml) * 100 : 0;
+  const pending = !target || !ready;
+  const pct = target && target.ml > 0 ? (ml / target.ml) * 100 : 0;
   return (
-    <View style={styles.card}>
+    <View style={styles.card} testID={pending ? 'water-pending' : undefined}>
       <Heading level={2} style={{ color: c.ink, fontWeight: '600', fontSize: 18 }}>Water today</Heading>
-      <Text accessibilityLabel={`${litres(ml)} of about ${litres(target.ml)} litres`} style={{ color: c.ink, fontWeight: '700' }}>{`${litres(ml)} of about ${litres(target.ml)} L`}</Text>
+      {pending || !target ? (
+        <Text aria-hidden style={{ color: c.ink, fontWeight: '700' }}>— of about — L</Text>
+      ) : (
+        <Text accessibilityLabel={`${litres(ml)} of about ${litres(target.ml)} litres`} style={{ color: c.ink, fontWeight: '700' }}>{`${litres(ml)} of about ${litres(target.ml)} L`}</Text>
+      )}
       <View style={styles.wrap}>
-        <Button label="+ Glass" a11yLabel={`Add a glass, ${sizes.glass_ml} millilitres`} kind="ghost" onPress={() => onAdd(sizes.glass_ml)} />
-        <Button label="+ Bottle" a11yLabel={`Add a bottle, ${sizes.bottle_ml} millilitres`} kind="ghost" onPress={() => onAdd(sizes.bottle_ml)} />
-        {count ? (
+        <Button label="+ Glass" a11yLabel={`Add a glass, ${sizes.glass_ml} millilitres`} kind="ghost" disabled={pending} onPress={() => onAdd(sizes.glass_ml)} />
+        <Button label="+ Bottle" a11yLabel={`Add a bottle, ${sizes.bottle_ml} millilitres`} kind="ghost" disabled={pending} onPress={() => onAdd(sizes.bottle_ml)} />
+        {count && !pending ? (
           <Press accessibilityRole="button" accessibilityLabel="Undo last water" onPress={onUndo} style={styles.x}>
             <Text style={{ color: c.muted, fontSize: 22 }}>↶</Text>
           </Press>
         ) : null}
       </View>
       {/* Decided on #229: the bar stays one colour (`bar`, the brand blue that clears 3:1 on `track` in dark, #504) past 100%. Drinking more than the target is not a warning (the prototype keeps one colour), unlike the `caution` colour macro bars use. */}
-      <View accessible accessibilityRole="progressbar" accessibilityLabel={`${Math.round(pct)}% of today’s water`} style={[styles.track, { backgroundColor: c.track }]}>
+      <View {...(pending ? { 'aria-hidden': true } : { accessible: true, accessibilityRole: 'progressbar' as const, accessibilityLabel: `${Math.round(pct)}% of today’s water` })} style={[styles.track, { backgroundColor: c.track }]}>
         <View style={{ height: 8, borderRadius: radius.full, backgroundColor: c.bar, width: `${Math.min(100, pct)}%` }} />
       </View>
       <Button label="Hydration tips" kind="link" expanded={tips} onPress={() => setTips(!tips)} />
       {tips ? (
         <View style={styles.gap}>
-          <Hint>{`Your target is a rough guide: about ${WATER_ML_PER_KG} ml per kg of bodyweight${target.trained ? `, plus ${WATER_TRAINING_ML} ml because it’s a training day` : ''}. Food covers some of your needs too.`}</Hint>
+          <Hint>{`Your target is a rough guide: about ${WATER_ML_PER_KG} ml per kg of bodyweight${target?.trained ? `, plus ${WATER_TRAINING_ML} ml because it’s a training day` : ''}. Food covers some of your needs too.`}</Hint>
           <Hint>{`Chai, coffee, milk, buttermilk and nimbu pani all count.${older(profile) ? ' After 60, thirst signals get weaker, so drink regularly through the day rather than waiting to feel thirsty.' : ''}`}</Hint>
           <Hint>Easy check: pale yellow urine is fine; dark yellow means drink more. Thirst is a useful signal too.</Hint>
           <Hint>Workouts: sip during sessions. For sessions over 60–90 minutes, or in heat, an ORS or electrolyte drink helps.</Hint>
