@@ -10,7 +10,6 @@ import { loadDayNote } from '../db/food';
 import { loadWeights } from '../db/progress';
 import { loadSets, loadWorkout, type WorkoutDb } from '../db/workouts';
 import type { Profile } from '../setup/types';
-import { radius } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { WhyLink } from '../why/WhyLink';
 import { useStoredText } from '../progress/useStoredText';
@@ -52,12 +51,26 @@ export function BurnCard({ db, date, profile, steps, sleep, onSaveStepsSleep, kc
       live = false;
     };
   }, [db, date, profile.weight_kg, shown, reloadKey]);
-  // Until the first read answers, hold the card's place: it sits above the meals, so popping in later moved "+ Add to breakfast"
-  // down by its height and a tap aimed at it missed (#1411). A failed read shows nothing, as before.
-  if (!facts) return failed ? null : <View testID="burn-pending" aria-hidden style={[styles.pending, { backgroundColor: c.surface }]} />;
+  const label = date === today ? 'Estimated burn today so far' : `Estimated burn on ${dateSub(date)}`;
+  if (!facts && failed) return null;
+  // Until the first read answers, the real card shell holds its place (it sits above the meals, so a card popping in later moved
+  // "+ Add to breakfast" under a tap, #1411): the same label and text styles, a dash for the range, Details disabled. Hidden from
+  // assistive tech, so nothing is announced or focusable until the numbers are there.
+  if (!facts) {
+    return (
+      <Card testID="burn-pending" aria-hidden style={styles.gap}>
+        <View style={styles.head}>
+          <View style={{ flexShrink: 1 }}>
+            <Hint>{label}</Hint>
+            <Text style={{ color: c.ink, fontWeight: '700', fontSize: 18 }}>—</Text>
+          </View>
+          <Button label="Details" kind="ghost" disabled onPress={() => {}} />
+        </View>
+      </Card>
+    );
+  }
   const wb = workoutBurn(facts.sets, facts.cardio, facts.kg);
   const b: BurnToday = burnToday(profile, facts.kg, steps, wb, kcalEaten);
-  const label = date === today ? 'Estimated burn today so far' : `Estimated burn on ${dateSub(date)}`;
   const range = `${fmt(b.total * (1 - BURN_RANGE))}–${fmt(b.total * (1 + BURN_RANGE))} kcal`;
   // "~10% of food eaten" is the prototype's copy for `burnToday`'s digestion share. Core exports no constant for
   // it (the 0.1 is inside `burnToday`), and `BURN_RANGE` — the only exported 0.1 — is the ±10% shown around the
@@ -115,8 +128,6 @@ function StepsSleepInputs({ steps, sleep, goal, onSave }: { steps: number | null
 
 const styles = StyleSheet.create({
   gap: { gap: 8 },
-  /** The height of the closed card at the default text size and width (measured in the web build). */
-  pending: { height: 92, borderRadius: radius.lg },
   head: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
   row: { flexDirection: 'row', justifyContent: 'space-between', gap: 8 },
 });

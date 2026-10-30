@@ -743,16 +743,16 @@ describe('Estimated burn today so far', () => {
   });
 });
 
-describe('Estimated burn card holds its place while it reads (#1411)', () => {
-  // The card sits above the meals: popping in after the screen showed moved "+ Add to breakfast" down by its height under a tap.
-  const gated = async (answer: 'rows' | 'fail') => {
+describe('Cards above the meals hold their place while they read (#1411)', () => {
+  // They sit above the meals: popping in after the screen showed moved "+ Add to breakfast" down under a tap.
+  const gated = async (match: string, answer: 'rows' | 'fail') => {
     const db = memoryDb();
     await saveProfile(db, profile());
     const read = db.getAllAsync.bind(db);
     let release!: () => void;
     const gate = new Promise<void>((r) => (release = r));
     db.getAllAsync = (async (sql: string, ...p: (string | number)[]) => {
-      if (sql.includes('SELECT data FROM weights')) {
+      if (sql.includes(match)) {
         await gate;
         if (answer === 'fail') throw new Error('disk');
       }
@@ -763,23 +763,47 @@ describe('Estimated burn card holds its place while it reads (#1411)', () => {
     await screen.findByLabelText('+ Add to breakfast');
     return release;
   };
+  const hidden = { includeHiddenElements: true };
 
-  it('shows a block as tall as the card above the meals until the read answers, then the card in its place', async () => {
-    const release = await gated('rows');
-    const block = screen.getByTestId('burn-pending', { includeHiddenElements: true });
-    expect(StyleSheet.flatten(block.props.style).height).toBe(92);
-    expect(screen.queryByText('Estimated burn today so far')).toBeNull();
+  it('burn: draws the card shell with its label and a dash, hidden from the screen reader, then the numbers in the same card', async () => {
+    const release = await gated('SELECT data FROM weights', 'rows');
+    const shell = screen.getByTestId('burn-pending', hidden);
+    expect(within(shell).getByText('Estimated burn today so far', hidden)).toBeTruthy();
+    expect(within(shell).getByText('—', hidden)).toBeTruthy();
+    expect(within(shell).getByRole('button', { name: 'Details', ...hidden }).props.accessibilityState?.disabled ?? within(shell).getByRole('button', { name: 'Details', ...hidden }).props['aria-disabled']).toBeTruthy();
+    expect(screen.queryByLabelText('Estimated burn today so far, 1,766–2,158 kcal')).toBeNull();
+    expect(screen.queryByLabelText('Show burn details')).toBeNull(); // not reachable while pending
     await act(async () => release());
     expect(await screen.findByLabelText('Estimated burn today so far, 1,766–2,158 kcal')).toBeTruthy();
-    expect(screen.queryByTestId('burn-pending', { includeHiddenElements: true })).toBeNull();
+    expect(screen.queryByTestId('burn-pending', hidden)).toBeNull();
   });
 
-  it('drops the block when the read fails, so no empty card stays', async () => {
-    const release = await gated('fail');
-    expect(screen.getByTestId('burn-pending', { includeHiddenElements: true })).toBeTruthy();
+  it('burn: drops the shell when the read fails, so no empty card stays', async () => {
+    const release = await gated('SELECT data FROM weights', 'fail');
+    expect(screen.getByTestId('burn-pending', hidden)).toBeTruthy();
     await act(async () => release());
-    await waitFor(() => expect(screen.queryByTestId('burn-pending', { includeHiddenElements: true })).toBeNull());
+    await waitFor(() => expect(screen.queryByTestId('burn-pending', hidden)).toBeNull());
     expect(screen.queryByText('Estimated burn today so far')).toBeNull();
+  });
+
+  it('water: draws the card at once with the count pending and the buttons off, then fills it in place', async () => {
+    const release = await gated('FROM water_logs WHERE log_date', 'rows');
+    const card = screen.getByTestId('water-pending', hidden);
+    expect(within(card).getByText('Water today', hidden)).toBeTruthy();
+    expect(within(card).getByText('— of about — L', hidden)).toBeTruthy();
+    await fireEvent.press(within(card).getByText('+ Glass', hidden));
+    await flush();
+    await act(async () => release());
+    expect(await screen.findByLabelText(/^0 of about [\d.]+ litres$/)).toBeTruthy();
+    expect(screen.queryByTestId('water-pending', hidden)).toBeNull();
+    expect(screen.getByLabelText('0% of today’s water')).toBeTruthy(); // the press while pending logged nothing
+  });
+
+  it('water: drops the card when its read fails and nothing was read', async () => {
+    const release = await gated('FROM water_logs WHERE log_date', 'fail');
+    expect(screen.getByTestId('water-pending', hidden)).toBeTruthy();
+    await act(async () => release());
+    await waitFor(() => expect(screen.queryByText('Water today')).toBeNull());
   });
 });
 

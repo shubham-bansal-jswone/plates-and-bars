@@ -35,6 +35,8 @@ export function useWater({ db, date, now, profile, adjustments, notify, reloadKe
   const logsRef = useRef(logs);
   /** The day the shown drinks belong to: not ready while the viewed day is another one, so Undo cannot tombstone another day's drink. */
   const [loaded, setLoaded] = useState<string | null>(null);
+  /** A read failed and nothing has been read yet: the card is not held in place any longer. */
+  const [failed, setFailed] = useState(false);
   const loadedRef = useRef<string | null>(null);
   const queue = useRef<Promise<void>>(Promise.resolve());
   /** Counts this screen's writes, so a read that overlapped one is redone. */
@@ -55,7 +57,10 @@ export function useWater({ db, date, now, profile, adjustments, notify, reloadKe
         setLoaded(date);
       });
     })().catch(() => {
-      if (live) notify('Couldn’t read your saved water.');
+      if (live) {
+        setFailed(true);
+        notify('Couldn’t read your saved water.');
+      }
     });
     return () => {
       live = false;
@@ -83,7 +88,10 @@ export function useWater({ db, date, now, profile, adjustments, notify, reloadKe
           ),
       );
     })().catch(() => {
-      if (live) notify('Couldn’t read your saved water.');
+      if (live) {
+        setFailed(true);
+        notify('Couldn’t read your saved water.');
+      }
     });
     return () => {
       live = false;
@@ -122,5 +130,5 @@ export function useWater({ db, date, now, profile, adjustments, notify, reloadKe
     enqueue(() => saveWaterLog(db, tomb));
   }, [db, date, now, enqueue]);
 
-  return { ready: loaded === date, ml: logs.reduce((a, l) => a + l.ml, 0), count: logs.length, target, add, undo };
+  return { failed, ready: loaded === date, ml: logs.reduce((a, l) => a + l.ml, 0), count: logs.length, target, add, undo };
 }
