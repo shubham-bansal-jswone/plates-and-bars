@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { View } from 'react-native';
-import { latestWeight, workoutBurn } from '@plate-and-bar/core';
+import { bodyweightOn, workoutBurn } from '@plate-and-bar/core';
 import { fmt } from '../format';
 import { Hint } from '../components/ui';
 import { loadWeights } from '../db/progress';
@@ -15,7 +15,7 @@ export function BurnLine({ db, date, profileKg, exs, cardio, reloadKey }: { db: 
   useEffect(() => {
     let live = true;
     loadWeights(db)
-      .then((w) => live && setKg(latestWeight(w, date) ?? profileKg))
+      .then((w) => live && setKg(bodyweightOn(w, date, profileKg) ?? 0))
       .catch(() => live && setKg(profileKg));
     return () => {
       live = false;
@@ -29,7 +29,7 @@ export function BurnLine({ db, date, profileKg, exs, cardio, reloadKey }: { db: 
     <View style={{ gap: 4 }}>
       <Hint>{`About ${fmt(wb.gross)} kcal burned`}</Hint>
       <Hint>
-        {`Rough estimate from ${wb.timed ? `${wb.min} minutes of training` : `${wb.sets} sets (about ${wb.min} minutes)`}${wb.cardio ? ` plus ${fmt(wb.cardio)} min cardio` : ''} at your bodyweight; about ${fmt(wb.extra)} kcal of it is above what you’d burn resting. Your calorie target already includes your usual training, so there’s no need to eat it back.`}
+        {`Rough estimate from ${wb.timed ? `${wb.min} minutes of training` : `${wb.sets} ${wb.sets === 1 ? 'set' : 'sets'} (about ${wb.min} minutes)`}${wb.cardio ? ` plus ${fmt(wb.cardio)} min cardio` : ''} at your bodyweight; about ${fmt(wb.extra)} kcal of it is above what you’d burn resting. Your calorie target already includes your usual training, so there’s no need to eat it back.`}
       </Hint>
       <WhyLink id="workoutburn" />
     </View>

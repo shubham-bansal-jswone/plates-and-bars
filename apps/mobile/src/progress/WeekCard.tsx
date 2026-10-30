@@ -1,26 +1,29 @@
 import { StyleSheet, View } from 'react-native';
 import { weekSummary, type ProgressDay } from '@plate-and-bar/core';
 import { Text } from '../components/Text';
-import { Heading, Hint } from '../components/ui';
+import { Card, Heading, Hint } from '../components/ui';
 import { dayName, fmt, shortDate } from '../format';
 import { type as typeScale } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
-import { WEEK_AVG_KCAL, WEEK_AVG_PROTEIN, WEEK_LOADING, WEEK_NOT_LOGGED, WEEK_SESSIONS, WEEK_TARGET_HINT, WEEK_TITLE, WEEK_TRAINED } from './copy';
+import { WEEK_AVG_KCAL, WEEK_CURRENT, WEEK_AVG_PROTEIN, WEEK_LOADING, WEEK_NOT_LOGGED, WEEK_SESSIONS, WEEK_TARGET_HINT, WEEK_TITLE, WEEK_TRAINED } from './copy';
 
 interface Props {
   date: string;
   /** Days read for the check-in, null while loading. */
   days: readonly ProgressDay[] | null;
   kcalTarget: number;
+  /** A day before today is on screen: say the week does not follow it. */
+  pastDay?: boolean;
 }
 
 /** Progress tab, last block: "Seven days to <date>" (prototype `renderProgress`): a calorie bar per day, then averages and sessions. */
-export function WeekCard({ date, days, kcalTarget }: Props) {
+export function WeekCard({ date, days, kcalTarget, pastDay = false }: Props) {
   const c = useTheme();
   const w = days ? weekSummary(days, date, kcalTarget) : null;
   return (
-    <View style={styles.section}>
+    <Card style={styles.section}>
       <Heading level={2} style={[typeScale.heading, { color: c.ink }]}>{WEEK_TITLE(shortDate(date))}</Heading>
+      {pastDay ? <Hint>{WEEK_CURRENT}</Hint> : null}
       {!w ? (
         <Hint>{WEEK_LOADING}</Hint>
       ) : (
@@ -40,11 +43,11 @@ export function WeekCard({ date, days, kcalTarget }: Props) {
                 accessibilityLabel={`${dayName(d.date)}${d.trained ? `, ${WEEK_TRAINED}` : ''}, ${d.logged ? `${fmt(d.kcal)} kcal, ${fmt(d.protein_g)} g protein` : WEEK_NOT_LOGGED}`}
               >
                 <View style={[styles.fill, { width: `${d.fillPct}%`, backgroundColor: d.over ? c.caution : c.bar }]} />
-                <View style={[styles.tgt, { left: `${d.targetPct}%`, backgroundColor: c.ink }]} />
                 <View style={styles.txt}>
-                  <Text style={{ color: c.ink, fontSize: 13 }}>{d.logged ? `${fmt(d.kcal)} kcal` : WEEK_NOT_LOGGED}</Text>
-                  <Text style={{ color: c.ink, fontSize: 13 }}>{d.logged ? `${fmt(d.protein_g)} g P` : ''}</Text>
+                  <Text style={[styles.chip, { color: c.ink, backgroundColor: c.bg }]}>{d.logged ? `${fmt(d.kcal)} kcal` : WEEK_NOT_LOGGED}</Text>
+                  {d.logged ? <Text style={[styles.chip, { color: c.ink, backgroundColor: c.bg }]}>{`${fmt(d.protein_g)} g P`}</Text> : null}
                 </View>
+                <View style={[styles.tgt, { left: `${d.targetPct}%`, backgroundColor: c.ink }]} />
               </View>
             </View>
           ))}
@@ -56,7 +59,7 @@ export function WeekCard({ date, days, kcalTarget }: Props) {
           <Hint>{WEEK_TARGET_HINT}</Hint>
         </>
       )}
-    </View>
+    </Card>
   );
 }
 
@@ -76,11 +79,14 @@ const styles = StyleSheet.create({
   lab: { width: 56 },
   bar: { flex: 1, minHeight: 32, borderRadius: 8, overflow: 'hidden', justifyContent: 'center' },
   // Prototype `.bar .fill{opacity:.85}`: the fill is the data mark, so it stays near-solid. Dropping it further
-  // against `track` falls under the 3:1 DESIGN.md §11.1 asks of bars.
+  // against `track` falls under the 3:1 contrast that non-text UI such as bars needs.
   fill: { position: 'absolute', top: 0, bottom: 0, left: 0, opacity: 0.85 },
   // Prototype `.bar .tgt{opacity:.5}`: the target line is a quieter mark than the fill, so it keeps the prototype's
   // half opacity. A test asserts it.
   tgt: { position: 'absolute', top: 0, bottom: 0, width: 2, opacity: 0.5 },
+  // #1190: the label straddles the fill and the track, so no single text colour reads on both (ink on lime is 1.12:1).
+  // Each label sits on a solid `bg` chip instead, so its contrast is ink on bg whatever the fill is.
+  chip: { fontSize: 13, paddingHorizontal: 4, borderRadius: 4, overflow: 'hidden' },
   txt: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 8 },
   avg: { flexDirection: 'row', gap: 8, marginTop: 4 },
   avgItem: { flex: 1, alignItems: 'center' },

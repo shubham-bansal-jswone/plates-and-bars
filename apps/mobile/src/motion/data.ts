@@ -1,5 +1,5 @@
 import motions from '../../../../content/exercise-motion.json';
-import { isBlank } from '../text/blank';
+import { isBlank } from '@plate-and-bar/core';
 import { contentReader, isArrOf, isObj, isStr } from '../content/reader';
 import { has, isProtoName } from '../content/own';
 import { chosenExercises } from '../workout/catalog';

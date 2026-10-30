@@ -4,11 +4,16 @@ import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { validateFoods } from '../validate/foods.mjs';
+import { assertIds, pinned } from './pinned-ids.mjs';
 
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const load = () => JSON.parse(readFileSync(`${repo}/content/foods.json`, 'utf8'));
 const withFood = (fn, i = 0) => { const c = load(); fn(c.foods[i], c); return validateFoods(c); };
 const paneer = () => load().foods.findIndex((f) => f.name === 'Paneer');
+
+test('food ids equal the pinned snapshot', () => {
+  assertIds(load().foods, pinned.foods, 'foods');
+});
 
 test('shipped content passes', () => assert.deepEqual(validateFoods(load()), []));
 

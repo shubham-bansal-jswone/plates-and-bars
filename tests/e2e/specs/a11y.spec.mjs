@@ -1,12 +1,12 @@
 import { triage } from '../support/axe.mjs';
-import { answerSetup, axeSource, completeSetup, expect, label, openApp, reloadTo, saved, tab, test } from '../support/app.mjs';
+import { addFood, answerSetup, axeSource, completeSetup, expect, label, openApp, reloadTo, saved, settled, tab, test } from '../support/app.mjs';
 
 // axe-core on the main screens, in light and dark: the WCAG 2.0/2.1 A and AA rules (which include colour contrast) plus
 // the landmark and heading best-practice rules. Every violation fails the test. A failure caused by a filed bug goes in
 // KNOWN by screen, as `{ rule, issue, match }` (see support/axe.mjs): it matches the rule AND the element, so a new
 // violation still fails, and once the bug is fixed the entry matches nothing, goes stale and fails the test.
 // The scan runs page-has-heading-one with passForModal off, because react-native-web's full-screen layers would otherwise make it pass on every screen.
-const KNOWN = Object.fromEntries(['consent', 'setup', 'setup-screening', 'setup-results', 'food', 'workout', 'workout-session', 'progress', 'targets', 'data', 'library', 'about', 'recipes', 'sheet-food-add', 'sheet-workout-settings', 'sheet-workout-cant', 'sheet-workout-howto', 'sheet-workout-add', 'sheet-workout-custom', 'sheet-progress-checkin', 'sheet-targets-avoid', 'sheet-targets-cant'].map((n) => [n, []]));
+const KNOWN = Object.fromEntries(['consent', 'setup', 'setup-errors', 'setup-screening', 'setup-results', 'food', 'workout', 'workout-session', 'progress', 'progress-table', 'targets', 'data', 'library', 'library-exercise', 'about', 'recipes', 'sheet-food-add', 'sheet-workout-settings', 'sheet-workout-cant', 'sheet-workout-howto', 'sheet-workout-add', 'sheet-workout-custom', 'sheet-progress-checkin', 'sheet-targets-avoid', 'sheet-targets-cant'].map((n) => [n, []]));
 const RULES = ['region', 'landmark-one-main', 'landmark-no-duplicate-main', 'page-has-heading-one'];
 
 // Exactly one level-one heading in the accessibility tree: the other tabs stay mounted but are aria-hidden, so they do not count.
@@ -43,6 +43,17 @@ const screens = {
     await label(page, 'I understand and agree to my data being stored as described').click();
     await label(page, 'Continue').click();
     await expect(label(page, 'Male')).toBeVisible();
+  },
+  // Continue pressed on the empty body step: every error shows, each linked to its field by aria-describedby (#1229).
+  'setup-errors': async (page) => {
+    await openApp(page);
+    await label(page, 'I understand and agree to my data being stored as described').click();
+    await label(page, 'Continue').click();
+    await expect(label(page, 'Male')).toBeVisible();
+    await label(page, 'Continue').click();
+    await expect(page.getByText('Enter your age.', { exact: true })).toBeVisible();
+    const ids = await page.evaluate(() => ['Age', 'Weight in kg'].map((l) => document.querySelector(`[aria-label="${l}"]`)?.getAttribute('aria-describedby')));
+    for (const id of ids) await expect(page.locator(`[id="${id}"]`)).toBeVisible();
   },
   // The goal step, which carries the "Quick health check" Why link (screening).
   'setup-screening': async (page) => {
@@ -87,13 +98,39 @@ const screens = {
     await reloadTo(page, 'Workout');
     await startSession(page);
     await expect(page.locator('[aria-label^="Mark "][aria-label$=" set 1 done"]').first()).toBeVisible();
+    // The exercise's guide is a disclosure: closed, since the first lift was logged before.
+    await label(page, `Guide and tools for ${exercise}`).click();
     await expect(why(page, 'How your sessions are built')).toHaveCount(1);
     await expect(why(page, 'Why rest 2–3 minutes on big lifts?').first()).toBeVisible();
-    await expect(why(page, 'Why warm up before the first big lift?').first()).toBeVisible();
+    await expect(why(page, 'Why warm up before a big lift?').first()).toBeVisible();
   },
   progress: async (page) => {
+    // Log one food first so the Seven days card has a logged day: a kcal and protein chip over a fill, which a blank
+    // week never draws (#1204). Today is Monday (the pinned test clock), and a bar's label has a "kcal" figure only when logged; hidden tabs are filtered out.
+    await addFood(page, 'breakfast', 'Roti / chapati');
+    await expect(label(page, '102 of 1,990 kcal eaten')).toBeVisible();
     await tab(page, 'Progress');
     await expect(label(page, 'Save weight')).toBeVisible();
+    await expect(page.locator('[role=img][aria-label^="Mon, "][aria-label*=" kcal, "] >> visible=true')).toHaveCount(1);
+  },
+  // A chart's text alternative opened: the weight table (table > row > columnheader/cell on web, #1377).
+  'progress-table': async (page) => {
+    await tab(page, 'Progress');
+    // Two weigh-ins (today and yesterday) so the weight chart, and its table, exist.
+    await label(page, 'Weight in kg').fill('81.6');
+    await saved(page, () => label(page, 'Save weight').click());
+    await label(page, 'Previous day').click();
+    await label(page, 'Weight in kg').fill('82.1');
+    await saved(page, () => label(page, 'Save weight').click());
+    await label(page, 'Next day').click();
+    // Scoped to the weight chart's own button and table, so a chart added above it cannot be opened instead.
+    await page.locator('[aria-label="Show as table"]:below(:text("Body weight"))').filter({ visible: true }).first().click();
+    const table = page.locator('[role=table][aria-label="Weight: table, newest first"] >> visible=true');
+    await expect(table).toHaveCount(1);
+    await expect(table.locator('[role=columnheader]')).toHaveCount(2);
+    // A header row plus the two weigh-ins saved above (setup stores today's 82 kg weigh-in, but saving 81.6 for the same day replaces it, so today and yesterday are the only rows), two cells each.
+    await expect(table.locator('[role=row]')).toHaveCount(3);
+    await expect(table.locator('[role=cell]')).toHaveCount(4);
   },
   targets: async (page) => {
     await tab(page, 'Targets');
@@ -106,8 +143,21 @@ const screens = {
   },
   library: async (page) => {
     await tab(page, 'Targets');
+    await settled(label(page, 'Exercise library'));
     await label(page, 'Exercise library').click();
     await expect(label(page, 'Search exercises')).toBeVisible();
+  },
+  // An exercise's detail, which draws the front and back muscle map (#1197). axe does not test graphic contrast; the jest stroke test in body-map.test.tsx guards the outline.
+  'library-exercise': async (page) => {
+    await tab(page, 'Targets');
+    await settled(label(page, 'Exercise library')); // a tap while the Targets pane is still mounting is dropped (#1315)
+    await label(page, 'Exercise library').click();
+    const first = page.getByRole('button').filter({ hasText: ' · ' }).first();
+    await settled(first);
+    await first.click();
+    await expect(label(page, 'Back to library')).toBeVisible();
+    await expect(page.getByRole('button', { name: /^Add to today’s session/ })).toBeVisible();
+    await expect(page.getByRole('img', { name: /^Muscles worked: / })).toBeVisible();
   },
   about: async (page) => {
     await tab(page, 'Targets');

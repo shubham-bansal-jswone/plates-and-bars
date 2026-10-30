@@ -1,18 +1,18 @@
 {
   "cards": {
-    "sha256": "682ede9442493b4848a0ffd16eaa5e486709ce455136c0ae63e6a459a5bd0337",
+    "sha256": "3b8be9db044adb4ef311d7d7b130021f5686c4b9b5272cab27b33e87731896c8",
     "schema_version": 1,
-    "updated_at": "2026-10-18T17:08:07Z"
+    "updated_at": "2026-10-29T00:26:28Z"
   },
   "eatout": {
-    "sha256": "db9e4c135859d790bab85ae3977e92c4e1679809702cdbdc2d1dea291ec9bf60",
+    "sha256": "789241075ccff0d736e607391f374f5b317fbc1cbfb2c8eb5835c3fff618b007",
     "schema_version": 1,
-    "updated_at": "2026-10-18T00:57:03Z"
+    "updated_at": "2026-10-29T00:26:28Z"
   },
   "exercise-images": {
-    "sha256": "42db9cec220864cdbc681b4bfab424bc3666f86dfe7846d7123a674a2818aae0",
+    "sha256": "4a793ca1a7ae290f0aacc0c82754f10edf1611cbf1602ee9a1a974fba3c2a48b",
     "schema_version": 1,
-    "updated_at": "2026-10-19T08:00:53Z"
+    "updated_at": "2026-10-27T22:08:08Z"
   },
   "exercise-motion": {
     "sha256": "df6c65f7f310180e4b01aa99b27f981b757df67e40cdaf4507e9d90b77e9a8b4",
@@ -29,34 +29,39 @@
     "schema_version": 1,
     "updated_at": "2026-10-18T00:57:03Z"
   },
-  "labels": {
-    "sha256": "1a99999d971fb741839a805e6924951546be5c71a376b33be08243c3cab3ea40",
+  "import-aliases": {
+    "sha256": "e3f1b6dd3989d365d222d60b5fc938a2afc749f0189784caf24bf7394ff5d0e6",
     "schema_version": 1,
-    "updated_at": "2026-10-09T10:45:53Z"
+    "updated_at": "2026-10-29T16:29:18Z"
+  },
+  "labels": {
+    "sha256": "96c8869bf4abdb36257ae0ec42e0b4410eada9de1d7ae672bda9992604ce0ae4",
+    "schema_version": 1,
+    "updated_at": "2026-10-29T00:26:28Z"
   },
   "labs": {
-    "sha256": "198cdbe07dac0494fab4ed6e69e8a2ee015a29bb72408df78717462b673c6f2c",
+    "sha256": "0d0e4b6bb10c54aefc6ee17a30f6ef0a223418455f34118c4a62a325464e075c",
     "schema_version": 1,
-    "updated_at": "2026-10-20T18:35:13Z"
+    "updated_at": "2026-10-29T00:26:28Z"
   },
   "meal-planning": {
-    "sha256": "c60afbca533feeea23bd2891c8be138b7cc33629719c9bd61ec928fe963da652",
+    "sha256": "161627c6e0c4575025a28103a57e2061d1d70dbf70317353b0ae244c6b33d3d8",
     "schema_version": 1,
-    "updated_at": "2026-10-17T14:56:11Z"
+    "updated_at": "2026-10-29T00:26:28Z"
   },
   "measures": {
-    "sha256": "0d02e9ec905f62923446eb4f9f0ce3832f7ac4d784872257fe37abc207c3647b",
+    "sha256": "47879bcc79ada5af3087e918fb4976174d90b9a65c71fa0656bb3211232516bb",
     "schema_version": 1,
-    "updated_at": "2026-10-09T08:54:10Z"
+    "updated_at": "2026-10-29T00:26:28Z"
   },
   "raw-ingredients": {
-    "sha256": "18cd5fde59f55602565e0f59926c20a0980d74b94980c1728e8e2d9aa11edf28",
+    "sha256": "a8a5abc1d3dd5e4f5c6c7aca66ced3586230f328ce124ad343976759b33be683",
     "schema_version": 1,
-    "updated_at": "2026-10-17T14:56:11Z"
+    "updated_at": "2026-10-29T00:26:28Z"
   },
   "recipes": {
-    "sha256": "d6bae1b777f46521fc6ae8b7f9d317367af4b768845b703f851d2ac99fb444f0",
+    "sha256": "2c681e1c62760ca21921001317422f86e7f110d6fbb0caeb557af0785c79d613",
     "schema_version": 1,
-    "updated_at": "2026-10-17T14:56:11Z"
+    "updated_at": "2026-10-29T00:26:28Z"
   }
 }

@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Plate & Bar API
-  version: 0.1.26
+  version: 0.1.28
   summary: Contract between the Plate & Bar app and its backend (v0 draft, milestone M0).
   description: |
     The server stores, syncs and guards; every rule (targets, plan engine, progression,
@@ -13,7 +13,7 @@ info:
 
     Wire conventions:
     - JSON field names are snake_case everywhere. Where a field comes from the prototype
-      (`docs/prototype/plate-and-bar.html`) under a different name, its description says
+      (git tag `prototype-final`) under a different name, its description says
       "Prototype: `name`".
     - Timestamps (`*_at`, `t`) are ISO 8601 date-times in UTC with a `Z` suffix.
     - Calendar days (`date`, `created`, `cleared`, `until`, ...) are `YYYY-MM-DD` in the
@@ -779,6 +779,49 @@ paths:
         **New records.** A record unknown to the server is stored as version 1 and listed
         in `applied`, whatever `version` the device sent.
 
+        **Routines** (`routines`, contract 0.1.27) are one record per saved routine with a
+        random UUIDv4 id, so two devices editing different routines never touch the same
+        record and never conflict; the same routine edited on two devices settles by
+        `updated_at` like any table. A routine is a named list of exercises with a target
+        set count each; reps and weights are not stored (they come from progression when
+        it is started).
+
+        **Routine cap.** An account keeps at most 100 live routines (`deleted_at` null;
+        the number is `x-max-live-records` on `Routine`). Tombstones do not count here, but
+        they count against the account record cap.
+        - A pushed routine is new when the server stores no routine with that id for this
+          account, and revived when it is stored as a tombstone and the push wins
+          last-writer-wins with `deleted_at` null. A new id that loses to a stored tombstone
+          does not revive.
+        - The server refuses a request only when it has at least one new or revived live
+          routine and the live routine count after applying the whole push, last-writer-wins
+          resolved, would be over 100. A push with no new or revived routines (edits,
+          renames, deletes, idempotent retries) and a pull-only request are never refused
+          for this, even when the account already holds more than 100.
+        - The refusal is 400 `invalid_request` with one `details` entry for every new or
+          revived routine past the limit, each with `field` = `changes.routines[<i>]` and
+          issue `too_many_routines`. Every other change in the push (deletes included) is
+          counted first, wherever it sits in the array; then the new and revived routines
+          that are live after last-writer-wins (`deleted_at` null) are added one by one in
+          array order, and each one that takes the count over 100 is listed. A new id pushed
+          already deleted, or one that loses to a stored tombstone, never counts. So with
+          100 live, `[new, new, delete]` lists only index 1. Nothing is applied, as for any
+          400. The app sets those records aside in one round.
+        - The count and the apply run in the one per-account serialised transaction, like
+          the account record cap, never in the stateless validator, so two devices pushing
+          at once cannot overrun it.
+        - The app enforces the same limit before it saves; this is a guard for a second
+          device or an old client.
+
+        **Tables the server does not implement.** The contract may list a table before the
+        backend stores it. A server that does not implement a listed table refuses each
+        record of it per record: 400 `invalid_request`, one `details` entry per record with
+        `field` = `changes.<table>[<i>]` and issue `unsupported_table`, never echoing record
+        content. Nothing is applied, as for any 400, and the app sets those records aside
+        and sends the rest. The app sends a new table only once the server supports it, or
+        clears records it set aside with `unsupported_table` once after the server is
+        upgraded; otherwise they would stay set aside until the user retries or edits.
+
         **Derived data is not synced.** Stores the prototype keeps that can be rebuilt from
         synced records have no table. The app rebuilds them locally after every pull; see
         `Workout` for the prototype's `sessions` store.
@@ -809,8 +852,10 @@ paths:
           Nothing is applied, nothing is pulled, the cursor does not move and nothing is
           added to the conflict log. There is no partial apply.
         - Checks run in this order: body size (400 `too_large`), access token (401),
-          rate limit (429), request validation including natural-key ids (400), then the
-          cap (413). A 413 `account_full` therefore means the request was otherwise valid.
+          rate limit (429), request validation including natural-key ids (400), then, inside
+          the per-account transaction after last-writer-wins resolution, the routine cap
+          (400 `too_many_routines`) and the account record cap (413). A 413 `account_full`
+          therefore means the request was otherwise valid.
         - The count and the apply happen in one transaction, serialised per account, so
           concurrent pushes from two devices cannot overrun the cap.
 
@@ -838,7 +883,7 @@ paths:
 
         A version-0 tombstone that was never included in any request is dropped only in a
         table with random UUIDv4 ids (`consents`, `food_logs`, `water_logs`, `workout_sets`,
-        `user_foods`, `recipes`, `kitchen_tests`, `exclusions`): its id cannot be on the
+        `user_foods`, `recipes`, `kitchen_tests`, `exclusions`, `routines`): its id cannot be on the
         server or another device, and it holds no data, so the app drops it instead of
         pushing it. A never-sent tombstone in a natural-key table (`profiles`, `settings`,
         `day_notes`, `workouts`, `weights`, `measurements`, `lift_stats`, `swaps`) is held
@@ -868,6 +913,17 @@ paths:
                 value:
                   cursor: c_000000000000a3f1
                   changes:
+                    routines:
+                      - id: 3c8d1f52-6a4e-4b9d-9e27-0f1a5c7b8d40
+                        version: 0
+                        updated_at: '2026-10-08T07:05:00Z'
+                        deleted_at: null
+                        name: Upper A
+                        exercises:
+                          - { name: Barbell Bench Press, sets: 4 }
+                          - { name: Seated Cable Row, sets: 3 }
+                          - { name: Lateral Raise, sets: 3 }
+                        created_at: '2026-10-08T07:05:00Z'
                     food_logs:
                       - id: 6f1c2a9e-3b7d-4c51-9a0e-2d4b8f7e1c33
                         version: 0
@@ -1437,6 +1493,7 @@ paths:
                       kitchen_tests: []
                       exclusions: []
                       swaps: []
+                      routines: []
                       settings:
                         - id: 8e73d325-779b-5a79-845c-b29eb0d86202
                           version: 1
@@ -2215,23 +2272,23 @@ paths:
                     bundles:
                       - name: cards
                         schema_version: 1
-                        sha256: a2ccbf40d3e72ac60aaf08167ebea7df4f62bc88069a0fac778c14a4b872a337
-                        size_bytes: 16095
+                        sha256: 3b8be9db044adb4ef311d7d7b130021f5686c4b9b5272cab27b33e87731896c8
+                        size_bytes: 25469
                         updated_at: '2026-10-09T08:54:10Z'
                       - name: exercises
                         schema_version: 1
-                        sha256: 266b72969634c59a493b27f56f67af9f33972031e2201a9e2db05535c5905934
-                        size_bytes: 87778
+                        sha256: ccdd7b1b462d6cad93b0e13c555ce3038c98e71d80ab061341a4c069a905bc44
+                        size_bytes: 87783
                         updated_at: '2026-10-08T14:57:42Z'
                       - name: foods
                         schema_version: 1
-                        sha256: f5f8e78fc2503b188d7f85747b30eee016cfc03b00a560c32fa5c95b6cbb7459
-                        size_bytes: 29139
+                        sha256: 005335d67010c04e8df4dc85e57687eae39760f54abba2e80f85cd4c25d07353
+                        size_bytes: 33046
                         updated_at: '2026-10-08T10:49:05Z'
                       - name: measures
                         schema_version: 1
-                        sha256: 0d02e9ec905f62923446eb4f9f0ce3832f7ac4d784872257fe37abc207c3647b
-                        size_bytes: 699
+                        sha256: 47879bcc79ada5af3087e918fb4976174d90b9a65c71fa0656bb3211232516bb
+                        size_bytes: 767
                         updated_at: '2026-10-09T08:54:10Z'
         '304':
           $ref: '#/components/responses/NotModified'
@@ -2293,10 +2350,10 @@ paths:
                 $ref: '#/components/schemas/ContentBundle'
               examples:
                 default:
-                  summary: content/measures.json (ETag "0d02e9ec905f62923446eb4f9f0ce3832f7ac4d784872257fe37abc207c3647b")
+                  summary: content/measures.json (ETag "47879bcc79ada5af3087e918fb4976174d90b9a65c71fa0656bb3211232516bb")
                   value:
                     schema_version: 1
-                    origin: docs/prototype/plate-and-bar.html (MEASURES, measuresHtml)
+                    origin: imported once from the prototype (frozen at tag prototype-final) (MEASURES, measuresHtml); content is now the source of record
                     unit: cm
                     measures:
                       - key: waist
@@ -2360,7 +2417,7 @@ components:
         parsed, is ignored: the server answers as if the header were absent, never 400.
       schema:
         type: string
-      example: '"0d02e9ec905f62923446eb4f9f0ce3832f7ac4d784872257fe37abc207c3647b"'
+      example: '"47879bcc79ada5af3087e918fb4976174d90b9a65c71fa0656bb3211232516bb"'
     AuthTransport:
       name: X-Auth-Transport
       in: header
@@ -2414,7 +2471,7 @@ components:
       schema:
         type: string
         pattern: '^(W/)?"[0-9a-f]{64}"$'
-      example: '"0d02e9ec905f62923446eb4f9f0ce3832f7ac4d784872257fe37abc207c3647b"'
+      example: '"47879bcc79ada5af3087e918fb4976174d90b9a65c71fa0656bb3211232516bb"'
     VaryAcceptEncoding:
       description: Includes `Accept-Encoding`. Required whenever the server may compress the body.
       schema:
@@ -3278,6 +3335,7 @@ components:
         - exclusions
         - swaps
         - settings
+        - routines
 
     AppliedRecord:
       type: object
@@ -3385,6 +3443,9 @@ components:
         settings:
           type: array
           items: { $ref: '#/components/schemas/Settings' }
+        routines:
+          type: array
+          items: { $ref: '#/components/schemas/Routine' }
 
     SyncRecord:
       description: |
@@ -3407,6 +3468,7 @@ components:
         - $ref: '#/components/schemas/Exclusion'
         - $ref: '#/components/schemas/Swap'
         - $ref: '#/components/schemas/Settings'
+        - $ref: '#/components/schemas/Routine'
 
     SyncMeta:
       type: object
@@ -3468,7 +3530,9 @@ components:
       description: |
         Every synced table (one key per `SyncTable` value) with all of the user's stored
         rows, tombstones included. Same record schemas as `SyncChanges`, but every table
-        is present, as an empty array when the user has no rows.
+        is present, as an empty array when the user has no rows, except tables added after
+        contract 0.1.26 (`routines`): a server built against 0.1.26 or earlier omits them,
+        and a missing key means empty.
       additionalProperties: false
       required: [profiles, consents, food_logs, water_logs, day_notes, workouts, workout_sets, lift_stats, weights, measurements, user_foods, recipes, kitchen_tests, exclusions, swaps, settings]
       properties:
@@ -3520,6 +3584,9 @@ components:
         settings:
           type: array
           items: { $ref: '#/components/schemas/Settings' }
+        routines:
+          type: array
+          items: { $ref: '#/components/schemas/Routine' }
 
     ConflictLogEntry:
       type: object
@@ -4432,6 +4499,20 @@ components:
             answered. Optional so older clients that omit it still validate; a client that
             does not know the field may drop it when it rewrites the exercise.
             Prototype: `ex.feel`.
+        group:
+          type: [string, 'null']
+          minLength: 1
+          maxLength: 36
+          pattern: '^[A-Za-z0-9_-]{1,36}$'
+          description: >
+            Superset group (#1182, ADR 012): a short id shared by the members of one group.
+            Members of a group are contiguous in `exercises` and there is no position field;
+            the order of the array is the order. Null or absent means ungrouped. A group has 2
+            to 6 members, but that is a core rule, not enforced by this schema. The labels A
+            and B are derived by the app, not stored. Optional so older clients that omit it
+            still validate; a client that does not know the field may drop it when it
+            rewrites the exercise. To ungroup, write an explicit null so the three-way merge
+            sees the change.
 
     WorkoutSet:
       description: One working or ramp set within a workout.
@@ -4896,6 +4977,94 @@ components:
     Muscle:
       type: string
       enum: [chest, front-delt, side-delt, rear-delt, triceps, lats, upper-back, biceps, forearms, quads, hams, glutes, calves, abs, lower-back]
+
+    Routine:
+      description: |
+        A saved, named workout the user can start again (issue #1184). One record per
+        routine; random UUIDv4 id; deleted by tombstone. Not part of the prototype: the
+        prototype has only the generated plan and the hand-picked week plan. Reps and
+        weights are not stored, they come from progression when the routine is started.
+        An exercise that later leaves the catalogue keeps its name; the app flags it when
+        the routine is started. A later field (for example a superset group on
+        `RoutineExercise`) is added as an optional property; apps keep unknown exercise keys
+        when they rewrite a routine.
+      x-max-live-records: 100
+      allOf:
+        - $ref: '#/components/schemas/SyncMeta'
+        - type: object
+          required: [name, exercises, created_at]
+          properties:
+            name:
+              type: string
+              minLength: 1
+              maxLength: 60
+              pattern: '[^\t-\r \u0085\u00A0\u1680\u2000-\u200D\u2028\u2029\u202F\u205F\u2060\u3000\uFEFF]'
+              description: |
+                The user's label, not blank (see the blank-text pattern in the wire
+                conventions). At most 60 characters: long enough for "Upper body, dumbbells
+                only", short enough for a list row. Names need not be unique.
+            exercises:
+              type: array
+              minItems: 1
+              maxItems: 50
+              description: |
+                Exercises in start order, each with its target set count. At least one, so
+                an empty routine cannot be saved. At most 50, the same as
+                `Workout.exercises`, so any session the app can store can be saved as a
+                routine. Exercise names should be unique within a routine; the app drops a
+                repeat on save and keeps the first.
+              items:
+                $ref: '#/components/schemas/RoutineExercise'
+            created_at:
+              type: string
+              format: date-time
+              description: When the routine was first saved, ISO 8601 UTC. Never changes; `updated_at` moves on every edit.
+
+    RoutineExercise:
+      type: object
+      description: |
+        One exercise of a routine. Open on purpose, as `WorkoutExercise`: the app keeps
+        keys it does not know, written by a newer client, when it rewrites the routine. At most 20 keys; an unlisted key's name is
+        at most 50 characters and its value is a boolean, number, string of at most 200
+        characters or null, so its size is bounded by these limits. A field a later
+        contract adds is listed here with its own shape. A routine always starts a fresh
+        session, so there is no `part`.
+      required: [name, sets]
+      maxProperties: 20
+      propertyNames:
+        maxLength: 50
+      additionalProperties:
+        type: [boolean, number, string, 'null']
+        maxLength: 200
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+          pattern: '[^\t-\r \u0085\u00A0\u1680\u2000-\u200D\u2028\u2029\u202F\u205F\u2060\u3000\uFEFF]'
+          description: Exercise name, as `Workout.exercises[].name` and `WorkoutSet.exercise` carry it (catalogue name or custom name, unnormalised), not blank.
+        sets:
+          type: integer
+          minimum: 1
+          maximum: 20
+          description: |
+            Target number of work sets when the routine is started. At most 20: a guard
+            against a corrupt or hostile value, not a training rule; core decides the sets
+            actually shown.
+        group:
+          type: [string, 'null']
+          minLength: 1
+          maxLength: 36
+          pattern: '^[A-Za-z0-9_-]{1,36}$'
+          description: >
+            Superset group (#1182, ADR 012): a short id shared by the members of one group.
+            Members of a group are contiguous in `exercises` and there is no position field;
+            the order of the array is the order. Null or absent means ungrouped. A group has 2
+            to 6 members, but that is a core rule, not enforced by this schema. The labels A
+            and B are derived by the app, not stored. Optional so older clients that omit it
+            still validate; a client that does not know the field may drop it when it
+            rewrites the routine. To ungroup, write an explicit null so the three-way merge
+            sees the change.
 
     Settings:
       description: |

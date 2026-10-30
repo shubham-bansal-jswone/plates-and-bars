@@ -11,9 +11,9 @@ each under its own licence. THIRD_PARTY.md has the full list with paths and
 links.
 
 - Body map polygons in apps/mobile/src/workout/bodyMapData.ts and
-  docs/prototype/plate-and-bar.html, adapted from react-body-highlighter.
-  MIT License, Copyright (c) 2020 GV79. The full MIT notice is kept in both
-  files and shown on the app's About screen.
+  in the original HTML prototype (git tag prototype-final), adapted from
+  react-body-highlighter. MIT License, Copyright (c) 2020 GV79. The full MIT
+  notice is kept in the app file and shown on the app's About screen.
 - Inter font: Copyright The Inter Project Authors
   (https://github.com/rsms/inter). SIL Open Font License 1.1.
 - Roboto font: Copyright 2011 The Roboto Project Authors

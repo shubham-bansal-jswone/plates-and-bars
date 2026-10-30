@@ -2,16 +2,23 @@ import { useEffect, useState } from 'react';
 import { Platform, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { buildLocalExport } from '../account/exportLocal';
-import { DATA_COPY as t } from '../account/copy';
+import { DATA_COPY as t, RESTORE_COPY as rc } from '../account/copy';
+import { pickExportText } from '../account/pickFile';
+import { RestoreError, applyRestore, parseRestore, previewRestore, type ParsedRestore, type RestoreSummary } from '../account/restoreLocal';
+import { notifyLabsChanged } from '../db/labs';
+import { getUserId } from '../sync/store';
 import { clearOldExports, saveTextFile, type SaveResult } from '../account/saveFile';
 import type { DeleteResult, ServerExportResult } from '../account/server';
-import { Button, ErrorText, H1, Hint, Note, Page } from '../components/ui';
+import { Button, Card, ErrorText, H1, Hint, Note, Page } from '../components/ui';
 import { LegalLinks } from '../legal/LegalLinks';
 import type { WorkoutDb } from '../db/workouts';
+import type { PullDb } from '../db/outbox';
+import { ImportWorkouts } from '../import/ImportWorkouts';
+import { IMPORT_COPY } from '../import/copy';
 import { hasConsent } from '../sync/engine';
 import { useSync } from '../sync/SyncProvider';
 
-type Step = 'home' | 'confirm' | 'done';
+type Step = 'home' | 'confirm' | 'done' | 'restore' | 'import';
 
 const saved = (name: string, r: SaveResult) => (r === 'saved' ? t.exportSaved(name) : r === 'shared' ? t.exportShared : t.exportNoShare);
 const serverMessage = (r: Exclude<ServerExportResult, { kind: 'ok' }>): string =>
@@ -20,7 +27,7 @@ const deleteMessage = (r: Exclude<DeleteResult, { kind: 'deleted' }>): string =>
   r.kind === 'offline' ? t.offline : r.kind === 'rate_limited' ? t.rate(r.retryAfterSec) : r.kind === 'unconfirmed' ? t.unconfirmed : r.kind === 'needs_sign_in' ? t.needsSignIn : r.kind === 'local_failed' ? t.localFailed : r.kind === 'error' ? t.readFailed : r.kind === 'owner_changed' ? (r.server ? t.ownerChangedAfterDelete : t.ownerChanged) : t.unavailable;
 
 /** Export and delete everything (#27; prototype `exportData`, `deleteEverything`). Export works offline from this device. */
-export function DataScreen({ db, now = () => new Date() }: { db: WorkoutDb; now?: () => Date }) {
+export function DataScreen({ db, now = () => new Date() }: { db: WorkoutDb & PullDb; now?: () => Date }) {
   const s = useSync();
   const router = useRouter();
   const [step, setStep] = useState<Step>('home');
@@ -81,6 +88,35 @@ export function DataScreen({ db, now = () => new Date() }: { db: WorkoutDb; now?
       }
     });
 
+  const [restoring, setRestoring] = useState<{ parsed: ParsedRestore; summary: RestoreSummary } | null>(null);
+  const chooseRestore = () =>
+    run(async () => {
+      try {
+        const text = await pickExportText();
+        if (text === null) return;
+        const parsed = await parseRestore(text);
+        setRestoring({ parsed, summary: await previewRestore(db, parsed, await getUserId(db)) });
+        setStep('restore');
+      } catch (e) {
+        setError(e instanceof RestoreError ? rc.errors[e.code] : rc.failed);
+      }
+    });
+  const confirmRestore = () =>
+    run(async () => {
+      if (!restoring) return;
+      try {
+        await applyRestore(db, restoring.parsed, await getUserId(db));
+        s.dataChanged(); // the profile and settings stores read SQLite again, so a later save cannot overwrite the restored rows
+        notifyLabsChanged(); // a restored lab hold takes effect without a remount
+        setMessage(rc.done);
+        void s.syncNow();
+      } catch {
+        setError(rc.failed);
+      }
+      setRestoring(null);
+      setStep('home');
+    });
+
   const confirmDelete = (only = false) =>
     run(async () => {
       const r = await s.deleteEverything(only ? { deviceOnly: true } : undefined);
@@ -95,12 +131,33 @@ export function DataScreen({ db, now = () => new Date() }: { db: WorkoutDb; now?
   const linkedOut = s.linked && !s.signedIn && !s.wipePending;
   const toSignIn = () => router.push('/sign-in' as never);
 
+  if (step === 'import') return <ImportWorkouts db={db} onClose={() => setStep('home')} />;
+
   if (step === 'done') {
     return (
       <Page>
         <H1>{t.title}</H1>
         <Note>{deleted?.kind === 'deleted' && deleted.server ? t.deletedAll : t.deletedLocal}</Note>
         <Button label={t.done} onPress={() => router.replace('/' as never)} />
+      </Page>
+    );
+  }
+
+  if (step === 'restore' && restoring) {
+    const rows = Object.entries(restoring.summary.tables).filter(([, c]) => c);
+    const { cycle, labReports, hold } = restoring.summary.deviceOnly;
+    const changes = rows.some(([, c]) => c.added + c.newer > 0) || cycle || labReports > 0 || hold;
+    return (
+      <Page>
+        <H1>{rc.title}</H1>
+        {restoring.summary.differentAccount ? <Note>{rc.differentAccount}</Note> : null}
+        {rows.map(([name, c]) => <Hint key={name}>{rc.table(name, c, restoring.summary.differentAccount)}</Hint>)}
+        {cycle || labReports > 0 || hold ? <Hint>{rc.deviceOnly(cycle, labReports, hold)}</Hint> : null}
+        {changes ? null : <Note>{rows.some(([, c]) => c.overCap) ? rc.nothingOverCap : rows.some(([, c]) => c.invalid) ? rc.nothingInvalid : rc.nothing}</Note>}
+        <View style={{ gap: 12 }}>
+          {changes ? <Button label={busy ? rc.restoring : rc.confirm} onPress={() => void confirmRestore()} /> : null}
+          <Button kind="ghost" label={rc.cancel} onPress={() => { setRestoring(null); setStep('home'); }} />
+        </View>
       </Page>
     );
   }
@@ -139,6 +196,7 @@ export function DataScreen({ db, now = () => new Date() }: { db: WorkoutDb; now?
   return (
     <Page>
       <H1>{t.title}</H1>
+      <Card>
       <Hint>{t.intro}</Hint>
       {/* The consent is read async. Until it is known the slot holds a blank, screen-reader-hidden line (aria-hidden, as Caption does: react-native-web ignores the older props), so the text arriving never moves the controls (#1035) and never flashes a wrong one. */}
       <View aria-hidden={pendingConsent}>
@@ -146,6 +204,8 @@ export function DataScreen({ db, now = () => new Date() }: { db: WorkoutDb; now?
       </View>
       <Hint>{t.withdraw}</Hint>
       <Hint>{Platform.OS === 'android' ? `${t.exportHint} ${t.exportHintAndroid}` : t.exportHint}</Hint>
+      <Hint>{t.exportUnitNote}</Hint>
+      </Card>
       {message ? <Note>{message}</Note> : null}
       {error ? <ErrorText>{error}</ErrorText> : null}
       <View style={{ gap: 12 }}>
@@ -161,6 +221,9 @@ export function DataScreen({ db, now = () => new Date() }: { db: WorkoutDb; now?
             <Button kind="ghost" label={t.signInToExport} onPress={toSignIn} />
           </>
         ) : null}
+        <Hint>{rc.hint}</Hint>
+        <Button kind="ghost" label={rc.action} onPress={() => void chooseRestore()} />
+        <Button kind="ghost" label={IMPORT_COPY.open} onPress={() => setStep('import')} />
         <Button
           kind="ghost"
           label={t.delete}

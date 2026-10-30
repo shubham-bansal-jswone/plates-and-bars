@@ -1,24 +1,27 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
-import { isFlagged, labHistory, labResult, tipFor, validateLabReport, type LabReport, type LabTest } from '@plate-and-bar/core';
+import { isFlagged, labHistory, labResult, tipFor, validateLabReport, type LabReport, type LabReportError, type LabTest } from '@plate-and-bar/core';
 import { Text } from '../components/Text';
 import { SheetModal } from '../components/Sheet';
-import { Button, Card, ErrorText, Field, Heading, Hint, Note } from '../components/ui';
+import { Button, Card, ErrorText, Field, Heading, Hint, Note, Chip } from '../components/ui';
+import { clearOldExports, saveTextFile } from '../account/saveFile';
 import { shortDate } from '../format';
 import { type as typeScale } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
-import { Chip } from '../workout/parts';
 import { labs, tipText } from './content';
 import {
   FLAG_WORD, LABS_ADD, LABS_ADD_TEST, LABS_ALL, LABS_COUNT, LABS_DATE_LABEL, LABS_DATE_PLACEHOLDER, LABS_DELETE, LABS_DELETE_AGAIN, LABS_DISCARD, LABS_FIELD, LABS_LATEST, LABS_PLACEHOLDER,
-  LABS_PRIVATE, LABS_RANGE, LABS_REMOVE_TEST, LABS_SAVE, LABS_SEEN_DOCTOR, LABS_SHEET_TITLE, LABS_TEST_N, LABS_TITLE, LABS_TREND, LAB_ERRORS,
+  LABS_PRIVATE, LABS_RANGE, LABS_REMOVE_TEST, LABS_SAVE, LABS_SUMMARY_BUTTON, LABS_SUMMARY_FAILED, LABS_SUMMARY_NO_SHARE, LABS_SUMMARY_SAVED, LABS_SUMMARY_SHARED, LABS_SEEN_DOCTOR, LABS_SHEET_TITLE, LABS_TEST_N, LABS_TITLE, LABS_TREND, LAB_ERRORS,
 } from './copy';
+import { buildLabSummary, LABS_SUMMARY_FILE } from './summary';
 import type { Labs } from './useLabs';
 
 const BLANK: LabTest = { name: '', value: '', unit: '', low: '', high: '' };
 const FIELDS = ['name', 'value', 'unit', 'low', 'high'] as const;
 const NUMERIC = new Set<string>(['value', 'low', 'high']);
 
+/** The one field of a test each row error is about; the report-level codes never come from a single row. Every code is listed, so a new core code fails the type check. */
+const FIELD_OF: Record<LabReportError, keyof LabTest | null> = { bad_date: null, no_tests: null, too_many_tests: null, name_missing: 'name', name_too_long: 'name', value_not_number: 'value', low_not_number: 'low', high_not_number: 'high', unit_too_long: 'unit', unit_missing: 'unit' };
 /** One row's problem: the first one core finds for that test alone (the date is checked on its own). */
 const rowError = (t: LabTest) => validateLabReport({ id: '', date: '2000-01-01', tests: [t] });
 
@@ -32,6 +35,7 @@ export function LabsSection({ labs: l, today }: { labs: Labs; today: string }) {
   const [adding, setAdding] = useState(false);
   const [armed, setArmed] = useState(false);
   const [picked, setPicked] = useState<string | null>(null);
+  const [summaryNote, setSummaryNote] = useState<string | null>(null);
   useEffect(() => {
     if (!armed) return;
     const timer = setTimeout(() => setArmed(false), 4000); // a stray tap much later must not delete the reports
@@ -39,6 +43,16 @@ export function LabsSection({ labs: l, today }: { labs: Labs; today: string }) {
   }, [armed]);
   if (!l.enabled || !l.reports) return null;
   const reports = l.reports;
+  const summary = buildLabSummary(reports);
+  const shareSummary = async () => {
+    if (!summary) return;
+    try {
+      const r = await saveTextFile(LABS_SUMMARY_FILE, 'text/plain', summary);
+      setSummaryNote(r === 'saved' ? LABS_SUMMARY_SAVED(LABS_SUMMARY_FILE) : r === 'shared' ? LABS_SUMMARY_SHARED : LABS_SUMMARY_NO_SHARE);
+    } catch {
+      setSummaryNote(LABS_SUMMARY_FAILED); // never the error itself: it could carry the text
+    }
+  };
   const shown = reports.find((r) => r.id === picked) ?? reports[reports.length - 1];
   return (
     <View style={styles.section}>
@@ -52,11 +66,13 @@ export function LabsSection({ labs: l, today }: { labs: Labs; today: string }) {
           <Button label={LABS_SEEN_DOCTOR} onPress={() => void l.seenDoctor()} />
         </Card>
       ) : null}
-      <Button label={LABS_ADD} onPress={() => setAdding(true)} />
+      <Button kind="ghost" label={LABS_ADD} onPress={() => setAdding(true)} />
       {shown ? <Results reports={reports} shown={shown} onPick={setPicked} /> : null}
       {reports.length ? (
         <>
           <Hint>{LABS_COUNT(reports.length)}</Hint>
+          {summary ? <Button kind="ghost" label={LABS_SUMMARY_BUTTON} onPress={() => void shareSummary()} /> : null}
+          {summaryNote ? <View accessibilityLiveRegion="polite"><Hint>{summaryNote}</Hint></View> : null}
           <Button
             label={armed ? LABS_DELETE_AGAIN : LABS_DELETE}
             kind="link"
@@ -64,6 +80,8 @@ export function LabsSection({ labs: l, today }: { labs: Labs; today: string }) {
               if (!armed) return setArmed(true);
               setArmed(false);
               setPicked(null);
+              setSummaryNote(null);
+              clearOldExports(); // no age limit: the shared summary file must not outlive the reports
               void l.deleteAll();
             }}
           />
@@ -144,6 +162,8 @@ function AllResults({ rows, trend }: { rows: { t: LabTest; r: ReturnType<typeof 
 /** The "Add a lab report" sheet: a date, then a row per test. Errors show beside the row they belong to once Save has been tried. */
 function AddForm({ today, onClose, onSave }: { today: string; onClose: () => void; onSave: (r: Omit<LabReport, 'id'>) => Promise<void> }) {
   const c = useTheme();
+  // Web drops accessibilityHint, so each error text gets an id and the field(s) it names point at it with aria-describedby.
+  const uid = useId().replace(/:/g, '');
   const [date, setDate] = useState(today);
   const [tests, setTests] = useState<LabTest[]>([{ ...BLANK }]);
   const [tried, setTried] = useState(false);
@@ -158,8 +178,18 @@ function AddForm({ today, onClose, onSave }: { today: string; onClose: () => voi
         <Heading level={2} style={[typeScale.heading, { color: c.ink }]}>{LABS_SHEET_TITLE}</Heading>
         <Hint>{labs.not_medical_advice}</Hint>
         <Text style={{ color: c.ink, fontWeight: '700' }}>{labs.check_values}</Text>
-        <Field label={LABS_DATE_LABEL} placeholder={LABS_DATE_PLACEHOLDER} autoCapitalize="none" autoCorrect={false} value={date} onChangeText={setDate} />
-        {tried && dateBad ? <ErrorText>{LAB_ERRORS.bad_date}</ErrorText> : null}
+        <Field
+          label={LABS_DATE_LABEL}
+          placeholder={LABS_DATE_PLACEHOLDER}
+          autoCapitalize="none"
+          autoCorrect={false}
+          value={date}
+          onChangeText={setDate}
+          invalid={tried && dateBad}
+          accessibilityHint={tried && dateBad ? LAB_ERRORS.bad_date : undefined}
+          describedBy={tried && dateBad ? `${uid}-date-error` : undefined}
+        />
+        {tried && dateBad ? <ErrorText id={`${uid}-date-error`}>{LAB_ERRORS.bad_date}</ErrorText> : null}
         {tests.map((t, i) => {
           const err = tried ? rowError(report.tests[i] as LabTest) : null;
           return (
@@ -174,10 +204,13 @@ function AddForm({ today, onClose, onSave }: { today: string; onClose: () => voi
                   onChangeText={(v) => edit(i, k, v)}
                   autoCapitalize="none"
                   autoCorrect={false}
+                  invalid={!!err && FIELD_OF[err] === k}
+                  accessibilityHint={err && FIELD_OF[err] === k ? LAB_ERRORS[err] : undefined}
+                  describedBy={err && FIELD_OF[err] === k ? `${uid}-test-${i}-error` : undefined}
                   {...(NUMERIC.has(k) ? { inputMode: 'decimal' as const } : {})}
                 />
               ))}
-              {err ? <ErrorText>{LAB_ERRORS[err]}</ErrorText> : null}
+              {err ? <ErrorText id={`${uid}-test-${i}-error`}>{LAB_ERRORS[err]}</ErrorText> : null}
               {tests.length > 1 ? <Button label={LABS_REMOVE_TEST(i + 1)} kind="link" onPress={() => setTests(tests.filter((_, j) => j !== i))} /> : null}
             </View>
           );

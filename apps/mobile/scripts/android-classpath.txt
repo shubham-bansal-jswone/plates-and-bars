@@ -50,6 +50,7 @@ androidx.lifecycle:lifecycle-livedata:2.6.2
 androidx.lifecycle:lifecycle-process:2.6.2
 androidx.lifecycle:lifecycle-runtime-ktx:2.6.2
 androidx.lifecycle:lifecycle-runtime:2.6.2
+androidx.lifecycle:lifecycle-service:2.6.2
 androidx.lifecycle:lifecycle-viewmodel-ktx:2.6.2
 androidx.lifecycle:lifecycle-viewmodel-savedstate:2.6.2
 androidx.lifecycle:lifecycle-viewmodel:2.6.2
@@ -57,8 +58,12 @@ androidx.loader:loader:1.0.0
 androidx.profileinstaller:profileinstaller:1.4.0
 androidx.recyclerview:recyclerview:1.2.1
 androidx.resourceinspection:resourceinspection-annotation:1.0.1
+androidx.room:room-common:2.5.0
+androidx.room:room-runtime:2.5.0
 androidx.savedstate:savedstate-ktx:1.2.1
 androidx.savedstate:savedstate:1.2.1
+androidx.sqlite:sqlite-framework:2.3.0
+androidx.sqlite:sqlite:2.3.0
 androidx.startup:startup-runtime:1.1.1
 androidx.swiperefreshlayout:swiperefreshlayout:1.1.0
 androidx.tracing:tracing-ktx:1.2.0
@@ -73,8 +78,10 @@ androidx.viewpager:viewpager:1.0.0
 androidx.window:window-core-android:1.5.1
 androidx.window:window-core:1.5.1
 androidx.window:window:1.5.1
+androidx.work:work-runtime:2.8.1
 app.plateandbar.vendor:tesseract4android:4.9.0
 com.abovevacant:epitaph:0.1.1
+com.caverock:androidsvg-aar:1.4
 com.facebook.fbjni:fbjni:0.7.0
 com.facebook.fresco:animated-base:3.7.0
 com.facebook.fresco:animated-drawable:3.7.0
@@ -137,11 +144,12 @@ com.squareup.zstd:zstd-kmp-okio:0.4.0
 com.squareup.zstd:zstd-kmp:0.4.0
 com.vanniktech:android-image-cropper:4.7.0
 commons-codec:commons-codec:1.10 META-INF/NOTICE.txt@bcb83645cb4d1a46
-commons-io:commons-io:1.4 META-INF/NOTICE.txt@953ed0a73373ef5e
+commons-io:commons-io:2.6 META-INF/NOTICE.txt@f738390135295a24
 expo.modules.asset:expo.modules.asset:58.0.16
 expo.modules.router:expo.modules.router:58.0.22
 host.exp.exponent:expo.modules.clipboard:58.0.3
 host.exp.exponent:expo.modules.crypto:58.0.7
+host.exp.exponent:expo.modules.documentpicker:58.0.4
 host.exp.exponent:expo.modules.filesystem:58.0.9
 host.exp.exponent:expo.modules.font:58.0.8
 host.exp.exponent:expo.modules.haptics:58.0.7

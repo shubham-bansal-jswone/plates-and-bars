@@ -1,4 +1,5 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { render, screen, waitFor } from '@testing-library/react-native';
+import { press, reveal } from './disclosure-helpers';
 import { EXERCISE_OVERRIDES_MAX, type LiftRecord } from '@plate-and-bar/core';
 import { TargetsScreen } from '../src/screens/TargetsScreen';
 import { WorkoutScreen } from '../src/screens/WorkoutScreen';
@@ -24,7 +25,7 @@ const DATE = '2026-10-08';
 const LAST = '2026-10-05';
 
 type Db = ReturnType<typeof memoryDb>;
-const press = (label: string) => fireEvent.press(screen.getByLabelText(label));
+
 const stored = <T,>(db: Db, key: string) => JSON.parse(db.rows.get(key) as string) as T;
 const settingsOf = (db: Db) => stored<Settings>(db, 'user_settings:me');
 
@@ -194,6 +195,7 @@ describe('stall card', () => {
     await waitFor(() => expect(settingsOf(db).exercise_overrides['Pec Deck Fly']).toMatchObject({ type: 'machine', rep_low: 6, rep_high: 8 }));
     expect(screen.getByText('Pec Deck Fly: now 6–8 reps')).toBeTruthy();
     expect(screen.queryByText('No progress in 3 sessions')).toBeNull();
+    await reveal('Pec Deck Fly'); // the rep range line is in the guide, not the card
     expect(screen.getByText(/Machine, 6–8 reps/)).toBeTruthy();
   });
 

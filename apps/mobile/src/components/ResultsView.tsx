@@ -1,14 +1,15 @@
-import { Fragment, useState } from 'react';
+import { Fragment, useState, type ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { WhyLink } from '../why/WhyLink';
 import { Text } from './Text';
 import { fmt } from '../format';
 import { buildResults } from '../setup/results';
+import { useWeightUnit } from '../settings/weightUnit';
 import type { Profile } from '../setup/types';
-import { radius } from '../theme/tokens';
+import { radius, space, tabular, type } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { ClearanceCard } from './ClearanceCard';
-import { Button, Card, H1, Hint, Label, Note } from './ui';
+import { Button, Card, H1, Heading, Hint, Note, useWide } from './ui';
 
 /** Notes that carry a Why link in the prototype (`resultsHtml`). */
 const NOTE_WHY: Record<string, string> = { home_dumbbells: 'home', home_bodyweight: 'home', older: 'older' };
@@ -17,47 +18,53 @@ const NOTE_WHY: Record<string, string> = { home_dumbbells: 'home', home_bodyweig
  * The prototype's results block: burn, breakdown, daily targets and notes, all from `calcTargets` output.
  * `onCleared` shows the clearance card with its "My doctor has cleared me" button.
  */
-export function ResultsView({ profile, onCleared, hideTargets, hideHeadline, showWhy }: { profile: Profile; onCleared?: () => void; hideTargets?: boolean; hideHeadline?: boolean; /** Setup results: the expandable "Why these numbers?" block. */ showWhy?: boolean }) {
+export function ResultsView({ profile, onCleared, hideTargets, hideHeadline, showWhy, columns, footer }: { profile: Profile; /** Under everything else: the bottom of the right column in two columns, else after the block. */ footer?: ReactNode; onCleared?: () => void; hideTargets?: boolean; hideHeadline?: boolean; /** Two columns on a screen >= 900px (the page must be `wide`). */ columns?: boolean; /** Setup results: the expandable "Why these numbers?" block. */ showWhy?: boolean }) {
   const c = useTheme();
   const [whyOpen, setWhyOpen] = useState(false);
-  const v = buildResults(profile);
+  const { unit } = useWeightUnit();
+  const v = buildResults(profile, unit);
   const t = v.r;
+  const wide = useWide();
+  const two = !!columns && wide;
   const tiles: [string, string, string][] = [
-    [fmt(t.kcal), 'kcal', c.ink],
     [String(t.protein), 'g protein', c.protein],
     [String(t.carbs), 'g carbs', c.carbs],
     [String(t.fat), 'g fat', c.fat],
   ];
-  return (
+  const breakdown = (
     <View style={styles.wrap}>
       {hideHeadline ? null : <H1>{v.headline}</H1>}
-      <Hint>{v.range}</Hint>
+      <View style={{ paddingBottom: space.sm }}>
+        <Hint>{v.range}</Hint>
+      </View>
       {v.rows.map(([label, kcal]) => (
         <View key={label} style={[styles.row, { borderColor: c.line }]} accessible accessibilityLabel={`${label}, ${fmt(kcal)} kilocalories`}>
           <Text style={{ color: c.ink }}>{label}</Text>
           <Text style={{ color: c.ink, fontWeight: '700' }}>{fmt(kcal)}</Text>
         </View>
       ))}
-      {hideTargets ? null : (
-        <>
-          <Label>Your daily targets</Label>
-          <View style={styles.grid}>
-            {tiles.map(([n, unit, color], i) => (
-              <Card
-                key={unit}
-                testID={`target-${i}`}
-                accessible
-                accessibilityLabel={`${n} ${unit}`}
-                style={styles.tile}
-              >
-                <View style={[styles.dot, { backgroundColor: color }]} />
-                <Text style={[styles.num, { color: c.ink }]}>{n}</Text>
-                <Text style={{ color: c.body, fontSize: 13 }}>{unit}</Text>
-              </Card>
-            ))}
+    </View>
+  );
+  const targets = hideTargets ? null : (
+    <View style={styles.wrap}>
+      <Heading level={2} style={[type.heading, { color: c.ink, marginTop: two ? 0 : 8 }]}>Your daily targets</Heading>
+      <Card testID="target-0" accessible accessibilityLabel={`${fmt(t.kcal)} kcal`} style={styles.hero}>
+        <Text style={[type.metric, tabular, { color: c.brand }]}>{fmt(t.kcal)}</Text>
+        <Text style={[type.small, { color: c.muted }]}>kcal a day</Text>
+      </Card>
+      <View style={styles.grid}>
+        {tiles.map(([n, unit, color], i) => (
+          <View key={unit} testID={`target-${i + 1}`} accessible accessibilityLabel={`${n} ${unit}`} style={[styles.tile, { borderColor: c.line }]}>
+            <View style={[styles.dot, { backgroundColor: color }]} />
+            <Text style={[type.metricSm, tabular, { color: c.ink }]}>{n}</Text>
+            <Text style={[type.small, { color: c.muted }]}>{unit}</Text>
           </View>
-        </>
-      )}
+        ))}
+      </View>
+    </View>
+  );
+  const explain = (
+    <View style={styles.wrap}>
       <Hint>{v.pace}</Hint>
       <ClearanceCard profile={profile} onCleared={onCleared} />
       {v.notes.map((n, i) => {
@@ -86,13 +93,35 @@ export function ResultsView({ profile, onCleared, hideTargets, hideHeadline, sho
       ) : null}
     </View>
   );
+  // Two columns: the burn breakdown on the left; the targets on the right with what explains them (pace, clearance, notes, Why) right under them.
+  return two ? (
+    <View style={styles.cols}>
+      <View style={styles.col}>{breakdown}</View>
+      <View style={[styles.col, styles.wrap]}>
+        {targets}
+        {explain}
+        {footer}
+      </View>
+    </View>
+  ) : (
+    <>
+      <View style={styles.wrap}>
+        {breakdown}
+        {targets}
+        {explain}
+      </View>
+      {footer}
+    </>
+  );
 }
 
 const styles = StyleSheet.create({
   wrap: { gap: 8 },
   row: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 10, borderTopWidth: 1 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  tile: { flexGrow: 1, flexBasis: '45%', alignItems: 'center', gap: 2 },
+  hero: { alignItems: 'flex-start', gap: 0 },
+  tile: { flexGrow: 1, flexBasis: '28%', borderWidth: 1, borderRadius: radius.lg, padding: 12, gap: 2 },
   dot: { width: 10, height: 10, borderRadius: radius.full },
-  num: { fontSize: 26, fontWeight: '300' },
+  cols: { flexDirection: 'row', gap: 24, alignItems: 'flex-start' },
+  col: { flex: 1 },
 });

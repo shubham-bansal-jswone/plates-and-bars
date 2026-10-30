@@ -1,9 +1,12 @@
+import { Dimensions, StyleSheet } from 'react-native';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { COVER_LOW } from '@plate-and-bar/core';
 import golden from '../../../docs/spec/golden/targets.json';
 import { TargetsScreen } from '../src/screens/TargetsScreen';
 import { saveProfile } from '../src/db/records';
 import { loadSettings, saveSettings } from '../src/db/settings';
 import { defaultSettings } from '../src/settings/types';
+import { space } from '../src/theme/tokens';
 import { buildProfile, emptyDraft } from '../src/setup/logic';
 import { DeviceStepsProvider } from '../src/steps/DeviceStepsProvider';
 import { STEPS_COPY } from '../src/steps/copy';
@@ -52,6 +55,59 @@ function goldenProfile() {
   );
 }
 
+describe('TargetsScreen reading order', () => {
+  afterEach(() => jest.restoreAllMocks());
+  it.each([500, 1200])('reads Training rules before Account and data at %i px, so the order does not change with the window', async (width) => {
+    jest.spyOn(Dimensions, 'get').mockReturnValue({ width, height: 800, scale: 1, fontScale: 1 });
+    const db = memoryDb();
+    await saveProfile(db, goldenProfile());
+    await render(withProfile(db, <TargetsScreen db={db} />));
+    await screen.findByText('Account and data');
+    const tree = JSON.stringify(screen.toJSON());
+    expect(tree.indexOf('Training rules')).toBeGreaterThan(-1);
+    expect(tree.indexOf('Training rules')).toBeLessThan(tree.indexOf('Account and data'));
+  });
+});
+
+describe('TargetsScreen columns at 1280 (#1417)', () => {
+  afterEach(() => jest.restoreAllMocks());
+  type J = { props?: { style?: unknown }; children?: (J | string)[] | null };
+  const kids = (n: J) => (n.children ?? []).filter((c): c is J => typeof c === 'object');
+  const flat = (n: J) => (StyleSheet.flatten(n.props?.style as object) ?? {}) as Record<string, unknown>;
+  const find = (n: J, f: (n: J) => boolean): J | undefined => (f(n) ? n : kids(n).map((k) => find(k, f)).find(Boolean));
+  const columns = () => find(screen.toJSON() as unknown as J, (n) => flat(n).flexDirection === 'row' && flat(n).gap === 24 && kids(n).length === 2)!;
+  it('puts Your setup, Daily targets and Training rules on the left and Account and data on the right, in the stacked reading order', async () => {
+    jest.spyOn(Dimensions, 'get').mockReturnValue({ width: 1280, height: 800, scale: 1, fontScale: 1 });
+    const db = memoryDb();
+    await saveProfile(db, goldenProfile());
+    await render(withProfile(db, <TargetsScreen db={db} />));
+    await screen.findByText('Account and data');
+    const [left = '', right = ''] = kids(columns()).map((k) => JSON.stringify(k));
+    for (const t of ['Your setup', 'Daily targets', 'Training rules']) expect(left).toContain(t);
+    expect(left).not.toContain('Account and data');
+    expect(right).toContain('Account and data');
+    expect(right).not.toContain('Training rules');
+    expect(left.indexOf('Daily targets')).toBeLessThan(left.indexOf('Training rules'));
+  });
+});
+
+describe('Account and data heading offset (#1417)', () => {
+  afterEach(() => jest.restoreAllMocks());
+  const top = async (width: number) => {
+    jest.spyOn(Dimensions, 'get').mockReturnValue({ width, height: 800, scale: 1, fontScale: 1 });
+    const db = memoryDb();
+    await saveProfile(db, goldenProfile());
+    await render(withProfile(db, <TargetsScreen db={db} />));
+    return StyleSheet.flatten((await screen.findByRole('header', { name: 'Account and data' })).props.style).marginTop;
+  };
+  it('gets the first-heading offset at the top of the right column at 1280, and the ordinary 16 when stacked', async () => {
+    expect(await top(1280)).toBe(space.sm);
+  });
+  it('keeps the ordinary section gap at a narrow width', async () => {
+    expect(await top(500)).toBe(16);
+  });
+});
+
 describe('TargetsScreen', () => {
   it('shows a visible name and unit over each Daily targets field (#901)', async () => {
     const db = memoryDb();
@@ -87,7 +143,7 @@ describe('TargetsScreen', () => {
     await saveProfile(db, goldenProfile());
     await render(withProfile(db, <TargetsScreen db={db} />));
     // The targets are the editable "Daily targets" fields now (prototype tK, tP, tC, tF).
-    expect((await screen.findByLabelText('Calories (kcal)')).props.value).toBe('1990');
+    expect((await screen.findByLabelText('Calories (kcal)')).props.value).toBe('1,990');
     expect(g.output.kcal).toBe(1990);
     expect(screen.getByLabelText('Protein (g)').props.value).toBe(String(g.output.protein));
     expect(screen.getByLabelText('Carbs (g)').props.value).toBe(String(g.output.carbs));
@@ -136,7 +192,7 @@ describe('TargetsScreen', () => {
     const db = memoryDb();
     await saveProfile(db, goldenProfile());
     await render(withProfile(db, <TargetsScreen db={db} />));
-    expect((await screen.findByLabelText('Calories (kcal)')).props.value).toBe('1990');
+    expect((await screen.findByLabelText('Calories (kcal)')).props.value).toBe('1,990');
     // The results block is rendered with `hideTargets`, as prototype `renderTargets` has only the editable
     // fields: the four read-only tiles would repeat the same numbers right above them (#483 review).
     expect(screen.queryByTestId('target-0')).toBeNull();
@@ -333,6 +389,7 @@ describe('TargetsScreen', () => {
       // planned: core's count for the 6-day split, no hard-coded figure here
       const planned = screen.getByLabelText(/^Weekly coverage: your plan, Chest: \d+ sets/);
       expect(planned).toBeTruthy();
+      expect(screen.getByText(`Bars: grey is planned, coloured is done. A low count (under ${COVER_LOW} sets) shows in orange.`)).toBeTruthy(); // legend for the bar colours
       expect(screen.getByLabelText(/^Done in the last 7 days, Calves: 0 sets, low$/)).toBeTruthy();
     });
 

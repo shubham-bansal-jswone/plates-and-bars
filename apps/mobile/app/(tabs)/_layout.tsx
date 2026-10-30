@@ -2,18 +2,20 @@ import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
 import { BottomTabBar } from 'expo-router/tabs';
 import type { ReactNode } from 'react';
-import { Platform, View } from 'react-native';
+import { Platform, useWindowDimensions } from 'react-native';
 import type { PressableProps, StyleProp, ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { NavTabBar } from '../../src/components/NavTabBar';
+import { InactiveScreenHidden } from '../../src/components/InactiveScreenHidden';
 import { BottomInsetPadded } from '../../src/components/bottomInset';
-import { Press } from '../../src/components/ui';
+import { Press, useWide } from '../../src/components/ui';
 import { ViewedDateProvider } from '../../src/state/ViewedDate';
 import { type } from '../../src/theme/tokens';
 import { useTheme } from '../../src/theme/useTheme';
 
 type IconName = keyof typeof Ionicons.glyphMap;
 
-// Same sections, in the same order, as the prototype's bottom nav. Filled icon when active, outline when not (DESIGN.md 8.7).
+// Same sections, in the same order, as the prototype's bottom nav. Filled icon when active, outline when not.
 const TABS: readonly { name: string; title: string; on: IconName; off: IconName }[] = [
   { name: 'index', title: 'Food', on: 'restaurant', off: 'restaurant-outline' },
   { name: 'workout', title: 'Workout', on: 'barbell', off: 'barbell-outline' },
@@ -49,43 +51,39 @@ function TabButton({ children, style, onPress, onLongPress, testID, role, 'aria-
   );
 }
 
-/** Tab bar height from DESIGN.md 8.7: 56 plus the bottom safe area. */
-const TAB_BAR_HEIGHT = 56;
+/** Tab bar height: 60 plus the bottom safe area. */
+const TAB_BAR_HEIGHT = 60;
 
 export default function TabsLayout() {
   const c = useTheme();
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  // The bar keeps its full-width background, but its items sit in the page's content column (560, or 1040 on a wide screen).
+  const side = Math.max(0, (width - (useWide() ? 1040 : 560)) / 2);
   return (
     <ViewedDateProvider>
     <BottomInsetPadded.Provider value>
     <Tabs
-      // The tab bar is the page's navigation landmark.
-      tabBar={(props) =>
-        // Web only: on a phone the wrapper would add a screen-reader stop of its own.
-        Platform.OS === 'web' ? (
-          <View role="navigation" aria-label="Sections">
-            <BottomTabBar {...props} />
-          </View>
-        ) : (
-          <BottomTabBar {...props} />
-        )
-      }
+      screenLayout={({ children }) => <InactiveScreenHidden>{children}</InactiveScreenHidden>}
+      // The tab bar is the page's navigation landmark. On web it is navigation (a nav of buttons with aria-current), not ARIA tabs (#1409).
+      tabBar={(props) => (Platform.OS === 'web' ? <NavTabBar {...props} /> : <BottomTabBar {...props} />)}
       screenOptions={{
         // Each screen draws its own heading, so the navigator's header would show the title twice.
         headerShown: false,
         sceneStyle: { backgroundColor: c.bg, paddingTop: insets.top },
-        // 8.7: brand on light, link-dark on dark; the focus token is exactly that pair.
+        // Active = the brand signal (lime on the dark identity); inactive = the readable secondary text.
         tabBarActiveTintColor: c.focus,
         tabBarInactiveTintColor: c.muted,
         tabBarButton: (props) => <TabButton {...props} />,
         tabBarLabelPosition: 'below-icon',
-        tabBarLabelStyle: { ...type.small, lineHeight: 16 },
+        tabBarLabelStyle: { ...type.small, fontWeight: '700', lineHeight: 16 },
         tabBarStyle: {
           backgroundColor: c.surfaceElevated,
           borderTopColor: c.line,
           borderTopWidth: 1,
           height: TAB_BAR_HEIGHT + insets.bottom,
           paddingBottom: insets.bottom,
+          paddingHorizontal: side,
         },
       }}
     >

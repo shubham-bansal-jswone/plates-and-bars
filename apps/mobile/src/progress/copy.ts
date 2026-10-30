@@ -1,5 +1,5 @@
 import measuresContent from '../../../../content/measures.json';
-import { RAPID_LOSS_KCAL, type MeasureKey } from '@plate-and-bar/core';
+import { KCAL_PER_KG, KCAL_PER_LB, RAPID_LOSS_KCAL, type MeasureKey, type SeriesRange, type WeightUnit } from '@plate-and-bar/core';
 import { contentReader, isObj, isStr, isTrimmedText, perLoad } from '../content/reader';
 
 /** One tape measure from content/measures.json. */
@@ -50,9 +50,11 @@ export const getMeasures: () => readonly MeasureDef[] = perLoad(() =>
 
 // Messages from the prototype's Progress screen.
 export const WEIGHT_HINT = 'Weigh in each morning before eating. Day-to-day swings of a kilo are normal; the weekly direction is what counts.';
-export const WEIGHT_BAD = 'Enter your weight in kg, like 81.6';
+export const WEIGHT_BAD = (unit: WeightUnit = 'kg'): string => `Enter your weight in ${unit}, like ${unit === 'lb' ? '180.2' : '81.6'}`;
 export const MEASURE_NONE = 'Enter at least one measurement in cm.';
-export const HOW_TO_MEASURE = 'Measure in the morning before eating, relaxed and not sucking in. Waist: around the navel. Neck: just below the Adam’s apple. Hips: the widest point. Keep the tape level and snug, not tight. Every 1–2 weeks is plenty.';
+export const HOW_TO_MEASURE = 'Measure in the morning before eating, relaxed and not sucking in. Waist: around the navel. Neck: just below the Adam’s apple. Keep the tape level and snug, not tight. Every 1–2 weeks is plenty.';
+/** Added to HOW_TO_MEASURE only where the Hips field shows. */
+export const HOW_TO_MEASURE_HIPS = 'Hips: the widest point.';
 export const BF_HINT = (hips: boolean): string =>
   `From the US Navy formula using your waist, neck${hips ? ', hips' : ''} and height. It’s usually within a few percent; the trend matters more than the number.`;
 export const BF_MISSING = (hips: boolean): string => `Add waist and neck${hips ? ' and hips' : ''} for a body-fat estimate.`;
@@ -60,8 +62,24 @@ export const BF_NO_PROFILE = 'Run setup (Targets tab) and add waist and neck for
 export const STEPS_BAD = 'Enter steps as a whole number, like 8000.';
 export const SLEEP_BAD = 'Enter hours slept, like 7.5.';
 export const TREND_NONE = 'Log a few weigh-ins to see your trend line here.';
-export const SCALE_JUMP_TITLE = (kg: number): string => `The scale went up ${kg} kg`;
+export const WAIST_TREND_NONE = 'Log a few waist measurements to see your trend line here.';
+export const RECENT_WEIGH_INS_TITLE = 'Recent weigh-ins';
+export const SCALE_JUMP_TITLE = (amount: string, unit: WeightUnit = 'kg'): string => `The scale went up ${amount} ${unit}`;
 export const SCALE_JUMP_BODY = 'That’s almost certainly water, not fat. Your weekly average is what counts.';
+
+// Chart range control and table alternative (#1351 A1).
+export const RANGE_LABEL: Readonly<Record<SeriesRange, string>> = { '4w': '4 weeks', '12w': '12 weeks', all: 'All' };
+export const RANGE_NO_DATA = (range: SeriesRange): string => `${RANGE_LABEL[range]}: not enough data`;
+export const RANGE_OFF_LABEL = (range: SeriesRange): string => `${RANGE_LABEL[range]}, not enough data`;
+export const RANGE_GROUP = (noun: string): string => `${noun} range`;
+export const CHART_TARGET = (value: string, unit: string): string => `Target ${value} ${unit}`;
+export const TABLE_SHOW = 'Show as table';
+export const TABLE_HIDE = 'Hide table';
+export const TABLE_SHOW_ALL = 'Show all';
+export const TABLE_SHOW_RECENT = (n: number): string => `Show last ${n}`;
+export const TABLE_DATE = 'Date';
+export const TABLE_LABEL = (noun: string): string => `${noun}: table, newest first`;
+export const TREND_SUMMARY = (noun: string, first: number, last: number, unit: string): string => `${noun} from ${first} to ${last} ${unit}`;
 
 // Weekly check-in, burn card and habits (prototype `renderCheckin`, `consistencyHtml`).
 export const CHECKIN_TITLE = 'Weekly check-in';
@@ -69,6 +87,8 @@ export const CHECKIN_NEEDS_SETUP = 'Run setup (Targets tab) to see your weekly c
 export const WEIGHT_WEEK_NONE = 'Weight: log at least 3 weigh-ins a week to see your weekly trend.';
 export const BURN_TITLE = 'Calorie burn from your real data';
 export const BURN_HOW = 'If you eat about the same each day and your weight trend changes, the difference shows your real burn: about 7,700 kcal equals 1 kg of body weight. This is usually more accurate than any formula or fitness tracker. It’s smoothed week to week so one odd week doesn’t swing your targets.';
+/** The same note for an lb user: it uses core's `KCAL_PER_LB` (3,500) in place of the kg figure. */
+export const BURN_HOW_LB = BURN_HOW.replace(`about ${KCAL_PER_KG.toLocaleString('en-US')} kcal equals 1 kg`, `about ${KCAL_PER_LB.toLocaleString('en-US')} kcal equals 1 lb`);
 export const NOT_NOW = 'Not now';
 export const STOP_SUGGESTING = 'Stop suggesting this';
 export const KEEP_TARGETS = 'Keep current targets';
@@ -81,15 +101,87 @@ export const SETTINGS_UNREADABLE = 'Couldn’t read your saved settings, so chan
 
 // "Seven days to <date>", the last block of prototype `renderProgress`.
 export const WEEK_TITLE = (date: string): string => `Seven days to ${date}`;
+export const WEEK_CURRENT = 'The last 7 days up to today, whichever day you are viewing.';
 export const WEEK_LOADING = 'Loading…';
 export const WEEK_TRAINED = 'trained';
 export const WEEK_NOT_LOGGED = 'not logged';
 export const WEEK_AVG_KCAL = 'avg kcal';
 export const WEEK_AVG_PROTEIN = 'avg protein';
 export const WEEK_SESSIONS = 'sessions';
-export const WEEK_TARGET_HINT = 'The dark line on each bar is your calorie target.';
+export const WEEK_TARGET_HINT = 'The thin vertical line on each bar is your calorie target.';
 
 // Rapid-loss card (prototype `calorieCard`).
 export const RAPID_TITLE = 'Weight is dropping fast';
-export const RAPID_BODY = (drop: number, twoWeeks: boolean, stalls: number): string =>
-  `Your weekly average fell about ${drop} kg${twoWeeks ? ', faster than 1% of your bodyweight a week for 2 weeks running' : `, and ${stalls} lifts have stalled`}. Losing faster than about 1% a week makes it harder to keep muscle. Adding about ${RAPID_LOSS_KCAL} kcal a day helps protect muscle.`;
+export const RAPID_BODY = (drop: number, twoWeeks: boolean, stalls: number, unit: WeightUnit = 'kg'): string =>
+  `Your weekly average fell about ${drop} ${unit}${twoWeeks ? ', faster than 1% of your bodyweight a week for 2 weeks running' : `, and ${stalls} lifts have stalled`}. Losing faster than about 1% a week makes it harder to keep muscle. Adding about ${RAPID_LOSS_KCAL} kcal a day helps protect muscle.`;
+
+// Bar chart (#1351 A3).
+export const BAR_NOT_LOGGED = 'Not logged';
+export const BAR_PARTIAL = 'few days logged';
+export const BAR_BELOW = 'Below target';
+export const BAR_TARGET_ROW = (target: string, unit: string): string => `Target ${target} ${unit}`;
+export const BAR_DELTA = (amount: string, unit: string, dir: 'under' | 'over' | 'on'): string => (dir === 'on' ? 'On target' : `${amount} ${unit} ${dir}`);
+export const BAR_WEEK_OF = 'Week of';
+export const BAR_SUMMARY_RANGE = (n: number, from: string, to: string): string => `${n} ${n === 1 ? 'week' : 'weeks'} from ${from} to ${to}`;
+export const BAR_COUNT_BELOW = (n: number): string => `${n} below target`;
+export const BAR_COUNT_PARTIAL = (n: number): string => `${n} with few days logged`;
+export const BAR_COUNT_NOT_LOGGED = (n: number): string => `${n} not logged`;
+
+// Eating by week (#1351 A6).
+export const EATING_TITLE = 'Eating by week';
+export const EATING_LOADING = 'Loading…';
+export const EATING_ERROR = 'Couldn’t read your food logs. Open this tab again to retry.';
+export const EATING_EMPTY = 'Log food to see your weekly averages here.';
+export const EATING_NO_TARGET = 'Run setup (Targets tab) to set a calorie target and compare your weeks with it.';
+/** `days` is the logged days the average rests on when that is under 4, else null. */
+export const EATING_HEADLINE = (target: string | null, days: number | null = null): string =>
+  `kcal a day, last 4 weeks${days === null ? '' : `, from ${days} ${days === 1 ? 'day' : 'days'} logged`}${target ? `, target ${target} kcal` : ''}`;
+export const EATING_NONE_RECENT = 'No food logged in the last 4 weeks';
+export const EATING_PROTEIN = (g: string, target: string | null): string => `Protein ${g} g a day${target ? `, target ${target} g` : ''}`;
+export const EATING_CHART_LABEL = 'Average calories by week';
+export const EATING_NOUN = 'Calories';
+export const EATING_VALUE_HEADER = 'Average a day';
+export const EATING_HOLLOW_HINT = 'Hollow bar: few days logged. Gap: no food logged that week.';
+
+// Any tape part and the weeks-on-track strip (#1351 A7).
+export const MEASURE_PART_GROUP = 'Measurement part';
+export const MEASURE_TREND_NONE = (part: string): string => `Log a few ${part.toLowerCase()} measurements to see your trend line here.`;
+export const WEEKS_TITLE = 'Weeks on track';
+export const WEEKS_COUNT = (on: number, of: number): string => `${on} of the last ${of} weeks on track`;
+export const WEEKS_EMPTY = 'Your weeks on track will show here after your first full week of workouts.';
+
+export const MILESTONES_TITLE = 'Milestones';
+/** One gentle line: no locked entries, no promise of a date. */
+export const MILESTONES_EMPTY = 'Milestones you earn will show up here.';
+
+// Training volume (Progress, A5 of #1351)
+export const VOL_TITLE = 'Training volume';
+export const VOL_MUSCLE_GROUP = 'Muscle';
+export const VOL_ERROR = 'Couldn’t read your training volume. It will try again when you come back to this tab.';
+export const VOL_EMPTY = 'Finish a workout to see weekly sets against your plan.';
+export const VOL_CHART_LABEL = (muscle: string): string => `${muscle}: done sets by week`;
+export const VOL_THIS_WEEK = 'this week';
+export const VOL_WEEK_OF = (date: string): string => `in the week of ${date}`;
+export const VOL_HEADLINE = (muscle: string, sets: string, target: string | null, when: string): string =>
+  target === null ? `${muscle} ${sets} sets ${when}` : `${muscle} ${sets} of about ${target} sets ${when}`;
+export const VOL_PLAN_LINE = (target: string): string => `Your current plan: about ${target} sets a week`;
+export const VOL_PLAN_NOTE = 'The line is your plan today, drawn across every week. Earlier weeks may have followed a different plan.';
+export const VOL_PLAN_ROW = (target: string, unit: string): string => `Your current plan: ${target} ${unit}`;
+export const VOL_BELOW_PLAN = 'Below your current plan';
+export const VOL_COUNT_BELOW_PLAN = (n: number): string => `${n} below your current plan`;
+export const VOL_MUSCLE_NONE = (muscle: string): string => `No ${muscle.toLowerCase()} sets in the last 12 weeks. The chart shows up once you log some.`;
+export const VOL_NO_SETUP = 'Run setup (Targets tab) to see your plan’s weekly sets as a line.';
+export const VOL_NO_MUSCLE_TARGET = (muscle: string): string => `Your current plan has no sets for ${muscle.toLowerCase()}.`;
+export const VOL_RANK_TITLE = 'All muscles, weekly average';
+export const VOL_AVG_NOTE = 'Average of your last 4 complete weeks against your current plan, lowest first. Under 6 sets a week is marked low.';
+export const VOL_AVG_NOTE_FEW = (n: number): string => `Average of your ${n} complete ${n === 1 ? 'week' : 'weeks'} so far; it settles after 4. Lowest first. Under 6 sets a week is marked low.`;
+export const VOL_NO_FULL_WEEK = 'Averages start after your first complete week of workouts (Monday to Sunday).';
+export const VOL_LOW = 'Low';
+export const VOL_ROW_OF = (avg: string, target: string): string => `${avg} of ${target}`;
+export const VOL_ROW_LABEL = (muscle: string, avg: string, target: string | null, below: boolean, low: boolean): string =>
+  `${muscle}, average ${avg} sets a week${target === null ? '' : `, your current plan about ${target}`}${below ? ', below your plan' : ''}${low ? ', low' : ''}`;
+export const VOL_SHOW_ALL = 'Show all';
+export const VOL_SHOW_FEWER = 'Show fewer';
+
+/** Shown text: a number and its unit joined by a non-breaking space, so a wrapped line never leaves the unit alone (#1409). The spoken label keeps plain spaces. */
+export const unitTogether = (text: string): string => text.replace(/(\d) (kg|lb)\b/g, '$1\u00a0$2');

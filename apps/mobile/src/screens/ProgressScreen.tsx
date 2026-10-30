@@ -1,24 +1,36 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { WhyLink } from '../why/WhyLink';
 import { DailyRead } from '../why/DailyRead';
 import { useOptionalSettings } from '../state/SettingsProvider';
 import { profileWhyValues } from '../why/values';
 import { StyleSheet, View } from 'react-native';
-import { DEFAULT_KCAL_TARGET, round1, waterRetentionPhase, latestWeight, navyBodyFat, stepsTarget, trendChange, waistSeries, weightSeries, WAIST_CHART_BOX, WEIGHT_CHART_BOX, type MeasureKey } from '@plate-and-bar/core';
+import { DEFAULT_KCAL_TARGET, formatWeight, round1, waterRetentionPhase, bodyweightOn, latestWeight, navyBodyFat, personalRecords, stepsTarget, weightSeries, WEIGHT_CHART_BOX, type MeasureKey } from '@plate-and-bar/core';
 import { useDataVersion } from '../sync/useDataVersion';
 import { useStepsVersion } from '../steps/DeviceStepsProvider';
 import { Text } from '../components/Text';
-import { Heading, Button, Caption, Card, Field, H1, Hint, Page } from '../components/ui';
+import { Heading, Button, Caption, Card, Field, H1, Hint, Page, useWide } from '../components/ui';
 import type { WorkoutDb } from '../db/workouts';
 import { fmt, shortDate } from '../format';
-import { BF_HINT, BF_MISSING, BF_NO_PROFILE, HOW_TO_MEASURE, getMeasures, SCALE_JUMP_BODY, SCALE_JUMP_TITLE, TREND_NONE, WEIGHT_HINT } from '../progress/copy';
+import { BF_HINT, BF_MISSING, BF_NO_PROFILE, HOW_TO_MEASURE, HOW_TO_MEASURE_HIPS, getMeasures, SCALE_JUMP_BODY, RECENT_WEIGH_INS_TITLE, SCALE_JUMP_TITLE, WEIGHT_HINT } from '../progress/copy';
 import { CheckinCard, RapidLossCard } from '../progress/CheckinCard';
+import { RecentWorkouts, WorkoutDay } from '../progress/history/History';
+import { useHistory } from '../progress/history/useHistory';
+import { prLiftsOn } from '../progress/history/logic';
+import { StrengthSection } from '../progress/StrengthSection';
 import { WeekCard } from '../progress/WeekCard';
 import { useCheckin } from '../progress/useCheckin';
-import { TrendChart } from '../progress/TrendChart';
+import { RangedTrend } from '../progress/RangedTrend';
+import { MeasureTrend } from '../progress/MeasureTrend';
+import { EatingByWeek } from '../progress/EatingByWeek';
+import { useWeeklyIntake } from '../progress/useWeeklyIntake';
+import { WeeksOnTrack } from '../progress/WeeksOnTrack';
+import { VolumeSection } from '../progress/VolumeSection';
+import { useProgressSets } from '../progress/useProgressSets';
 import { useProgress } from '../progress/useProgress';
 import { useStoredText } from '../progress/useStoredText';
 import { useProfile } from '../state/ProfileProvider';
+import { useWeightUnit } from '../settings/weightUnit';
+import { weightNumber, weightWithUnit } from '../workout/unitText';
 import { type as typeScale } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { ToastBar } from '../workout/parts';
@@ -40,6 +52,8 @@ interface Props {
 const RECENT_WEIGH_INS = 7;
 const r1 = (n: number): string => round1(n).toString();
 
+const NO_PRS: ReadonlySet<string> = new Set();
+
 /** Progress tab, body data: weight entry, tape measurements with the navy body-fat estimate, and steps and sleep. */
 export function ProgressScreen({ db, now = () => new Date() }: Props) {
   const { status, profile } = useProfile();
@@ -59,30 +73,63 @@ export function ProgressScreen({ db, now = () => new Date() }: Props) {
   const labs = useLabs({ db, today: v.today, notify, reloadKey: dataVersion });
   const ci = useCheckin({ db, date: p.date, weights: p.weights, now, notify, reloadKey: dataVersion });
 
+  // All done sets, read once and shared by Strength and Training volume (not the steps version: a step reading must not re-read every set).
+  const sets = useProgressSets(db, useDataVersion(), settings?.settings.exercise_overrides);
+  const eating = useWeeklyIntake({ db, date: p.date, reloadKey: dataVersion });
+  const hist = useHistory(db, dataVersion);
+  const [openDay, setOpenDay] = useState<string | null>(null);
+  // The day just closed: focus returns to its row.
+  const [closedDay, setClosedDay] = useState<string | null>(null);
+  const opened = openDay ? hist?.sessions.find((s) => s.date === openDay) : undefined;
+
+  // The open day vanished (a sync pulled it away): go back to the page, with focus on where it was.
+  if (openDay && hist && !opened) {
+    setClosedDay(openDay);
+    setOpenDay(null);
+  }
+  // The open day's personal bests: core's `personalRecords` over the shared all-history read, the same rule as the toast and the Recent PRs list (bodyweight from `bodyweightOn` at the viewed date, as the Recent PRs list has it).
+  const dayPrs = useMemo(() => (opened ? prLiftsOn(personalRecords(sets.all, sets.types, bodyweightOn(p.weights, v.date, profile?.weight_kg)), opened.date) : NO_PRS), [opened, sets.all, sets.types, p.weights, v.date, profile?.weight_kg]);
+  const wide = useWide();
   const ready = status === 'ready' && p.ready;
+  const showDay = ready && !!hist && !!opened;
   return (
     <View style={styles.fill}>
       <DateAnnouncer v={v} />
-      <Page>
+      <Page resetKey={openDay} wide={!showDay}>
+        {showDay && hist && opened ? <WorkoutDay session={opened} sessions={hist.sessions} prs={dayPrs} onBack={() => { setClosedDay(openDay); setOpenDay(null); }} /> : null}
+        {/* Hidden, not unmounted, while a day is open: typed weights and the sections' state survive going back. */}
+        <View style={showDay ? styles.hidden : styles.body}>
         {ready ? <H1>Progress</H1> : null}
         <DateBar v={v} />
         {ready ? (
           <>
-            <CheckinCard date={p.date} c={ci} cycleNote={!!cycle.info && waterRetentionPhase(cycle.info)} />
-            <RapidLossCard c={ci} />
-            <DailyRead sex={profile?.sex} values={profile ? profileWhyValues(profile, { date: p.date, flex: settings?.settings.flex, labHold: labs.holdOn }) : undefined} now={now} />
-            <SummaryCard checkin={ci.checkin} profile={profile} />
-            <WeightSection p={p} />
-            <MeasureSection p={p} isToday={v.isToday} />
-            <PhotosSection db={db} date={v.today} weights={p.weights} tapes={p.tapes} notify={notify} />
-            <CycleSection key={`cycle-${v.date}`} cycle={cycle} date={v.date} today={v.today} weights={p.weights} female={profile?.sex === 'female'} notify={notify} />
-            <LabsSection labs={labs} today={v.today} />
-            <StepsSleepSection key={`steps-${p.date}`} p={p} />
-            <WeekCard date={p.date} days={ci.days} kcalTarget={profile?.targets.kcal ?? DEFAULT_KCAL_TARGET} />
+            <View style={wide ? styles.cols : styles.stack}>
+              <View style={wide ? styles.col : styles.stack}>
+                {hist ? <RecentWorkouts sessions={hist.sessions} onOpen={(d) => { setClosedDay(null); setOpenDay(d); }} focusDate={closedDay} /> : null}
+                <CheckinCard date={p.date} c={ci} cycleNote={!!cycle.info && waterRetentionPhase(cycle.info)} />
+                <RapidLossCard c={ci} />
+                <DailyRead sex={profile?.sex} values={profile ? profileWhyValues(profile, { date: p.date, flex: settings?.settings.flex, labHold: labs.holdOn }) : undefined} now={now} />
+                <SummaryCard checkin={ci.checkin} profile={profile} />
+                <StrengthSection sets={sets} date={v.date} weights={p.weights} sessions={ci.sessions} />
+                <WeightSection p={p} />
+              </View>
+              <View style={wide ? styles.col : styles.stack}>
+                <VolumeSection db={db} sets={sets} date={v.date} today={v.today} profile={profile} settings={settings?.settings ?? null} />
+                <MeasureSection p={p} isToday={v.isToday} />
+                <PhotosSection db={db} date={v.today} weights={p.weights} tapes={p.tapes} notify={notify} />
+                <CycleSection key={`cycle-${v.date}`} cycle={cycle} date={v.date} today={v.today} weights={p.weights} female={profile?.sex === 'female'} notify={notify} />
+                <LabsSection labs={labs} today={v.today} />
+                <StepsSleepSection key={`steps-${p.date}`} p={p} />
+                <WeekCard date={v.today} pastDay={!v.isToday} days={ci.weekDays} kcalTarget={profile?.targets.kcal ?? DEFAULT_KCAL_TARGET} />
+                <EatingByWeek days={eating.days} failed={eating.failed} date={p.date} kcalTarget={profile?.targets.kcal ?? DEFAULT_KCAL_TARGET} proteinTarget={profile?.targets.protein_g ?? 0} />
+                <WeeksOnTrack sessions={ci.sessions} date={p.date} profile={profile} />
+              </View>
+            </View>
           </>
         ) : (
           <Hint>Loading…</Hint>
         )}
+        </View>
       </Page>
       <ToastBar message={toast} />
     </View>
@@ -93,45 +140,49 @@ type Progress = ReturnType<typeof useProgress>;
 
 function WeightSection({ p }: { p: Progress }) {
   const c = useTheme();
+  const { unit } = useWeightUnit();
   const mine = p.weights.find((w) => w.date === p.date && !w.deleted_at);
-  const [text, setText] = useState(mine ? r1(mine.weight_kg) : '');
+  // The box shows the stored kg in the display unit; it is read back only when Save weight is pressed, never on its own.
+  const [text, setText] = useStoredText(mine ? formatWeight(mine.weight_kg, unit) : '');
   const latest = latestWeight(p.weights, p.date);
   const recent = p.weights.filter((w) => !w.deleted_at && w.date <= p.date).sort((a, b) => b.date.localeCompare(a.date)).slice(0, RECENT_WEIGH_INS);
-  const series = weightSeries(p.weights, p.date);
-  const change = trendChange(series);
+  const toShown = useCallback((kg: number) => weightNumber(kg, unit), [unit]);
+  const kgSeries = useMemo(() => weightSeries(p.weights, p.date, Infinity), [p.weights, p.date]);
   return (
-    <View style={styles.section}>
+    <Card style={styles.section}>
       <Heading level={2} style={[typeScale.heading, { color: c.ink }]}>Body weight</Heading>
       <View style={styles.inline}>
-        <Field label="Weight in kg" inputMode="decimal" placeholder="kg" value={text} onChangeText={setText} />
-        <Button label="Save weight" onPress={() => p.saveWeightText(text)} />
+        <Field label={`Weight in ${unit}`} inputMode="decimal" placeholder={unit} value={text} onChangeText={setText} />
+        <Button kind="ghost" label="Save weight" onPress={() => p.saveWeightText(text, unit)} />
       </View>
-      {latest !== null ? <Text style={{ color: c.ink }} accessibilityLabel={`Latest weigh-in ${r1(latest)} kg`}>{`Latest: ${r1(latest)} kg`}</Text> : <Hint>Log a few weigh-ins to see them here.</Hint>}
-      {series.length >= 2 ? (
-        <>
-          <TrendChart points={series} box={WEIGHT_CHART_BOX} label={`Weight from ${series[0]?.v} to ${series[series.length - 1]?.v} kg`} />
-          {change ? <Hint>{change.direction === 'none' ? `No change since ${shortDate(change.since)}.` : `${change.direction === 'down' ? 'Down' : 'Up'} ${change.amount} kg since ${shortDate(change.since)}.`}</Hint> : null}
-        </>
-      ) : (
-        <Hint>{TREND_NONE}</Hint>
-      )}
+      {latest !== null ? <Text style={{ color: c.ink }} accessibilityLabel={`Latest weigh-in ${weightWithUnit(latest, unit)}`}>{`Latest: ${weightWithUnit(latest, unit)}`}</Text> : null}
+      <RangedTrend
+        series={kgSeries}
+        end={p.date}
+        convert={toShown}
+        unit={unit}
+        noun="Weight"
+        box={WEIGHT_CHART_BOX}
+        changeLine={(ch) => (ch.direction === 'none' ? `No change since ${shortDate(ch.since)}.` : `${ch.direction === 'down' ? 'Down' : 'Up'} ${ch.amount} ${unit} since ${shortDate(ch.since)}.`)}
+      />
+      {recent.length > 0 ? <Heading level={3} style={[typeScale.label, { color: c.ink }]}>{RECENT_WEIGH_INS_TITLE}</Heading> : null}
       {recent.map((w) => (
-        <Card key={w.date} style={styles.row} accessible accessibilityLabel={`${w.date}, ${r1(w.weight_kg)} kg`}>
-          <Text style={{ color: c.muted }}>{w.date}</Text>
-          <Text style={{ color: c.ink, fontWeight: '700' }}>{`${r1(w.weight_kg)} kg`}</Text>
+        <Card key={w.date} style={[styles.row, { backgroundColor: c.surfaceSoft }]} accessible accessibilityLabel={`${shortDate(w.date)}, ${weightWithUnit(w.weight_kg, unit)}`}>
+          <Text style={{ color: c.muted }}>{shortDate(w.date)}</Text>
+          <Text style={{ color: c.ink, fontWeight: '700' }}>{weightWithUnit(w.weight_kg, unit)}</Text>
         </Card>
       ))}
       <Hint>{WEIGHT_HINT}</Hint>
       <WhyLink id="scale" />
       {p.scaleJump ? (
         <Card accessibilityRole="alert">
-          <Text style={{ color: c.ink, fontWeight: '700' }}>{SCALE_JUMP_TITLE(round1(p.scaleJump.kg))}</Text>
+          <Text style={{ color: c.ink, fontWeight: '700' }}>{SCALE_JUMP_TITLE(formatWeight(p.scaleJump.kg, unit), unit)}</Text>
           <Hint>{SCALE_JUMP_BODY}</Hint>
           <WhyLink id="scale" />
           <Button label="Got it" onPress={p.dismissJump} />
         </Card>
       ) : null}
-    </View>
+    </Card>
   );
 }
 
@@ -146,35 +197,34 @@ function MeasureSection({ p, isToday }: { p: Progress; isToday: boolean }) {
   const shown = MEASURES.filter((m) => m.show === 'always' || hasRule(m) || (m.show.or_entered_that_day && !!mine?.[m.key]));
   const female = profile?.sex === 'female';
   const bf = navyBodyFat(profile, p.tapes, p.date);
-  const waist = waistSeries(p.tapes, p.date);
-  const waistChange = trendChange(waist);
   return (
-    <View style={styles.section}>
+    <Card style={styles.section}>
       <Heading level={2} style={[typeScale.heading, { color: c.ink }]}>Measurements</Heading>
-      {shown.map((m) => (
-        <View key={m.key} style={styles.field}>
-          <Caption>{`${m.label} (cm)`}</Caption>
-          <Field label={`${m.label} in cm`} inputMode="decimal" placeholder="cm" value={text[m.key] ?? ''} onChangeText={(v) => setText({ ...text, [m.key]: v })} />
-        </View>
-      ))}
-      <Button label={isToday ? 'Save for today' : `Save for ${shortDate(p.date)}`} onPress={() => p.saveTape(text)} />
-      {waist.length >= 2 ? (
-        <>
-          <Heading level={3} style={[typeScale.label, { color: c.ink }]}>Waist</Heading>
-          <TrendChart points={waist} box={WAIST_CHART_BOX} label={`Waist from ${waist[0]?.v} to ${waist[waist.length - 1]?.v} cm`} />
-          {waistChange ? <Hint>{waistChange.direction === 'none' ? `No change in waist since ${shortDate(waistChange.since)}.` : `Waist ${waistChange.direction} ${waistChange.amount} cm since ${shortDate(waistChange.since)}.`}</Hint> : null}
-        </>
-      ) : null}
-      {bf !== null ? (
-        <>
-          <Text style={{ color: c.ink, fontWeight: '700' }}>{`Estimated body fat: about ${fmt(bf)}%`}</Text>
-          <Hint>{BF_HINT(female)}</Hint>
-        </>
-      ) : (
-        <Hint>{profile ? BF_MISSING(female) : BF_NO_PROFILE}</Hint>
-      )}
-      <Hint>{`How to measure. ${HOW_TO_MEASURE}`}</Hint>
-    </View>
+      {/* Two to a row where there is room, so five parts are not five full-height rows at 375px. */}
+      <View style={styles.fields}>
+        {shown.map((m) => (
+          <View key={m.key} style={styles.field}>
+            <Caption>{`${m.label} (cm)`}</Caption>
+            <Field style={styles.measureInput} label={`${m.label} in cm`} inputMode="decimal" placeholder="cm" value={text[m.key] ?? ''} onChangeText={(v) => setText({ ...text, [m.key]: v })} />
+          </View>
+        ))}
+      </View>
+      <Button kind="ghost" disabled={!Object.values(text).some((t) => t?.trim())} label={isToday ? 'Save for today' : `Save for ${shortDate(p.date)}`} onPress={() => p.saveTape(text)} />
+      <MeasureTrend
+        tapes={p.tapes}
+        end={p.date}
+        estimate={
+          bf !== null ? (
+            <>
+              <Text style={{ color: c.ink, fontWeight: '700' }}>{`Estimated body fat: about ${fmt(bf)}%`}</Text>
+              <Hint>{BF_HINT(female)}</Hint>
+            </>
+          ) : null
+        }
+        missing={bf === null ? <Hint>{profile ? BF_MISSING(female) : BF_NO_PROFILE}</Hint> : null}
+      />
+      <Hint>{`How to measure. ${HOW_TO_MEASURE}${shown.some((m) => m.key === 'hips_cm') ? ` ${HOW_TO_MEASURE_HIPS}` : ''}`}</Hint>
+    </Card>
   );
 }
 
@@ -183,7 +233,7 @@ function StepsSleepSection({ p }: { p: Progress }) {
   const [steps, setSteps] = useStoredText(p.today?.steps != null ? String(p.today.steps) : ''); // 0 is a real count (#303)
   const [sleep, setSleep] = useStoredText(p.today?.sleep != null ? String(p.today.sleep) : ''); // 0 h is valid (contract 0-24)
   return (
-    <View style={styles.section}>
+    <Card style={styles.section}>
       <Heading level={2} style={[typeScale.heading, { color: c.ink }]}>Steps and sleep</Heading>
       <Field label="Steps today" inputMode="numeric" placeholder="Steps" value={steps} onChangeText={setSteps} />
       <Hint>{`steps today, target about ${fmt(stepsTarget(p.notes, p.date))}`}</Hint>
@@ -192,15 +242,24 @@ function StepsSleepSection({ p }: { p: Progress }) {
       <Field label="Hours slept last night" inputMode="decimal" placeholder="Hours" value={sleep} onChangeText={setSleep} />
       <Hint>hours slept last night (aim for 7–9)</Hint>
       <WhyLink id="sleep" />
-      <Button label="Save steps and sleep" onPress={() => p.saveStepsSleep(steps, sleep)} />
-    </View>
+      <Button kind="ghost" label="Save steps and sleep" onPress={() => p.saveStepsSleep(steps, sleep)} />
+    </Card>
   );
 }
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
+  stack: { gap: 8 },
+  body: { gap: 8 },
+  hidden: { display: 'none' },
   section: { gap: 8, marginTop: 16 },
   inline: { gap: 8 },
-  field: { gap: 4 },
+  fields: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 12, rowGap: 8 },
+  // Fields in a row share a height and sit at the bottom, so a label that wraps pushes its own label up, not the input down.
+  field: { gap: 4, justifyContent: 'flex-end', flexBasis: '45%', minWidth: 130, flexGrow: 1 },
+  // Field's flexGrow would stretch the input to the row's height (the taller field's), not just sit at the bottom.
+  measureInput: { flexGrow: 0 },
+  cols: { flexDirection: 'row', gap: 24, alignItems: 'flex-start' },
+  col: { flex: 1, gap: 8 },
   row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
 });

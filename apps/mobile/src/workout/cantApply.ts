@@ -2,7 +2,7 @@ import { cantSession, type CantDraft, type Exclusion, type LiftRecord, type NewC
 import { newId } from '../db/records';
 import { loadLifts, loadSets, loadWorkout, saveSet, saveWorkout, type WorkoutDb } from '../db/workouts';
 import { getCatalog } from './catalog';
-import { mergeWorkout, stamp, unversioned } from './model';
+import { fixGroups, mergeWorkout, stamp, unversioned } from './model';
 import type { Workout, WorkoutSet } from './types';
 import { inTransaction, type PullDb } from '../db/outbox';
 import { enqueueDay } from './dayQueue';
@@ -45,7 +45,7 @@ export function cantChange(
     return rec;
   });
   return {
-    exercises: res.exercises as Workout['exercises'],
+    exercises: fixGroups(res.exercises as Workout['exercises']),
     sets: all.filter((s) => !s.deleted_at),
     changed: res.changed.map((s) => ({ ...s, updated_at: at })),
     removed: res.removed.map((s) => ({ ...s, updated_at: at, deleted_at: at })),
@@ -67,8 +67,8 @@ export async function persistCant(db: WorkoutDb & PullDb, date: string, base: Wo
   const version = new Map(storedSets.map((s) => [s.id, s.version]));
   const mine = { ...base, exercises: ch.exercises };
   const elsewhere = !!synced && !!stored && !stored.deleted_at && unversioned(stored) !== unversioned(synced);
-  // After a merge the replacement keeps the merge's order (stored list first, this device's new exercises appended), so it
-  // can end up last rather than in the swapped exercise's place. Nothing is lost or brought back; only the order differs.
+  // After a merge the stored list's order wins and this device's new exercises are inserted after their predecessor, so an
+  // unticked swap stays in the replaced exercise's place. Nothing is lost or brought back.
   const row = { ...(elsewhere ? mergeWorkout(synced, mine, stored) : mine), version: stored?.version ?? base.version, updated_at: at };
   // A pick another device already added (same name) keeps that device's sets: this change's blank rows for it would sit
   // beside them and double the exercise (#446). By name alone: its sets may not have been pulled yet (#459). Trade-off: if

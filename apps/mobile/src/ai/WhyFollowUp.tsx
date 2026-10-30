@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Button, ErrorText, Caption, Field, Hint, Note } from '../components/ui';
-import { isBlank } from '../text/blank';
+import { isBlank } from '@plate-and-bar/core';
 import { useAi } from './AiProvider';
 import { AI_COPY, failureMessage } from './copy';
 import { cardTitle } from './cards';

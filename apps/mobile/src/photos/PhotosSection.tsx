@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { SheetModal } from '../components/Sheet';
 import { Image, PanResponder, Platform, ScrollView, StyleSheet, View, type ImageStyle } from 'react-native';
-import { measureAt, round1, weeklyAvg, type MeasurementFacts, type WeighIn } from '@plate-and-bar/core';
+import { measureAt, weeklyAvg, type MeasurementFacts, type WeighIn } from '@plate-and-bar/core';
+import { useWeightUnit } from '../settings/weightUnit';
+import { weightWithUnit } from '../workout/unitText';
 import { Text } from '../components/Text';
-import { Button, Heading, Hint, Note } from '../components/ui';
+import { Button, Card, Heading, Hint, Note, Chip } from '../components/ui';
 import { shortDate } from '../format';
 import { type as typeScale } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
-import { Chip } from '../workout/parts';
 import { CameraDenied, capturePhoto } from './capture';
 import {
   CHECKIN_HOW,
@@ -42,6 +43,7 @@ interface Props {
 
 /** Progress photos on the Progress tab (prototype `renderPhotos`): device only, check-ins, compare, delete. */
 export function PhotosSection({ db, date, weights, tapes, notify }: Props) {
+  const { unit } = useWeightUnit();
   const c = useTheme();
   const ph = usePhotos({ db, date });
   const [sheet, setSheet] = useState(false);
@@ -58,7 +60,7 @@ export function PhotosSection({ db, date, weights, tapes, notify }: Props) {
   const caption = (d: string) => {
     const w = weeklyAvg(weights, d);
     const waist = measureAt(tapes, 'waist_cm', d);
-    return `${shortDate(d)}${w ? `, ${round1(w)} kg` : ''}${waist ? `, waist ${waist.v} cm` : ''}`;
+    return `${shortDate(d)}${w ? `, ${weightWithUnit(w, unit)}` : ''}${waist ? `, waist ${waist.v} cm` : ''}`;
   };
   const del = async (d: string) => {
     if (armed !== d) return setArmed(d);
@@ -72,7 +74,7 @@ export function PhotosSection({ db, date, weights, tapes, notify }: Props) {
   };
 
   return (
-    <View style={styles.section}>
+    <Card style={styles.section}>
       <Heading level={2} style={[typeScale.heading, { color: c.ink }]}>{PHOTOS_TITLE}</Heading>
       <Hint>{persistent ? PHOTOS_HINT_DEVICE : PHOTOS_HINT_WEB}</Hint>
       {!ph.ready ? (
@@ -86,7 +88,7 @@ export function PhotosSection({ db, date, weights, tapes, notify }: Props) {
         <>
           {!persistent ? <Note>{PHOTOS_NO_STORAGE}</Note> : null}
           {ph.staleDays !== null ? <Note>{PHOTOS_STALE(ph.staleDays)}</Note> : null}
-          <Button label={PHOTOS_NEW(ph.hasToday)} onPress={() => setSheet(true)} />
+          <Button kind="ghost" label={PHOTOS_NEW(ph.hasToday)} onPress={() => setSheet(true)} />
           <Compare ph={ph} caption={caption} />
           {ph.thumbs.length ? (
             <>
@@ -107,7 +109,7 @@ export function PhotosSection({ db, date, weights, tapes, notify }: Props) {
           {sheet ? <CheckinSheet ph={ph} notify={notify} onClose={() => setSheet(false)} /> : null}
         </>
       )}
-    </View>
+    </Card>
   );
 }
 

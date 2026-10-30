@@ -15,6 +15,6 @@ v1 pages: landing, privacy policy, terms, account deletion page (required by Goo
 (from `content/ATTRIBUTIONS.md`).
 Privacy policy and terms are drafts for lawyer review under India's DPDP Act 2023. Mark them clearly as drafts
 until Shubham says otherwise.
-Use the prototype's visual identity (colours and type from its `:root` CSS). Free fonts only.
+Use the app's visual identity (`apps/mobile/src/theme/tokens.ts`). Free fonts only.
 Fast, accessible, responsive, light and dark.
 M0 scope: landing page stub with a placeholder privacy policy.

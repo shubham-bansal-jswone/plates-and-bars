@@ -1,6 +1,8 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 import { Modal, Platform } from 'react-native';
 import { PaddedWindow } from './bottomInset';
+import { useTheme } from '../theme/useTheme';
+import { useSheetAnimation } from './reducedMotion';
 
 /** The element that has focus now (what opened a sheet), where there is a DOM. */
 const activeElement = (): HTMLElement | null => (typeof document !== 'undefined' && document.activeElement instanceof HTMLElement ? document.activeElement : null);
@@ -10,15 +12,51 @@ const activeElement = (): HTMLElement | null => (typeof document !== 'undefined'
  * dialog (role, focus trap) active some time after `onShow`, and the trap then focuses the first button: the title takes focus
  * only once the dialog exists and the trap has put focus inside it. Returns whether it did; false means "not yet" (or no DOM).
  */
-export function focusSheetTitle(title: string): boolean {
+export function focusSheetTitle(title: string, ring: string): boolean {
   if (typeof document === 'undefined') return false;
   const dialog = Array.from(document.querySelectorAll('[role="dialog"]')).find((d) => d.getAttribute('aria-label') === title);
   // Unquoted on purpose: the heading-levels guard flags the quoted form as an assignment of the role.
   const heading = dialog?.querySelector<HTMLElement>('[role=heading]');
   if (!dialog || !heading || !dialog.contains(document.activeElement)) return false;
   heading.setAttribute('tabindex', '-1'); // focusable by script, not in the tab order
+  // Only while it has focus: left on, the focus trap's walk would land on the title again at every wrap (#1275). Removed after
+  // the blur has been handled, not during it: the trap's Shift+Tab handler runs right after the blur and, with the title still
+  // focusable, wraps from it to the last control (a sync removal sent the first Shift+Tab forward to the first control).
+  // Kept until the removal happens: if focus is back on the title when the timer fires, the next blur tries again.
+  const onBlur = () => {
+    heading.style.removeProperty('outline');
+    heading.style.removeProperty('outline-offset');
+    setTimeout(() => {
+      if (document.activeElement === heading) return;
+      heading.removeAttribute('tabindex');
+      heading.removeEventListener('blur', onBlur);
+    }, 0);
+  };
+  heading.addEventListener('blur', onBlur);
   heading.focus();
+  // The app's ring (2px, 2px offset) instead of the browser's blue one, and as `:focus-visible` does: not on a mouse open (#1302).
+  if (heading.matches(':focus-visible')) {
+    heading.style.setProperty('outline', `2px solid ${ring}`);
+    heading.style.setProperty('outline-offset', '2px');
+  }
   return true;
+}
+
+// What a browser focuses on its own and what react-native-web marks tabbable (it sets `tabindex`), so a stop on anything else is not a control.
+const FOCUSABLE = 'a[href],area[href],button,input,select,textarea,summary,iframe,audio[controls],video[controls],[contenteditable]';
+
+/**
+ * Chromium lets script focus a scrolling container (the sheet's page ScrollView is `overflow: auto`). react-native-web's focus
+ * trap walks the dialog with `element.focus()` and keeps the first element that accepts it, so on a wrap it stopped on that
+ * unlabelled full-screen div instead of the first or last control, and Shift+Tab then stayed on it (#1275). A focus event on an
+ * element that is neither natively focusable nor given a `tabindex` is such a container: drop focus at once, so the trap's own
+ * check fails and it carries on to the next element (the title takes focus through `tabindex="-1"`, which is allowed).
+ */
+export function refuseScrollerFocus(event: { target: EventTarget | null }): void {
+  const el = event.target;
+  if (typeof HTMLElement === 'undefined' || !(el instanceof HTMLElement)) return;
+  if (el.hasAttribute('tabindex') || el.matches(FOCUSABLE)) return;
+  el.blur();
 }
 
 const TICK_MS = 16;
@@ -31,6 +69,8 @@ const GIVE_UP_TICKS = 125;
  * announced by name, initial focus on that heading on the web, and focus returned to the opener on close.
  */
 export function SheetModal({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
+  const animation = useSheetAnimation();
+  const c = useTheme();
   const opener = useRef<HTMLElement | null | undefined>(undefined);
   if (opener.current === undefined) opener.current = Platform.OS === 'web' ? activeElement() : null; // before the modal takes focus
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -40,6 +80,15 @@ export function SheetModal({ title, onClose, children }: { title: string; onClos
   useEffect(() => {
     titleRef.current = title;
   });
+  // Web only, while the sheet is open (capture: focus does not bubble). Registered after react-native-web's trap, which lives below.
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof document === 'undefined') return;
+    // One function per sheet: the browser keeps a single copy of a listener registered twice with the same function, so a shared
+    // one would be removed for every open sheet when the top one of a stack closes.
+    const guard = (event: Event) => refuseScrollerFocus(event);
+    document.addEventListener('focus', guard, true);
+    return () => document.removeEventListener('focus', guard, true);
+  }, []);
   // Unmount only (not on a title change): give focus back to the opener and cancel a pending title focus.
   useEffect(
     () => () => {
@@ -53,7 +102,7 @@ export function SheetModal({ title, onClose, children }: { title: string; onClos
     if (Platform.OS !== 'web') return;
     clearTimeout(timer.current);
     const attempt = (left: number) => {
-      if (!focusSheetTitle(titleRef.current) && left > 0) timer.current = setTimeout(() => attempt(left - 1), TICK_MS);
+      if (!focusSheetTitle(titleRef.current, c.focus) && left > 0) timer.current = setTimeout(() => attempt(left - 1), TICK_MS);
     };
     attempt(GIVE_UP_TICKS);
   };
@@ -61,7 +110,7 @@ export function SheetModal({ title, onClose, children }: { title: string; onClos
   // modal labelled like the button that opened it would only be a second match for that label).
   const named = (Platform.OS === 'web' ? { 'aria-label': title } : {}) as object;
   return (
-    <Modal visible animationType="slide" onRequestClose={onClose} onShow={onShow} {...named}>
+    <Modal visible animationType={animation} onRequestClose={onClose} onShow={onShow} {...named}>
       <PaddedWindow>{children}</PaddedWindow>
     </Modal>
   );

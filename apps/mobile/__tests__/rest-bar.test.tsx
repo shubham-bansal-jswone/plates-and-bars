@@ -12,18 +12,55 @@ describe('RestBar live region', () => {
     const live = screen.getByTestId('rest-announce');
     expect(live.props.accessibilityLiveRegion).toBe('polite');
     expect(live.props.children).toBe('');
-    expect(screen.getByText('Rest 0:02').props.accessibilityLiveRegion).toBeUndefined();
+    expect(screen.getByLabelText('Rest 0:02').props.accessibilityLiveRegion).toBeUndefined();
 
     await act(async () => { jest.advanceTimersByTime(2500); });
     expect(screen.getByTestId('rest-announce').props.children).toBe('Rest done, go!');
     expect(screen.getByTestId('rest-announce').props.accessibilityLiveRegion).toBe('polite');
   });
 
-  it('draws the track and the fill 8 high, the DESIGN.md 8.5 bar height', async () => {
-    await render(<RestBar rest={{ id: 1, end: Date.now() + 2000, total: 2, label: 'Next: set 2' }} onAdd={() => {}} onSkip={() => {}} />);
-    const fill = screen.getByLabelText(/^Rest \d+% done$/);
-    expect(StyleSheet.flatten(fill.props.style).height).toBe(8);
-    expect(StyleSheet.flatten(fill.parent?.props.style).height).toBe(8);
+  it('caps a long "Next:" line at two lines with an ellipsis and keeps the whole name in the spoken label (#1409)', async () => {
+    const label = `Next: set 2 of ${'Single-arm cable crossover with a long pause at the bottom '.trim()} variation`;
+    await render(<RestBar rest={{ id: 1, end: Date.now() + 5000, total: 5, label }} onAdd={() => {}} onSkip={() => {}} />);
+    const next = screen.getByTestId('rest-next');
+    expect(next.props.numberOfLines).toBe(2);
+    expect(next.props.ellipsizeMode).toBe('tail');
+    expect(next.props.accessibilityLabel).toBe(label);
+    expect(next.props.accessibilityLiveRegion).toBe('polite');
+  });
+
+  it('centres the ring, Next line and buttons as one group in the dock column, which keeps the two-line cap (#1417)', async () => {
+    await render(<RestBar rest={{ id: 1, end: Date.now() + 5000, total: 5, label: 'Next: set 2' }} onAdd={() => {}} onSkip={() => {}} />);
+    const row = screen.getByLabelText('Rest timer');
+    expect(StyleSheet.flatten(row.props.style)).toMatchObject({ justifyContent: 'center', maxWidth: 560 });
+    // The side column wraps its content instead of growing to fill the row, so a short label does not leave the group left of centre.
+    const side = screen.getByTestId('rest-next').parent;
+    expect(StyleSheet.flatten(side?.props.style)).toMatchObject({ flexShrink: 1 });
+    expect(StyleSheet.flatten(side?.props.style).flex).toBeUndefined();
+    expect(screen.getByTestId('rest-next').props.numberOfLines).toBe(2);
+  });
+
+  it('draws a decorative ring with the percentage as its accessible label, 100 wide with a 7 stroke', async () => {
+    await render(<RestBar rest={{ id: 1, end: Date.now() + 1000, total: 2, label: 'Next: set 2' }} onAdd={() => {}} onSkip={() => {}} />);
+    const ring = screen.getByLabelText(/^Rest \d+% done$/);
+    expect(ring).toBeOnTheScreen();
+    const arc = screen.getByTestId('ring-progress');
+    expect(arc.props.strokeWidth).toBe(7);
+    expect(StyleSheet.flatten(ring.parent?.props.style)).toMatchObject({ width: 100, height: 100 });
+  });
+
+  it('shows "Rest done, go!" small enough to sit inside the 100px ring, clear of the stroke (#1144)', async () => {
+    await render(<RestBar rest={{ id: 1, end: Date.now() - 1000, total: 2, label: 'Next: set 2' }} onAdd={() => {}} onSkip={() => {}} />);
+    const style = StyleSheet.flatten(screen.getByTestId('rest-title').props.style);
+    expect(style.fontSize).toBeLessThanOrEqual(14);
+    expect(style.paddingHorizontal).toBeGreaterThanOrEqual(14);
+    // At large system text the label must still fit as three short lines, so the scale is capped.
+    expect(screen.getByTestId('rest-title').props.maxFontSizeMultiplier).toBe(1.5);
+  });
+
+  it('caps text scaling on the countdown too, so it stays in the ring (#1144)', async () => {
+    await render(<RestBar rest={{ id: 1, end: Date.now() + 5000, total: 5, label: 'Next: set 2' }} onAdd={() => {}} onSkip={() => {}} />);
+    expect(screen.getByTestId('rest-title').props.maxFontSizeMultiplier).toBe(1.5);
   });
 
   it('hides the live region visually only: 1x1, negative margin, transparent, not touchable, and never display none', async () => {
@@ -53,7 +90,7 @@ describe('RestBar live region', () => {
       await rest();
       // While counting, the visible time stays readable.
       expect(screen.getByTestId('rest-title').props['aria-hidden']).toBeUndefined();
-      expect(screen.getByText('Rest 0:02')).toBeOnTheScreen();
+      expect(screen.getByLabelText('Rest 0:02')).toBeOnTheScreen();
 
       await act(async () => { jest.advanceTimersByTime(2500); });
       expect(screen.getByTestId('rest-title', { includeHiddenElements: true }).props['aria-hidden']).toBe(true);
@@ -89,7 +126,7 @@ describe('RestBar live region', () => {
       expect(announce).toHaveBeenCalledTimes(1);
       await view.rerender(<RestBar rest={{ id: 1, end: Date.now() + 2000, total: 32, label: 'Next: set 2' }} onAdd={() => {}} onSkip={() => {}} />);
       await act(async () => { jest.advanceTimersByTime(600); });
-      expect(screen.getByText(/^Rest 0:0/)).toBeOnTheScreen();
+      expect(screen.getByLabelText(/^Rest 0:0/)).toBeOnTheScreen();
       await act(async () => { jest.advanceTimersByTime(2500); });
       expect(announce).toHaveBeenCalledTimes(2);
     });

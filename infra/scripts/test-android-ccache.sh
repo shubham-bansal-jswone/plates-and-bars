@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # Checks the ccache rules of android-release.yml: the size cap is 2G in both places that set it, the cache is saved only on
-# main and never on a pull request, and the job that deletes old ccache entries (the only one with `actions: write`) never
-# runs on a pull request, runs only on main after a green build, and keeps only the newest entry. The job's `if:` must equal the exact intended expression.
+# main or design-overhaul and never on a pull request, and the job that deletes old ccache entries (the only one with `actions: write`) never
+# runs on a pull request, runs only on main or design-overhaul after a green build, and keeps only the newest entry. The job's `if:` must equal the exact intended expression.
 # Run from anywhere: infra/scripts/test-android-ccache.sh
 set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
 root="$(cd "$here/../.." && pwd)"
 python3 -I - "$root/.github/workflows/android-release.yml" <<'PY'
-import sys, yaml
+import re, sys, yaml
 
 wf = yaml.safe_load(open(sys.argv[1]))
 bad = []
@@ -39,13 +39,40 @@ saves = [s for s in steps if str(s.get("uses", "")).startswith("actions/cache/sa
 check(len(saves) == 1, "expected exactly one cache save step")
 for s in saves:
     cond = s.get("if", "")
-    check("github.event_name != 'pull_request'" in cond and "github.ref == 'refs/heads/main'" in cond,
-          "the ccache save must be limited to non-PR runs on main")
+    check("github.event_name != 'pull_request'" in cond and "github.ref == 'refs/heads/main'" in cond
+          and "github.ref == 'refs/heads/design-overhaul'" in cond,
+          "the ccache save must be limited to non-PR runs on main or design-overhaul")
+
+# design-overhaul PUSHES must run unsigned: no environment (the push would run the PR fast path) and no secret or variable.
+# Manual runs on design-overhaul behave like main (environment, secrets, all ABIs). Evaluate each guard for the cases.
+def ev(expr, event, ref):
+    py = str(expr).strip()[3:-2].strip().replace("&&", " and ").replace("||", " or ").replace("!(", "not (")
+    py = py.replace("github.event_name", "EVENT").replace("github.ref", "REF")
+    py = re.sub(r"(secrets|vars)\.\w+|'android-release'", "'V'", py)
+    return eval(py, {"EVENT": event, "REF": ref})  # our own workflow expression, not external input
+
+def guard_cases(label, expr):
+    check(ev(expr, "pull_request", "refs/pull/1/merge") == "", f"{label}: must be blank on pull requests")
+    check(ev(expr, "push", "refs/heads/design-overhaul") == "", f"{label}: must be blank on design-overhaul pushes")
+    check(ev(expr, "workflow_dispatch", "refs/heads/design-overhaul") == "V", f"{label}: must be kept on manual runs of design-overhaul")
+    check(ev(expr, "push", "refs/heads/main") == "V", f"{label}: must be kept on pushes to main")
+
+build = wf["jobs"]["build"]
+guard_cases("build environment", build.get("environment", ""))
+# the website origin is public and already reaches PR runs unguarded; everything else is a secret or an environment variable
+PUBLIC = {"SITE_URL_CHECK", "EXPO_PUBLIC_SITE_URL"}
+guarded = [(k, v) for st in steps for k, v in (st.get("env") or {}).items() if ("secrets." in str(v) or "vars." in str(v)) and k not in PUBLIC]
+check(len(guarded) > 0, "no secret/variable guards found")
+for k, v in guarded:
+    guard_cases(k, v)
+gradle = [st.get("run", "") for st in steps if "gradlew assembleRelease" in st.get("run", "")]
+check(len(gradle) == 1 and "$GITHUB_EVENT_NAME\" = push ] && [ \"$GITHUB_REF\" = refs/heads/design-overhaul" in gradle[0],
+      "the Gradle step must build arm64 only on design-overhaul pushes (not manual runs)")
 
 if prune:
     cond = prune.get("if", "")
     norm = " ".join(str(cond).replace("${{", "").replace("}}", "").split())
-    want = "github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && needs.build.result == 'success'"
+    want = "github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/design-overhaul') && needs.build.result == 'success'"
     check(norm == want, f"ccache-prune if: must be exactly: {want} (got: {norm})")
     check(prune.get("needs") == "build", "ccache-prune must need the build job")
     check(prune.get("permissions") == {"actions": "write"}, "ccache-prune permissions must be exactly actions: write")
@@ -54,6 +81,7 @@ if prune:
     check("--sort created_at --order desc" in run, "ccache-prune must sort newest first")
     check(all(st.get("shell") == "bash" for st in prune["steps"] if "gh cache list" in st.get("run", "")),
           "the step running gh cache list must set shell: bash (pipefail)")
+    check('gh cache list --ref "$GITHUB_REF"' in run, "ccache-prune must list only the running branch's entries")
     check("gh cache delete" in run, "ccache-prune must delete with gh cache delete")
     check(not any(str(s.get("uses", "")).startswith("actions/checkout") for s in prune["steps"]),
           "ccache-prune needs no checkout")

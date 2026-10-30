@@ -82,6 +82,18 @@ describe('How-to sheet (#823)', () => {
   });
 });
 
+describe('library detail list styles (#1126)', () => {
+  it('numbers a one-step Setup, bullets the cues, leaves Breathing plain', async () => {
+    const e = getLibrary().find((x) => x.name === 'Standing Barbell Press')!;
+    expect(e.card!.setup).toHaveLength(1);
+    await render(<ExerciseDetail exercise={e} onBack={() => {}} />);
+    expect(screen.getByText(`1. ${e.card!.setup[0]}`)).toBeTruthy();
+    expect(screen.getByText(`\u2022 ${e.card!.key_cues[0]}`)).toBeTruthy();
+    expect(screen.getByRole('header', { name: 'Where you should feel it' })).toBeTruthy();
+    if (e.card!.breathing) expect(screen.getByText(e.card!.breathing)).toBeTruthy();
+  });
+});
+
 describe('Vibration (#823)', () => {
   let vibrate: jest.SpyInstance;
   beforeEach(() => {

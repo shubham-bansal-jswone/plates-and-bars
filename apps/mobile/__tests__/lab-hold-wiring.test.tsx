@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { expand, press, pressDay } from './disclosure-helpers';
 import { kcalTarget, planFlex, undoFlex } from '@plate-and-bar/core';
 import { FoodScreen } from '../src/screens/FoodScreen';
 import { WorkoutScreen } from '../src/screens/WorkoutScreen';
@@ -201,7 +202,7 @@ describe('before the stored hold has been read', () => {
 });
 
 describe('the hold reaches a second session and a seeded pick session', () => {
-  const press = (label: string) => fireEvent.press(screen.getByLabelText(label));
+  
   const sets = (db: ReturnType<typeof memoryDb>) => {
     const n: Record<string, number> = {};
     for (const s of db.sets.values()) {
@@ -226,6 +227,7 @@ describe('the hold reaches a second session and a seeded pick session', () => {
     await press('Start Push B');
     await screen.findByText('Push B');
     for (const n of ['Barbell Bench Press', 'Machine Shoulder Press', 'Pec Deck Fly', 'Cable Lateral Raise', 'Overhead Cable Extension']) {
+      await expand(n);
       await fireEvent.changeText(screen.getByLabelText(`${n} set 1 kg`), '20');
       await fireEvent.changeText(screen.getByLabelText(`${n} set 1 reps`), '10');
       await press(`Mark ${n} set 1 done`);
@@ -247,8 +249,8 @@ describe('the hold reaches a second session and a seeded pick session', () => {
 
   async function seededPick(hold: boolean) {
     const db = await mount(hold);
-    await press('Choose Pull A');
-    await press('Pick exercises');
+    await pressDay('Choose Pull A');
+    await pressDay('Pick exercises');
     await press('Start these exercises');
     await screen.findByText('Pull A');
     return { w: stored(db), max: Math.max(...Object.values(sets(db))) };
@@ -258,6 +260,25 @@ describe('the hold reaches a second session and a seeded pick session', () => {
     const { w, max } = await seededPick(true);
     expect(w.mods.light).toBe(true);
     expect(max).toBeLessThanOrEqual(2);
+  });
+
+  it('the hold note shows for a seeded pick and is hidden for a hand-picked one', async () => {
+    await mount(true);
+    expect(screen.getByText(labs.workout_note)).toBeTruthy();
+    await pressDay('Choose Pull A');
+    await pressDay('Pick exercises');
+    expect(screen.getByText(labs.workout_note)).toBeTruthy(); // seeded from Pull A: keeps the hold
+  });
+
+  it('a hand-picked session (no seed) has no lab hold, no note, and its mods.light stays off', async () => {
+    const db = await mount(true);
+    await pressDay('Pick exercises');
+    await press('Add Barbell Bench Press');
+    expect(screen.queryByText(labs.workout_note)).toBeNull();
+    await press('Start this exercise');
+    await screen.findByText('Session');
+    expect(stored(db).mods.light).toBeFalsy();
+    expect(Math.max(...Object.values(sets(db)))).toBeGreaterThan(2);
   });
 
   it('control: without the hold a seeded pick session is normal', async () => {

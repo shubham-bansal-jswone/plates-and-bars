@@ -26,21 +26,42 @@ jest.mock('expo-router', () => {
 jest.mock('expo-router/tabs', () => ({ BottomTabBar: () => null }));
 jest.mock('react-native-safe-area-context', () => ({ useSafeAreaInsets: () => ({ top: 24, bottom: 20, left: 0, right: 0 }) }));
 const mockScreens: MockScreen[] = [];
+const fakeBar = (index: number) => ({
+  state: { index, routes: ['index', 'workout'].map((name) => ({ key: name, name })) },
+  descriptors: { index: { options: { title: 'Food' } }, workout: { options: { title: 'Workout' } } },
+  emitter: { emit: () => ({ defaultPrevented: false }) },
+  navigateToTab: () => undefined,
+}) as never;
 
 describe('tab bar', () => {
+  afterEach(() => jest.restoreAllMocks());
+
   beforeEach(async () => {
     mockScreens.length = 0;
     mockTabs.mockClear();
     await render(<TabsLayout />);
   });
 
-  it('is 56 plus the bottom safe area, labels below 24px icons, and hides the duplicate header', () => {
+  it('is 60 plus the bottom safe area, labels below 24px icons, and hides the duplicate header', () => {
     const o = mockTabs.mock.calls[0][0].screenOptions;
-    expect(o.tabBarStyle).toMatchObject({ height: 76, paddingBottom: 20, borderTopWidth: 1 });
+    expect(o.tabBarStyle).toMatchObject({ height: 80, paddingBottom: 20, borderTopWidth: 1 });
     expect(o.tabBarLabelPosition).toBe('below-icon');
     expect(o.headerShown).toBe(false);
     expect(o.tabBarActiveTintColor).toBe('#2457E6');
     expect(o.sceneStyle).toMatchObject({ paddingTop: 24 });
+  });
+
+  it('keeps the tab items in the content column: 560 wide on a tablet, 1040 on a wide screen, the full width on a phone', async () => {
+    const side = async (width: number) => {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports -- spy on the module object the layout reads from
+      jest.spyOn(require('react-native'), 'useWindowDimensions').mockReturnValue({ width, height: 800, scale: 1, fontScale: 1 });
+      mockTabs.mockClear();
+      await render(<TabsLayout />);
+      return mockTabs.mock.calls[0][0].screenOptions.tabBarStyle.paddingHorizontal;
+    };
+    expect(await side(390)).toBe(0);
+    expect(await side(768)).toBe(104);
+    expect(await side(1280)).toBe(120);
   });
 
   it('gives each tab a 24px icon, filled when active and outlined when not', () => {
@@ -54,16 +75,17 @@ describe('tab bar', () => {
     }
   });
 
-  it('puts the tab bar in a navigation landmark', async () => {
+  it('puts the tab bar in a navigation landmark: web draws the nav bar, native keeps the stock bar', async () => {
     const bar = mockTabs.mock.calls[0][0].tabBar;
     const os = Platform.OS;
     try {
       Platform.OS = 'web';
-      await render(bar({}));
-      expect(JSON.stringify(screen.toJSON())).toContain('"role":"navigation"');
+      await render(bar(fakeBar(0)));
+      expect(screen.getByLabelText('Sections').props.role).toBe('navigation');
+      expect(JSON.stringify(screen.toJSON())).not.toContain('tablist');
       await screen.unmount();
       Platform.OS = 'android';
-      await render(bar({}));
+      await render(bar(fakeBar(0)));
       expect(JSON.stringify(screen.toJSON())).not.toContain('navigation');
     } finally {
       Platform.OS = os;

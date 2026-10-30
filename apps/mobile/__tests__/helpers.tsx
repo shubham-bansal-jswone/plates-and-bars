@@ -18,12 +18,19 @@ export function memoryDb(): WorkoutDb & PullDb & { rows: Map<string, string>; se
     hold: undefined as undefined | ((sql: string) => Promise<void> | undefined),
     async getAllAsync<T>(sql: string, ...p: (string | number)[]) {
       if (sql.includes('FROM workout_sets WHERE workout_date')) return [...sets.values()].filter((s) => s.date === p[0]).map((s) => ({ data: s.data })) as T[];
+      if (sql.includes('SELECT workout_date, data FROM workout_sets')) {
+        // Per-exercise reads (not DONE_SETS_SQL) are unordered here: no caller depends on their order.
+        const all = sql.includes('workout_date >= ?'); // DONE_SETS_SQL: every exercise, between the date bounds, oldest day first
+        const live = (d: string) => { const w = rows.get(`workouts:${d}`); return w !== undefined && ((JSON.parse(w) as { deleted_at?: string | null }).deleted_at ?? null) === null; };
+        return [...sets.values()].filter((s) => s.kind === 'work' && s.done === 1 && s.deleted === 0 && live(s.date) && (all ? s.date >= String(p[0]) && s.date <= String(p[1]) : (JSON.parse(s.data) as { exercise: string }).exercise === p[0])).sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0)).map((s) => ({ workout_date: s.date, data: s.data })) as T[];
+      }
       if (sql.includes('GROUP BY workout_date')) {
         const n = new Map<string, number>();
         for (const s of sets.values()) if (s.kind === 'work' && s.done === 1 && s.deleted === 0) n.set(s.date, (n.get(s.date) ?? 0) + 1);
         return [...n].map(([workout_date, c]) => ({ workout_date, n: c })) as T[];
       }
       if (sql.includes('FROM water_logs WHERE log_date')) return [...rows].filter(([k, d]) => k.startsWith('water_logs:') && (JSON.parse(d) as { date: string }).date === p[0]).map(([, data]) => ({ data })) as T[];
+      if (sql.includes('FROM food_logs WHERE log_date >=')) return [...rows].filter(([k, d]) => k.startsWith('food_logs:') && (JSON.parse(d) as { date: string }).date >= String(p[0]) && (JSON.parse(d) as { date: string }).date <= String(p[1])).map(([, data]) => ({ data })) as T[];
       if (sql.includes('FROM food_logs WHERE log_date')) return [...rows].filter(([k, d]) => k.startsWith('food_logs:') && (JSON.parse(d) as { date: string }).date === p[0]).map(([, data]) => ({ data })) as T[];
       const table = /FROM (\w+)/.exec(sql)![1];
       return [...rows].filter(([k]) => k.startsWith(`${table}:`)).map(([k, data]) => ({ key: k.slice(table!.length + 1), data })) as T[];
@@ -72,3 +79,23 @@ export function memoryDb(): WorkoutDb & PullDb & { rows: Map<string, string>; se
 export const withProfile = (db: WorkoutDb & PullDb, ui: ReactNode) => <ProfileProvider db={db}>
     <SettingsProvider db={db}>{ui}</SettingsProvider>
   </ProfileProvider>;
+
+/**
+ * Lines of source text that hard-code kg as user-visible text (#1185): kg inside a string literal or as JSX text. Comments, `${...}` parts,
+ * the unit value `'kg'` (defaults and comparisons), a "g per kg" nutrition ratio, and the kg-only `BURN_HOW` note and its lb twin are allowed.
+ */
+export function hardCodedKg(text: string): string[] {
+  return text
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .split('\n')
+    .filter((l) => !l.trim().startsWith('//') && !l.startsWith('export const BURN_HOW'))
+    .map((l) =>
+      l
+        .replace(/\s\/\/.*$/, '')
+        .replace(/\$\{[^}]*\}/g, '')
+        .replace(/(unit(?:: WeightUnit)?\s*(?:=|!==|===)\s*)'kg'/g, '$1UNIT')
+        .replace(/\bg per kg\b/g, 'g per UNIT')
+        .replace(/weightError\('kg'\)/g, ''),
+    )
+    .filter((l) => (l.match(/(['"`])(?:(?!\1).)*\1/g) ?? []).some((q) => /\bkg\b/i.test(q)) || /(\}\s*kg\b)|(>\s*kg\b)/i.test(l));
+}

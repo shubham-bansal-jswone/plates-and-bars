@@ -1,20 +1,20 @@
 import { useCallback, useEffect, useState } from 'react';
+import { Skeleton } from '../components/Skeleton';
 import { WhyLink } from '../why/WhyLink';
 import { useFocusEffect } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 import { Text } from '../components/Text';
-import { addDays, coverageRows, doneCoverage, focusPicker, plannedCoverage, toggleFocus, FOCUS_MAX, type CoverageDay, type CoverageRow, type WeekPlan } from '@plate-and-bar/core';
+import { COVER_LOW, addDays, coverageRows, doneCoverage, focusPicker, plannedCoverage, toggleFocus, FOCUS_MAX, type CoverageDay, type CoverageRow, type WeekPlan } from '@plate-and-bar/core';
 import { loadSets, loadWorkout, loadLifts, type WorkoutDb } from '../db/workouts';
 import { loadExclusions, loadSwaps } from '../db/rules';
 import { fmt } from '../format';
-import { Hint, Label } from '../components/ui';
+import { Hint, Label, Chip } from '../components/ui';
 import type { Profile } from '../setup/types';
 import type { Settings } from '../settings/types';
 import { radius } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { getCatalog } from '../workout/catalog';
 import { listJoin, muscleName } from '../workout/copy';
-import { Chip } from '../workout/parts';
 import { dayQueue, dayWrites } from '../workout/dayQueue';
 import { freshRead } from '../state/freshRead';
 import { useDataVersion } from '../sync/useDataVersion';
@@ -93,20 +93,22 @@ export function CoverageSection({ db, profile, settings, today }: { db: WorkoutD
   return (
     <View style={styles.gap}>
       {failed ? <Hint>Couldn’t read your coverage.</Hint> : null}
-      {!rows && !failed ? <Hint>Loading…</Hint> : null}
+      {!rows && !failed ? <Skeleton heights={[72]} /> : null}
       {rows ? (
         <>
           <Meter title="Weekly coverage: your plan" rows={rows.planned} />
           <Hint>Approximate hard sets per week from your plan, counting secondary muscles as half. Around 10 is a good target for most muscles; under 6 is flagged.</Hint>
           <WhyLink id="volume" />
-          <Meter title="Done in the last 7 days" rows={rows.done} />
+          <Hint>{`Bars: grey is planned, coloured is done. A low count (under ${COVER_LOW} sets) shows in orange.`}</Hint>
+          <Meter title="Done in the last 7 days" rows={rows.done} done />
         </>
       ) : null}
     </View>
   );
 }
 
-export function Meter({ title, rows }: { title: string; rows: CoverageRow[] }) {
+/** `done`: the bars show sets already logged (bar colour), not the plan (muted). */
+export function Meter({ title, rows, done = false }: { title: string; rows: CoverageRow[]; done?: boolean }) {
   const c = useTheme();
   return (
     <View style={styles.gap} accessibilityLabel={title}>
@@ -115,7 +117,7 @@ export function Meter({ title, rows }: { title: string; rows: CoverageRow[] }) {
         <View key={r.muscle} accessible accessibilityLabel={`${title}, ${name(r.muscle)}: ${fmt(r.shown)} sets${r.low ? ', low' : ''}`} style={styles.row}>
           <Text style={[styles.muscle, { color: c.ink }]}>{name(r.muscle)}</Text>
           <View style={[styles.track, { backgroundColor: c.track }]}>
-            <View style={{ width: `${r.barPct}%`, height: 8, borderRadius: radius.full, backgroundColor: r.low ? c.caution : c.bar }} />
+            <View style={{ width: `${r.barPct}%`, height: 8, borderRadius: radius.full, backgroundColor: r.low ? c.caution : done ? c.bar : c.muted }} />
           </View>
           <Text style={{ color: r.low ? c.caution : c.ink, fontWeight: '700', minWidth: 28, textAlign: 'right' }}>{fmt(r.shown)}</Text>
         </View>

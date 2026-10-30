@@ -14,7 +14,7 @@ name: Android release build
 #   ANDROID_API_URL            https://<API_HOST>/api/v1, baked into the build as EXPO_PUBLIC_API_URL. REQUIRED on v* tags (the job fails
 #                              without it); optional, with a warning, on manual and PR runs. Not a secret.
 # Optional variables of the `android-release` environment (all inert when unset; they reach only the Gradle step, which
-# bundles the JS, never npm ci or expo prebuild):
+# bundles the JS, never npm ci; EXPO_PUBLIC_HOME_WIDGET also reaches expo prebuild, see below):
 #   EXPO_PUBLIC_SENTRY_DSN     error-tracking DSN baked into the build; empty = the app sends nothing. Set it only after the
 #                              privacy page and the Play data-safety answers name crash reports (#748, #827).
 #   EXPO_PUBLIC_SITE_URL       https origin of the website; the app hides its privacy, terms and deletion links without it (#825).
@@ -24,17 +24,19 @@ name: Android release build
 #   EXPO_PUBLIC_LABEL_SCAN     set to 1 to switch on label scanning (on-device OCR, #1067); unset = off.
 #   EXPO_PUBLIC_EXERCISE_MOTION  set to 1 to play exercise motion loops where a clip exists (#1069); unset = off.
 #   EXPO_PUBLIC_LAB_REPORTS    set to 1 to show Lab reports on the Progress tab and apply the lab hold (#1070); unset = off.
-# PR runs never get the DSN or the four flags (no environment, and the workflow blanks them).
+#   EXPO_PUBLIC_HOME_WIDGET    set to 1 to build the Android home-screen widget (#1181); unset = off. Unlike the others it is also passed
+#                              to expo prebuild (the plugin reads it there). Set it only after the owner device check in #1181.
+# PR runs and design-overhaul pushes (not manual runs) never get the DSN or the six flags (no environment, and the workflow blanks them).
 # EXPO_PUBLIC_SENTRY_ENVIRONMENT is set here, not by you: `production` on a v* tag, `staging` otherwise.
 # Nothing here uploads to Google Play: take the .aab from a v* tag run and upload it by hand. Staged rollout (10 % -> 50 % -> 100 %), halting
 # a rollout and content-only fixes: infra/RUNBOOK.md section 8 and tests/e2e/RELEASE_CHECKLIST.md.
 # android.versionCode comes from the tag (v1.2.3 -> 1002003) or, on non-tag runs, the run number; see
 # infra/scripts/android-release-config.sh.
 #
-# Pull requests build a faster variant (assembleRelease for arm64-v8a only, no bundleRelease; the ABI is passed as
+# Pull requests and design-overhaul pushes build a faster variant (assembleRelease for arm64-v8a only, no bundleRelease; the ABI is passed as
 # -PreactNativeArchitectures so nothing is committed or edited). Pushes to main (same paths as the PR trigger), tags and
 # manual runs build all four ABIs with assembleRelease bundleRelease, so a break in another ABI or in the AAB shows on main.
-# Every run compiles the NDK code through ccache. Only pushes to main and manual runs on main save the cache; pull requests
+# Every run compiles the NDK code through ccache. Only pushes to main or design-overhaul and manual runs on them save the cache; pull requests
 # only restore it (a PR-scoped cache is invisible to other PRs and would only evict the npm and Gradle caches).
 # The ccache cap is 2G: a 4-ABI build with precompiled headers overflowed 400M (run 39226041548: 98.5 % of 1376 calls cacheable,
 # cache full at 0.4 GB, 555 cleanups, 24.7 % hits), so ccache evicted its own objects mid-build. Each main run saves a new
@@ -44,14 +46,16 @@ name: Android release build
 # stays alive as long as android runs keep restoring it.
 # The native-libs guard compares .so file names with the ABI directory stripped, so it holds for one ABI or four.
 #
-# Secrets are withheld on pull_request runs (always debug-signed) and are only
+# Secrets are withheld on pull_request runs and design-overhaul pushes (always debug-signed; a manual run on design-overhaul is like main) and are only
 # exposed to the decode and signing steps and the Gradle step, never to npm ci
-# or expo prebuild. Tag and manual builds run in the protected GitHub
+# or expo prebuild. Main, tag and manual builds run in the protected GitHub
 # environment `android-release`. See infra/README.md.
 on:
   push:
     tags: ['v*']
-    branches: [main]
+    # design-overhaul is the default branch: a PR restores only its own, its base's and the default branch's caches, so its pushes
+    # must save the ccache. They run the PR fast path (no environment, no secrets or variables, arm64-v8a only) just for that.
+    branches: [main, design-overhaul]
     paths:
       - '.github/workflows/android-release.yml'
       - 'infra/scripts/android-signing.sh'
@@ -118,8 +122,8 @@ jobs:
     defaults:
       run:
         working-directory: apps/mobile
-    # PR runs use no environment (and get no secrets); others use the protected one
-    environment: ${{ github.event_name != 'pull_request' && 'android-release' || '' }}
+    # PR runs and design-overhaul pushes (not manual runs) use no environment (and get no secrets); others use the protected one
+    environment: ${{ github.event_name != 'pull_request' && !(github.event_name == 'push' && github.ref == 'refs/heads/design-overhaul') && 'android-release' || '' }}
     env:
       EXPO_PUBLIC_API_URL: ${{ vars.ANDROID_API_URL }}
     steps:
@@ -155,6 +159,9 @@ jobs:
           SITE_URL_CHECK: ${{ vars.EXPO_PUBLIC_SITE_URL }}
         run: ../../infra/scripts/check-site-url.sh "$IS_RELEASE" "$SITE_URL_CHECK"
       - name: Generate the native project
+        env:
+          # the plugin adds the widget to the manifest only when this is exactly "1" at prebuild (#1295); same value as the Gradle step
+          EXPO_PUBLIC_HOME_WIDGET: ${{ github.event_name != 'pull_request' && !(github.event_name == 'push' && github.ref == 'refs/heads/design-overhaul') && vars.EXPO_PUBLIC_HOME_WIDGET || '' }}
         run: npx expo prebuild --platform android --no-install
       # ccache for the CMake/NDK build. CMake reads CMAKE_<LANG>_COMPILER_LAUNCHER from the environment (set on the build step).
       # Key: OS + NDK version (from React Native's pinned version); no lockfile hash, since ccache is content-addressed and a
@@ -208,7 +215,7 @@ jobs:
           retention-days: 14
       - name: Decode keystore (only when supplied)
         env:
-          ANDROID_KEYSTORE_BASE64: ${{ github.event_name != 'pull_request' && secrets.ANDROID_KEYSTORE_BASE64 || '' }}
+          ANDROID_KEYSTORE_BASE64: ${{ github.event_name != 'pull_request' && !(github.event_name == 'push' && github.ref == 'refs/heads/design-overhaul') && secrets.ANDROID_KEYSTORE_BASE64 || '' }}
         run: |
           if [ -n "$ANDROID_KEYSTORE_BASE64" ]; then
             (umask 077; printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/upload.jks")
@@ -216,27 +223,28 @@ jobs:
           fi
       - name: Configure signing
         env:
-          ANDROID_KEYSTORE_PASSWORD: ${{ github.event_name != 'pull_request' && secrets.ANDROID_KEYSTORE_PASSWORD || '' }}
-          ANDROID_KEY_ALIAS: ${{ github.event_name != 'pull_request' && secrets.ANDROID_KEY_ALIAS || '' }}
-          ANDROID_KEY_PASSWORD: ${{ github.event_name != 'pull_request' && secrets.ANDROID_KEY_PASSWORD || '' }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ github.event_name != 'pull_request' && !(github.event_name == 'push' && github.ref == 'refs/heads/design-overhaul') && secrets.ANDROID_KEYSTORE_PASSWORD || '' }}
+          ANDROID_KEY_ALIAS: ${{ github.event_name != 'pull_request' && !(github.event_name == 'push' && github.ref == 'refs/heads/design-overhaul') && secrets.ANDROID_KEY_ALIAS || '' }}
+          ANDROID_KEY_PASSWORD: ${{ github.event_name != 'pull_request' && !(github.event_name == 'push' && github.ref == 'refs/heads/design-overhaul') && secrets.ANDROID_KEY_PASSWORD || '' }}
         run: ../../infra/scripts/android-signing.sh android/app/build.gradle
       - name: Build APK and AAB
         working-directory: apps/mobile/android
         env:
           # read by Metro when Gradle bundles the JS; only this step, never npm ci
-          # a PR run has no environment, so a repository-level variable must never reach its debug-signed artifacts
-          EXPO_PUBLIC_SENTRY_DSN: ${{ github.event_name != 'pull_request' && vars.EXPO_PUBLIC_SENTRY_DSN || '' }}
+          # a PR run or design-overhaul push has no environment, so a repository-level variable must never reach its debug-signed artifacts
+          EXPO_PUBLIC_SENTRY_DSN: ${{ github.event_name != 'pull_request' && !(github.event_name == 'push' && github.ref == 'refs/heads/design-overhaul') && vars.EXPO_PUBLIC_SENTRY_DSN || '' }}
           EXPO_PUBLIC_SENTRY_ENVIRONMENT: ${{ startsWith(github.ref, 'refs/tags/v') && 'production' || 'staging' }}
           EXPO_PUBLIC_SITE_URL: ${{ vars.EXPO_PUBLIC_SITE_URL }}
-          # feature flags: the app enables each only on exactly "1"; unset or any other value = off. Blank on PR runs.
-          EXPO_PUBLIC_BARCODE_SCAN: ${{ github.event_name != 'pull_request' && vars.EXPO_PUBLIC_BARCODE_SCAN || '' }}
-          EXPO_PUBLIC_POSE_TRACKING: ${{ github.event_name != 'pull_request' && vars.EXPO_PUBLIC_POSE_TRACKING || '' }}
-          EXPO_PUBLIC_LABEL_SCAN: ${{ github.event_name != 'pull_request' && vars.EXPO_PUBLIC_LABEL_SCAN || '' }}
-          EXPO_PUBLIC_EXERCISE_MOTION: ${{ github.event_name != 'pull_request' && vars.EXPO_PUBLIC_EXERCISE_MOTION || '' }}
-          EXPO_PUBLIC_LAB_REPORTS: ${{ github.event_name != 'pull_request' && vars.EXPO_PUBLIC_LAB_REPORTS || '' }}
-          ANDROID_KEYSTORE_PASSWORD: ${{ github.event_name != 'pull_request' && secrets.ANDROID_KEYSTORE_PASSWORD || '' }}
-          ANDROID_KEY_ALIAS: ${{ github.event_name != 'pull_request' && secrets.ANDROID_KEY_ALIAS || '' }}
-          ANDROID_KEY_PASSWORD: ${{ github.event_name != 'pull_request' && secrets.ANDROID_KEY_PASSWORD || '' }}
+          # feature flags: the app enables each only on exactly "1"; unset or any other value = off. Blank on PR runs and design-overhaul pushes.
+          EXPO_PUBLIC_BARCODE_SCAN: ${{ github.event_name != 'pull_request' && !(github.event_name == 'push' && github.ref == 'refs/heads/design-overhaul') && vars.EXPO_PUBLIC_BARCODE_SCAN || '' }}
+          EXPO_PUBLIC_POSE_TRACKING: ${{ github.event_name != 'pull_request' && !(github.event_name == 'push' && github.ref == 'refs/heads/design-overhaul') && vars.EXPO_PUBLIC_POSE_TRACKING || '' }}
+          EXPO_PUBLIC_LABEL_SCAN: ${{ github.event_name != 'pull_request' && !(github.event_name == 'push' && github.ref == 'refs/heads/design-overhaul') && vars.EXPO_PUBLIC_LABEL_SCAN || '' }}
+          EXPO_PUBLIC_EXERCISE_MOTION: ${{ github.event_name != 'pull_request' && !(github.event_name == 'push' && github.ref == 'refs/heads/design-overhaul') && vars.EXPO_PUBLIC_EXERCISE_MOTION || '' }}
+          EXPO_PUBLIC_LAB_REPORTS: ${{ github.event_name != 'pull_request' && !(github.event_name == 'push' && github.ref == 'refs/heads/design-overhaul') && vars.EXPO_PUBLIC_LAB_REPORTS || '' }}
+          EXPO_PUBLIC_HOME_WIDGET: ${{ github.event_name != 'pull_request' && !(github.event_name == 'push' && github.ref == 'refs/heads/design-overhaul') && vars.EXPO_PUBLIC_HOME_WIDGET || '' }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ github.event_name != 'pull_request' && !(github.event_name == 'push' && github.ref == 'refs/heads/design-overhaul') && secrets.ANDROID_KEYSTORE_PASSWORD || '' }}
+          ANDROID_KEY_ALIAS: ${{ github.event_name != 'pull_request' && !(github.event_name == 'push' && github.ref == 'refs/heads/design-overhaul') && secrets.ANDROID_KEY_ALIAS || '' }}
+          ANDROID_KEY_PASSWORD: ${{ github.event_name != 'pull_request' && !(github.event_name == 'push' && github.ref == 'refs/heads/design-overhaul') && secrets.ANDROID_KEY_PASSWORD || '' }}
           CMAKE_C_COMPILER_LAUNCHER: ccache
           CMAKE_CXX_COMPILER_LAUNCHER: ccache
           CCACHE_DIR: ${{ runner.temp }}/ccache
@@ -244,10 +252,10 @@ jobs:
           CCACHE_NOHASHDIR: 'true'
           CCACHE_COMPILERCHECK: content # the NDK is unpacked afresh on a runner, so its mtime would always miss
           CCACHE_MAXSIZE: 2G
-        # Pull requests: arm64-v8a APK only (the bulk of the 30 minutes is compiling the NDK code four times and the AAB).
+        # Pull requests and design-overhaul pushes: arm64-v8a APK only (the bulk of the 30 minutes is compiling the NDK code four times and the AAB).
         # Push to main, push of a tag and manual runs: everything, as before.
         run: |
-          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
+          if [ "$GITHUB_EVENT_NAME" = pull_request ] || { [ "$GITHUB_EVENT_NAME" = push ] && [ "$GITHUB_REF" = refs/heads/design-overhaul ]; }; then
             ./gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a --no-daemon
           else
             ./gradlew assembleRelease bundleRelease --no-daemon
@@ -257,9 +265,9 @@ jobs:
         env:
           CCACHE_DIR: ${{ runner.temp }}/ccache
         run: ccache -s -v
-      # Saves only on main; pull requests restore the newest main entry and never save or delete (see ccache-prune below).
+      # Saves only on main and design-overhaul (the default branch); pull requests restore the newest entry and never save or delete (see ccache-prune below).
       - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        if: always() && github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && steps.ccache-key.outputs.prefix != ''
+        if: always() && github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/design-overhaul') && steps.ccache-key.outputs.prefix != ''
         with:
           path: ${{ runner.temp }}/ccache
           key: ${{ steps.ccache-key.outputs.prefix }}-${{ github.run_id }}
@@ -297,13 +305,13 @@ jobs:
         if: always()
         run: rm -f "$RUNNER_TEMP/upload.jks"
 
-  # Keeps the 10 GB cache quota from filling with one ~2 GB ccache entry per main run: after a green main build (which saved
-  # its entry) delete every `ccache-*` entry except the newest one. Never runs on pull requests. The only job with
+  # Keeps the 10 GB cache quota from filling with one ~2 GB ccache entry per main run: after a green main or design-overhaul build (which saved
+  # its entry) delete every `ccache-*` entry of that branch except the newest one. Never runs on pull requests. The only job with
   # `actions: write`; it needs no checkout and no secrets.
   ccache-prune:
     name: prune old ccache entries
     needs: build
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && needs.build.result == 'success'
+    if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/design-overhaul') && needs.build.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
@@ -315,7 +323,7 @@ jobs:
           GH_REPO: ${{ github.repository }}
         shell: bash # bash -eo pipefail: a failing `gh cache list` fails the step instead of passing silently
         run: |
-          gh cache list --key ccache- --sort created_at --order desc --limit 100 --json id,key --jq '.[1:][] | "\(.id) \(.key)"' |
+          gh cache list --ref "$GITHUB_REF" --key ccache- --sort created_at --order desc --limit 100 --json id,key --jq '.[1:][] | "\(.id) \(.key)"' |
             while read -r id key; do
               echo "deleting $key"
               gh cache delete "$id" || echo "::warning::could not delete cache $key (already gone?)"

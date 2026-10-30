@@ -1,5 +1,6 @@
+import { useId } from 'react';
 import { StyleSheet, View } from 'react-native';
-import Svg, { G, Polygon, Text as SvgText } from 'react-native-svg';
+import Svg, { Defs, G, Line, Pattern, Polygon, Rect, Text as SvgText } from 'react-native-svg';
 import { Text } from '../components/Text';
 import { useFontFamily } from '../theme/fonts';
 import { useTheme } from '../theme/useTheme';
@@ -20,11 +21,16 @@ function shades(map: Record<string, string[]>, primary: readonly string[], secon
   return out;
 }
 
-/** The prototype's front and back muscle map (`bodyMapSvg`): main muscles in the fat colour, also-working in the carbs colour. */
+/** The front and back muscle map (`bodyMapSvg`): main muscles in the brand colour, also-working in `muscleAlso`, the rest in `surfaceSoft`; every region is stroked with `muscleOff` so the silhouette shows. */
 export function BodyMap({ primary, secondary }: { primary: readonly string[]; secondary: readonly string[] }) {
   const c = useTheme();
+  // Pattern ids are document-global on web, and a hidden screen's map can stay mounted: an id per instance, without the colons useId adds.
+  const uid = useId().replace(/[^A-Za-z0-9]/g, '');
+  const hatch = `also-hatch-${uid}`;
+  const hatchKey = `also-hatch-key-${uid}`;
   const fontFamily = useFontFamily()('400');
-  const fill = (v: number) => (v === 2 ? c.fat : v === 1 ? c.carbs : c.line);
+  const also = c.muscleAlso;
+  const fill = (v: number) => (v === 2 ? c.brand : v === 1 ? also : c.surfaceSoft);
   const label = `Muscles worked: ${primary.length ? listJoin(primary.map(muscleName)) : 'none'}${secondary.length ? `. Also working: ${listJoin(secondary.map(muscleName))}` : ''}`;
   const views = [
     { view: 'front', map: FRONT, dx: 0, name: 'Front' },
@@ -33,12 +39,19 @@ export function BodyMap({ primary, secondary }: { primary: readonly string[]; se
   return (
     <View accessible accessibilityRole="image" accessibilityLabel={label} style={styles.wrap}>
       <Svg width="100%" viewBox="0 0 210 222" style={styles.svg}>
+        <Defs>
+          <Pattern id={hatch} width={4} height={4} patternUnits="userSpaceOnUse">
+            <Line x1={0} y1={4} x2={4} y2={0} stroke={c.bg} strokeWidth={1} />
+          </Pattern>
+        </Defs>
         {views.map(({ view, map, dx, name }) => {
           const state = shades(map, primary, secondary);
           return (
             <G key={view} transform={`translate(${dx} 0)`}>
-              {REGIONS[view].map(([region, polygons]) => polygons.map((points, i) => <Polygon key={`${region}${i}`} points={points} fill={fill(state.get(region) ?? 0)} />))}
-              <SvgText x={50} y={216} textAnchor="middle" fontSize={9} fill={c.muted} fontFamily={fontFamily}>
+              {REGIONS[view].map(([region, polygons]) => polygons.map((points, i) => <Polygon key={`${region}${i}`} points={points} fill={fill(state.get(region) ?? 0)} stroke={c.muscleOff} strokeWidth={0.6} />))}
+              {/* Also-working is hatched on top of its fill, so the main-vs-also distinction does not rest on colour alone. */}
+              {REGIONS[view].map(([region, polygons]) => (state.get(region) === 1 ? polygons.map((points, i) => <Polygon key={`${region}${i}h`} points={points} fill={`url(#${hatch})`} stroke={c.muscleOff} strokeWidth={0.6} />) : null))}
+              <SvgText x={50} y={216} textAnchor="middle" fontSize={12} fill={c.muted} fontFamily={fontFamily}>
                 {name}
               </SvgText>
             </G>
@@ -47,11 +60,20 @@ export function BodyMap({ primary, secondary }: { primary: readonly string[]; se
       </Svg>
       <View style={styles.legend}>
         <View style={styles.key}>
-          <View style={[styles.swatch, { backgroundColor: c.fat }]} />
+          <View style={[styles.swatch, { backgroundColor: c.brand }]} />
           <Text style={{ color: c.muted, fontSize: 13 }}>Main focus</Text>
         </View>
         <View style={styles.key}>
-          <View style={[styles.swatch, { backgroundColor: c.carbs }]} />
+          <View style={[styles.swatch, { backgroundColor: also }]}>
+            <Svg width={12} height={12} viewBox="0 0 12 12" aria-hidden>
+              <Defs>
+                <Pattern id={hatchKey} width={4} height={4} patternUnits="userSpaceOnUse">
+                  <Line x1={0} y1={4} x2={4} y2={0} stroke={c.bg} strokeWidth={1} />
+                </Pattern>
+              </Defs>
+              <Rect width={12} height={12} fill={`url(#${hatchKey})`} />
+            </Svg>
+          </View>
           <Text style={{ color: c.muted, fontSize: 13 }}>Also working</Text>
         </View>
       </View>
@@ -64,5 +86,5 @@ const styles = StyleSheet.create({
   svg: { aspectRatio: 210 / 222, maxHeight: 240 },
   legend: { flexDirection: 'row', gap: 16 },
   key: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  swatch: { width: 10, height: 10, borderRadius: 5 },
+  swatch: { width: 12, height: 12, borderRadius: 2, overflow: 'hidden' },
 });

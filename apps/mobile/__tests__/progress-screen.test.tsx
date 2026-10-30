@@ -10,6 +10,9 @@ import { saveConsent, saveProfile } from '../src/db/records';
 import { saveLift, saveSet, saveWorkout } from '../src/db/workouts';
 import { saveMeasurement, saveWeight } from '../src/db/progress';
 import { addDays, targetFromBurn } from '@plate-and-bar/core';
+import { saveCycle } from '../src/db/cycle';
+import { WEEK_CURRENT } from '../src/progress/copy';
+import { PHOTOS_NEW } from '../src/photos/copy';
 import { saveSettings } from '../src/db/settings';
 import { defaultSettings } from '../src/settings/types';
 import { buildProfile, emptyDraft } from '../src/setup/logic';
@@ -143,6 +146,42 @@ describe('Progress screen', () => {
     await setup({ sex: 'female' });
     expect(screen.getByLabelText('Hips in cm')).toBeTruthy();
     expect(screen.getByText('Add waist and neck and hips for a body-fat estimate.')).toBeTruthy();
+  });
+
+  it('disables the measurement save until a box has text', async () => {
+    await setup();
+    expect(screen.getByLabelText('Save for today').props.accessibilityState).toMatchObject({ disabled: true });
+    await fireEvent.changeText(screen.getByLabelText('Neck in cm'), '38');
+    expect(screen.getByLabelText('Save for today').props.accessibilityState).toMatchObject({ disabled: false });
+  });
+
+  it('dates weigh-in rows like everything else, and names Hips in the how-to only where the field shows', async () => {
+    const db = memoryDb();
+    await saveWeight(db, weigh(DATE, 81.4));
+    await setup({ db });
+    expect(screen.getByLabelText('8 Oct, 81.4 kg')).toBeTruthy();
+    expect(screen.queryByText(DATE)).toBeNull();
+    expect(screen.getByText(/How to measure\./).props.children).not.toMatch(/Hips/);
+  });
+
+  it('shows the Hips how-to for women', async () => {
+    await setup({ sex: 'female' });
+    expect(screen.getByText(/How to measure\./).props.children).toMatch(/Hips: the widest point/);
+  });
+
+  it('keeps one filled primary button on Progress: every data save, photo, lab and cycle button is outline', async () => {
+    const realFlag = process.env.EXPO_PUBLIC_LAB_REPORTS;
+    process.env.EXPO_PUBLIC_LAB_REPORTS = '1';
+    try {
+      const db = memoryDb();
+      await saveCycle(db, { len: 28, on: true, starts: [] });
+      await setup({ db, sex: 'female' });
+      const bg = (label: string) => StyleSheet.flatten(screen.getByLabelText(label).props.style)?.backgroundColor;
+      for (const l of ['Save weight', 'Save for today', 'Save steps and sleep', PHOTOS_NEW(false), 'Add a report', 'Period started']) expect([l, bg(l)]).toEqual([l, 'transparent']);
+    } finally {
+      if (realFlag === undefined) delete process.env.EXPO_PUBLIC_LAB_REPORTS;
+      else process.env.EXPO_PUBLIC_LAB_REPORTS = realFlag;
+    }
   });
 
   it('saves steps and sleep on the day note and keeps its other fields', async () => {
@@ -534,6 +573,12 @@ describe('Weekly check-in, burn and habits', () => {
     expect(screen.queryByText(DAYS_HINT)).toBeNull();
   });
 
+  it('Body weight with no weigh-in says it once, not twice (#1409)', async () => {
+    await setup({ db: memoryDb() });
+    expect(await screen.findByText('Log a few weigh-ins to see your trend line here.')).toBeTruthy();
+    expect(screen.queryByText('Log a few weigh-ins to see them here.')).toBeNull();
+  });
+
   it('shows the week numbers from core, the burn card waiting for data, and the habits', async () => {
     const db = memoryDb();
     await saveLog(db, meal(DATE, 1, 600));
@@ -543,7 +588,11 @@ describe('Weekly check-in, burn and habits', () => {
     expect(screen.getByText('The 7 days up to 8 Oct')).toBeTruthy();
     expect(screen.getByText(/Steps: about 8,000 a day\. Sleep: 6\.5 hours a night, under the 7–9 hours/)).toBeTruthy();
     expect(screen.getByText(/Needs 10 more complete days in the last 2 weeks.* and 6 more weigh-ins/)).toBeTruthy();
-    expect(screen.getByLabelText('1/7 days with food logged')).toBeTruthy();
+    // The check-in block owns the sessions and days numbers; the habits block below does not repeat them (#1409).
+    expect(screen.getByLabelText('days logged: 1 / 7')).toBeTruthy();
+    expect(screen.queryByLabelText(/days with food logged/)).toBeNull();
+    expect(screen.queryByLabelText(/sessions this week/)).toBeNull();
+    expect(screen.getByLabelText('on-track weeks in a row: 0')).toBeTruthy();
     expect(screen.getByLabelText('Why? Building the habit')).toBeTruthy();
     expect(screen.getAllByLabelText('Why? Steps, cardio and lifting')).toHaveLength(2);
     expect(screen.getByText(/Missed a few days\?/)).toBeTruthy();
@@ -574,7 +623,7 @@ describe('Weekly check-in, burn and habits', () => {
     await saveWorkout(db, { id: null, version: 0, updated_at: '', deleted_at: null, date: DATE, template: 'Upper A', base: 'Upper A', where: 'gym', cardio_min: 30, mods: {}, exercises: [], ci_choice: null });
     await saveSet(db, DATE, { id: 's1', version: 0, updated_at: '', deleted_at: null, workout_id: null, exercise: 'Bench', kind: 'work', set_index: 0, weight_kg: 40, reps: 8, done: true, rate: null, t: null });
     await setup({ db });
-    expect(await screen.findByLabelText(/^1 \/ \d+ sessions$/)).toBeTruthy();
+    expect(await screen.findByLabelText(/^sessions: 1 \/ \d+$/)).toBeTruthy();
     expect(screen.getByText(/Cardio: 30 of 150 min/)).toBeTruthy();
     expect(screen.getByLabelText('Thu, trained, not logged')).toBeTruthy();
   });
@@ -593,6 +642,8 @@ describe('Weekly check-in, burn and habits', () => {
   it('offers a 4-day plan next week when sessions fall short', async () => {
     const db = memoryDb();
     await setup({ db });
+    // #1271: a suggestion is not the screen's primary action, so it is a ghost button, not the accent fill.
+    expect(StyleSheet.flatten((await screen.findByLabelText('Use a 4-day plan next week')).props.style)).toMatchObject({ backgroundColor: 'transparent' });
     await fireEvent.press(await screen.findByLabelText('Use a 4-day plan next week'));
     await waitFor(() => expect(JSON.parse(db.rows.get('user_settings:me')!).adjustments.weekPlan).toEqual({ start: '2026-10-12', list: ['Upper A', 'Lower A', 'Upper B', 'Lower B'] }));
   });
@@ -846,10 +897,21 @@ describe('Progress screen, seven days', () => {
   const food = (date: string, kcal: number, p: number, id: string) => ({ id, version: 0, updated_at: `${date}T00:00:00Z`, deleted_at: null, date, meal: 'Lunch', name: 'dal', qty: 2, kcal: kcal / 2, protein_g: p / 2, carbs_g: 1, fat_g: 1 });
   /** The style the day's bar was drawn with: the fill (width) and the target line (left), found by the bar's label. */
   const weekBar = (label: string) => {
-    const [fill, tgt] = screen.getByLabelText(label).children;
+    // Draw order: fill, label row, then the target line last so it draws over a chip edge (#1204).
+    const [fill, , tgt] = screen.getByLabelText(label).children;
     const flat = (el: unknown) => StyleSheet.flatten((el as { props: { style?: unknown } }).props.style as never) as Record<string, unknown>;
     return { fill: flat(fill), tgt: flat(tgt) };
   };
+
+  it('says the week follows today, not the viewed day, only while a past day is open', async () => {
+    await setup();
+    expect(screen.queryByText(WEEK_CURRENT)).toBeNull();
+    await fireEvent.press(screen.getByRole('button', { name: 'Previous day' }));
+    expect(await screen.findByText(WEEK_CURRENT)).toBeTruthy();
+    expect(screen.getByRole('header', { name: 'Seven days to 8 Oct' })).toBeTruthy();
+    await fireEvent.press(screen.getByRole('button', { name: 'Next day' }));
+    await waitFor(() => expect(screen.queryByText(WEEK_CURRENT)).toBeNull());
+  });
 
   it('shows a bar per day with the average and sessions, and "not logged" for empty days', async () => {
     const db = memoryDb();

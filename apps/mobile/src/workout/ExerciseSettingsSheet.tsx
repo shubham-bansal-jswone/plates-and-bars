@@ -1,16 +1,16 @@
 import { useState } from 'react';
 import { SheetModal } from '../components/Sheet';
 import { ScrollView, StyleSheet, View } from 'react-native';
-import { DEFAULT_STEP, EXERCISE_SHEET_TYPES, EXERCISE_STEP_CHOICES, exerciseOverrideEntry, exerciseOverridesWouldExceed, noLoad, repWord, type ExInfo, type ExType } from '@plate-and-bar/core';
+import { DEFAULT_STEP, EXERCISE_SHEET_TYPES, EXERCISE_STEP_CHOICES, LB_STEP_CHOICES, lbStepFor, lbToKg, exerciseOverrideEntry, exerciseOverridesWouldExceed, noLoad, repWord, type ExInfo, type ExType } from '@plate-and-bar/core';
 import { Text } from '../components/Text';
 import { Input } from '../components/Input';
-import { a11yState, Button, Caption, ErrorText, Heading, Hint, Label, Press } from '../components/ui';
+import { a11yState, Button, Caption, ErrorText, Heading, Hint, Label, Press, Chip } from '../components/ui';
 import { SETTINGS_UNREADABLE } from '../progress/copy';
+import { useWeightUnit } from '../settings/weightUnit';
 import { useOptionalSettings } from '../state/SettingsProvider';
 import { useTheme } from '../theme/useTheme';
 import { TYPE_LABEL } from './copy';
 import { OVERRIDES_FULL, RANGE_INVALID, STEP_INVALID, withOverride, withoutOverride } from './exerciseSettings';
-import { Chip } from './parts';
 
 const SAVED = 'Saved for this exercise';
 const RESET = 'Back to defaults';
@@ -59,6 +59,7 @@ function Gear({ name, info, notify }: { name: string; info: ExInfo; notify?: (ms
 function Sheet({ name, info, notify, onClose }: { name: string; info: ExInfo; notify?: (msg: string) => void; onClose: (done?: string) => void }) {
   const c = useTheme();
   const { update, settings } = useOptionalSettings()!;
+  const { unit } = useWeightUnit(); // the jump is stored in kg; kg users pick from the kg list, lb users from their own lb list
   const [type, setType] = useState<ExType>(info.type);
   const [step, setStep] = useState(info.step);
   const [lo, setLo] = useState(String(info.lo));
@@ -126,9 +127,14 @@ function Sheet({ name, info, notify, onClose }: { name: string; info: ExInfo; no
             <View style={{ gap: 6 }}>
               <Label>Smallest weight jump {type === 'dumbbell' ? '(per dumbbell)' : 'on this equipment'}</Label>
               <View style={styles.chips}>
-                {EXERCISE_STEP_CHOICES.map((x) => (
-                  <Chip key={x} label={`Weight jump ${x} kg`} text={`${x} kg`} pressed={step === x} onPress={() => setStep(x)} />
-                ))}
+                {unit === 'kg'
+                  ? EXERCISE_STEP_CHOICES.map((x) => (
+                      <Chip key={x} label={`Weight jump ${x} ${unit}`} text={`${x} ${unit}`} pressed={step === x} onPress={() => setStep(x)} />
+                    ))
+                  : LB_STEP_CHOICES.map((x) => (
+                      // An lb gym's own jumps (not converted kg ones); the step is stored as the exact kg, so a saved step never changes when the unit is switched.
+                      <Chip key={x} label={`Weight jump ${x} ${unit}`} text={`${x} ${unit}`} pressed={lbStepFor(type, step, DEFAULT_STEP[type]) === x} onPress={() => setStep((cur) => (lbStepFor(type, cur, DEFAULT_STEP[type]) === x ? cur : lbToKg(x)))} />
+                    ))}
               </View>
               <Hint>Machines differ between gyms. Set this to the real step on your gym’s machine.</Hint>
             </View>

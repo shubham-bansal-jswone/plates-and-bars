@@ -86,16 +86,84 @@ export async function answerSetup(page, { age = '30', where = 'At a gym. Machine
   await expect(label(page, 'Use these targets')).toBeVisible();
 }
 
-/** Runs the whole setup flow, checks it lands on Food with the toast (as the prototype does), then opens Targets. */
+/** Runs the whole setup flow, checks it lands on Food (first setup toasts nothing, #1194), then opens Targets. */
 export async function completeSetup(page) {
   await answerSetup(page);
   await label(page, 'Use these targets').click();
   await expect(page.getByRole('heading', { name: 'Food', exact: true })).toBeVisible();
-  await expect(page.getByText('Targets updated', { exact: true })).toBeVisible();
   await tab(page, 'Targets');
   await expect(label(page, 'Redo setup')).toBeVisible(); // only Targets has it
   // Targets shows the editable "Daily targets" fields, not the read-only tiles (#483), so read the field's value.
-  await expect(label(page, 'Calories (kcal)')).toHaveValue('1990');
+  await expect(label(page, 'Calories (kcal)')).toHaveValue('1,990');
+}
+
+/**
+ * Resolves once the element has kept the same position and size for 10 animation frames in a row (about 160 ms), so a sheet
+ * sliding in or a tab pane mounting is over. Playwright's own "stable" check needs only two equal frames, and on a busy
+ * CI runner a stalled animation can show two equal frames and then move: the click lands on a moving target and the app
+ * drops it (traces of #1315: the roti tap and the Exercise library tap were "performed" mid-transition and did nothing).
+ * Event based, no fixed delay.
+ */
+export async function settled(locator) {
+  await locator.waitFor({ state: 'visible' });
+  const handle = await locator.elementHandle();
+  let timer;
+  await Promise.race([
+    handle.evaluate(
+      (el) =>
+        new Promise((resolve, reject) => {
+          let last = '';
+          let same = 0;
+          const tick = () => {
+            // A node React replaced reads 0,0,0,0 for ever: it must not count as still.
+            if (!el.isConnected) return reject(new Error('detached'));
+            const r = el.getBoundingClientRect();
+            const now = `${r.x},${r.y},${r.width},${r.height}`;
+            same = now === last ? same + 1 : 0;
+            last = now;
+            if (same >= 10) resolve();
+            else requestAnimationFrame(tick);
+          };
+          tick();
+        }),
+    ),
+    new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error('timeout')), 15_000);
+    }),
+  ])
+    .catch((e) => {
+      throw new Error(`settled(): ${e.message.includes('detached') ? 'the element was replaced while waiting' : 'the element did not hold still for 10 frames within 15 s'}: ${locator}`);
+    })
+    .finally(() => clearTimeout(timer));
+}
+
+/** The dialog with this accessible name (a sheet). */
+export const dialog = (page, name) => page.locator(`[role="dialog"][aria-label=${JSON.stringify(name)}]`);
+
+/**
+ * Presses the opener, waits for the dialog with this name and for focus to land on its title; returns the dialog.
+ * The title takes focus only when the slide-in animation ends (react-native-web), so a stalled runner cannot fake it:
+ * a tap inside the sheet after this lands on a still sheet (a tap while it moves is dropped, #1315, #1411).
+ */
+export async function openSheet(page, opener, name) {
+  await opener.click();
+  const sheet = dialog(page, name);
+  await expect(sheet).toBeVisible();
+  await expect(sheet.locator('[role=heading]').first()).toBeFocused();
+  return sheet;
+}
+
+/**
+ * Logs one serving of a food in a meal from the Food tab: opens the add sheet, taps the food, waits until the write is
+ * stored (`saved`), then presses Done. `meal` is lower case ('breakfast'). Leaves the caller on the Food screen.
+ */
+export async function addFood(page, meal, name) {
+  await tab(page, 'Food');
+  const opener = label(page, `+ Add to ${meal}`);
+  await settled(opener); // the tab pane may still be mounting
+  const sheet = await openSheet(page, opener, `Add to ${meal}`);
+  await saved(page, () => sheet.locator(`[aria-label^=${JSON.stringify(name)}]`).first().click());
+  await label(page, 'Done').click();
 }
 
 /** Switches to a bottom tab (Food, Workout, Progress, Targets). */

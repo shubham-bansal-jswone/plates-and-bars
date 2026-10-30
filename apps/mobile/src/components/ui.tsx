@@ -1,10 +1,16 @@
-import { createContext, useCallback, useContext, useLayoutEffect, useRef, useState, type ComponentRef, type ReactNode } from 'react';
-import { Pressable, ScrollView, StyleSheet, Switch as RNSwitch, View, type PressableProps, type SwitchProps, type TextInputProps, type TextProps, type ViewProps } from 'react-native';
-import { dark, pressedShadow, radius, space, type } from '../theme/tokens';
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState, type ComponentRef, type ReactNode, type Ref } from 'react';
+import { Platform, Pressable, ScrollView, StyleSheet, Text as RNText, Switch as RNSwitch, useWindowDimensions, View, type PressableProps, type SwitchProps, type TextInput, type TextInputProps, type TextProps, type ViewProps } from 'react-native';
+import Svg, { Path } from 'react-native-svg';
+import { dark, glowShadow, linkText, pressedShadow, radius, space, tabular, type } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { useBottomInset } from './bottomInset';
 import { Input } from './Input';
+import { arrowSelect, syncTabStops, type GroupEl } from './radioRoving';
 import { Text } from './Text';
+import type { PageScroller } from '../workout/scrollIntoView';
+
+/** Width of the readable content column; `Page` and the library list both use it. */
+export const COLUMN_MAX = 560;
 
 const ScrollTop = createContext<() => void>(() => {});
 
@@ -13,23 +19,30 @@ const ScrollTop = createContext<() => void>(() => {});
  * The ScrollView is reused when the content under it changes, so the offset carries over (#1060); a child that swaps its
  * content in place passes `resetKey` (the page itself) or calls `useScrollToTopOn` (a child) to start the new content at the top.
  */
-export function Page({ children, resetKey }: { children: ReactNode; resetKey?: unknown }) {
+export function Page({ children, resetKey, wide, scroller }: { children: ReactNode; resetKey?: unknown; /** Lets the screen scroll the page (to bring a node into view). */ scroller?: PageScroller; /** Let the column grow to 1040px on a wide screen (>= 900px) for a two-column card layout; forms leave it off. */ wide?: boolean }) {
   const c = useTheme();
+  const isWide = useWide();
   const bottom = useBottomInset();
   const ref = useRef<ComponentRef<typeof ScrollView>>(null);
   const toTop = useCallback(() => ref.current?.scrollTo({ x: 0, y: 0, animated: false }), []);
+  const hold = useCallback((n: ComponentRef<typeof ScrollView> | null) => void ((ref.current = n), scroller?.attach(n)), [scroller]);
   const first = useRef(true);
   useLayoutEffect(() => {
     if (first.current) first.current = false;
     else toTop();
   }, [resetKey, toTop]);
   return (
-    <ScrollView ref={ref} style={{ backgroundColor: c.bg }} contentContainerStyle={[styles.page, { paddingBottom: space.lg + bottom }]} keyboardShouldPersistTaps="handled">
+    <ScrollView ref={hold} style={{ backgroundColor: c.bg }} contentContainerStyle={[styles.page, { paddingBottom: space.lg + bottom }]} keyboardShouldPersistTaps="handled">
       <ScrollTop.Provider value={toTop}>
-        <View role="main" style={styles.column}>{children}</View>
+        <View role="main" style={[styles.column, wide && isWide ? styles.columnWide : null]}>{children}</View>
       </ScrollTop.Provider>
     </ScrollView>
   );
+}
+
+/** True on a screen at least 900px wide: the width where `Page` lets a `wide` screen lay its cards out in two columns. */
+export function useWide(): boolean {
+  return useWindowDimensions().width >= 900;
 }
 
 /** Scrolls the enclosing `Page` back to the top whenever `key` changes (not on first render). */
@@ -49,9 +62,9 @@ export type HeadingLevel = 1 | 2 | 3;
  * A heading at an explicit level. react-native-web renders `accessibilityRole="header"` as `<h1 role="heading">` and an
  * explicit role without `aria-level` counts as level 2, so the level is always passed (#382). Native ignores it.
  */
-export function Heading({ level, style, children }: { level: HeadingLevel; style?: TextProps['style']; children: ReactNode }) {
+export function Heading({ level, style, children, ref, a11yLabel }: { level: HeadingLevel; style?: TextProps['style']; children: ReactNode; ref?: Ref<ComponentRef<typeof RNText>>; a11yLabel?: string }) {
   return (
-    <Text accessibilityRole="header" aria-level={level} style={style}>
+    <Text ref={ref} accessibilityRole="header" accessibilityLabel={a11yLabel} aria-level={level} style={style}>
       {children}
     </Text>
   );
@@ -72,7 +85,7 @@ export function H1({ children, level = 1 }: { children: ReactNode; level?: 1 | 2
  * only emits the `aria-*` props, so every stateful control spreads this (#381). `pressed` is a toggle button
  * (`aria-pressed`, spoken on native as selected).
  */
-export function a11yState(s: { selected?: boolean; checked?: boolean; expanded?: boolean; busy?: boolean; pressed?: boolean }) {
+export function a11yState(s: { selected?: boolean; checked?: boolean; expanded?: boolean; busy?: boolean; pressed?: boolean; disabled?: boolean }) {
   const defined = Object.entries(s).filter(([, v]) => v !== undefined);
   const { pressed, ...native } = Object.fromEntries(defined) as typeof s;
   return {
@@ -81,13 +94,15 @@ export function a11yState(s: { selected?: boolean; checked?: boolean; expanded?:
     'aria-checked': s.checked,
     'aria-expanded': s.expanded,
     'aria-busy': s.busy,
+    'aria-disabled': s.disabled,
     'aria-pressed': s.pressed,
   };
 }
 
-export function Hint({ children }: { children: ReactNode }) {
+/** `id` lets a field or group name this text in `describedBy`: react-native-web renders it as the DOM `id`. */
+export function Hint({ children, id }: { children: ReactNode; id?: string }) {
   const c = useTheme();
-  return <Text style={[styles.hint, { color: c.muted }]}>{children}</Text>;
+  return <Text nativeID={id} style={[styles.hint, { color: c.muted }]}>{children}</Text>;
 }
 
 export function Label({ children }: { children: ReactNode }) {
@@ -109,16 +124,17 @@ export function Note({ children }: { children: ReactNode }) {
   return <Text style={[styles.note, { color: c.ink, backgroundColor: c.tint, borderColor: c.line }]}>{children}</Text>;
 }
 
-export function ErrorText({ children }: { children: string }) {
+/** `id` lets the invalid field or group name this message in `describedBy` (web drops accessibilityHint). */
+export function ErrorText({ children, id }: { children: string; id?: string }) {
   const c = useTheme();
   return (
-    <Text accessibilityRole="alert" style={[styles.hint, { color: c.danger }]}>
+    <Text nativeID={id} accessibilityRole="alert" style={[styles.hint, { color: c.danger }]}>
       {children}
     </Text>
   );
 }
 
-/** The surface a control sits on decides its ring colour (DESIGN.md 8.1): the theme's focus colour on canvas, surface and tint; `link-dark` on a dark surface; white on a brand fill. */
+/** The surface a control sits on decides its ring colour: the theme's focus colour on canvas, surface and tint; `link-dark` on a dark surface; white on a brand fill. */
 export type RingSurface = 'canvas' | 'dark' | 'brand';
 
 /** Focus ring for keyboard and switch-access focus: 2px, 2px offset. On web, mouse clicks do not show it (`:focus-visible`). */
@@ -137,11 +153,24 @@ export function useFocusRing(surface: RingSurface = 'canvas') {
 }
 
 /** Pressable with the focus ring. Every tappable control uses this, so none can miss the ring. */
-export function Press({ surface, style, onFocus, onBlur, ...rest }: PressableProps & { surface?: RingSurface }) {
+export function Press({ surface, style, onFocus, onBlur, ...rest }: PressableProps & { surface?: RingSurface; ref?: Ref<ComponentRef<typeof View>> }) {
   const f = useFocusRing(surface);
+  // react-native-web's Pressable (a div) only answers Enter; the ARIA checkbox, radio and switch contract is Space, and Space would scroll the page (#1139).
+  const spaceKey = Platform.OS === 'web' && (rest.accessibilityRole === 'checkbox' || rest.accessibilityRole === 'radio' || rest.accessibilityRole === 'switch' || rest.role === 'checkbox' || rest.role === 'radio' || rest.role === 'switch');
   return (
     <Pressable
       {...rest}
+      {...(spaceKey && !rest.disabled
+        ? {
+            onKeyDown: ((e: { key: string; repeat?: boolean; ctrlKey?: boolean; altKey?: boolean; metaKey?: boolean; target?: unknown; currentTarget?: unknown; preventDefault(): void }) => {
+              rest.onKeyDown?.(e as never);
+              // Only a bare Space on the control itself: a focusable child keeps its own Space, and Ctrl/Alt/Meta+Space stay with the browser.
+              if (e.key !== ' ' || e.ctrlKey || e.altKey || e.metaKey || e.target !== e.currentTarget) return;
+              e.preventDefault();
+              if (!e.repeat) rest.onPress?.(e as never);
+            }) as unknown as PressableProps['onKeyDown'],
+          }
+        : null)}
       onFocus={(e) => {
         f.onFocus(e);
         onFocus?.(e);
@@ -164,7 +193,9 @@ export function Button({
   busy,
   surface,
   disabled,
+  ref,
 }: {
+  ref?: Ref<ComponentRef<typeof View>>;
   label: string;
   onPress: () => void;
   /** Not pressable and drawn faded; announced as disabled. */
@@ -187,6 +218,7 @@ export function Button({
   }[kind];
   return (
     <Press
+      ref={ref}
       surface={surface}
       accessibilityRole="button"
       accessibilityLabel={a11yLabel ?? label}
@@ -198,9 +230,11 @@ export function Button({
         disabled && { opacity: 0.45 },
         kind !== 'link' && { backgroundColor: pressed ? palette.pressed : palette.bg, borderColor: palette.border, borderWidth: 1 },
         pressed && kind !== 'link' && { shadowColor: c.shadow, ...pressedShadow },
+        // The one glow of the identity: the primary action, at rest. Light's glow is white, so it draws nothing there.
+        kind === 'primary' && !disabled && !pressed && { shadowColor: c.glow, ...glowShadow },
       ]}
     >
-      <Text style={[kind === 'link' ? type.bodyStrong : type.button, { color: palette.fg }]}>{label}</Text>
+      <Text style={[kind === 'link' ? type.bodyStrong : type.button, kind === 'link' && [linkText, { flexShrink: 1 }], { color: palette.fg }]}>{label}</Text>
     </Press>
   );
 }
@@ -213,7 +247,9 @@ export function Choice({
   onPress,
   chip,
   action,
+  focusRef,
 }: {
+  focusRef?: Ref<ComponentRef<typeof View>>;
   label: string;
   sub?: string;
   selected: boolean;
@@ -225,12 +261,13 @@ export function Choice({
   const c = useTheme();
   return (
     <Press
+      ref={focusRef}
       accessibilityRole={action ? 'button' : 'radio'}
       accessibilityLabel={sub ? `${label}. ${sub}` : label}
       // A radio must announce its state on web too (WCAG 4.1.2).
       {...a11yState(action ? {} : { checked: selected })}
       onPress={onPress}
-      hitSlop={chip ? { top: 6, bottom: 6 } : undefined}
+      hitSlop={chip ? { top: 2, bottom: 2 } : undefined}
       style={[
         chip ? styles.chip : styles.opt,
         chip
@@ -244,19 +281,60 @@ export function Choice({
   );
 }
 
-export function Field({ label, ...rest }: TextInputProps & { label: string }) {
-  return <Input accessibilityLabel={label} style={styles.input} {...rest} />;
+/**
+ * A toggle chip: filter, rating and quick-answer buttons. `label` is the spoken name, `text` (default the label) what shows.
+ * Selected = lime fill with dark text. One component for the whole app.
+ */
+export function Chip({ label, text, pressed, danger, disabled, hint, onPress, ref }: { ref?: Ref<ComponentRef<typeof View>>; label: string; text?: string; pressed?: boolean; danger?: boolean; /** Not pressable and drawn faded; announced as disabled. Give the reason as `hint` and as visible text near the chip. */ disabled?: boolean; /** Spoken after the label (the reason a chip is disabled). */ hint?: string; onPress: () => void }) {
+  const c = useTheme();
+  return (
+    <Press
+      ref={ref}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityHint={hint}
+      disabled={disabled}
+      {...a11yState({ pressed, disabled: disabled || undefined })}
+      onPress={onPress}
+      hitSlop={{ top: 2, bottom: 2 }}
+      style={[styles.chip, { backgroundColor: pressed ? c.brand : c.surfaceSoft }, danger ? { borderWidth: 1, borderColor: c.danger } : null, disabled && { opacity: 0.55 }]}
+    >
+      <Text style={[type.buttonSm, { color: pressed ? c.onBrand : danger ? c.danger : c.ink }]}>{text ?? label}</Text>
+    </Press>
+  );
 }
 
-export function Group({ children, label }: { children: ReactNode; label?: string }) {
+const NUMERIC_KEYBOARDS = ['numeric', 'decimal', 'decimal-pad', 'number-pad'];
+
+/** Text fields fill their column; numeric fields (by `inputMode` or `keyboardType`) stay at most 160px wide. Layout in `style` still wins. */
+export function Field({ label, invalid, describedBy, style, ...rest }: TextInputProps & { ref?: Ref<ComponentRef<typeof TextInput>>; label: string; /** Ids of the error and hint texts for this field (space separated). Web reads them as `aria-describedby`; native keeps `accessibilityHint`. */ describedBy?: string; /** The value is wrong: announces `aria-invalid` and draws a danger border (after the caller's style, so it wins). */ invalid?: boolean }) {
+  return <Input accessibilityLabel={label} invalid={invalid} aria-invalid={invalid || undefined} aria-describedby={describedBy} {...rest} style={[styles.input, NUMERIC_KEYBOARDS.includes(rest.inputMode ?? rest.keyboardType ?? '') ? styles.numeric : null, style]} />;
+}
+
+/**
+ * `error` marks the group invalid and is its hint, so a screen reader hears why on entering it.
+ * On web it follows the radio group pattern (#1409): one tab stop (the checked radio, else the first) and the arrow keys move the selection.
+ */
+export function Group({ children, label, error, describedBy }: { children: ReactNode; label?: string; error?: string; /** Ids of the error and hint texts (space separated), read on web as `aria-describedby`. */ describedBy?: string }) {
+  const ref = useRef<unknown>(null);
+  const web = Platform.OS === 'web';
+  // After every render: a choice may have been picked, or mounted, since the last one.
+  useEffect(() => {
+    if (web) syncTabStops(ref.current as GroupEl | null);
+  });
+  const onKeyDown = web
+    ? (e: { key: string; target: unknown; currentTarget: unknown; ctrlKey?: boolean; altKey?: boolean; metaKey?: boolean; preventDefault(): void }) => {
+        if (arrowSelect(e.currentTarget as GroupEl, e.target, e.key, !!(e.ctrlKey || e.altKey || e.metaKey))) e.preventDefault();
+      }
+    : undefined;
   return (
-    <View accessibilityRole="radiogroup" accessibilityLabel={label} style={styles.group}>
+    <View ref={ref as Ref<ComponentRef<typeof View>>} {...(onKeyDown ? { onKeyDown: onKeyDown as unknown as ViewProps['onKeyDown'] } : null)} accessibilityRole="radiogroup" accessibilityLabel={label} accessibilityHint={error} aria-invalid={error ? true : undefined} aria-describedby={describedBy} style={styles.group}>
       {children}
     </View>
   );
 }
 
-/** Flat card: `surface` fill, 8px radius, 16 padding, no border or shadow. */
+/** Flat card: `surface` fill, 20px radius, 16 padding, no border or shadow. */
 export function Card({ style, ...rest }: ViewProps) {
   const c = useTheme();
   return <View {...rest} style={[styles.card, { backgroundColor: c.surface }, style]} />;
@@ -280,19 +358,58 @@ const focusHandlers = (f: ReturnType<typeof useFocusRing>, props: object): objec
   };
 };
 
-/** Switch with the off-state track kept visible (#153) and a white thumb on web too. */
-export function Switch(props: SwitchProps) {
+// react-native-web's switch is a 40x20 root with an invisible checkbox filling it. On web the checkbox is stretched to the
+// 44x44 target (the visible track stays 40x20) and its default outline is dropped: the lime ring is drawn on the wrapper.
+if (Platform.OS === 'web' && typeof document !== 'undefined' && !document.getElementById('pb-switch-target')) {
+  const st = document.createElement('style');
+  st.id = 'pb-switch-target';
+  st.textContent = 'input[type=checkbox][role=switch]{outline:none;top:-12px;left:0;width:44px;height:44px}';
+  document.head.appendChild(st);
+}
+
+/**
+ * Switch with the off-state track kept visible (#153) and a white thumb on web too.
+ * `invalid` / `describedBy` (id of the error text): react-native-web puts unknown aria props on the wrapper div, not on the focusable
+ * input role=switch, so on web they are set on the input itself through the ref, and removed again when they clear. Native keeps `accessibilityHint`.
+ */
+export function Switch({ invalid, describedBy, ...props }: SwitchProps & { invalid?: boolean; describedBy?: string }) {
   const c = useTheme();
   const f = useFocusRing();
+  const input = useRef<unknown>(null);
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    const el = input.current as { setAttribute?: (k: string, v: string) => void; removeAttribute?: (k: string) => void } | null;
+    if (!el?.setAttribute || !el.removeAttribute) return;
+    if (invalid) el.setAttribute('aria-invalid', 'true');
+    else el.removeAttribute('aria-invalid');
+    if (describedBy) el.setAttribute('aria-describedby', describedBy);
+    else el.removeAttribute('aria-describedby');
+  }, [invalid, describedBy]);
   return (
-    <View style={[styles.switchRing, f.ring]}>
-      <RNSwitch
-        trackColor={{ true: c.brand, false: c.muted }}
-        thumbColor={c.onBrand}
-        {...webThumb(c.onBrand)}
-        {...props}
-        {...focusHandlers(f, props)}
+    // A key press after a mouse click re-checks :focus-visible on the ring (focus did not move, so onFocus has not).
+    // The 44x44 hit area is a sibling Pressable behind the unchanged 40x20 track, so clicks on the switch never reach it (#1121).
+    // Not an a11y node or tab stop: the switch carries the role, label and state.
+    <View style={styles.switchHit}>
+      <Pressable
+        testID="switch-hit-area"
+        accessible={false}
+        focusable={false}
+        tabIndex={-1}
+        importantForAccessibility="no"
+        disabled={props.disabled ?? false}
+        onPress={() => props.onValueChange?.(!props.value)}
+        style={StyleSheet.absoluteFill}
       />
+      <View style={[styles.switchRing, f.ring]} onKeyDown={(e) => f.onFocus(e as unknown as { target: unknown })}>
+        <RNSwitch
+          ref={input as never}
+          trackColor={{ true: c.brand, false: c.muted }}
+          thumbColor={props.value ? c.onBrand : c.ink}
+          {...webThumb(c.onBrand)}
+          {...props}
+          {...focusHandlers(f, props)}
+        />
+      </View>
     </View>
   );
 }
@@ -304,17 +421,81 @@ export const layout = StyleSheet.create({
 
 const styles = StyleSheet.create({
   page: { padding: space.lg, alignItems: 'center', flexGrow: 1 },
-  column: { width: '100%', maxWidth: 560, gap: space.sm },
+  column: { width: '100%', maxWidth: COLUMN_MAX, gap: space.sm },
+  columnWide: { maxWidth: 1040 },
   h1: { ...type.title, marginTop: space.sm },
   hint: { ...type.caption },
   label: { ...type.label },
   note: { ...type.caption, padding: space.md, borderRadius: radius.md, borderWidth: 1, overflow: 'hidden' },
-  btn: { minHeight: 48, borderRadius: radius.full, paddingHorizontal: space.xl, alignItems: 'center', justifyContent: 'center', marginTop: space.sm },
-  link: { minHeight: 44, paddingHorizontal: space.xs, alignSelf: 'flex-start', justifyContent: 'center' },
-  card: { borderRadius: radius.md, padding: space.lg, gap: space.sm },
+  btn: { minHeight: 52, borderRadius: radius.full, paddingHorizontal: space.xl, alignItems: 'center', justifyContent: 'center', marginTop: space.sm },
+  link: { minHeight: 44, minWidth: 44, maxWidth: '100%', alignSelf: 'flex-start', justifyContent: 'center' },
+  card: { borderRadius: radius.lg, padding: space.lg, gap: space.sm },
   group: { gap: space.sm },
-  opt: { borderRadius: radius.md, padding: 14, gap: 2, minHeight: 48 },
-  chip: { borderRadius: radius.full, paddingHorizontal: space.md, minHeight: 32, justifyContent: 'center' },
+  opt: { borderRadius: radius.lg, padding: 16, gap: 2, minHeight: 56 },
+  chip: { borderRadius: radius.full, paddingHorizontal: space.lg, minHeight: 44, minWidth: 44, justifyContent: 'center' },
+  switchHit: { minWidth: 44, minHeight: 44, alignSelf: 'flex-start', alignItems: 'center', justifyContent: 'center' },
   switchRing: { alignSelf: 'flex-start', borderRadius: radius.full },
-  input: { minWidth: 90, flexGrow: 1, maxWidth: 160 },
+  input: { minWidth: 90, flexGrow: 1 },
+  numeric: { maxWidth: 160 },
+});
+
+function Chevron({ open, color }: { open: boolean; color: string }) {
+  return (
+    <Svg width={20} height={20} viewBox="0 0 20 20" aria-hidden style={{ transform: [{ rotate: open ? '90deg' : '0deg' }] }}>
+      <Path d="M7 4l6 6-6 6" stroke={color} strokeWidth={2} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+    </Svg>
+  );
+}
+
+/**
+ * A 56px row that shows or hides its children (`aria-expanded`). `defaultOpen` sets the first state; pass `open` to control it.
+ * Children are not mounted while closed.
+ */
+export function Disclosure({ label, defaultOpen = false, open: controlled, onOpenChange, a11yLabel, children }: { label: string; defaultOpen?: boolean; /** Controlled: the parent holds the state (so it can open the row itself). */ open?: boolean; onOpenChange?: (open: boolean) => void; a11yLabel?: string; children: ReactNode }) {
+  const c = useTheme();
+  const [own, setOwn] = useState(defaultOpen);
+  const open = controlled ?? own;
+  const setOpen = (o: boolean) => {
+    setOwn(o);
+    onOpenChange?.(o);
+  };
+  return (
+    <View style={{ gap: space.sm }}>
+      <Press
+        accessibilityRole="button"
+        accessibilityLabel={a11yLabel ?? label}
+        {...a11yState({ expanded: open })}
+        onPress={() => setOpen(!open)}
+        style={[extra.disclosure, { borderColor: c.line }]}
+      >
+        <Text style={[type.bodyStrong, { color: c.muted, flex: 1 }]}>{label}</Text>
+        <Chevron open={open} color={c.muted} />
+      </Press>
+      {open ? children : null}
+    </View>
+  );
+}
+
+/** A row of up to 3 figures with 1px dividers between them, each cell at least 56px tall. `small` is muted text after the value (e.g. " / 6"); `lime` draws the value in the brand colour when it is a real, non-zero number (set on one cell per screen). Spoken as "label: value", or as `spoken` when that reads better (e.g. "3 sets"). */
+export function MetricRow({ cells }: { cells: readonly { label: string; value: string; small?: string; lime?: boolean; spoken?: string }[] }) {
+  const c = useTheme();
+  return (
+    <View style={extra.metricRow}>
+      {cells.map((m, i) => (
+        <View key={m.label} accessible accessibilityLabel={m.spoken ?? `${m.label}: ${m.value}${m.small ?? ''}`} style={[extra.metricCell, i > 0 && { borderLeftWidth: 1, borderLeftColor: c.line }]}>
+          <Text style={[type.metricSm, tabular, { color: m.lime && m.value !== '–' && m.value !== '0' ? c.brand : c.ink }]}>
+            {m.value}
+            {m.small ? <Text style={[type.small, { color: c.muted }]}>{m.small}</Text> : null}
+          </Text>
+          <Text style={[type.small, { color: c.muted, textAlign: 'center' }]}>{m.label}</Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+const extra = StyleSheet.create({
+  disclosure: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: space.sm, borderTopWidth: 1 },
+  metricRow: { flexDirection: 'row' },
+  metricCell: { flex: 1, minHeight: 56, paddingHorizontal: space.sm, justifyContent: 'center', alignItems: 'center' },
 });

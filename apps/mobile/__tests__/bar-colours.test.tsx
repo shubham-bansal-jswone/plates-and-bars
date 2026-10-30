@@ -1,5 +1,5 @@
 import { render, screen } from '@testing-library/react-native';
-import { StyleSheet } from 'react-native';
+import { processColor, StyleSheet } from 'react-native';
 import { WaterCard } from '../src/food/WaterCard';
 import { Meter } from '../src/targets/sections';
 import { RestBar } from '../src/workout/parts';
@@ -30,14 +30,20 @@ describe.each([['light', light], ['dark', dark]] as const)('goal bars in %s', (_
     expect(bg(fill)).toBe(p.bar);
   });
 
+  it('puts the Seven-days labels on a bg chip, on the fill and over target alike (#1190)', async () => {
+    const day = (date: string, kcal: number) => ({ date, logs: [{ name: 'Rice', qty: 1, kcal, protein_g: 80, carbs_g: 100, fat_g: 40 }], trained: false });
+    await render(<WeekCard date="2026-10-02" days={[day('2026-10-01', 1500), day('2026-10-02', 3000)]} kcalTarget={2000} />);
+    for (const t of ['1,500 kcal', '3,000 kcal']) expect(bg(screen.getByText(t))).toBe(p.bg);
+  });
+
   it('draws the set-volume fill in the bar colour', async () => {
-    await render(<Meter title="Done in the last 7 days" rows={[{ muscle: 'chest', sets: 10, shown: 10, low: false, barPct: 80 }]} />);
+    await render(<Meter title="Done in the last 7 days" done rows={[{ muscle: 'chest', sets: 10, shown: 10, low: false, barPct: 80 }]} />);
     const fill = (screen.getByLabelText('Done in the last 7 days, Chest: 10 sets') as unknown as { children: { children: { props: { style?: unknown } }[] }[] }).children[1]!.children[0];
     expect(bg(fill)).toBe(p.bar);
   });
 
-  it('draws the rest-timer fill in the bar colour', async () => {
+  it('draws the rest-timer ring in the brand colour', async () => {
     await render(<RestBar rest={{ id: 1, end: Date.now() + 60000, total: 90, label: 'Bench' }} onAdd={() => {}} onSkip={() => {}} />);
-    expect(bg(screen.getByLabelText(/^Rest \d+% done$/))).toBe(p.bar);
+    expect(screen.getByTestId('ring-progress').props.stroke.payload).toBe(processColor(p.brand));
   });
 });

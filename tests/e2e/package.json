@@ -9,6 +9,7 @@
     "test": "playwright test",
     "test:pose": "playwright test -c playwright.pose.config.mjs",
     "test:barcode": "playwright test -c playwright.barcode.config.mjs",
+    "test:label": "playwright test -c playwright.label.config.mjs",
     "store:graphics": "node store/export-graphics.mjs",
     "store:screenshots": "node store/screenshots.mjs",
     "test:port": "node --test port.test.mjs",
@@ -19,7 +20,7 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.64.0",
-    "@puppeteer/browsers": "^3.2.3",
+    "@puppeteer/browsers": "^3.2.6",
     "axe-core": "^4.14.0"
   }
 }

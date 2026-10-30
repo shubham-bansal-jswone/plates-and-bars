@@ -1,4 +1,4 @@
-import { completeSetup, saved, tab } from '../support/app.mjs';
+import { addFood, completeSetup, tab } from '../support/app.mjs';
 import { badge, expect, label, newEmail, openedOn, signIn, test } from '../support/sync.mjs';
 
 // Needs the backend stack (README.md, "Sync tests"). Part of #688. Waits are on the badge and on screen text, never fixed sleeps:
@@ -7,10 +7,7 @@ import { badge, expect, label, newEmail, openedOn, signIn, test } from '../suppo
 const ROTI = 102;
 
 async function logRoti(page, meal) {
-  await tab(page, 'Food');
-  await label(page, `+ Add to ${meal}`).click();
-  await saved(page, () => page.locator('[aria-label^="Roti / chapati"]').first().click());
-  await label(page, 'Done').click();
+  await addFood(page, meal, 'Roti / chapati');
 }
 
 test('two meals logged offline are queued, then sync when the browser is back online', async ({ device }) => {

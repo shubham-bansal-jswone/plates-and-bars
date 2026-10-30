@@ -70,6 +70,27 @@ if (!measures) failures.push("openapi.yaml: content manifest example has no meas
 const etags = [...spec.matchAll(/"([0-9a-f]{64})"/g)].map((m) => m[1]);
 if (etags.length === 0) failures.push("openapi.yaml: no ETag examples");
 for (const e of etags) if (measures && e !== measures[2]) failures.push(`openapi.yaml: ETag example ${e} is not the measures sha256`);
+// Each manifest example entry's sha256 and size_bytes equal the bytes of the matching content/<name>.json
+// (the files the server serves and the app bundles). Only entries the example lists are compared; a name with
+// no content file fails, a content file the example omits (import-aliases) is not required.
+const manifestExamples = load(spec).paths?.["/content/manifest"]?.get?.responses?.["200"]?.content?.["application/json"]?.examples ?? {};
+let manifestEntries = 0;
+for (const [exName, ex] of Object.entries(manifestExamples)) {
+  for (const b of ex.value?.bundles ?? []) {
+    let bytes;
+    try {
+      bytes = readFileSync(new URL(`../../../content/${b.name}.json`, import.meta.url));
+    } catch {
+      failures.push(`openapi.yaml: manifest example ${exName} lists ${b.name}, but content/${b.name}.json does not exist`);
+      continue;
+    }
+    manifestEntries++;
+    const sha = createHash("sha256").update(bytes).digest("hex");
+    if (b.sha256 !== sha) failures.push(`openapi.yaml: manifest example ${exName} ${b.name} sha256 is ${b.sha256}, content/${b.name}.json is ${sha}`);
+    if (b.size_bytes !== bytes.length) failures.push(`openapi.yaml: manifest example ${exName} ${b.name} size_bytes is ${b.size_bytes}, content/${b.name}.json is ${bytes.length}`);
+  }
+}
+if (manifestEntries === 0) failures.push("openapi.yaml: no manifest example entry compared with content/");
 // Every tag an operation uses is declared once in the top-level `tags` list (Redocly's recommended
 // rules do not check this).
 const tagBlock = spec.match(/^tags:\n([\s\S]*?)^\S/m);
@@ -689,12 +710,80 @@ if (imageFault("image/png", Buffer.from("QUJD", "base64").toString("base64").sli
 for (const f of ["meal_photo", "import_recipe", "form_check"]) if (schemasAi.AiStatus.properties.features.properties[f]?.type !== "boolean") failures.push(`AiStatus.features.${f} must be a boolean`);
 if (schemasAi.AiStatus.properties.features.required.some((f) => ["meal_photo", "import_recipe", "form_check"].includes(f))) failures.push("AiStatus.features: the image flags must stay optional (older servers never send them)");
 
+// routines.json (#1184): the Routine record's bounds, the cap and the vectors a backend and an app must agree on.
+const routinesVec = JSON.parse(readFileSync(new URL("./routines.json", import.meta.url), "utf8"));
+{
+  const sch = parsed.components.schemas;
+  const rt = sch.Routine.allOf[1].properties, rex = sch.RoutineExercise, we = sch.WorkoutExercise;
+  const blankRe = new RegExp(blank.pattern, "u");
+  const L = routinesVec.limits;
+  if (rt.name.minLength !== 1 || rt.name.maxLength !== L.name_max || rt.name.pattern !== blank.pattern) failures.push("Routine.name: bounds or blank pattern differ from routines.json");
+  if (rt.exercises.minItems !== L.exercises_min || rt.exercises.maxItems !== L.exercises_max) failures.push("Routine.exercises: bounds differ from routines.json");
+  if (rt.exercises.maxItems !== sch.Workout.allOf[1].properties.exercises.maxItems) failures.push("Routine.exercises.maxItems must equal Workout.exercises.maxItems (any session can be saved)");
+  if (rex.properties.name.minLength !== 1 || rex.properties.name.maxLength !== L.exercise_name_max || rex.properties.name.pattern !== blank.pattern) failures.push("RoutineExercise.name: bounds or blank pattern differ from routines.json");
+  if (rex.properties.sets.minimum !== L.sets_min || rex.properties.sets.maximum !== L.sets_max || rex.properties.sets.type !== "integer") failures.push("RoutineExercise.sets: bounds differ from routines.json");
+  if ("part" in rex.properties) failures.push("RoutineExercise must not have part (a routine starts a fresh session)");
+  if (rex.maxProperties !== L.max_exercise_keys || rex.propertyNames?.maxLength !== we.propertyNames?.maxLength || JSON.stringify(rex.additionalProperties) !== JSON.stringify(we.additionalProperties)) failures.push("RoutineExercise must be bounded-open exactly as WorkoutExercise");
+  if (sch.Routine["x-max-live-records"] !== L.max_live_routines) failures.push("Routine.x-max-live-records differs from routines.json limits.max_live_routines");
+  if (!sch.SyncTable.enum.includes("routines") || !("routines" in sch.SyncChanges.properties) || !("routines" in sch.ExportTables.properties)) failures.push("routines is missing from SyncTable, SyncChanges or ExportTables");
+  if (sch.ExportTables.required.includes("routines")) failures.push("ExportTables.routines must stay optional (a server built against 0.1.26 omits it; missing means empty)");
+  if (!spec.includes(`\`${L.cap_issue}\``)) failures.push("/sync description does not name the too_many_routines issue");
+  const len = (x) => [...x].length;
+  const check = (r) => {
+    if (typeof r.name !== "string" || len(r.name) < 1 || len(r.name) > L.name_max || !blankRe.test(r.name)) return "name";
+    if (!Array.isArray(r.exercises) || r.exercises.length < L.exercises_min || r.exercises.length > L.exercises_max) return "exercises";
+    for (const e of r.exercises) {
+      if (typeof e.name !== "string" || len(e.name) < 1 || len(e.name) > L.exercise_name_max || !blankRe.test(e.name)) return "exercises.name";
+      if (!Number.isInteger(e.sets) || e.sets < L.sets_min || e.sets > L.sets_max) return "exercises.sets";
+      if (e.group !== undefined && e.group !== null && !(typeof e.group === "string" && /^[A-Za-z0-9_-]{1,36}$/u.test(e.group))) return "exercises.group";
+      const keys = Object.keys(e);
+      if (keys.length > L.max_exercise_keys) return "exercises.unknown_key";
+      for (const k of keys) {
+        if (k === "name" || k === "sets") continue;
+        const x = e[k];
+        if (k.length > 50 || !(x === null || ["boolean", "number", "string"].includes(typeof x)) || (typeof x === "string" && len(x) > 200)) return "exercises.unknown_key";
+      }
+    }
+    return null;
+  };
+  for (const c of routinesVec.valid) if (check(c.record)) failures.push(`routines.json valid "${c.note}": refused at ${check(c.record)}`);
+  for (const c of routinesVec.invalid) if (check(c.record) !== c.field) failures.push(`routines.json invalid "${c.note}": expected ${c.field}, got ${check(c.record)}`);
+  // Reference counter for the cap: refuse only when a new or revived routine is pushed and the live count after the apply is over the limit.
+  const cap = (c) => {
+    let live = c.live;
+    for (const op of c.push) if (op === "delete") live--;
+    const refused = [];
+    c.push.forEach((op, i) => { if (op === "new" || op === "revive") { live++; if (live > L.max_live_routines) refused.push(i); } });
+    return refused;
+  };
+  for (const c of routinesVec.cap.cases) if (JSON.stringify(cap(c)) !== JSON.stringify(c.refused)) failures.push(`routines.json cap "${c.note}": expected ${JSON.stringify(c.refused)}, got ${JSON.stringify(cap(c))}`);
+}
+
+// exercise-group.json (#1182): WorkoutExercise.group and RoutineExercise.group share one shape; the vectors are checked against the schema's type, bounds and pattern.
+{
+  const gv = JSON.parse(readFileSync(new URL("./exercise-group.json", import.meta.url), "utf8"));
+  const sch = parsed.components.schemas;
+  for (const [name, node] of [["WorkoutExercise", sch.WorkoutExercise], ["RoutineExercise", sch.RoutineExercise]]) {
+    const g = node.properties.group;
+    if (!g) { failures.push(`${name}.group is missing`); continue; }
+    if (node.required.includes("group")) failures.push(`${name}.group must stay optional (older clients omit it)`);
+    if (JSON.stringify(g.type) !== JSON.stringify(["string", "null"])) failures.push(`${name}.group must be a nullable string`);
+    if (g.minLength !== 1 || g.maxLength !== 36 || g.pattern !== "^[A-Za-z0-9_-]{1,36}$") failures.push(`${name}.group: bounds or pattern differ from exercise-group.json`);
+    const re = new RegExp(g.pattern, "u");
+    const accepts = (v) => (v === null ? g.type.includes("null") : typeof v === "string" && [...v].length >= g.minLength && [...v].length <= g.maxLength && re.test(v));
+    for (const v of gv.valid) if (!accepts(v)) failures.push(`${name}.group refuses valid ${JSON.stringify(v)}`);
+    for (const v of gv.invalid) if (accepts(v)) failures.push(`${name}.group accepts invalid ${JSON.stringify(v)}`);
+    if (node.maxProperties !== 20) failures.push(`${name}.maxProperties must stay 20`);
+  }
+}
+
 if (failures.length) {
   console.error(failures.join("\n"));
   process.exit(1);
 }
 console.log(`sync-ids.json: rfc_example, ${vectors.cases.length} cases and openapi.yaml example ids verified`);
 console.log(`content-hash.json: ${content.cases.length} cases and openapi.yaml content examples verified`);
+console.log(`openapi.yaml: ${manifestEntries} manifest example entries match the bytes of content/*.json`);
 console.log(`blank-text.json: ${blank.must_fail.length} must-fail and ${blank.must_pass.length} must-pass texts on ${blank.fields.length} fields, ${patterns.length} spec patterns without engine-specific escapes or lookbehind`);
 console.log(`openapi.yaml: ${used.size} operation tags, all declared`);
 console.log(`openapi.yaml: ${bounded} record and AI request strings, arrays and open objects, all bounded`);
@@ -703,5 +792,6 @@ console.log(`openapi.yaml: ${closedCheck.closers.size} closed record objects, ea
 console.log(`openapi.yaml: ${syncExamples.length} /sync 200 examples, replaced_record only on client_won as the stored copy (${replacedSeen} shown); 3 broken conflicts caught`);
 console.log(`ai-images.json: ${imgv.cases.length} cases, limits equal the schemas, ${imageExamples} example images pass the rules`);
 console.log(`strict-json.json: ${strict.must_refuse.length} must-refuse and ${strict.must_accept.length} must-accept bodies, nesting limit ${strict.max_nesting_depth}`);
+console.log(`routines.json: ${routinesVec.valid.length} valid and ${routinesVec.invalid.length} invalid routines, ${routinesVec.cap.cases.length} cap scenarios, bounds and x-max-live-records equal the schemas`);
 console.log(`barcode-gs1.json: ${barcode.valid.length} valid and ${barcode.invalid.length} invalid codes, ${barcode.upc_e_expansion.length} UPC-E expansions, /foods/barcode examples and error codes verified`);
 console.log(`openapi.yaml: OffProduct and OffNutriments closed, ${OFF_NUTRIMENT_KEYS.length} nutriment keys pinned, strings and arrays bounded, ${offMutants.length} mutations caught`);

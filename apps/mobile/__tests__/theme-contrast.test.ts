@@ -1,4 +1,5 @@
 import { dark, light, type Palette } from '../src/theme/tokens';
+import { blend } from '../src/theme/blend';
 import { toWeight } from '../src/theme/fonts';
 
 // WCAG 2.x relative luminance and contrast ratio.
@@ -11,13 +12,7 @@ function contrast(a: string, b: string): number {
   return (hi! + 0.05) / (lo! + 0.05);
 }
 
-// Colour `fg` drawn at `alpha` over `bg`, as a hex string.
-function blend(fg: string, bg: string, alpha: number): string {
-  const px = (h: string, i: number) => parseInt(h.slice(i, i + 2), 16);
-  return `#${[1, 3, 5].map((i) => Math.round(px(fg, i) * alpha + px(bg, i) * (1 - alpha)).toString(16).padStart(2, '0')).join('')}`;
-}
-
-type K = keyof Palette;
+type K = { [P in keyof Palette]: Palette[P] extends string ? P : never }[keyof Palette];
 // Text on the surfaces it is drawn on. Disabled text is exempt (WCAG), so it is not listed.
 const TEXT: [K, K][] = [
   ['ink', 'bg'], ['ink', 'surface'], ['ink', 'surfaceElevated'], ['ink', 'surfaceSoft'], ['ink', 'tint'], ['ink', 'field'], ['muted', 'field'],
@@ -27,7 +22,12 @@ const TEXT: [K, K][] = [
   ['link', 'bg'], ['link', 'surface'], ['link', 'surfaceElevated'], ['link', 'tint'],
   ['danger', 'bg'], ['danger', 'surface'], ['caution', 'bg'], ['caution', 'surface'],
   ['toastFg', 'toastBg'], ['toastAction', 'toastBg'],
+  // `subtle` is for large text and text straight on the canvas only; it does not reach 4.5:1 on cards (see LARGE_TEXT).
+  ['subtle', 'bg'],
 ];
+// `subtle` on the card surfaces: large text only (3:1). Dark is 4.30 on surface, 3.96 on surfaceElevated, 3.60 on surfaceSoft;
+// small text must use `muted`.
+const LARGE_TEXT: [K, K][] = [['subtle', 'surface'], ['subtle', 'surfaceElevated'], ['subtle', 'surfaceSoft']];
 // Bars, borders, focus rings and icons: 3:1 against what they sit on.
 const GRAPHIC: [K, K][] = [
   ['protein', 'surface'], ['protein', 'bg'], ['protein', 'track'],
@@ -38,11 +38,16 @@ const GRAPHIC: [K, K][] = [
   ['focus', 'bg'], ['focus', 'surface'],
   // The off state of a switch (#153): its track must be visible against the page.
   ['muted', 'bg'], ['muted', 'surface'],
+  // Body map: an unworked muscle must show against the page and the cards (#1197).
+  ['muscleOff', 'bg'], ['muscleOff', 'surface'], ['muscleOff', 'surfaceElevated'],
 ];
 
 describe.each([['light', light], ['dark', dark]] as const)('%s palette', (_mode, p) => {
   it.each(TEXT)('text %s on %s is at least 4.5:1', (fg, bg) => {
     expect(contrast(p[fg], p[bg])).toBeGreaterThanOrEqual(4.5);
+  });
+  it.each(LARGE_TEXT)('large text %s on %s is at least 3:1', (fg, bg) => {
+    expect(contrast(p[fg], p[bg])).toBeGreaterThanOrEqual(3);
   });
   it.each(GRAPHIC)('graphic %s on %s is at least 3:1', (fg, bg) => {
     expect(contrast(p[fg], p[bg])).toBeGreaterThanOrEqual(3);
@@ -51,13 +56,25 @@ describe.each([['light', light], ['dark', dark]] as const)('%s palette', (_mode,
   it.each(['bar', 'caution'] as const)('%s fill at 0.85 opacity over track is at least 3:1', (k) => {
     expect(contrast(blend(p[k], p.track, 0.85), p.track)).toBeGreaterThanOrEqual(3);
   });
+  // #1190: Seven-days labels sit on a `bg` chip, so they never meet the fill (lime, blue, caution). bar-colours.test.tsx asserts the chip.
+  it('Seven-days label ink on its bg chip is at least 4.5:1', () => {
+    expect(contrast(p.ink, p.bg)).toBeGreaterThanOrEqual(4.5);
+  });
+  // The map's silhouette is the `muscleOff` stroke (3:1, in GRAPHIC); an also-working fill must show against the page, the cards and the unworked fill.
+  it.each(['bg', 'surface', 'surfaceElevated', 'surfaceSoft'] as const)('body map also-working fill vs %s is at least 3:1', (bg) => {
+    expect(contrast(p.muscleAlso, p[bg])).toBeGreaterThanOrEqual(3);
+  });
+  // Main vs also-working stays low (light 1.71, dark 2.94): the legend and the muscle names in text carry the difference, not the fill alone. Pinned at the measured values.
+  it('body map main vs also-working is at least 1.7:1', () => {
+    expect(contrast(p.brand, p.muscleAlso)).toBeGreaterThanOrEqual(1.7);
+  });
   it('only uses six-digit hex colours, so the maths above is what is drawn', () => {
-    for (const v of Object.values(p)) expect(v).toMatch(/^#[0-9A-F]{6}$/);
+    for (const v of Object.values(p).filter((x) => typeof x === 'string')) expect(v).toMatch(/^#[0-9A-F]{6}$/);
   });
 });
 
 describe('font weights', () => {
   it('maps css weights to the faces we ship', () => {
-    expect(['300', 300, 'normal', undefined, '500', '600', 'bold', '800'].map(toWeight)).toEqual(['300', '300', '400', '400', '500', '600', '700', '700']);
+    expect(['300', 300, 'normal', undefined, '500', '600', 'bold', '800', '900'].map(toWeight)).toEqual(['300', '300', '400', '400', '500', '600', '700', '800', '900']);
   });
 });

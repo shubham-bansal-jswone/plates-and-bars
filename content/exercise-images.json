@@ -261,6 +261,32 @@
       "alt": null,
       "note": null
     },
+    "Dumbbell Fly": {
+      "frames": [
+        {
+          "file": "svg/dumbbell-fly-a.svg",
+          "w": 320,
+          "h": 240,
+          "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 320 240\"><line x1=\"40\" y1=\"226\" x2=\"290\" y2=\"226\" stroke=\"var(--fig-eq)\" stroke-width=\"2\"/><line x1=\"92\" y1=\"180\" x2=\"210\" y2=\"180\" stroke=\"var(--fig-eq)\" stroke-width=\"9\" stroke-linecap=\"round\"/><line x1=\"150\" y1=\"180\" x2=\"150\" y2=\"226\" stroke=\"var(--fig-eq)\" stroke-width=\"4\" stroke-linecap=\"round\"/><line x1=\"232\" y1=\"222\" x2=\"247\" y2=\"222\" stroke=\"currentColor\" stroke-width=\"7\" stroke-linecap=\"round\"/><line x1=\"232\" y1=\"222\" x2=\"239.1\" y2=\"174.5\" stroke=\"currentColor\" stroke-width=\"12\" stroke-linecap=\"round\"/><line x1=\"239.1\" y1=\"174.5\" x2=\"190\" y2=\"165\" stroke=\"currentColor\" stroke-width=\"17\" stroke-linecap=\"round\"/><line x1=\"190\" y1=\"165\" x2=\"120\" y2=\"165\" stroke=\"currentColor\" stroke-width=\"26\" stroke-linecap=\"round\"/><line x1=\"143.8\" y1=\"159.3\" x2=\"127\" y2=\"159.3\" stroke=\"var(--fig-hl)\" stroke-width=\"13\" stroke-linecap=\"round\"/><circle cx=\"94\" cy=\"165\" r=\"11\" fill=\"var(--fig-bg)\" stroke=\"currentColor\" stroke-width=\"5\"/><line x1=\"120\" y1=\"165\" x2=\"118.3\" y2=\"184.7\" stroke=\"var(--fig-arm)\" stroke-width=\"11\" stroke-linecap=\"round\"/><line x1=\"118.3\" y1=\"184.7\" x2=\"109.5\" y2=\"200\" stroke=\"var(--fig-arm)\" stroke-width=\"9\" stroke-linecap=\"round\"/><circle cx=\"109.5\" cy=\"200\" r=\"8\" fill=\"var(--fig-eq)\"/></svg>"
+        },
+        {
+          "file": "svg/dumbbell-fly-b.svg",
+          "w": 320,
+          "h": 240,
+          "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 320 240\"><line x1=\"40\" y1=\"226\" x2=\"290\" y2=\"226\" stroke=\"var(--fig-eq)\" stroke-width=\"2\"/><line x1=\"92\" y1=\"180\" x2=\"210\" y2=\"180\" stroke=\"var(--fig-eq)\" stroke-width=\"9\" stroke-linecap=\"round\"/><line x1=\"150\" y1=\"180\" x2=\"150\" y2=\"226\" stroke=\"var(--fig-eq)\" stroke-width=\"4\" stroke-linecap=\"round\"/><line x1=\"232\" y1=\"222\" x2=\"247\" y2=\"222\" stroke=\"currentColor\" stroke-width=\"7\" stroke-linecap=\"round\"/><line x1=\"232\" y1=\"222\" x2=\"239.1\" y2=\"174.5\" stroke=\"currentColor\" stroke-width=\"12\" stroke-linecap=\"round\"/><line x1=\"239.1\" y1=\"174.5\" x2=\"190\" y2=\"165\" stroke=\"currentColor\" stroke-width=\"17\" stroke-linecap=\"round\"/><line x1=\"190\" y1=\"165\" x2=\"120\" y2=\"165\" stroke=\"currentColor\" stroke-width=\"26\" stroke-linecap=\"round\"/><line x1=\"143.8\" y1=\"159.3\" x2=\"127\" y2=\"159.3\" stroke=\"var(--fig-hl)\" stroke-width=\"13\" stroke-linecap=\"round\"/><circle cx=\"94\" cy=\"165\" r=\"11\" fill=\"var(--fig-bg)\" stroke=\"currentColor\" stroke-width=\"5\"/><line x1=\"120\" y1=\"165\" x2=\"118.7\" y2=\"129\" stroke=\"var(--fig-arm)\" stroke-width=\"11\" stroke-linecap=\"round\"/><line x1=\"118.7\" y1=\"129\" x2=\"123.2\" y2=\"97.3\" stroke=\"var(--fig-arm)\" stroke-width=\"9\" stroke-linecap=\"round\"/><circle cx=\"123.2\" cy=\"97.3\" r=\"8\" fill=\"var(--fig-eq)\"/></svg>"
+        }
+      ],
+      "source": "own_drawing",
+      "source_id": "rig-v1/dumbbell-fly",
+      "licence": "CC-BY-4.0",
+      "licence_url": "https://creativecommons.org/licenses/by/4.0/",
+      "author": "Plate & Bar authors",
+      "author_url": null,
+      "source_url": null,
+      "changes": null,
+      "alt": null,
+      "note": null
+    },
     "Seated Dumbbell Press": {
       "frames": [
         {
@@ -1618,6 +1644,32 @@
       ],
       "source": "own_drawing",
       "source_id": "rig-v1/plank-seconds",
+      "licence": "CC-BY-4.0",
+      "licence_url": "https://creativecommons.org/licenses/by/4.0/",
+      "author": "Plate & Bar authors",
+      "author_url": null,
+      "source_url": null,
+      "changes": null,
+      "alt": null,
+      "note": null
+    },
+    "Dead Bug": {
+      "frames": [
+        {
+          "file": "svg/dead-bug-a.svg",
+          "w": 320,
+          "h": 240,
+          "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 320 240\"><line x1=\"30\" y1=\"226\" x2=\"300\" y2=\"226\" stroke=\"var(--fig-eq)\" stroke-width=\"2\"/><line x1=\"238\" y1=\"161\" x2=\"238\" y2=\"146\" stroke=\"currentColor\" stroke-width=\"7\" stroke-linecap=\"round\"/><line x1=\"238\" y1=\"161\" x2=\"190\" y2=\"161\" stroke=\"currentColor\" stroke-width=\"12\" stroke-linecap=\"round\"/><line x1=\"190\" y1=\"161\" x2=\"190\" y2=\"211\" stroke=\"currentColor\" stroke-width=\"17\" stroke-linecap=\"round\"/><line x1=\"190\" y1=\"211\" x2=\"120\" y2=\"211\" stroke=\"currentColor\" stroke-width=\"26\" stroke-linecap=\"round\"/><line x1=\"176\" y1=\"205.3\" x2=\"151.5\" y2=\"205.3\" stroke=\"var(--fig-hl)\" stroke-width=\"13\" stroke-linecap=\"round\"/><circle cx=\"94\" cy=\"211\" r=\"11\" fill=\"var(--fig-bg)\" stroke=\"currentColor\" stroke-width=\"5\"/><line x1=\"120\" y1=\"211\" x2=\"120\" y2=\"175\" stroke=\"var(--fig-arm)\" stroke-width=\"11\" stroke-linecap=\"round\"/><line x1=\"120\" y1=\"175\" x2=\"120\" y2=\"143\" stroke=\"var(--fig-arm)\" stroke-width=\"9\" stroke-linecap=\"round\"/></svg>"
+        },
+        {
+          "file": "svg/dead-bug-b.svg",
+          "w": 320,
+          "h": 240,
+          "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 320 240\"><line x1=\"30\" y1=\"226\" x2=\"300\" y2=\"226\" stroke=\"var(--fig-eq)\" stroke-width=\"2\"/><line x1=\"286.4\" y1=\"193.9\" x2=\"287.7\" y2=\"179\" stroke=\"currentColor\" stroke-width=\"7\" stroke-linecap=\"round\"/><line x1=\"286.4\" y1=\"193.9\" x2=\"238.9\" y2=\"200.6\" stroke=\"currentColor\" stroke-width=\"12\" stroke-linecap=\"round\"/><line x1=\"238.9\" y1=\"200.6\" x2=\"190\" y2=\"211\" stroke=\"currentColor\" stroke-width=\"17\" stroke-linecap=\"round\"/><line x1=\"190\" y1=\"211\" x2=\"120\" y2=\"211\" stroke=\"currentColor\" stroke-width=\"26\" stroke-linecap=\"round\"/><line x1=\"176\" y1=\"205.3\" x2=\"151.5\" y2=\"205.3\" stroke=\"var(--fig-hl)\" stroke-width=\"13\" stroke-linecap=\"round\"/><circle cx=\"94\" cy=\"211\" r=\"11\" fill=\"var(--fig-bg)\" stroke=\"currentColor\" stroke-width=\"5\"/><line x1=\"120\" y1=\"211\" x2=\"84.8\" y2=\"203.5\" stroke=\"var(--fig-arm)\" stroke-width=\"11\" stroke-linecap=\"round\"/><line x1=\"84.8\" y1=\"203.5\" x2=\"53.5\" y2=\"196.9\" stroke=\"var(--fig-arm)\" stroke-width=\"9\" stroke-linecap=\"round\"/></svg>"
+        }
+      ],
+      "source": "own_drawing",
+      "source_id": "rig-v1/dead-bug",
       "licence": "CC-BY-4.0",
       "licence_url": "https://creativecommons.org/licenses/by/4.0/",
       "author": "Plate & Bar authors",

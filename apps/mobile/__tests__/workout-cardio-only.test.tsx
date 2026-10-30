@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { press } from './disclosure-helpers';
 import { WorkoutScreen } from '../src/screens/WorkoutScreen';
 import { BurnCard } from '../src/food/BurnCard';
 import { saveProfile } from '../src/db/records';
@@ -22,7 +23,7 @@ const profile = () =>
 
 type Db = ReturnType<typeof memoryDb>;
 const field = () => screen.getByLabelText('Cardio minutes');
-const press = (label: string) => fireEvent.press(screen.getByLabelText(label));
+
 const workoutOn = (db: Db, date: string) => JSON.parse(db.rows.get(`workouts:${date}`) as string) as Workout;
 
 async function mount(now: () => Date, db: Db = memoryDb()) {

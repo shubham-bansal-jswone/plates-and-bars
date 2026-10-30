@@ -1,6 +1,6 @@
 import type { Activity, Experience, Goal, Pace, Where } from '@plate-and-bar/core';
 
-// Setup copy, taken from docs/prototype/plate-and-bar.html. Moves into a content bundle once one exists.
+// Setup copy, taken from the prototype (frozen at git tag `prototype-final`). Moves into a content bundle once one exists.
 
 export const CONSENT_TEXT_VERSION = '2026-10-17';
 
@@ -17,7 +17,7 @@ export const CONSENT = {
   ],
   note: 'This app gives general fitness and nutrition guidance. It isn’t medical advice. It’s for adults 18 and over; if you have a medical condition, are pregnant, or are unsure whether exercise is safe for you, check with a doctor first.',
   checkbox: 'I understand and agree to my data being stored as described',
-  needsTick: 'Tick the box to continue.',
+  needsTick: 'Switch this on to continue.',
 };
 
 export const SCREEN_Q = [

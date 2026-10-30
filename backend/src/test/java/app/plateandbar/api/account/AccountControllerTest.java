@@ -33,7 +33,7 @@ import org.springframework.test.web.servlet.MvcResult;
 
 @WebMvcTest(AccountController.class)
 @WebMvcAuthSlice
-@Import(AccountControllerTest.Config.class)
+@Import({AccountControllerTest.Config.class, app.plateandbar.api.common.MdcTaskDecorator.class})
 @TestPropertySource(properties = {"app.rate-limit.export-per-user.capacity=2", "app.rate-limit.export-per-ip.capacity=3"})
 class AccountControllerTest {
 
@@ -105,6 +105,35 @@ class AccountControllerTest {
     }
 
     @Test
+    void aLogLineWrittenWhileTheExportStreamsCarriesTheRequestId() throws Exception {
+        streamsDocument();
+        var logger = (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(AccountController.class);
+        var appender = new ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent>();
+        appender.start();
+        logger.addAppender(appender);
+        try {
+            MvcResult started = mvc.perform(get("/api/v1/me/export")
+                            .header("Authorization", bearer(uid()))
+                            .header("X-Request-Id", "req-export-1")
+                            .with(r -> {
+                                r.setRemoteAddr("10.9.9.1");
+                                return r;
+                            }))
+                    .andReturn();
+            started.getAsyncResult(5000);
+            mvc.perform(asyncDispatch(started)).andExpect(status().isOk());
+            var written = appender.list.stream()
+                    .filter(e -> e.getFormattedMessage().startsWith("Export written"))
+                    .findFirst()
+                    .orElseThrow();
+            org.assertj.core.api.Assertions.assertThat(written.getMDCPropertyMap())
+                    .containsEntry("requestId", "req-export-1");
+        } finally {
+            logger.detachAppender(appender);
+        }
+    }
+
+    @Test
     void anIpRefusalDoesNotSpendTheUsersOwnAllowance() throws Exception {
         streamsDocument();
         String u1 = uid();
@@ -123,6 +152,7 @@ class AccountControllerTest {
         streamsDocument();
         export(USER, "198.51.100.10")
                 .andExpect(status().isOk())
+                .andExpect(header().exists("X-Request-Id"))
                 .andExpect(header().string("Cache-Control", "no-store"))
                 .andExpect(header().string(
                         "Content-Disposition", "attachment; filename=\"plate-and-bar-export-2026-10-08.json\""))
@@ -152,6 +182,7 @@ class AccountControllerTest {
         doThrow(app.plateandbar.api.common.ApiException.unauthorized()).when(service).requireAccount(user);
         export(user, "198.51.100.30")
                 .andExpect(status().isUnauthorized())
+                .andExpect(header().exists("X-Request-Id")) // guard: RequestIdFilter stays ahead of auth
                 .andExpect(jsonPath("$.code").value("unauthorized"));
         verify(service, never()).writeExport(any(), any(), any());
         // The refusals gave their place back: more of them than the default cap of 2 changes nothing for a good one.

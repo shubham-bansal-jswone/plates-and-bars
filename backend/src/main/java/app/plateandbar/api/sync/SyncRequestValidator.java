@@ -47,7 +47,7 @@ public class SyncRequestValidator {
             SyncTable table, String id, int version, Instant updatedAt, Instant deletedAt, ObjectNode data) {}
 
     /** {@code cursor} is null on a first sync. */
-    record Parsed(String cursor, List<Incoming> records) {}
+    record Parsed(String cursor, List<Incoming> records, int maxLiveRoutines) {}
 
     private final Schema requestSchema;
     private final Map<SyncTable, Set<String>> fields = new java.util.EnumMap<>(SyncTable.class);
@@ -55,30 +55,56 @@ public class SyncRequestValidator {
     private final Map<String, Map<String, CompactJsonSizes.Limit>> byteLimits = new java.util.HashMap<>();
 
     static final String MAX_JSON_BYTES = "x-max-json-bytes";
+    static final String MAX_LIVE_RECORDS = "x-max-live-records";
+
+    /** {@code x-max-live-records} of the {@code Routine} schema: checked by SyncService inside the account transaction. */
+    private final int maxLiveRoutines;
 
     /**
      * Draft 2020-12 plus {@code x-max-json-bytes}, which CompactJsonSizes checks, not the schema library. Registered
      * as a keyword that validates nothing, so the library does not log "Unknown keyword" for it.
      */
     static final Dialect REQUEST_DIALECT =
-            Dialect.builder(Dialects.getDraft202012()).keyword(new NonValidationKeyword(MAX_JSON_BYTES)).build();
+            Dialect.builder(Dialects.getDraft202012()).keyword(new NonValidationKeyword(MAX_JSON_BYTES))
+                    .keyword(new NonValidationKeyword(MAX_LIVE_RECORDS)).build();
 
     private final ObjectMapper reader;
+
+    /**
+     * Contract tables this backend does not implement (the contract's {@code SyncTable} enum minus {@link SyncTable}).
+     * A record pushed for one is refused, never dropped; see {@link #validate}.
+     */
+    private final Set<String> unimplemented = new LinkedHashSet<>();
 
     /** For tests: a mapper with Jackson's default limits. */
     SyncRequestValidator() {
         this(new ObjectMapper());
     }
 
+
     /** {@code reader} is the request mapper, so the byte measuring parses with the same limits as the request. */
     @org.springframework.beans.factory.annotation.Autowired
     public SyncRequestValidator(ObjectMapper reader) {
+        this(reader, null);
+    }
+
+    /** For tests: reads the contract from {@code contract} (the classpath copy when null). */
+    SyncRequestValidator(ObjectMapper reader, InputStream contract) {
         this.reader = reader;
         JsonNode components;
-        try (InputStream in = SyncRequestValidator.class.getResourceAsStream("/openapi.yaml")) {
+        try (InputStream in = contract != null ? contract : SyncRequestValidator.class.getResourceAsStream("/openapi.yaml")) {
             components = new YAMLMapper().readTree(in).path("components");
         } catch (IOException | JacksonException e) {
             throw new IllegalStateException("openapi.yaml cannot be read", e);
+        }
+        for (JsonNode name : components.path("schemas").path("SyncTable").path("enum")) {
+            if (SyncTable.byName(name.asString()).isEmpty()) {
+                unimplemented.add(name.asString());
+            }
+        }
+        this.maxLiveRoutines = components.path("schemas").path("Routine").path(MAX_LIVE_RECORDS).asInt(0);
+        if (maxLiveRoutines < 1) {
+            throw new IllegalStateException("openapi.yaml: Routine has no " + MAX_LIVE_RECORDS);
         }
         ObjectMapper json = new ObjectMapper();
         ObjectNode wrapper = json.createObjectNode();
@@ -111,6 +137,15 @@ public class SyncRequestValidator {
             throw invalid(List.of(new ErrorResponse.Detail("changes", "too_many_records")));
         }
         List<ErrorResponse.Detail> problems = new ArrayList<>();
+        // A table in the contract that this backend does not store: refuse each record by its path, so the app sets
+        // it aside like any other refused record, instead of dropping it unseen. Only the table name and index are
+        // named, never the record. Pulls never return such a table (the service reads SyncTable.values() only).
+        for (String table : unimplemented) {
+            JsonNode list = body.path("changes").path(table);
+            for (int i = 0; list.isArray() && i < list.size(); i++) {
+                problems.add(new ErrorResponse.Detail("changes." + table + "[" + i + "]", "unsupported_table"));
+            }
+        }
         for (com.networknt.schema.Error m : requestSchema.validate(body)) {
             problems.add(detail(m));
         }
@@ -151,7 +186,7 @@ public class SyncRequestValidator {
                 records.add(parse(table, list.get(i), path, namespace, seen));
             }
         }
-        return new Parsed(cursor, records);
+        return new Parsed(cursor, records, maxLiveRoutines);
     }
 
     private Incoming parse(SyncTable table, JsonNode rec, String path, UUID namespace, Set<String> seen) {
@@ -273,6 +308,7 @@ public class SyncRequestValidator {
             case exclusions -> "Exclusion";
             case swaps -> "Swap";
             case settings -> "Settings";
+            case routines -> "Routine";
         };
     }
 

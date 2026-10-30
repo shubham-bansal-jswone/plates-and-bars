@@ -2,7 +2,7 @@
  * Lenient number parse: accepts a comma as decimal separator and returns 0 for
  * anything that is not a finite number (null, undefined, '', NaN, Infinity).
  *
- * Mirrors prototype `num` (plate-and-bar.html).
+ * Mirrors prototype `num` (prototype-final tag).
  */
 export function num(v: unknown): number {
   return parseNum(v) ?? 0;

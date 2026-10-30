@@ -29,7 +29,7 @@ const press = (label: string) => fireEvent.press(screen.getByLabelText(label));
 async function consent() {
   await screen.findByText('Before you start');
   await press('Continue');
-  expect(screen.getByText('Tick the box to continue.')).toBeTruthy();
+  expect(screen.getByText('Switch this on to continue.')).toBeTruthy();
   expect(screen.getByText(/Withdrawing your consent means deleting your account/)).toBeTruthy();
   // The glyph sits in its own column so wrapped lines hang under the text, not under the dot.
   expect(screen.getByText('Withdrawing your consent means deleting your account.')).toBeTruthy();
@@ -68,7 +68,7 @@ describe('setup flow', () => {
 
   it('consent first, then answers stored as the contract Profile; results match calcTargets', async () => {
     const db = memoryDb();
-    await render(withProfile(db, <SetupScreen />));
+    await render(withProfile(db, <><ToastProbe /><SetupScreen /></>));
     await consent();
 
     await screen.findByText('Let’s work out your targets');
@@ -120,6 +120,8 @@ describe('setup flow', () => {
 
     await press('Use these targets');
     await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/'));
+    await act(async () => refocus()); // the Food tab coming into focus
+    expect(screen.getByText('no toast')).toBeTruthy(); // first setup updated nothing (#1194)
     const p = await loadProfile(db);
     expect(p).toMatchObject({
       id: null,
@@ -289,6 +291,62 @@ describe('redo and recalculate setup', () => {
     expect(screen.queryByText('Choose male or female for the calorie formula.')).toBeNull();
   });
 
+  it('an unedited redo keeps the stored height in cm and the stored profile and targets (#1196)', async () => {
+    const db = memoryDb();
+    const before = stored();
+    await saveProfile(db, before);
+    await saveConsent(db, { id: 'c1', version: 0, updated_at: '2026-09-01T00:00:00Z', deleted_at: null, kind: 'data_storage', given_at: '2026-09-01T00:00:00Z', text_version: 'x' });
+    await render(withProfile(db, <SetupScreen />));
+    await screen.findByText('Let’s work out your targets');
+    expect(screen.getByLabelText('Height feet').props.value).toBe('5');
+    for (let i = 0; i < 4; i++) await press(i === 3 ? 'See my targets' : 'Continue');
+    await press('Use these targets');
+    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/'));
+    const after = await loadProfile(db);
+    expect(after).toMatchObject({ height_cm: 165, targets: before.targets });
+  });
+
+  it.each([120, 230])('an unedited redo with a stored height of %i cm can continue and keeps it (#1224)', async (cm) => {
+    const db = memoryDb();
+    const before = { ...stored(), ...buildProfile({ ...emptyDraft(), sex: 'male', age: '30', unit: 'cm', cm: String(cm), weight: '82', activity: 'sitting', where: 'gym', days: 6, exp: 'some', minutes: 60, goal: 'lose', pace: 'moderate', screen: ['no', 'no', 'no', 'no', 'no', 'no'] }, new Date(2026, 8, 1)) };
+    await saveProfile(db, before);
+    await saveConsent(db, { id: 'c1', version: 0, updated_at: '2026-09-01T00:00:00Z', deleted_at: null, kind: 'data_storage', given_at: '2026-09-01T00:00:00Z', text_version: 'x' });
+    await render(withProfile(db, <SetupScreen />));
+    await screen.findByText('Let’s work out your targets');
+    await press('Continue');
+    expect(screen.queryByText('Enter your height in feet and inches, like 5 and 7.')).toBeNull();
+    for (let i = 0; i < 3; i++) await press(i === 2 ? 'See my targets' : 'Continue');
+    await press('Use these targets');
+    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/'));
+    expect((await loadProfile(db))!.height_cm).toBe(cm);
+  });
+
+  it('a redo with a stored 120 cm and the inches edited to 10 (116.8 cm) is still rejected on step 0 (#1224)', async () => {
+    const db = memoryDb();
+    const before = { ...stored(), ...buildProfile({ ...emptyDraft(), sex: 'male', age: '30', unit: 'cm', cm: '120', weight: '82', activity: 'sitting', where: 'gym', days: 6, exp: 'some', minutes: 60, goal: 'lose', pace: 'moderate', screen: ['no', 'no', 'no', 'no', 'no', 'no'] }, new Date(2026, 8, 1)) };
+    await saveProfile(db, before);
+    await saveConsent(db, { id: 'c1', version: 0, updated_at: '2026-09-01T00:00:00Z', deleted_at: null, kind: 'data_storage', given_at: '2026-09-01T00:00:00Z', text_version: 'x' });
+    await render(withProfile(db, <SetupScreen />));
+    await screen.findByText('Let’s work out your targets');
+    expect(screen.getByLabelText('Height inches').props.value).toBe('11');
+    await fireEvent.changeText(screen.getByLabelText('Height inches'), '10');
+    await press('Continue');
+    expect(await screen.findByText('Enter your height in feet and inches, like 5 and 7.')).toBeTruthy();
+  });
+
+  it('a redo with an edited height uses the edit', async () => {
+    const db = memoryDb();
+    await saveProfile(db, stored());
+    await saveConsent(db, { id: 'c1', version: 0, updated_at: '2026-09-01T00:00:00Z', deleted_at: null, kind: 'data_storage', given_at: '2026-09-01T00:00:00Z', text_version: 'x' });
+    await render(withProfile(db, <SetupScreen />));
+    await screen.findByText('Let’s work out your targets');
+    await fireEvent.changeText(screen.getByLabelText('Height feet'), '6');
+    for (let i = 0; i < 4; i++) await press(i === 3 ? 'See my targets' : 'Continue');
+    await press('Use these targets');
+    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith('/'));
+    expect((await loadProfile(db))?.height_cm).toBeGreaterThan(180);
+  });
+
   it('a redo offers Cancel, which goes back, instead of Skip for now', async () => {
     mockBack.mockClear();
     const db = memoryDb();
@@ -314,6 +372,45 @@ describe('redo and recalculate setup', () => {
     mockCanGoBack = true;
     expect(mockBack).not.toHaveBeenCalled();
     expect(mockReplace).toHaveBeenCalledWith('/targets');
+  });
+  it('two health check answers in the same tick are both recorded (#1232)', async () => {
+    await render(withProfile(memoryDb(), <SetupScreen />));
+    await consent();
+    await screen.findByText('Let’s work out your targets');
+    await press('Continue');
+    await press('Male');
+    await fireEvent.changeText(screen.getByLabelText('Age'), '30');
+    await press('Use cm');
+    await fireEvent.changeText(screen.getByLabelText('Height in cm'), '165');
+    await fireEvent.changeText(screen.getByLabelText('Weight in kg'), '82');
+    await press('Continue');
+    await press('Continue');
+    await press('Mostly sitting. Desk job, little walking (under ~5,000 steps)');
+    await press('Continue');
+    await press('Continue');
+    await press('6');
+    await press('Continue');
+    await press('At a gym. Machines, cables, barbells and dumbbells');
+    await press('Continue');
+    await press('Some experience. 6 months to 2 years of regular training');
+    await press('Continue');
+    await press('60 min');
+    await press('Continue');
+    await press('Lose fat. Steady fat loss while keeping muscle');
+    // Both presses run before React re-renders, as a synthetic same-tick click does.
+    const no = (q: string) => within(screen.getByLabelText(q)).getByLabelText('No');
+    // fireEvent wraps each press in its own act and so flushes a render between them; click both inside one act instead.
+    const onPressOf = (el: ReturnType<typeof no>) => () => {
+      const target = {};
+      el.props.onClick({ currentTarget: target, target, stopPropagation: () => undefined });
+    };
+    const [first, second] = [no(SCREEN_Q[0]!), no(SCREEN_Q[1]!)];
+    await act(async () => {
+      onPressOf(first)();
+      onPressOf(second)();
+    });
+    expect(no(SCREEN_Q[0]!)).toBeChecked();
+    expect(no(SCREEN_Q[1]!)).toBeChecked();
   });
 });
 
@@ -461,10 +558,10 @@ describe('setup results: keep, first weigh-in, toast, progress, why', () => {
     expect(lines.find((l) => l.startsWith('Training'))).toContain('No regular training yet.');
   });
 
-  it('progress bar steps 1 to 5 across the questions and results', async () => {
+  it('progress bar steps 1 to 4 across the questions, matching "Step N of 4"', async () => {
     await render(withProfile(memoryDb(), <SetupScreen />));
     await consent();
-    expect(screen.getByRole('progressbar').props.accessibilityValue).toEqual({ min: 0, max: 5, now: 1 });
+    expect(screen.getByRole('progressbar').props.accessibilityValue).toEqual({ min: 0, max: 4, now: 1 });
     await press('Male');
     await fireEvent.changeText(screen.getByLabelText('Age'), '30');
     await press('Use cm');
@@ -474,8 +571,8 @@ describe('setup results: keep, first weigh-in, toast, progress, why', () => {
     expect(screen.getByRole('progressbar').props.accessibilityValue.now).toBe(2);
   });
 
-  it('the results step is the fifth', async () => {
+  it('the results screen shows the bar full (4 of 4)', async () => {
     await redo();
-    expect(screen.getByRole('progressbar').props.accessibilityValue).toEqual({ min: 0, max: 5, now: 5 });
+    expect(screen.getByRole('progressbar').props.accessibilityValue).toEqual({ min: 0, max: 4, now: 4 });
   });
 });

@@ -1,4 +1,38 @@
 /** Copy for the data screen (#27). No message holds any user data. */
+import { ROUTINE_MAX_LIVE } from '@plate-and-bar/core';
+const rc_name = (n: string): string => RESTORE_COPY.tables[n] ?? n;
+
+export const RESTORE_COPY = {
+  action: 'Restore from a file',
+  hint: 'Choose a file exported from this app. It is merged with what is here: newer records win, nothing newer is overwritten.',
+  picking: 'Reading the file...',
+  title: 'Restore this file?',
+  differentAccount: 'This file was exported from a different account. Only records this device does not have are added; nothing here is overwritten.',
+  tables: {
+    profiles: 'Profile', consents: 'Consents', food_logs: 'Food log', water_logs: 'Water log', day_notes: 'Day notes', workouts: 'Workouts', workout_sets: 'Workout sets', lift_stats: 'Lift progress', weights: 'Weights', measurements: 'Measurements', user_foods: 'Your foods', recipes: 'Recipes', kitchen_tests: 'Kitchen tests', exclusions: 'Exclusions', swaps: 'Swaps', settings: 'Settings', routines: 'Routines',
+  } as Record<string, string>,
+  table: (name: string, c: { added: number; newer: number; older: number; conflicts: number; overCap?: number; invalid?: number; repaired?: number; from?: string; to?: string }, otherAccount = false) =>
+    `${rc_name(name)}: ${c.added} new, ${otherAccount ? '' : `${c.newer} newer than here, `}${c.older} ${otherAccount ? 'already here (kept)' : 'older (kept as is)'}${otherAccount ? '' : `, ${c.conflicts} changed here and not synced yet (kept)`}${c.overCap ? `, ${c.overCap} skipped (over the limit of ${ROUTINE_MAX_LIVE})` : ''}${c.invalid ? `, ${c.invalid} skipped (not valid)` : ''}${c.repaired ? `, ${c.repaired} repaired (values out of range or missing, set to fit)` : ''}${c.from && c.to ? `. Dates ${c.from} to ${c.to}` : ''}`,
+  deviceOnly: (cycle: boolean, reports: number, hold: boolean) =>
+    `Kept on this device only: ${[cycle ? 'cycle log' : '', reports ? `${reports} lab report${reports === 1 ? '' : 's'}` : '', hold ? 'lab hold' : ''].filter(Boolean).join(', ')}.`,
+  nothing: 'Nothing in this file is newer than what is on this device.',
+  nothingOverCap: `Nothing in this file can be added: its routines are over the limit of ${ROUTINE_MAX_LIVE}. Delete a routine to make room.`,
+  nothingInvalid: 'Nothing in this file can be added: the rows that differ from this device are not valid.',
+  confirm: 'Restore',
+  cancel: 'Cancel',
+  restoring: 'Restoring...',
+  done: 'Restored. Changes sync with your account when you are online and signed in.',
+  failed: 'Could not restore. Nothing was changed.',
+  errors: {
+    too_large: 'That file is too large to be an export from this app. Nothing was changed.',
+    not_json: 'That file is not a readable export. Nothing was changed.',
+    bad_format: 'That file is not an export from this app. Nothing was changed.',
+    bad_version: 'That export is from a version this app cannot read. Nothing was changed.',
+    bad_rows: 'That file is damaged or incomplete. Nothing was changed.',
+    unsafe: 'That file contains content the app refuses to read. Nothing was changed.',
+  },
+};
+
 export const DATA_COPY = {
   title: 'Your data',
   intro: 'Download a copy of what the app stores, or delete everything.',
@@ -9,7 +43,8 @@ export const DATA_COPY = {
   exportDevice: 'Download my data',
   exportServer: 'Download from my account',
   withdraw: 'Withdrawing your consent means deleting your account, and you can delete it at any time from Your data.',
-  exportHint: 'The download works without a connection: it is made from what is on this device, and includes your cycle log if you keep one. Progress photos and lab data are not in it; they stay on this device.',
+  exportHint: 'The download works without a connection. It is made from what is on this device: your logs, profile, recipes and kitchen tests, plus your cycle log and lab reports if you keep them. Photos (progress and kitchen test) are not in it; they stay on this device.',
+  exportUnitNote: 'Weights in the file are always in kilograms, whatever unit you show them in.',
   exportHintAndroid: 'Android does not back up this app, so if you reinstall or move to a new phone, download a copy first.',
   signInToExport: 'Sign in to download from your account',
   exportLinkedHint: 'This device is linked to an account but you are signed out. Sign in to download what the server holds for it.',
@@ -25,7 +60,7 @@ export const DATA_COPY = {
   serverRate: (sec: number) => `You can download from your account up to 5 times an hour. Try again in about ${Math.ceil(sec / 60)} min.`,
   delete: 'Delete everything',
   confirmTitle: 'Delete everything?',
-  confirmDevice: 'This permanently deletes what you entered and your logs on this device: your profile and targets, consent record, food, water and workout logs (including sets and lift history), day notes, weights, measurements, your own foods, recipes and kitchen tests, exclusions, swaps, settings and anything waiting to sync. It cannot be undone.',
+  confirmDevice: 'This permanently deletes what you entered and your logs on this device: your profile and targets, consent record, food, water and workout logs (including sets and lift history), day notes, weights, measurements, your own foods, recipes and kitchen tests, exclusions, swaps, saved routines, settings and anything waiting to sync. It cannot be undone.',
   confirmNoAccount: 'This device is not linked to an account, so this deletes the data on this device only.',
   confirmLinkedSignedOut: 'This device is linked to an account, but you are signed out. To delete the account and its data on our server, sign in first. Deleting only this device leaves your account and its server data in place.',
   signInToDelete: 'Sign in to delete your account',

@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { AccessibilityInfo, Platform, StyleSheet, View } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { kitchenCompare, kitchenNoteTooLong, kitchenTable, kitchenTest, kitchenTestFood, type KitchenCompareFood, type KitchenTestFoodInput } from '@plate-and-bar/core';
 import { Text } from '../components/Text';
-import { Button, Caption, ErrorText, Field, H1, Hint, Label, Page, Press } from '../components/ui';
+import { Button, Caption, ErrorText, Field, H1, Hint, Label, Page, Press, Chip } from '../components/ui';
 import { newId } from '../db/records';
 import type { WorkoutDb } from '../db/workouts';
 import { CameraDenied, capturePhoto } from '../photos/capture';
@@ -17,7 +17,7 @@ import { getRawIngredients, getShippedRawNames } from '../recipes/content';
 import { IngredientRows } from '../recipes/IngredientRows';
 import { localDate } from '../setup/logic';
 import { useTheme } from '../theme/useTheme';
-import { Chip, ToastBar } from '../workout/parts';
+import { ToastBar } from '../workout/parts';
 
 const r1 = (n: number): string => (Math.round(n * 10) / 10).toString();
 const blank = (date: string): TestFields => ({ id: newId(), name: '', date, note: '', rows: [{ ingredient: 'Toor dal (dry)', amount: '', unit: 'g' }], pot: '', potFull: '', cooked: '', serving: '', sname: 'katori' });
@@ -33,6 +33,7 @@ interface Props {
 /** Kitchen tests (prototype `ktSheet` and `ktListHtml`): weigh a dish, get per 100 g and per serving, and use it for logging. Numbers are core's. */
 export function KitchenTestScreen({ db, onBack, now = () => new Date() }: Props) {
   const c = useTheme();
+  const dateErrId = `${useId().replace(/:/g, '')}-date-error`; // web: the Date field's aria-describedby target
   const [toast, setToast] = useState<string | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => void (timer.current && clearTimeout(timer.current)), []);
@@ -143,8 +144,8 @@ export function KitchenTestScreen({ db, onBack, now = () => new Date() }: Props)
           <Caption>Dish</Caption>
           <Field label="Dish" placeholder="e.g. Dal" value={d.name} onChangeText={(name) => set({ name })} />
           <Caption>Date</Caption>
-          <Field label="Date" placeholder="2026-10-08" autoCapitalize="none" value={d.date} onChangeText={(date) => set({ date })} />
-          {dateOk ? null : <ErrorText>{BAD_DATE}</ErrorText>}
+          <Field label="Date" placeholder="2026-10-08" autoCapitalize="none" value={d.date} onChangeText={(date) => set({ date })} invalid={!dateOk} accessibilityHint={dateOk ? undefined : BAD_DATE} describedBy={dateOk ? undefined : dateErrId} />
+          {dateOk ? null : <ErrorText id={dateErrId}>{BAD_DATE}</ErrorText>}
           <Caption>Notes (who cooked, region, method)</Caption>
           <Field label="Notes (who cooked, region, method)" placeholder="e.g. Mom’s Punjabi-style, pressure cooker" value={d.note} onChangeText={(note) => set({ note })} />
         </View>

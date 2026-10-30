@@ -1,3 +1,2 @@
 # id	scope	issue	recheck	reason
-GHSA-vfj7-8cjw-p6xm	apps/mobile	#79	2026-11-18	braces <= 3.0.3 has no fixed release; reaches the app only through micromatch 4 in Metro and Jest (build and test tooling, not in the bundle). Remove when braces ships a fix or micromatch drops it.
-GHSA-86w9-cpqp-85rv	apps/mobile	#79	2026-11-18	node-forge <= 1.4.0 has no fixed release; reaches the app only through @expo/cli (build tooling, not in the bundle). Re-check if expo-updates or expo-dev-client is added.
+GHSA-mrhx-c7xc-m3w5	apps/mobile	#1100	2026-12-23	zod (high) has no non-breaking fix; reaches the app only transitively through expo > @expo/cli (build tooling, not in the app runtime or bundle). Owner decision on #1100. Re-check for a fixed expo or zod release.

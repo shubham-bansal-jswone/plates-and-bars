@@ -1,4 +1,4 @@
-import { completeSetup, expect, label, reloadTo, saved, tab, test } from '../support/app.mjs';
+import { completeSetup, dialog, expect, label, openSheet, reloadTo, saved, tab, test } from '../support/app.mjs';
 
 // Editing today's session: Add exercise, a typed exercise with muscle tags, Remove exercise and the "Can't do" sheet.
 // Offline like logging.spec.mjs; every edit is checked again after a reload online (what comes back was read from SQLite).
@@ -14,15 +14,15 @@ test.beforeEach(async ({ page }) => {
 // A Start button for a session: not the rest timer switch on Targets, nor a "Start the ramp for ..." button on an exercise card.
 const start = (page) => page.locator('[aria-label^="Start "]:not([aria-label^="Start a rest"]):not([aria-label^="Start the ramp for"]) >> visible=true').first();
 const cards = (page) => page.locator('[aria-label^="Mark "][aria-label$=" set 1 done"]');
-const names = async (page) => (await cards(page).evaluateAll((els) => els.map((e) => e.getAttribute('aria-label')))).map((l) => l.slice('Mark '.length, -' set 1 done'.length));
-const dialog = (page, name) => page.locator(`[role="dialog"][aria-label=${JSON.stringify(name)}]`);
-/** Presses the opener, waits for the dialog with this name and for focus to land on its title; returns the dialog. */
-async function openSheet(page, opener, name) {
-  await opener.click();
-  const sheet = dialog(page, name);
-  await expect(sheet).toBeVisible();
-  await expect(sheet.locator('[role=heading]').first()).toBeFocused();
-  return sheet;
+// One exercise is expanded (its "Mark ... set 1 done" tick); the others are collapsed rows named "<exercise>, N/M sets. Show sets". Both, in page order.
+const rows = (page) => page.locator('[aria-label^="Mark "][aria-label$=" set 1 done"], [aria-label$="sets. Show sets"]');
+const names = async (page) =>
+  (await rows(page).evaluateAll((els) => els.map((e) => e.getAttribute('aria-label')))).map((l) => (l.startsWith('Mark ') ? l.slice('Mark '.length, -' set 1 done'.length) : l.replace(/, \d+\/\d+ sets\. Show sets$/, '')));
+/** Makes an exercise the expanded one (taps its collapsed row), so its controls are on screen. */
+async function expandEx(page, name) {
+  const row = page.locator(`[aria-label^=${JSON.stringify(`${name}, `)}][aria-label$="Show sets"]`);
+  await expect(row.or(page.locator(`[aria-label=${JSON.stringify(`Mark ${name} set 1 done`)}]`))).toBeVisible();
+  if (await row.isVisible()) await row.click();
 }
 // The Workout screen has its own "Add exercise" button; the sheet is a dialog with the same name, so the opener is found by role.
 const addExercise = (page) => page.getByRole('button', { name: 'Add exercise', exact: true });
@@ -56,6 +56,7 @@ test('Add exercise: a library exercise goes at the end, can be removed, and both
 
   // Remove asks twice: the first tap arms it.
   await page.context().setOffline(true);
+  await expandEx(page, name);
   await label(page, removeLabel(name)).click();
   await expectNames(page, [...before, name]);
   await savedWithToast(page, () => label(page, `Tap again to remove ${name} from today`).click(), `${name} removed`);
@@ -82,6 +83,7 @@ test('typed exercise: a name from the library is added as that exercise, in any 
   const name = (await chip.getAttribute('aria-label')).slice('Add '.length);
   await label(page, 'Your own exercise').fill(name.toUpperCase());
   await savedWithToast(page, () => label(page, 'Add the exercise you typed').click(), `${name} added`); // no tag sheet: the library knows it
+  await expandEx(page, name); // added after the current exercise, so a collapsed row until tapped
   await expect(label(page, mark(name))).toBeVisible();
 
   // Typing the first exercise again says it is already there.
@@ -116,7 +118,7 @@ test('typed exercise: a new name needs a main muscle, then it is added and survi
   await expect(tags).toBeVisible();
   await expect(tags.getByRole('heading', { name })).toBeFocused();
   await label(page, `Add ${name} with these muscles`).click();
-  await expect(page.getByText('Pick at least one main muscle.')).toBeVisible();
+  await expect(page.getByText('Choose a main muscle first.')).toBeVisible();
 
   const mainChip = tags.locator('[aria-label^="Main muscle: "]').first();
   const alsoChip = tags.locator('[aria-label^="Also working: "]').nth(1);
@@ -196,6 +198,7 @@ test('can’t do: closing the sheet changes nothing', async ({ page }) => {
 
 test('Remove exercise: removing every exercise ends the session, and a new one can be started', async ({ page }) => {
   for (const name of await names(page)) {
+    await expandEx(page, name);
     await label(page, removeLabel(name)).click();
     await saved(page, () => label(page, `Tap again to remove ${name} from today`).click());
   }

@@ -2,8 +2,7 @@ import labels from '../../../../content/labels.json';
 import type { Schemas } from '@plate-and-bar/api';
 import { has, isProtoName, ownOr } from '../content/own';
 import { contentReader, isObj, isText } from '../content/reader';
-import { harder, kgLabel, num, repWord, type ModsNotePart, type Checkin, type CheckinReason, type ExInfo, type ExType, type Rate } from '@plate-and-bar/core';
-import { isBlank } from '../text/blank';
+import { formatWeight, harder, kgLabel, num, repWord, type WeightUnit, type ModsNotePart, type Checkin, type CheckinReason, type ExInfo, type ExType, type PrImprovement, type Rate, isBlank } from '@plate-and-bar/core';
 
 // Display text from the prototype's workout screen (TYPE_LABEL, MUSCLE, RATES, CI_Q).
 
@@ -119,10 +118,75 @@ export function modsNoteText(p: ModsNotePart): string {
 
 /**
  * The note under the ramp sets after the last rated one was "Easy" (prototype `rampMsg`): add a step and do another ramp set.
- * Null when nothing is rated yet or the last rating was not Easy. The step and the weight wording come from core (`harder`, `kgLabel`).
+ * Null when nothing is rated yet or the last rating was not Easy. The step and the weight wording come from core (`harder`, `kgLabel`). `info` is the lb info (`infoForUnit`) when `unit` is lb; `ramp` rows hold kg text.
  */
-export function rampEasyNote(ramp: readonly { w: string; done: boolean; rate: Rate | null }[], info: ExInfo): string | null {
+export function rampEasyNote(ramp: readonly { w: string; done: boolean; rate: Rate | null }[], info: ExInfo, unit: WeightUnit = 'kg'): string | null {
   const last = [...ramp].reverse().find((s) => s.done && s.rate);
   if (last?.rate !== 'easy') return null;
-  return `Easy, so add a step (about ${kgLabel(harder(num(last.w), info), info)}) and do another ramp set of ${info.lo} ${repWord(info.type)}.`;
+  return `Easy, so add a step (about ${kgLabel(harder(num(last.w), info), info, unit)}) and do another ramp set of ${info.lo} ${repWord(info.type)}.`;
 }
+
+/** "Save as routine" (#1184). The limits are core's (`ROUTINE_NAME_MAX`, `ROUTINE_MAX_LIVE`). */
+export const ROUTINE_COPY = {
+  action: 'Save as routine',
+  title: 'Save as routine',
+  hint: 'Saves these exercises and set counts. Weights and reps come from your progress when you start it.',
+  nameLabel: 'Routine name',
+  save: 'Save routine',
+  cancel: 'Cancel',
+  nameError: (max: number) => `Give the routine a name, ${max} characters or fewer.`,
+  capped: (max: number) => `This session has more than ${max} exercises. Only the first ${max} are saved.`,
+  tooMany: (max: number) => `You have ${max} routines, the most you can keep. Delete one to save another.`,
+  failed: 'Couldn’t save the routine. Try again.',
+  saved: (name: string) => `Saved “${name}” as a routine`,
+};
+
+/** "My routines" on the Workout start screen (#1184). */
+export const MY_ROUTINES = {
+  title: 'My routines',
+  count: (n: number) => `${n} ${n === 1 ? 'exercise' : 'exercises'}`,
+  start: 'Start',
+  startLabel: (name: string) => `Start ${name}`,
+  more: 'Edit',
+  moreLabel: (name: string) => `Edit ${name}`,
+  rename: 'Rename',
+  renameLabel: 'Routine name',
+  delete: 'Delete routine',
+  close: 'Close',
+  deleted: (name: string) => `Deleted “${name}”.`,
+  deletedAnnounce: (name: string) => `Deleted “${name}”. Undo available.`,
+  undo: 'Undo',
+  undoLabel: (name: string) => `Undo delete of ${name}`,
+  restored: (name: string) => `Restored “${name}”`,
+  renamed: (name: string) => `Renamed to “${name}”`,
+  failed: 'Couldn’t save that. Try again.',
+  missing: 'This routine is gone. It may have been deleted on another device.',
+  unknown: (name: string) => `${name} is no longer in the exercise library. Remove it, or keep it and log it yourself.`,
+  excluded: (name: string) => `${name} is excluded by your exercise rules. Remove it, or keep it for today.`,
+  removeLabel: (name: string) => `Remove ${name} from this session`,
+  remove: 'Remove',
+};
+
+/** The quiet label on a personal best, in the History day, the completion panel and Recent personal bests. */
+export const PR_LABEL = 'Personal best';
+
+/**
+ * What a personal best was, in the user's unit (#1351), shared by the toast and the Progress rows: loaded lifts say the set and the
+ * estimated 1RM; bodyweight and timed lifts the total; assisted lifts the set. Weights arrive in kg. `lift` is the exercise name.
+ */
+export function prText(lift: string, pr: PrImprovement, unit: WeightUnit, type: ExType): string {
+  const w = (value: number) => `${formatWeight(value, unit)} ${unit}`;
+  const up = (value: number) => `+${formatWeight(value, unit)}${pr.metric === 'e1rm' ? ` ${unit}` : ''}`;
+  if (pr.metric === 'e1rm') return `${lift} ${w(pr.set.w)} x ${pr.set.r}, estimated 1RM ${w(pr.score)} (${up(pr.delta)})`;
+  if (pr.metric === 'reps') return `${lift}, ${pr.score} ${repWord(type)} in total (+${pr.delta})`;
+  return `${lift}, ${pr.set.r} reps with ${w(pr.set.w)} of assistance`;
+}
+
+/** The quiet toast for a milestone just earned (#1351 A9): the title and detail core wrote, in the user's unit. One line, no points. */
+export const milestoneToastText = (m: { title: string; detail: string }): string => `Milestone: ${m.title}, ${m.detail}`;
+
+/** One milestone as a line (the completion panel and the Progress list): title and detail. */
+export const milestoneLine = (m: { title: string; detail: string }): string => `${m.title}, ${m.detail}`;
+
+/** The personal-best toast: "New personal best: " and `prText`. */
+export const pbToastText = (name: string, pr: PrImprovement, unit: WeightUnit, type: ExType): string => `New personal best: ${prText(name, pr, unit, type)}`;

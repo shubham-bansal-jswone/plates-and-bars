@@ -1,0 +1,468 @@
+{
+ "description": "Weekly intake (#1351 C4, new, no prototype counterpart): average kcal and protein per Monday-week over days with a live food log (the weekSummary rule; the complete flag is not used), days after end ignored, null averages for a week with none, partial for 1 to 3 logged days (WEEKLY_INTAKE_MIN_DAYS = 4), the current targets on every week. Log facts are kcal, protein_g, qty, deleted_at.",
+ "min_days": 4,
+ "weekly_intake": [
+  {
+   "note": "null week, 4-day full week, 2-day current week (future day ignored)",
+   "end": "2026-10-29",
+   "weeks": 3,
+   "targets": {
+    "kcal": 2200,
+    "protein_g": 120
+   },
+   "days": [
+    {
+     "date": "2026-10-13",
+     "logs": [
+      {
+       "kcal": 900,
+       "protein_g": 50,
+       "qty": 1,
+       "deleted_at": "2026-10-14T00:00:00Z"
+      }
+     ]
+    },
+    {
+     "date": "2026-10-19",
+     "logs": [
+      {
+       "kcal": 2000,
+       "protein_g": 100,
+       "qty": 1,
+       "deleted_at": null
+      }
+     ]
+    },
+    {
+     "date": "2026-10-20",
+     "logs": [
+      {
+       "kcal": 1000,
+       "protein_g": 60,
+       "qty": 2,
+       "deleted_at": null
+      },
+      {
+       "kcal": 200,
+       "protein_g": 20,
+       "qty": 1,
+       "deleted_at": null
+      }
+     ]
+    },
+    {
+     "date": "2026-10-22",
+     "logs": [
+      {
+       "kcal": 1800,
+       "protein_g": 80,
+       "qty": 1,
+       "deleted_at": null
+      }
+     ]
+    },
+    {
+     "date": "2026-10-25",
+     "logs": [
+      {
+       "kcal": 2000,
+       "protein_g": 100,
+       "qty": 1,
+       "deleted_at": null
+      }
+     ]
+    },
+    {
+     "date": "2026-10-26",
+     "logs": [
+      {
+       "kcal": 2400,
+       "protein_g": 90,
+       "qty": 1,
+       "deleted_at": null
+      }
+     ]
+    },
+    {
+     "date": "2026-10-27",
+     "logs": [
+      {
+       "kcal": 1800,
+       "protein_g": 110,
+       "qty": 1,
+       "deleted_at": null
+      }
+     ]
+    },
+    {
+     "date": "2026-10-28",
+     "logs": []
+    },
+    {
+     "date": "2026-10-30",
+     "logs": [
+      {
+       "kcal": 5000,
+       "protein_g": 300,
+       "qty": 1,
+       "deleted_at": null
+      }
+     ]
+    }
+   ],
+   "expected": [
+    {
+     "weekStart": "2026-10-12",
+     "loggedDays": 0,
+     "avgKcal": null,
+     "avgProtein_g": null,
+     "partial": false,
+     "target": {
+      "kcal": 2200,
+      "protein_g": 120
+     }
+    },
+    {
+     "weekStart": "2026-10-19",
+     "loggedDays": 4,
+     "avgKcal": 2000,
+     "avgProtein_g": 105,
+     "partial": false,
+     "target": {
+      "kcal": 2200,
+      "protein_g": 120
+     }
+    },
+    {
+     "weekStart": "2026-10-26",
+     "loggedDays": 2,
+     "avgKcal": 2100,
+     "avgProtein_g": 100,
+     "partial": true,
+     "target": {
+      "kcal": 2200,
+      "protein_g": 120
+     }
+    }
+   ]
+  },
+  {
+   "note": "threshold: 3 logged days is partial, 4 is not",
+   "end": "2026-11-08",
+   "weeks": 2,
+   "targets": {
+    "kcal": 1800,
+    "protein_g": 90
+   },
+   "days": [
+    {
+     "date": "2026-10-26",
+     "logs": [
+      {
+       "kcal": 1500,
+       "protein_g": 60,
+       "qty": 1,
+       "deleted_at": null
+      }
+     ]
+    },
+    {
+     "date": "2026-10-27",
+     "logs": [
+      {
+       "kcal": 1600,
+       "protein_g": 70,
+       "qty": 1,
+       "deleted_at": null
+      }
+     ]
+    },
+    {
+     "date": "2026-10-28",
+     "logs": [
+      {
+       "kcal": 1700,
+       "protein_g": 80,
+       "qty": 1,
+       "deleted_at": null
+      }
+     ]
+    },
+    {
+     "date": "2026-11-02",
+     "logs": [
+      {
+       "kcal": 1500,
+       "protein_g": 60,
+       "qty": 1,
+       "deleted_at": null
+      }
+     ]
+    },
+    {
+     "date": "2026-11-03",
+     "logs": [
+      {
+       "kcal": 1600,
+       "protein_g": 70,
+       "qty": 1,
+       "deleted_at": null
+      }
+     ]
+    },
+    {
+     "date": "2026-11-04",
+     "logs": [
+      {
+       "kcal": 1700,
+       "protein_g": 80,
+       "qty": 1,
+       "deleted_at": null
+      }
+     ]
+    },
+    {
+     "date": "2026-11-05",
+     "logs": [
+      {
+       "kcal": 1800,
+       "protein_g": 90,
+       "qty": 1,
+       "deleted_at": null
+      }
+     ]
+    }
+   ],
+   "expected": [
+    {
+     "weekStart": "2026-10-26",
+     "loggedDays": 3,
+     "avgKcal": 1600,
+     "avgProtein_g": 70,
+     "partial": true,
+     "target": {
+      "kcal": 1800,
+      "protein_g": 90
+     }
+    },
+    {
+     "weekStart": "2026-11-02",
+     "loggedDays": 4,
+     "avgKcal": 1650,
+     "avgProtein_g": 75,
+     "partial": false,
+     "target": {
+      "kcal": 1800,
+      "protein_g": 90
+     }
+    }
+   ]
+  },
+  {
+   "note": "no days at all: null, never 0",
+   "end": "2026-10-29",
+   "weeks": 1,
+   "targets": {
+    "kcal": 2200,
+    "protein_g": 120
+   },
+   "days": [],
+   "expected": [
+    {
+     "weekStart": "2026-10-26",
+     "loggedDays": 0,
+     "avgKcal": null,
+     "avgProtein_g": null,
+     "partial": false,
+     "target": {
+      "kcal": 2200,
+      "protein_g": 120
+     }
+    }
+   ]
+  }
+ ],
+ "intake_average": [
+  {
+   "note": "no logs: null averages and 0 days, never 0",
+   "weeks": [
+    {
+     "loggedDays": 0,
+     "avgKcal": null,
+     "avgProtein_g": null
+    },
+    {
+     "loggedDays": 0,
+     "avgKcal": null,
+     "avgProtein_g": null
+    },
+    {
+     "loggedDays": 0,
+     "avgKcal": null,
+     "avgProtein_g": null
+    },
+    {
+     "loggedDays": 0,
+     "avgKcal": null,
+     "avgProtein_g": null
+    }
+   ],
+   "expected": {
+    "avgKcal": null,
+    "avgProtein_g": null,
+    "loggedDays": 0
+   }
+  },
+  {
+   "note": "no weeks at all",
+   "weeks": [],
+   "expected": {
+    "avgKcal": null,
+    "avgProtein_g": null,
+    "loggedDays": 0
+   }
+  },
+  {
+   "note": "a partial week is weighted by its days, not as a whole week: (2*1000 + 5*2000) / 7",
+   "weeks": [
+    {
+     "loggedDays": 5,
+     "avgKcal": 2000,
+     "avgProtein_g": 100
+    },
+    {
+     "loggedDays": 2,
+     "avgKcal": 1000,
+     "avgProtein_g": 40
+    }
+   ],
+   "expected": {
+    "avgKcal": 1714.2857142857142,
+    "avgProtein_g": 82.85714285714286,
+    "loggedDays": 7
+   }
+  },
+  {
+   "note": "a no-log week is skipped",
+   "weeks": [
+    {
+     "loggedDays": 5,
+     "avgKcal": 2000,
+     "avgProtein_g": 100
+    },
+    {
+     "loggedDays": 0,
+     "avgKcal": null,
+     "avgProtein_g": null
+    },
+    {
+     "loggedDays": 4,
+     "avgKcal": 1500,
+     "avgProtein_g": 80
+    }
+   ],
+   "expected": {
+    "avgKcal": 1777.7777777777778,
+    "avgProtein_g": 91.11111111111111,
+    "loggedDays": 9
+   }
+  },
+  {
+   "note": "the current week counts its days so far; only the last 4 weeks count",
+   "weeks": [
+    {
+     "loggedDays": 7,
+     "avgKcal": 3000,
+     "avgProtein_g": 200
+    },
+    {
+     "loggedDays": 3,
+     "avgKcal": 1800,
+     "avgProtein_g": 90
+    },
+    {
+     "loggedDays": 7,
+     "avgKcal": 2100,
+     "avgProtein_g": 120
+    },
+    {
+     "loggedDays": 7,
+     "avgKcal": 2100,
+     "avgProtein_g": 120
+    },
+    {
+     "loggedDays": 1,
+     "avgKcal": 900,
+     "avgProtein_g": 30
+    }
+   ],
+   "expected": {
+    "avgKcal": 1983.3333333333333,
+    "avgProtein_g": 110.0,
+    "loggedDays": 18
+   }
+  },
+  {
+   "note": "not a mean of week means: 7 days at 2000 and 1 day at 1000 is 1875, not 1500",
+   "weeks": [
+    {
+     "loggedDays": 7,
+     "avgKcal": 2000,
+     "avgProtein_g": 100
+    },
+    {
+     "loggedDays": 1,
+     "avgKcal": 1000,
+     "avgProtein_g": 50
+    }
+   ],
+   "expected": {
+    "avgKcal": 1875,
+    "avgProtein_g": 93.75,
+    "loggedDays": 8
+   }
+  },
+  {
+   "note": "last_n 2 takes the last 2 weeks; 0 or less takes none",
+   "weeks": [
+    {
+     "loggedDays": 4,
+     "avgKcal": 1000,
+     "avgProtein_g": 10
+    },
+    {
+     "loggedDays": 4,
+     "avgKcal": 2000,
+     "avgProtein_g": 20
+    },
+    {
+     "loggedDays": 4,
+     "avgKcal": 3000,
+     "avgProtein_g": 30
+    }
+   ],
+   "last_n": 2,
+   "expected": {
+    "avgKcal": 2500,
+    "avgProtein_g": 25,
+    "loggedDays": 8
+   }
+  },
+  {
+   "note": "last_n 0 takes none",
+   "weeks": [
+    {
+     "loggedDays": 4,
+     "avgKcal": 1000,
+     "avgProtein_g": 10
+    }
+   ],
+   "last_n": 0,
+   "expected": {
+    "avgKcal": null,
+    "avgProtein_g": null,
+    "loggedDays": 0
+   }
+  }
+ ]
+}

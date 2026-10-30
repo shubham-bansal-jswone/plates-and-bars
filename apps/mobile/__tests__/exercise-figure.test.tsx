@@ -169,7 +169,7 @@ describe('themedSvg', () => {
     const l = themedSvg(BODY, light);
     expect(l).toContain(`fill="${light.ink}"`);
     expect(l).toContain(`stroke="${light.body}"`);
-    expect(l).toContain(`fill="${light.fat}"`);
+    expect(l).toContain(`fill="${light.brand}"`);
     expect(l).toContain(`fill="${light.muted}"`);
     expect(l).not.toMatch(/var\(|currentColor/);
     expect(themedSvg(BODY, dark)).toContain(`fill="${dark.ink}"`);

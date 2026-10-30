@@ -1,26 +1,31 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ComponentRef, type ReactNode, type Ref } from 'react';
+import { focusNode } from '../labelscan/focus';
 import { WhyLink } from '../why/WhyLink';
-import { StyleSheet, View } from 'react-native';
-import { Input } from '../components/Input';
-import { radius } from '../theme/tokens';
+import { StyleSheet, Text as RNText, View } from 'react-native';
+import { radius, tabular, type } from '../theme/tokens';
 import { Text } from '../components/Text';
-import { estimateFor, feelResult, isFocus, ladderOf, showFeel, rampTickFill, kgLabel, noLoad, repWord, restLabel, setTarget, type ExInfo, type LiftRecord, type Rate, type Suggestion, type WarmupSet } from '@plate-and-bar/core';
-import { a11yState, Heading, Button, Card, Hint, Note, Press } from '../components/ui';
+import { estimateFor, feelResult, isFocus, ladderOf, showFeel, rampTickFill, kgLabel, formatWeight, infoForUnit, noLoad, repWord, restLabel, setTarget, type ExInfo, type LiftRecord, type Rate, type Suggestion, type WarmupSet, type WeightUnit } from '@plate-and-bar/core';
+import { a11yState, Chip, Disclosure, Heading, Button, Card, Hint, Note, Press } from '../components/ui';
 import { useTheme } from '../theme/useTheme';
 import { getCatalog } from './catalog';
 import { RATE_LABEL, RATE_ORDER, TYPE_LABEL, listJoin, muscleName, rampEasyNote } from './copy';
 import type { ExState, Row } from './model';
 import { ExerciseSettings } from './ExerciseSettingsSheet';
-import { Chip } from './parts';
 import { TrackSet } from '../pose/TrackSet';
 import { FormCheckButton } from '../ai/FormCheck';
 import { ExerciseFigure } from './ExerciseFigure';
-
-const r1 = (n: number | string): number => Math.round(Number(n) * 10) / 10;
+import { LetterBadge } from './SupersetBlock';
+import { LABEL_W_WIDE, TICK_SIZE } from './setSizes';
+import { SetRow } from './SetRow';
+import { PlatesLink } from './PlateSheet';
+import { useWeightUnit } from '../settings/weightUnit';
+import { displayRow } from './unitText';
+import Svg, { Path } from 'react-native-svg';
 
 export interface Actions {
   edit(kind: 'work' | 'ramp', j: number, field: 'w' | 'r', v: string): void;
-  tick(j: number): void;
+  /** Returns the field that is still empty when the set cannot be ticked, else nothing. */
+  tick(j: number): 'w' | 'r' | void;
   rate(j: number, v: Rate | null): void;
   form(v: 'yes' | 'no' | null): void;
   /** The answer to "Where did you feel that set most?": 'target', 'pain' or a `misplaced_feel` index. */
@@ -30,7 +35,7 @@ export interface Actions {
   rampStart(): void;
   rampSkip(): void;
   rampAdd(): void;
-  rampTick(j: number): void;
+  rampTick(j: number): 'w' | 'r' | void;
   rampRate(j: number, v: Rate | null): void;
   howTo(): void;
   /** Open the "Can't do" sheet for this exercise. */
@@ -48,8 +53,8 @@ interface Props {
   info: ExInfo;
   sug: Suggestion;
   focus: readonly string[];
-  /** Core's warm-up sets for this exercise, or null when no warm-up line shows. */
-  warm: [WarmupSet, WarmupSet] | null;
+  /** Core's warm-up ramp (`warmupRamp`) for this exercise, or null when no warm-up line shows. Never logged. */
+  warm: readonly WarmupSet[] | null;
   act: Actions;
   /** Stall and ladder cards, shown under the warm-up line. */
   cards?: ReactNode;
@@ -63,42 +68,61 @@ interface Props {
   prior?: number;
   /** Shows the short message at the bottom of the screen (the settings sheet's "Saved for this exercise"). */
   notify?: (msg: string) => void;
+  /** Shown in full (default) or as one collapsed row; the screen keeps one expanded at a time. */
+  expanded?: boolean;
+  onToggle?: () => void;
+  /** In a superset: this member's letter, and whether its set is the one up next (the screen takes it from core's `nextInRound`). Set rows are numbered A1, B1, A2. */
+  member?: { letter: string; upNext: boolean };
+  /** The index of the set to do next, across the whole superset (a member that is not up next has -1). Without it the first undone set of this exercise is the current one. */
+  currentSet?: number;
+  /** A member that is not up next: its warm-up, Learn mode, stall and ladder cards, Guide and tools and Remove sit behind "More for {name}". */
+  compact?: boolean;
+  /** The "Superset with next" chip: `next` is the next exercise's name; a `reason` disables it and shows as text under the chip row. Absent: no offer. */
+  superset?: { next: string; reason: string | null; /** The next exercise starts another superset: the chip merges the two. */ merge?: boolean; onPress: () => void };
+  /**
+   * Move up / down and, in a superset, "Remove from superset" (#1345). A step is null when it cannot be taken (list end, other session part): no chip then.
+   * `out`: that step takes the exercise out of its superset (said in the hint).
+   */
+  /** The Move chips' nodes, so the screen can put focus back on the chip after the card moved. */
+  moveUpRef?: Ref<ComponentRef<typeof View>>;
+  moveDownRef?: Ref<ComponentRef<typeof View>>;
+  reorder?: { up: { onPress: () => void; out: boolean } | null; down: { onPress: () => void; out: boolean } | null; leave?: () => void };
+  /** Where focus goes to this exercise's heading (after an ungroup). */
+  headingRef?: Ref<ComponentRef<typeof RNText>>;
+  /** On the up-next set's row in a superset: the node the screen scrolls into view after a tick. */
+  upNextRef?: Ref<ComponentRef<typeof View>>;
 }
 
 function RateRow({ row, label, onRate }: { row: Row; label: string; onRate: (v: Rate | null) => void }) {
   const c = useTheme();
+  // The control that was pressed is replaced, so focus would fall to the page: the rating asked for by a press moves focus to the replacement (#1408).
+  // Any other change of the rating (a sync, a remount) leaves focus alone.
+  const asked = useRef<Rate | null | undefined>(undefined);
+  const rated = useRef<ComponentRef<typeof View>>(null);
+  const first = useRef<ComponentRef<typeof View>>(null);
+  const rate = row.rate;
+  useEffect(() => {
+    const want = asked.current;
+    asked.current = undefined;
+    if (want === undefined || want !== rate) return;
+    focusNode((rate ? rated : first).current);
+  }, [rate]);
   if (!row.done) return null;
+  const choose = (v: Rate | null) => {
+    asked.current = v;
+    onRate(v);
+  };
   if (row.rate)
-    return <Chip label={`${label} rated ${RATE_LABEL[row.rate]}. Change rating`} text={RATE_LABEL[row.rate]} pressed onPress={() => onRate(null)} />;
+    return <Chip ref={rated} label={`${label} rated ${RATE_LABEL[row.rate]}. Change rating`} text={RATE_LABEL[row.rate]} pressed onPress={() => choose(null)} />;
   return (
     <View style={{ gap: 4 }}>
       <Text style={{ color: c.muted, fontSize: 14 }}>How did that feel?</Text>
       <WhyLink id="rir" />
       <View style={styles.wrap}>
-        {RATE_ORDER.map((k) => (
-          <Chip key={k} label={`${label}: ${RATE_LABEL[k]}`} text={RATE_LABEL[k]} onPress={() => onRate(k)} />
+        {RATE_ORDER.map((k, i) => (
+          <Chip key={k} ref={i === 0 ? first : undefined} label={`${label}: ${RATE_LABEL[k]}`} text={RATE_LABEL[k]} onPress={() => choose(k)} />
         ))}
       </View>
-    </View>
-  );
-}
-
-function SetRow({ n, label, row, wHead, repsHead, ph, onEdit, onTick, nl }: { n: string; label: string; row: Row; wHead: string; repsHead: string; ph: { w: string; r: string }; onEdit(f: 'w' | 'r', v: string): void; onTick(): void; nl: boolean }) {
-  const c = useTheme();
-  return (
-    <View style={styles.set}>
-      <Text style={{ color: c.muted, width: 28, fontWeight: '700' }}>{n}</Text>
-      <Input accessibilityLabel={`${label} ${wHead}`} inputMode="decimal" value={row.w} placeholder={ph.w} onChangeText={(v) => onEdit('w', v)} style={styles.input} />
-      <Input accessibilityLabel={`${label} ${repsHead}`} inputMode="numeric" value={row.r} placeholder={ph.r} onChangeText={(v) => onEdit('r', v)} style={styles.input} />
-      <Press
-        accessibilityRole="checkbox"
-        accessibilityLabel={`Mark ${label} done`}
-        {...a11yState({ checked: row.done })}
-        onPress={onTick}
-        style={[styles.tick, { borderColor: c.brand, backgroundColor: row.done ? c.brand : c.surface }]}
-      >
-        <Text style={{ color: row.done ? c.onBrand : c.link, fontWeight: '700', fontSize: 18 }}>✓</Text>
-      </Press>
     </View>
   );
 }
@@ -119,7 +143,7 @@ function FeelStep({ ex, act }: { ex: ExState; act: Actions }) {
             <Text style={{ fontWeight: '700' }}>Stop this exercise for today.</Text> Pain is different from muscle effort or burning. If it happens again next session, pick a different exercise, and see a physio if it keeps happening.
           </Note>
         </View>
-        <View style={styles.wrap}>
+        <View style={{ gap: 8 }}>
           <Button label="Find an alternative" a11yLabel={`Find an alternative to ${ex.name}`} onPress={act.cantPain} />
           {ex.sets.some((s) => !s.done) ? <Button label="Skip remaining sets" a11yLabel={`Skip remaining sets of ${ex.name}`} kind="ghost" onPress={act.skipRest} /> : null}
         </View>
@@ -148,24 +172,41 @@ function LearnBlock({ ex, first, done }: { ex: ExState; first: boolean; done: nu
   const open = shown ?? first;
   const cue = card.key_cues[done % card.key_cues.length];
   return (
-    <View style={[styles.learn, { borderColor: c.brand }]}>
-      <Text style={{ color: c.link, fontSize: 12, fontWeight: '700', letterSpacing: 0.7, textTransform: 'uppercase' }}>Learn mode</Text>
+    <View style={[styles.learn, { borderColor: c.outline }]}>
+      <Text style={{ color: c.ink, fontSize: 12, fontWeight: '700', letterSpacing: 0.7, textTransform: 'uppercase' }}>Learn mode</Text>
       {done === 0 ? <ExerciseFigure name={ex.name} /> : null}
-      <Button label="Setup" a11yLabel={`Setup steps for ${ex.name}`} kind="link" expanded={open} onPress={() => setShown(!open)} />
-      {open ? (
-        <View style={{ gap: 3 }}>
-          {card.setup.map((x, k) => (
-            <Text key={k} style={{ color: c.ink, fontSize: 15, lineHeight: 21 }}>{k + 1}. {x}</Text>
-          ))}
-        </View>
+      {card.setup.length ? (
+        <Disclosure label="Setup" a11yLabel={`Setup steps for ${ex.name}`} open={open} onOpenChange={setShown}>
+          <View style={{ gap: 3 }}>
+            {card.setup.map((x, k) => (
+              <Text key={k} style={{ color: c.ink, fontSize: 15, lineHeight: 21 }}>{k + 1}. {x}</Text>
+            ))}
+          </View>
+        </Disclosure>
       ) : null}
       <Text style={{ color: c.ink, fontSize: 15, lineHeight: 21 }}><Text style={{ fontWeight: '700' }}>Focus this set:</Text> {cue}</Text>
     </View>
   );
 }
 
+/** "8 reps at 24 kg, then 5 at 36 kg": the first step spells out "reps", later ones give the count only. */
+const warmSteps = (warm: readonly WarmupSet[], info: ExInfo, unit: WeightUnit): string =>
+  warm.map((s, k) => `${s.reps}${k === 0 ? ' reps' : ''} at ${kgLabel(s.w, info, unit)}`).join(', then ');
+/** The whole warm-up line as one sentence, for screen readers. */
+const warmLine = (warm: readonly WarmupSet[], info: ExInfo, unit: WeightUnit): string => `Warm up first: ${warmSteps(warm, info, unit)}. Not logged.`;
+
+/** The weight a set's plates are worked for, in kg: what is typed in the row (stored kg text), else the suggestion. Null when neither is a number. */
+function plateTarget(typed: string, suggested: string | number | undefined): number | null {
+  for (const v of [typed, String(suggested ?? '')]) {
+    const n = v.trim() === '' ? NaN : Number(v);
+    if (Number.isFinite(n) && n > 0) return n;
+  }
+  return null;
+}
+
 /** One exercise: suggestion, warm-up line, ramp or working sets, ratings and the form question. */
-export function ExerciseCard({ ex, info, sug, focus, warm, act, cards, learning, lifts, infoOf, prior, notify }: Props) {
+export function ExerciseCard({ ex, info, sug, focus, warm, act, cards, learning, lifts, infoOf, prior, notify, expanded = true, onToggle, member, currentSet, compact, superset, headingRef, upNextRef, moveUpRef, moveDownRef, reorder }: Props) {
+  const [skipped, setSkipped] = useState(false); // "I know my weight" was pressed: the first working set's weight field takes focus
   const [armed, setArmed] = useState(false); // removing an exercise takes a second tap: its logged sets go with it
   useEffect(() => {
     if (!armed) return;
@@ -173,9 +214,13 @@ export function ExerciseCard({ ex, info, sug, focus, warm, act, cards, learning,
     return () => clearTimeout(t);
   }, [armed]);
   const c = useTheme();
+  const { unit, ready } = useWeightUnit();
+  // Rows hold kg text; core's lb steps and rounding come from the lb info, and rows are shown to core in the display unit (#1185).
+  const uinfo = infoForUnit(info, unit);
+  const shown = (rows: readonly Row[]) => rows.map((r) => displayRow(r, unit));
   const nl = noLoad(info.type);
   const rw = repWord(info.type);
-  const wHead = info.type === 'dumbbell' ? 'kg each' : info.type === 'assisted' ? 'Assist kg' : nl ? '+kg' : 'kg';
+  const wHead = info.type === 'dumbbell' ? `${unit} each` : info.type === 'assisted' ? `Assist ${unit}` : nl ? `+${unit}` : unit;
   const tag = getCatalog().tags[ex.name];
   const working = ex.sets.some((s) => s.done);
   const doneCount = ex.sets.filter((s) => s.done).length;
@@ -183,72 +228,163 @@ export function ExerciseCard({ ex, info, sug, focus, warm, act, cards, learning,
   const showRamp = sug.mode === 'new' && !working && !ex.skipRamp;
   // Ramp placeholders and the first ramp set's reps come from core's `rampTickFill`.
   const rampPh = (j: number) => {
-    const f = rampTickFill(ex.ramp, j, info);
-    return { w: f.w || 'kg', r: f.r };
+    const f = rampTickFill(shown(ex.ramp), j, uinfo, unit);
+    return { w: f.w || unit, r: f.r };
   };
-  const easyNote = rampEasyNote(ex.ramp, info);
-  const est = showRamp && ex.ramp.length === 0 && lifts ? estimateFor(ex.name, lifts, info) : null;
+  const easyNote = rampEasyNote(ex.ramp, uinfo, unit);
+  const est = showRamp && ex.ramp.length === 0 && lifts ? estimateFor(ex.name, lifts, uinfo) : null;
   const ladder = ladderOf(ex.name, getCatalog().ladders);
-  const firstRampReps = rampTickFill([{ w: '', r: '', done: false }], 0, info).r;
+  const firstRampReps = rampTickFill([{ w: '', r: '', done: false }], 0, uinfo, unit).r;
 
-  return (
-    <Card>
-      <View style={styles.head}>
-        <View style={{ flex: 1 }}>
-          <Heading level={2} style={{ color: c.ink, fontWeight: '600', fontSize: 18 }}>
-            {ex.name}
-          </Heading>
-        </View>
-        <ExerciseSettings name={ex.name} info={info} notify={notify} />
+  const heads = (w: string, r: string, wide = false) => (
+    <View aria-hidden style={styles.heads}>
+      <View style={{ width: wide ? LABEL_W_WIDE : 28 }} />
+      <Text style={[type.small, { color: c.muted }, styles.headCell]}>{w}</Text>
+      <Text style={[type.small, { color: c.muted }, styles.headCell]}>{r}</Text>
+      <View style={{ width: TICK_SIZE }} />
+    </View>
+  );
+
+  // What to do next, shown for every exercise (collapsed rows too, so a returning user sees it without opening each row): the suggestion and why, the warm-up, Learn mode, and the stall and ladder cards.
+  const suggested = !showRamp && sug.text ? <Text style={[type.bodyStrong, { color: c.ink }]}>Suggested: {sug.text}</Text> : null;
+  const reasonBox =
+    !showRamp && sug.reason ? (
+      <View style={[styles.guide, { backgroundColor: c.tint, borderColor: c.line }]}>
+        <Text style={{ color: c.ink, fontSize: 14, lineHeight: 20 }}>{sug.reason}</Text>
+        <WhyLink id="progression" />
       </View>
+    ) : null;
+  const more = (
+    <>
+      {warm && warm.length ? (
+        <View>
+          <Text accessibilityLabel={warmLine(warm, uinfo, unit)} style={{ color: c.muted, fontSize: 14, lineHeight: 20 }}>
+            <Text style={{ fontWeight: '700', color: c.ink }}>Warm up first: </Text>{warmSteps(warm, uinfo, unit)}. Not logged.
+          </Text>
+          <WhyLink id="warmup" subject={ex.name} />
+        </View>
+      ) : null}
+      {learning && doneCount < ex.sets.length ? <LearnBlock ex={ex} first={prior === 0 && doneCount === 0} done={doneCount} /> : null}
+      {cards}
+    </>
+  );
+  const followUp = (
+    <>
+      {reasonBox}
+      {more}
+    </>
+  );
+
+  if (!expanded) {
+    const n = ex.sets.length;
+    return (
+      <Card style={{ paddingVertical: 0 }}>
+        <Press
+          accessibilityRole="button"
+          accessibilityLabel={`${ex.name}, ${doneCount}/${n} sets${member ? `, ${member.letter}${member.upNext ? ', up next' : ''}` : ''}. Show sets`}
+          {...a11yState({ expanded: false })}
+          onPress={onToggle}
+          style={styles.collapsed}
+        >
+          {member ? <LetterBadge letter={member.letter} upNext={member.upNext} /> : null}
+          <Text style={[type.bodyStrong, { color: c.ink, flex: 1 }]}>{ex.name}</Text>
+          <Text style={[type.caption, tabular, { color: allDone ? c.brand : c.muted }]}>{' '}{doneCount}/{n} sets</Text>
+          {allDone ? (
+            <Svg width={20} height={20} viewBox="0 0 24 24" aria-hidden>
+              <Path d="M5 12.5l4.5 4.5L19 7.5" stroke={c.brand} strokeWidth={3} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+            </Svg>
+          ) : (
+            <Svg width={20} height={20} viewBox="0 0 20 20" aria-hidden>
+              <Path d="M7 4l6 6-6 6" stroke={c.muted} strokeWidth={2} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+            </Svg>
+          )}
+        </Press>
+        <View style={styles.collapsedBody}>
+          {suggested}
+          {followUp}
+        </View>
+      </Card>
+    );
+  }
+
+  const tools = (
+    <Disclosure label="Guide and tools" a11yLabel={`Guide and tools for ${ex.name}`} defaultOpen={prior === 0}>
       <Text style={{ color: c.muted, fontSize: 14, lineHeight: 20 }}>
         {TYPE_LABEL[info.type]}, {info.lo}–{info.hi} {rw}
-        {!nl && info.step ? `, steps of ${r1(info.step)} kg` : ''}
+        {!nl && info.step ? `, steps of ${formatWeight(uinfo.step, unit)} ${unit}` : ''}
         {'\n'}Rest {restLabel(ex.name, getCatalog().tags)} between sets{ladder ? `\n${ladder.label} ladder: step ${ladder.i + 1} of ${ladder.steps.length}` : ''}{ex.bridge ? '\nBridge: a lighter version after your new exercise' : ''}
       </Text>
       <WhyLink id="rest" subject={ex.name} />
       {tag ? (
         <Text style={{ color: c.ink, fontSize: 14 }}>
-          {isFocus(ex.name, focus, getCatalog().tags) ? <Text accessibilityLabel="Focus muscle exercise" style={{ color: c.link, fontWeight: '700' }}>Focus </Text> : null}
+          {isFocus(ex.name, focus, getCatalog().tags) ? <Text accessibilityLabel="Focus muscle exercise" style={{ color: c.ink, fontWeight: '700' }}>Focus </Text> : null}
           <Text style={{ fontWeight: '700' }}>Works: </Text>
           {listJoin(tag.primary.map((m) => muscleName(m)))}
           {tag.secondary.length ? <Text style={{ color: c.muted }}>, plus {listJoin(tag.secondary.map((m) => muscleName(m)))}</Text> : null}
         </Text>
       ) : null}
-      <View style={styles.wrap}>
+      <View style={{ gap: 4, alignItems: 'flex-start' }}>
         <Button label={`How to do ${ex.name}`} kind="link" onPress={act.howTo} />
         <Button label={`Can’t do ${ex.name}`} kind="link" onPress={act.cant} />
+      </View>
+      <View style={styles.wrap}>
         <FormCheckButton name={ex.name} />
         <TrackSet name={ex.name} sets={ex.sets} onApply={(j, n) => act.edit('work', j, 'r', String(n))} />
       </View>
-      {learning && doneCount < ex.sets.length ? <LearnBlock ex={ex} first={prior === 0 && doneCount === 0} done={doneCount} /> : null}
+    </Disclosure>
+  );
+  const removeBtn = (
+    <Press
+      accessibilityRole="button"
+      accessibilityLabel={armed ? `Tap again to remove ${ex.name} from today` : `Remove exercise ${ex.name} from today`}
+      onPress={() => (armed ? act.remove() : setArmed(true))}
+      style={[styles.remove, { borderColor: c.ghostBorder }]}
+    >
+      <Text style={[type.buttonSm, { color: c.danger }]}>{armed ? 'Tap again to remove' : 'Remove exercise'}</Text>
+    </Press>
+  );
+
+  return (
+    <Card>
+      <View style={styles.head}>
+        {member ? <LetterBadge letter={member.letter} upNext={member.upNext} /> : null}
+        <View style={{ flex: 1 }}>
+          <Heading level={member ? 3 : 2} ref={headingRef} style={[type.heading, { color: c.ink }]}>
+            {ex.name}
+          </Heading>
+          {member?.upNext ? <Text style={[type.small, { color: c.ink }]}>Up next</Text> : null}
+        </View>
+        <ExerciseSettings name={ex.name} info={info} notify={notify} />
+      </View>
+      {suggested}
 
       {showRamp ? (
         <View style={[styles.guide, { backgroundColor: c.tint, borderColor: c.line }]}>
           <Text style={{ color: c.ink, fontWeight: '700' }}>First time: find your weight</Text>
           {ex.ramp.length === 0 ? (
             <>
-              {est ? <Hint>Rough guess from your {est.from} ({kgLabel(est.fromW, infoOf(est.from))}): about {kgLabel(est.w, info)}. Use the ramp to confirm.</Hint> : null}
+              {est ? <Hint>Rough guess from your {est.from} ({kgLabel(est.fromW, infoOf(est.from), unit)}): about {kgLabel(est.w, uinfo, unit)}. Use the ramp to confirm.</Hint> : null}
               <Text style={{ color: c.ink, fontSize: 14, lineHeight: 20 }}>
                 1. Do {firstRampReps} easy reps with a light weight to learn the movement.{'\n'}2. Add a step and do {info.lo} reps. Rate how it felt.{'\n'}3. Keep adding until {info.lo} reps feel hard but doable, with 2–3 left in the tank.
               </Text>
               <View style={styles.wrap}>
                 <Button label="Start the ramp" a11yLabel={`Start the ramp for ${ex.name}`} onPress={act.rampStart} />
-                <Button label="I know my weight" a11yLabel={`I know my weight for ${ex.name}`} kind="ghost" onPress={act.rampSkip} />
+                <Button label="I know my weight" a11yLabel={`I know my weight for ${ex.name}`} kind="ghost" onPress={() => { setSkipped(true); act.rampSkip(); }} />
               </View>
             </>
           ) : (
             <>
               <Hint>These don’t count as working sets.</Hint>
+              {heads(unit, 'reps')}
               {ex.ramp.map((s, j) => (
                 <View key={s.id} style={{ gap: 6 }}>
-                  <SetRow n={`R${j + 1}`} label={`${ex.name} ramp set ${j + 1}`} row={s} wHead="weight" repsHead="reps" ph={rampPh(j)} nl={nl} onEdit={(f, v) => act.edit('ramp', j, f, v)} onTick={() => act.rampTick(j)} />
+                  <SetRow n={`R${j + 1}`} label={`${ex.name} ramp set ${j + 1}`} row={s} wHead="weight" repsHead="reps" ph={rampPh(j)} onEdit={(f, v) => act.edit('ramp', j, f, v)} onTick={() => act.rampTick(j)} unit={unit} locked={!ready} current={!s.done && ex.ramp.findIndex((x) => !x.done) === j} />
                   <RateRow row={s} label={`${ex.name} ramp set ${j + 1}`} onRate={(v) => act.rampRate(j, v)} />
                 </View>
               ))}
               {ex.found !== null ? (
                 <Text style={{ color: c.ink, fontSize: 14 }}>
-                  Working weight found: <Text style={{ fontWeight: '700' }}>{kgLabel(ex.found, info)}</Text>. Your working sets below start there.
+                  Working weight found: <Text style={{ fontWeight: '700' }}>{kgLabel(ex.found, uinfo, unit)}</Text>. Your working sets below start there.
                 </Text>
               ) : (
                 <>
@@ -259,30 +395,21 @@ export function ExerciseCard({ ex, info, sug, focus, warm, act, cards, learning,
             </>
           )}
         </View>
-      ) : sug.reason ? (
-        <View style={[styles.guide, { backgroundColor: c.tint, borderColor: c.line }]}>
-          <Text style={{ color: c.ink, fontWeight: '700' }}>Suggested: {sug.text}</Text>
-          <Text style={{ color: c.ink, fontSize: 14, lineHeight: 20 }}>{sug.reason}</Text>
-          <WhyLink id="progression" />
-        </View>
       ) : null}
-      {warm ? (
-        <View>
-          <Text style={{ color: c.muted, fontSize: 14, lineHeight: 20 }}>
-            <Text style={{ fontWeight: '700', color: c.ink }}>Warm up first: </Text>{warm[0].reps} reps at {kgLabel(warm[0].w, info)}, then {warm[1].reps} at {kgLabel(warm[1].w, info)}. Not logged.
-          </Text>
-          <WhyLink id="warmup" subject={ex.name} />
-        </View>
-      ) : null}
-      {cards}
 
-      <View style={{ gap: 6 }}>
+      {compact ? reasonBox : followUp}
+
+      {heads(wHead, rw, !!member)}
+      <View style={{ gap: 8 }}>
         {ex.sets.map((s, j) => {
-          const t = setTarget(ex.sets, j, sug, info, ex.found);
-          const label = `${ex.name} set ${j + 1}`;
+          const t = setTarget(shown(ex.sets), j, sug, uinfo, ex.found, unit);
+          const num = member ? `${member.letter}${j + 1}` : String(j + 1);
+          const label = member ? `${ex.name} set ${j + 1}, ${num}` : `${ex.name} set ${j + 1}`;
+          const isCurrent = currentSet !== undefined ? currentSet === j : ex.sets.findIndex((x) => !x.done) === j;
           return (
-            <View key={s.id} style={{ gap: 6 }}>
-              <SetRow n={String(j + 1)} label={label} row={s} wHead={wHead} repsHead={rw} nl={nl} ph={{ w: t.w !== '' && t.w !== undefined ? String(r1(t.w)) : nl ? 'BW' : '–', r: t.r ? String(t.r) : '–' }} onEdit={(f, v) => act.edit('work', j, f, v)} onTick={() => act.tick(j)} />
+            <View key={s.id} ref={member?.upNext && !s.done && isCurrent ? upNextRef : undefined} style={{ gap: 6 }}>
+              <SetRow n={num} wide={!!member} label={label} focusWeight={skipped && j === 0} onFocused={() => setSkipped(false)} row={s} wHead={wHead} repsHead={rw} unit={unit} locked={!ready} ph={{ w: t.w !== '' && t.w !== undefined ? formatWeight(Number(t.w), unit) : nl ? 'BW' : '–', r: t.r ? String(t.r) : '–' }} onEdit={(f, v) => act.edit('work', j, f, v)} onTick={() => act.tick(j)} current={!s.done && isCurrent} />
+              {info.type === 'barbell' && !s.done && isCurrent ? <PlatesLink name={ex.name} label={`Plates for ${label}`} targetKg={plateTarget(s.w, t.w)} onApply={(loaded) => act.edit('work', j, 'w', String(loaded))} /> : null}
               <RateRow row={s} label={label} onRate={(v) => act.rate(j, v)} />
             </View>
           );
@@ -310,12 +437,25 @@ export function ExerciseCard({ ex, info, sug, focus, warm, act, cards, learning,
       <View style={styles.setRow}>
         <Chip label={`Add set to ${ex.name}`} text="Add set" onPress={act.addSet} />
         {ex.sets.length > 1 ? <Chip label={`Remove last set of ${ex.name}`} text="Remove last set" onPress={act.removeSet} /> : null}
-        <Chip
-          label={armed ? `Tap again to remove ${ex.name} from today` : `Remove exercise ${ex.name} from today`}
-          text={armed ? 'Tap again to remove' : 'Remove exercise'}
-          onPress={() => (armed ? act.remove() : setArmed(true))}
-        />
+        {reorder?.up ? <Chip ref={moveUpRef} label={`Move up: ${ex.name}`} text="Move up" {...(reorder.up.out ? { hint: 'Takes it out of the superset.' } : {})} onPress={reorder.up.onPress} /> : null}
+        {reorder?.down ? <Chip ref={moveDownRef} label={`Move down: ${ex.name}`} text="Move down" {...(reorder.down.out ? { hint: 'Takes it out of the superset.' } : {})} onPress={reorder.down.onPress} /> : null}
+        {reorder?.leave ? <Chip label={`Remove from superset: ${ex.name}`} text="Remove from superset" onPress={reorder.leave} /> : null}
+        {superset ? <Chip label={superset.merge ? `Merge with next superset: ${superset.next}` : `Superset with next: ${superset.next}`} text={superset.merge ? 'Merge with next superset' : 'Superset with next'} disabled={superset.reason !== null} {...(superset.reason ? { hint: superset.reason } : {})} onPress={superset.onPress} /> : null}
       </View>
+      {superset?.reason ? <Hint>{superset.reason}</Hint> : null}
+
+      {compact ? (
+        <Disclosure label={`More for ${ex.name}`}>
+          {more}
+          {tools}
+          {removeBtn}
+        </Disclosure>
+      ) : (
+        <>
+          {tools}
+          {removeBtn}
+        </>
+      )}
     </Card>
   );
 }
@@ -326,7 +466,9 @@ const styles = StyleSheet.create({
   wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center' },
   learn: { borderRadius: radius.md, borderWidth: 1, borderStyle: 'dashed', padding: 10, gap: 6 },
   guide: { borderRadius: radius.md, borderWidth: 1, padding: 10, gap: 6 },
-  set: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  input: { flex: 1, minWidth: 60 },
-  tick: { width: 48, height: 48, borderWidth: 2, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
+  heads: { flexDirection: 'row', gap: 8, alignItems: 'center' },
+  headCell: { flex: 1, minWidth: 60, textAlign: 'center' },
+  collapsedBody: { gap: 8, paddingBottom: 12 },
+  collapsed: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  remove: { minHeight: 48, marginTop: 24, borderWidth: 1, borderRadius: radius.full, alignItems: 'center', justifyContent: 'center' },
 });

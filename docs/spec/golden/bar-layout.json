@@ -1,0 +1,396 @@
+{
+ "description": "Bar-chart layout (#1351 A3, new rule, no prototype counterpart; spec section 0). Box {W:320,H:150,px:34,py:16}: plot height 118, baseline y 134, top y 16, x from 34 to 312. One slot per value, each bar 70% of its slot, at most 40 box units wide (BAR_MAX_WIDTH), centred; rises from the baseline at 0, at least 2 units tall (BAR_MIN_HEIGHT) so a real 0 differs from a gap; null is a gap (no bar). y axis 0..max(tallest, target); any finite target above 0 is drawn, however far; a target of 0 or less is ignored; a target never changes x or width. Expected values computed independently (python) from this description.",
+ "box": {
+  "W": 320,
+  "H": 150,
+  "px": 34,
+  "py": 16
+ },
+ "cases": [
+  {
+   "note": "12 values with a real 0",
+   "values": [
+    50,
+    100,
+    25,
+    100,
+    75,
+    0,
+    100,
+    100,
+    100,
+    100,
+    100,
+    100
+   ],
+   "target": null,
+   "expected": {
+    "max": 100,
+    "bars": [
+     {
+      "x": 37.475,
+      "y": 75.0,
+      "width": 16.216666666666665,
+      "height": 59.0
+     },
+     {
+      "x": 60.64166666666667,
+      "y": 16.0,
+      "width": 16.216666666666665,
+      "height": 118.0
+     },
+     {
+      "x": 83.80833333333334,
+      "y": 104.5,
+      "width": 16.216666666666665,
+      "height": 29.5
+     },
+     {
+      "x": 106.975,
+      "y": 16.0,
+      "width": 16.216666666666665,
+      "height": 118.0
+     },
+     {
+      "x": 130.14166666666668,
+      "y": 45.5,
+      "width": 16.216666666666665,
+      "height": 88.5
+     },
+     {
+      "x": 153.30833333333334,
+      "y": 132,
+      "width": 16.216666666666665,
+      "height": 2
+     },
+     {
+      "x": 176.475,
+      "y": 16.0,
+      "width": 16.216666666666665,
+      "height": 118.0
+     },
+     {
+      "x": 199.64166666666668,
+      "y": 16.0,
+      "width": 16.216666666666665,
+      "height": 118.0
+     },
+     {
+      "x": 222.80833333333334,
+      "y": 16.0,
+      "width": 16.216666666666665,
+      "height": 118.0
+     },
+     {
+      "x": 245.975,
+      "y": 16.0,
+      "width": 16.216666666666665,
+      "height": 118.0
+     },
+     {
+      "x": 269.1416666666667,
+      "y": 16.0,
+      "width": 16.216666666666665,
+      "height": 118.0
+     },
+     {
+      "x": 292.3083333333334,
+      "y": 16.0,
+      "width": 16.216666666666665,
+      "height": 118.0
+     }
+    ],
+    "targetY": null
+   }
+  },
+  {
+   "note": "one bar is capped at 40 units wide",
+   "values": [
+    5
+   ],
+   "target": null,
+   "expected": {
+    "max": 5,
+    "bars": [
+     {
+      "x": 153.0,
+      "y": 16.0,
+      "width": 40,
+      "height": 118.0
+     }
+    ],
+    "targetY": null
+   }
+  },
+  {
+   "note": "two bars are capped at 40 units wide",
+   "values": [
+    5,
+    6
+   ],
+   "target": null,
+   "expected": {
+    "max": 6,
+    "bars": [
+     {
+      "x": 83.5,
+      "y": 35.66666666666666,
+      "width": 40,
+      "height": 98.33333333333334
+     },
+     {
+      "x": 222.5,
+      "y": 16.0,
+      "width": 40,
+      "height": 118.0
+     }
+    ],
+    "targetY": null
+   }
+  },
+  {
+   "note": "a null is a gap, not a bar",
+   "values": [
+    10,
+    null,
+    20
+   ],
+   "target": null,
+   "expected": {
+    "max": 20,
+    "bars": [
+     {
+      "x": 60.333333333333336,
+      "y": 75.0,
+      "width": 40,
+      "height": 59.0
+     },
+     null,
+     {
+      "x": 245.66666666666669,
+      "y": 16.0,
+      "width": 40,
+      "height": 118.0
+     }
+    ],
+    "targetY": null
+   }
+  },
+  {
+   "note": "all gaps: the axis is 1",
+   "values": [
+    null,
+    null
+   ],
+   "target": null,
+   "expected": {
+    "max": 1,
+    "bars": [
+     null,
+     null
+    ],
+    "targetY": null
+   }
+  },
+  {
+   "note": "a target inside the range changes nothing",
+   "values": [
+    40,
+    80,
+    null,
+    60
+   ],
+   "target": 50,
+   "expected": {
+    "max": 80,
+    "bars": [
+     {
+      "x": 48.75,
+      "y": 75.0,
+      "width": 40,
+      "height": 59.0
+     },
+     {
+      "x": 118.25,
+      "y": 16.0,
+      "width": 40,
+      "height": 118.0
+     },
+     null,
+     {
+      "x": 257.25,
+      "y": 45.5,
+      "width": 40,
+      "height": 88.5
+     }
+    ],
+    "targetY": 60.25
+   }
+  },
+  {
+   "note": "a target above the tallest bar stretches the axis",
+   "values": [
+    40,
+    80,
+    null,
+    60
+   ],
+   "target": 100,
+   "expected": {
+    "max": 100,
+    "bars": [
+     {
+      "x": 48.75,
+      "y": 86.8,
+      "width": 40,
+      "height": 47.2
+     },
+     {
+      "x": 118.25,
+      "y": 39.599999999999994,
+      "width": 40,
+      "height": 94.4
+     },
+     null,
+     {
+      "x": 257.25,
+      "y": 63.2,
+      "width": 40,
+      "height": 70.8
+     }
+    ],
+    "targetY": 16.0
+   }
+  },
+  {
+   "note": "a far target (over twice the tallest bar) is drawn at the top, bars get short",
+   "values": [
+    10,
+    20
+   ],
+   "target": 100,
+   "expected": {
+    "max": 100,
+    "bars": [
+     {
+      "x": 83.5,
+      "y": 122.2,
+      "width": 40,
+      "height": 11.8
+     },
+     {
+      "x": 222.5,
+      "y": 110.4,
+      "width": 40,
+      "height": 23.6
+     }
+    ],
+    "targetY": 16.0
+   }
+  },
+  {
+   "note": "a target of 0 is ignored",
+   "values": [
+    10,
+    20
+   ],
+   "target": 0,
+   "expected": {
+    "max": 20,
+    "bars": [
+     {
+      "x": 83.5,
+      "y": 75.0,
+      "width": 40,
+      "height": 59.0
+     },
+     {
+      "x": 222.5,
+      "y": 16.0,
+      "width": 40,
+      "height": 118.0
+     }
+    ],
+    "targetY": null
+   }
+  },
+  {
+   "note": "a negative target is ignored",
+   "values": [
+    10,
+    20
+   ],
+   "target": -5,
+   "expected": {
+    "max": 20,
+    "bars": [
+     {
+      "x": 83.5,
+      "y": 75.0,
+      "width": 40,
+      "height": 59.0
+     },
+     {
+      "x": 222.5,
+      "y": 16.0,
+      "width": 40,
+      "height": 118.0
+     }
+    ],
+    "targetY": null
+   }
+  },
+  {
+   "note": "a negative value is clamped to 0 and shows as the stub",
+   "values": [
+    -3,
+    10
+   ],
+   "target": null,
+   "expected": {
+    "max": 10,
+    "bars": [
+     {
+      "x": 83.5,
+      "y": 132,
+      "width": 40,
+      "height": 2
+     },
+     {
+      "x": 222.5,
+      "y": 16.0,
+      "width": 40,
+      "height": 118.0
+     }
+    ],
+    "targetY": null
+   }
+  },
+  {
+   "note": "a tiny value is lifted to the 2-unit stub",
+   "values": [
+    0.1,
+    100
+   ],
+   "target": null,
+   "expected": {
+    "max": 100,
+    "bars": [
+     {
+      "x": 83.5,
+      "y": 132,
+      "width": 40,
+      "height": 2
+     },
+     {
+      "x": 222.5,
+      "y": 16.0,
+      "width": 40,
+      "height": 118.0
+     }
+    ],
+    "targetY": null
+   }
+  }
+ ]
+}

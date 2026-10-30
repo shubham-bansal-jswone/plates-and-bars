@@ -2,6 +2,7 @@
 // The offline service worker (#718): what it caches, what it never touches, and that a half-built cache is not used.
 /* eslint-disable @typescript-eslint/no-require-imports */
 const sw = require('../public/sw.js');
+const path = require('path') as typeof import('path');
 
 const ORIGIN = 'https://app.test';
 const ENTRY = '/_expo/static/js/web/entry-abc123.js';
@@ -49,6 +50,11 @@ describe('service worker helpers', () => {
     expect(sw.assetPaths(`${HTML} a("${WORKER}") b('${FONT}') c(/assets/z.png) d(\`/assets/q.png\`)`).sort()).toEqual([ENTRY, WORKER, FONT, '/assets/z.png', '/assets/q.png'].sort());
     expect(sw.versionOf(HTML)).toBe(`pb-shell-${ENTRY}`);
     expect(sw.versionOf('<html></html>')).toBeNull();
+  });
+  it('expects the bundle name Expo gives the package.json main file, so a rename cannot break offline start', () => {
+    const main = (require('../package.json') as { main: string }).main;
+    const bundle = `/_expo/static/js/web/${path.basename(main, '.js')}-abc123.js`;
+    expect(sw.versionOf(`<script src="${bundle}" defer></script>`)).toBe(`pb-shell-${bundle}`);
   });
 });
 
@@ -104,7 +110,7 @@ describe('precache and fetch', () => {
 
   it('never precaches the web barcode reader chunk or its .wasm (on demand only, #944)', async () => {
     const ZX = '/_expo/static/js/web/zxing-decoder-cc33.js';
-    const withZx = { ...files, [ENTRY]: `x("${WORKER}");import("${ZX}");w("/zxing/3.1.3/zxing_reader.wasm")` };
+    const withZx = { ...files, [ENTRY]: `x("${WORKER}");import("${ZX}");w("/zxing/3.1.6/zxing_reader.wasm")` };
     const { stores, fetched } = install(withZx);
     await sw.precache();
     expect([...stores.get(`pb-shell-${ENTRY}`)!.m.keys()].sort()).toEqual(['/', ENTRY, FONT, WORKER].sort());

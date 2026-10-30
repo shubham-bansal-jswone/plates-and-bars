@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { SheetModal } from '../components/Sheet';
 import { ScrollView, StyleSheet, View } from 'react-native';
-import { Button, Field, Heading, Hint } from '../components/ui';
+import { Button, COLUMN_MAX, Field, Heading, Hint, Chip } from '../components/ui';
+import { type } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { getCatalog } from './catalog';
-import { Chip } from './parts';
+import { LibraryEntryButton } from '../library/LibraryEntryButton';
 import type { WorkoutList } from './workoutLists';
 
 /** "Add exercise" (prototype `openExerciseSheet`): the exercise library by group, without the exercises already in the session. */
@@ -16,13 +17,14 @@ export function AddExerciseSheet({ inSession, workouts = [], onPick, onCustom, o
     <SheetModal title="Add exercise" onClose={onClose}>
       <ScrollView style={{ backgroundColor: c.bg }} contentContainerStyle={styles.sheet}>
         <View style={styles.body}>
-          <Heading level={2} style={{ color: c.ink, fontWeight: '300', fontSize: 22 }}>
+          <Heading level={2} style={[type.heading, { color: c.ink }]}>
             Add exercise
           </Heading>
           <Hint>It goes at the end of today’s session.</Hint>
+          <LibraryEntryButton onBeforeOpen={onClose} />
           <View style={styles.own}>
             <View style={{ flex: 1 }}>
-              <Field label="Your own exercise" placeholder="Or type your own" value={typed} onChangeText={setTyped} />
+              <Field label="Your own exercise" placeholder="Type a name" value={typed} onChangeText={setTyped} onSubmitEditing={() => onCustom(typed)} returnKeyType="done" blurOnSubmit={false} />
             </View>
             <Button label="Add" a11yLabel="Add the exercise you typed" kind="ghost" onPress={() => onCustom(typed)} />
           </View>
@@ -64,8 +66,8 @@ export function AddExerciseSheet({ inSession, workouts = [], onPick, onCustom, o
 }
 
 const styles = StyleSheet.create({
-  sheet: { padding: 16 },
-  body: { gap: 12 },
+  sheet: { padding: 16, alignItems: 'center' },
+  body: { width: '100%', maxWidth: COLUMN_MAX, gap: 12 },
   group: { gap: 6 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   own: { flexDirection: 'row', gap: 8, alignItems: 'flex-end' },

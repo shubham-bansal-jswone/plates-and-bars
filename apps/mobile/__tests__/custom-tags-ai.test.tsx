@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { StyleSheet } from 'react-native';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import type { ApiClient, Schemas } from '@plate-and-bar/api';
 import { AiProvider, KEY_AI_CONSENT } from '../src/ai/AiProvider';
@@ -34,19 +35,23 @@ async function open(opts: { get?: jest.Mock; post?: jest.Mock; kv?: ReturnType<t
   const t = memoryTokenStore();
   await t.save({ access: 'a', refresh: 'r' });
   const onSave = jest.fn();
-  const notify = jest.fn();
   const ui: ReactNode = (
     <AiProvider db={(opts.kv ?? optedIn()) as never} api={{ GET, POST } as unknown as ApiClient} tokens={t} signedIn now={NOW}>
-      <CustomTagsSheet name={opts.name ?? 'Pec deck'} onSave={onSave} onClose={jest.fn()} notify={notify} />
+      <CustomTagsSheet name={opts.name ?? 'Pec deck'} onSave={onSave} onClose={jest.fn()} />
     </AiProvider>
   );
   await render(ui);
-  return { GET, POST, onSave, notify };
+  return { GET, POST, onSave };
 }
 const pressed = (label: string) => !!screen.getByLabelText(label).props.accessibilityState?.selected;
 const tap = async (label: string) => fireEvent.press(await screen.findByLabelText(label));
 
 describe('custom exercise tag suggestion', () => {
+  it('the title is a bold heading (#1194)', async () => {
+    await open();
+    expect(Number(StyleSheet.flatten(screen.getByRole('header', { name: 'Pec deck' }).props.style).fontWeight)).toBeGreaterThanOrEqual(600);
+  });
+
   it('with AI on, sends only the name, shows the suggestion on the chips and the body map, and saves it as confirmed', async () => {
     const { POST, onSave } = await open();
     await waitFor(() => expect(POST).toHaveBeenCalledTimes(1));
@@ -133,12 +138,20 @@ describe('custom exercise tag suggestion', () => {
 
   it('a reply with no known main muscle is no suggestion', async () => {
     const post = jest.fn(async () => ({ data: { ...SUGGESTION, primary: [] }, response: res(200) }));
-    const { onSave, notify } = await open({ post });
+    const { onSave } = await open({ post });
     await waitFor(() => expect(post).toHaveBeenCalled());
     await screen.findByText(/Tap the muscles this exercise trains/);
     await tap('Add Pec deck with these muscles');
     expect(onSave).not.toHaveBeenCalled();
-    expect(notify).toHaveBeenCalledWith('Pick at least one main muscle.');
+    expect(screen.getAllByRole('alert')).toHaveLength(1);
+    const first = screen.getByRole('alert');
+    expect(first).toHaveTextContent('Choose a main muscle first.');
+    await tap('Add Pec deck with these muscles');
+    expect(screen.getByRole('alert')).not.toBe(first);
+    await tap('Also working: chest');
+    expect(screen.getByText('Choose a main muscle first.')).toBeTruthy();
+    await tap('Main muscle: chest');
+    expect(screen.queryByText('Choose a main muscle first.')).toBeNull();
   });
 
   it('shows the working hint while the suggestion is out, and Cancel stays available', async () => {

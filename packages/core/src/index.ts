@@ -1,6 +1,6 @@
 /**
  * Public API of @plate-and-bar/core. Every export mirrors a function or table in
- * docs/prototype/plate-and-bar.html; the prototype name is given beside it.
+ * the prototype (frozen at git tag `prototype-final`); the prototype name is given beside it.
  */
 
 /** Mirrors prototype `num`. */
@@ -183,6 +183,9 @@ export {
   harder,
   easier,
   kgLabel,
+  infoForUnit,
+  snapForUnit,
+  snapToLbStep,
   noLoad,
   repWord,
   DEFAULT_STEP,
@@ -252,11 +255,12 @@ export type { LiftStatSet, LiftStatSession, LiftStatPrev, LiftStatBody, LiftStat
  * Workout screen: rest timer, warm-up line, next template and the check-in.
  * - `restFor`, `restLabel` mirror the prototype functions of the same name (`TAGS` passed in);
  *   `REST_COMPOUND_SEC`, `REST_OTHER_SEC` are its 150 and 75 seconds.
+ * - `warmupRamp` extends `warmupSets` with the #1240 graduated ramp and later-compound rule (no prototype counterpart).
  * - `warmupSets` mirrors the numbers and conditions of prototype `warmupHtml(ex, i, sug)`.
  * - `nextInList` mirrors prototype `nextInList(t)` (profile passed in).
  * - `checkinFlags` mirrors the `flagged`, `why`, swap and "Good to go" steps of the check-in in prototype `renderStart()`.
  */
-export { restFor, restLabel, nextInList, warmupSets, checkinFlags, REST_COMPOUND_SEC, REST_OTHER_SEC, REST_EXTEND_SEC } from './workout';
+export { restFor, restLabel, nextInList, warmupSets, warmupRamp, WARMUP_RAMP_HEAVY_KG, WARMUP_RAMP_LIGHT, WARMUP_RAMP_HEAVY, checkinFlags, REST_COMPOUND_SEC, REST_OTHER_SEC, REST_EXTEND_SEC } from './workout';
 export type { WarmupSet, Checkin, CheckinReason, CheckinResult } from './workout';
 
 /**
@@ -357,6 +361,7 @@ export type { MuscleSets, PlannedCoverageInput, CoverageWorkout, CoverageSet, Co
  * Progress: body measures and day targets. Weigh-ins, measurements, day notes and sets come in
  * contract shapes (`Weight`, `Measurement`, `DayNote`, `WorkoutSet`).
  * - `latestWeight` mirrors prototype `latestWeight(upTo)`; `measureAt` mirrors `measureAt(key, upTo)`.
+ * - `bodyweightOn` is the one bodyweight-for-a-date lookup (latest weigh-in on or before, else a positive profile weight, else null); no prototype counterpart.
  * - `navyBodyFat` mirrors prototype `navyBF(upTo)`.
  * - `waterTarget` mirrors prototype `waterTarget()` (state passed in); `WATER_DEFAULT_ML`, `WATER_ML_PER_KG`,
  *   `WATER_TRAINING_ML` are its 2500, 33 and 600.
@@ -369,6 +374,7 @@ export type { MuscleSets, PlannedCoverageInput, CoverageWorkout, CoverageSet, Co
  */
 export {
   latestWeight,
+  bodyweightOn,
   measureAt,
   navyBodyFat,
   waterTarget,
@@ -482,6 +488,7 @@ export {
   weeklyCheckin,
   habits,
   KCAL_PER_KG,
+  KCAL_PER_LB,
   RAPID_LOSS_KCAL,
   CHECKIN_KCAL_STEP,
   CARDIO_WEEK_MIN,
@@ -489,11 +496,35 @@ export {
 export type { ProgressDay, RapidLoss, AdaptiveState, AdaptiveBurn, BurnProfile, CheckinInput, CheckinSuggestion, WeeklyCheckin, Habits } from './progress';
 
 /**
+ * Progress series (#1351 C1, new rules, no prototype counterpart): `rangeSeries` keeps the points from a 4w, 12w or all range,
+ * `downsampleWeekly` reduces a series over `DOWNSAMPLE_THRESHOLD` points to one per Monday-week, `measureSeries` is `waistSeries` for any tape part.
+ */
+export { rangeSeries, downsampleWeekly, DOWNSAMPLE_THRESHOLD, RANGE_DAYS } from './progressSeries';
+export type { SeriesRange, DownsampleMode } from './progressSeries';
+
+/**
+ * Progress volume (#1351 C2, new rules): `weeklyDoneSets` is `doneCoverage`'s counting per Monday-week (shared `addDoneSets`),
+ * `volumeVsPlan` is the 4-week average per `COVER_SHOW` muscle against the current plan's `plannedCoverage`.
+ * `recentVolumeMuscle` (#1409) is the muscle the chart opens on: the one with most sets in the latest week that has any.
+ */
+export { weeklyDoneSets, volumeVsPlan, recentVolumeMuscle, VOLUME_AVG_WEEKS } from './progressVolume';
+export type { WeekSets, VolumeVsPlan, VolumeVsPlanResult } from './progressVolume';
+
+/**
+ * Weekly intake and weeks-on-track series (#1351 C4, C5, new rules). `weeklyIntake` is the average kcal and protein per Monday-week over
+ * the days with a live food log (the `weekSummary` rule), null for a week with none, `partial` under `WEEKLY_INTAKE_MIN_DAYS` (4) days. `intakeAverage` is the logged-days-weighted average over the last 4 of those weeks.
+ * `weeksOnTrackSeries` is the per-week form of `habits().weeks`; the goal rule it shares with `habits` stays internal
+ * (`weeklySessionGoal`, `weekOnTrack` in `progress.ts`, mirroring prototype `consistencyHtml()`).
+ */
+export { weeklyIntake, intakeAverage, weeksOnTrackSeries, WEEKLY_INTAKE_MIN_DAYS } from './progressSeries';
+export type { IntakeAverage, IntakeTargets, WeeklyIntake, WeekOnTrack } from './progressSeries';
+
+/**
  * Progress: weight and waist trend, the scale-jump note and entry limits (#233).
  * - `weightSeries` mirrors the series in prototype `weightChart()`; `waistSeries` mirrors `waistPts` in `measuresHtml()`;
  *   `WEIGHT_CHART_POINTS` and `WAIST_CHART_POINTS` are their 30 and 20.
  * - `trendChange` mirrors `diff` in `weightChart()` ("Down/Up X kg since …", "No change since …") and `change` in `measuresHtml()`.
- * - `chartLayout` mirrors the geometry of `weightChart()` and `lineChart()`; `WEIGHT_CHART_BOX`, `WAIST_CHART_BOX` are their boxes.
+ * - `chartLayout` keeps the y geometry of `weightChart()` and `lineChart()` and spaces x by date when given dates (a spec change, #1370; without dates, the prototype's index spacing); `WEIGHT_CHART_BOX`, `WAIST_CHART_BOX` are their boxes.
  * - `scaleJump` mirrors the `S.ui.scaleJump` step of the prototype's `case 'saveW'`; `SCALE_JUMP_KG`, `SCALE_JUMP_DAYS` are its 0.8 and 3.
  * - `weightEntry` mirrors the checks in `case 'saveW'`, `measurementRow` mirrors `saveMeasures()`, `sleepEntry` the `enSleep`
  *   input (0–24 h); `round1` mirrors `r1`. `WEIGHT_ABOVE_KG`, `WEIGHT_BELOW_KG`, `TAPE_MIN_CM`,
@@ -504,8 +535,12 @@ export {
   round1,
   weightSeries,
   waistSeries,
+  measureSeries,
   trendChange,
   chartLayout,
+  barLayout,
+  BAR_MAX_WIDTH,
+  BAR_MIN_HEIGHT,
   scaleJump,
   weightEntry,
   measurementRow,
@@ -523,12 +558,12 @@ export {
   SLEEP_MAX_H,
   weekSummary,
 } from './progress';
-export type { TrendPoint, TrendChange, ChartBox, ChartLayout, ScaleJump, WeightEntry, SleepEntry, WeekDay, WeekSummary } from './progress';
+export type { TrendPoint, TrendChange, ChartBox, ChartLayout, BarRect, BarLayout, ScaleJump, WeightEntry, SleepEntry, WeekDay, WeekSummary } from './progress';
 
 /**
  * Science cards (#488). The protein card's 1.6 g/kg floor, `Math.round(w * 1.6)` where
  * `w = latestWeight() || profile.weight`:
- * - `proteinFloor` mirrors prototype `KB.protein.b`'s `Math.round(w*1.6)` (docs/prototype/plate-and-bar.html line 2792).
+ * - `proteinFloor` mirrors prototype `KB.protein.b`'s `Math.round(w*1.6)` (prototype-final tag, `KB.protein`).
  * - `PROTEIN_PER_KG` mirrors its 1.6. The card shows the weight with `round1`; the floor multiplies the raw weight.
  */
 export { proteinFloor, PROTEIN_PER_KG } from './protein';
@@ -602,7 +637,7 @@ export {
  * - `exerciseOverrideEntry` mirrors the `es-save` step of prototype `workoutAction`, with the contract's range rule
  *   (a low below 1 is refused; the prototype saves it).
  */
-export { EXERCISE_SHEET_TYPES, EXERCISE_STEP_CHOICES, exerciseOverrideEntry } from './exerciseSettings';
+export { EXERCISE_SHEET_TYPES, EXERCISE_STEP_CHOICES, LB_STEP_CHOICES, exerciseOverrideEntry } from './exerciseSettings';
 export type { ExerciseSettingsDraft, ExerciseOverrideResult } from './exerciseSettings';
 
 /**
@@ -693,6 +728,19 @@ export { seededSession } from './seeded';
 export type { SeededSession, SeededSessionInput } from './seeded';
 
 /**
+ * - `routineFromSession` and `startRoutine` are new (#1184, ADR 011), not prototype ports (no prototype behaviour, no golden
+ *   fixture): the exercises to store for a saved routine, and a hand-picked session from one: stored set counts kept, with
+ *   only the deload and light-day steps on top (`adjustSets`, the step `sessionSets` ends with), and no lab hold (#1088).
+ * - `dedupeExercises` is new (#1340), not a prototype port: one entry per exercise name (first copy keeps its place, later copies' sets are merged
+ *   in up to `ROUTINE_SETS_MAX`, groups repaired); `replaceAt` refuses a pick already in the session and `startRoutine` applies the rule. Vectors: golden/dedupe.json.
+ * - `isBlank` is the one blank-text rule (#421, contract 0.1.13); the app imports it from here.
+ */
+export { isBlank } from './blank';
+export { adjustSets } from './session';
+export { dedupeExercises, routineFromSession, startRoutine, missingExercises, ROUTINE_EXERCISES_MAX, ROUTINE_SETS_MIN, ROUTINE_SETS_MAX, ROUTINE_NAME_MAX, ROUTINE_MAX_LIVE } from './routines';
+export type { RoutineExercise, StartRoutineInput, StartedRoutine } from './routines';
+
+/**
  * Meal photo rules (#1011). `capPhotoItems` mirrors `raw.slice(0, 12)` and `clampPhotoServings` the 0.25 to 6 clamp in prototype
  * `analysePhoto`; `photoMacros` mirrors `phMacros`; `photoLogQty` and `photoEstimateLog` the `r1` / `Math.round` amounts in `ph-add`;
  * `stepPhotoAdj` the 0.5 to 2 step 0.25 portion slider; `photoAdjLabel` its `r1(it.adj)` label.
@@ -737,3 +785,78 @@ export type { Marker, MarkerKey, TipSide, TipKind, LabFlag, UnitStatus, LabResul
  */
 export { parseNutritionLabel, labelToScannedInput, labelFood } from './labelScan';
 export type { LabelOcrInput, LabelOcrLine, LabelOcrWord, LabelKey, LabelLevel, LabelNote, LabelField, LabelWarning, LabelAlternate, LabelValues, LabelDraft } from './labelScan';
+
+/**
+ * Weight unit (#1185; new, no prototype counterpart): a device-local kg or lb setting; storage stays kg.
+ * `kgToLb`, `lbToKg`, `fromKg`, `toKg` convert exactly (0.45359237); `formatWeight` and `kgLabel(w, info, unit)`
+ * display one decimal; `parseWeightInput` reads a typed value to kg; `LB_STEP`, `lbStepFor`, `infoForUnit` and
+ * `snapForUnit` round load suggestions to lb steps.
+ */
+export {
+  DEFAULT_WEIGHT_UNIT,
+  KG_PER_LB,
+  LB_STEP,
+  kgToLb,
+  lbToKg,
+  fromKg,
+  toKg,
+  unitLabel,
+  formatWeight,
+  parseWeightInput,
+  lbStepFor,
+} from './weightUnit';
+export type { WeightUnit } from './weightUnit';
+
+/**
+ * Plate calculator (#1176): new, no prototype counterpart. `platesFor` gives the per-side plates for a barbell target (exact for any
+ * plate set; nearest at or below by default), `nearestLoadable` the nearest loadable kg (for warm-up rounding, #1241),
+ * `loadableNeighbours` the loads either side, `describePlates` the screen-reader line.
+ */
+export { platesFor, nearestLoadable, loadableNeighbours, describePlates, DEFAULT_BAR, DEFAULT_PLATES } from './plates';
+export type { PlateOptions, PlateLoad, PlateCount } from './plates';
+
+/**
+ * Estimated one-rep max and session time (#1178): new rules, not prototype ports. `epley` is the estimate inside prototype `sessionScore`
+ * (now shared with stalls.ts). `e1rm` is Epley in kg to 0.1, one rep = the weight, null above `E1RM_MAX_REPS` (12). `setE1rm` counts only done
+ * `work` sets not rated `fail` on loaded (not bodyweight, time or assisted) exercises. `e1rmHistory` is the best estimate per session (optional `session` key, else date), oldest first.
+ * `sessionElapsed` is first to last contract-style set tick minus gaps over `SESSION_GAP_MS` (`split` flags it), null when the span is zero, `complete` false when a done set lacks `t`.
+ */
+export { E1RM_MAX_REPS, SESSION_GAP_MS, epley, e1rm, setE1rm, e1rmHistory, sessionElapsed } from './e1rm';
+export type { E1rmSet, E1rmPoint, SessionElapsed } from './e1rm';
+
+/**
+ * Personal records, tick-time PR check and main lifts (#1351 C3, new rules; spec section 0 2026-10-29 changes the prototype's last-8 `beforeBest`
+ * of `updateLift` + `checkBest` to the all-time best, same 0.5% threshold `PR_THRESHOLD`). `personalRecords` lists each day a lift's running best score (e1RM for loaded lifts, total reps for bodyweight and timed, `sessionScore` for assisted; `metric` says which)
+ * was beaten (first session never counts); `isPrToday` is the same rule for today's sets against a `PriorBest` (what `priorBestOf` returns from the lift's
+ * stored sets) and says what improved; `mainLifts` picks the top 3 loaded lifts by days with an estimate in the 12 weeks up to `end` (at least 3).
+ */
+export { PR_THRESHOLD, PR_MIN_PRIOR_SESSIONS, MAIN_LIFT_WEEKS, MAIN_LIFT_MIN_POINTS, MAIN_LIFT_COUNT, priorBestOf, isPrToday, personalRecords, mainLifts } from './records';
+export type { PrSet, PrSetRef, PrMetric, PrImprovement, PersonalRecord, PriorBest, MainLift } from './records';
+
+/**
+ * Milestones (#1351 C6, new rule, no prototype counterpart): `milestones(sets, sessions, weights, types, unit, end, profile?)` lists the earned
+ * ones with the date first earned, newest first: 1/2/3 plates a side (barbell), bench at bodyweight, squat at 1.5 x bodyweight, the 10th/50th/100th
+ * workout (`sessionDates`) and the first 4 on-track weeks (`habits`). Derived from stored data, never stored. New best 1RM is not one (Recent PRs).
+ */
+export { PLATE_MILESTONES, KG_EPSILON, EZ_BAR_LIFTS, BENCH_LIFTS, SQUAT_LIFTS, BENCH_BODYWEIGHT_X, SQUAT_BODYWEIGHT_X, WORKOUT_MILESTONES, PLAN_BLOCK_WEEKS, milestones } from './milestones';
+export type { Milestone, MilestoneKind, MilestoneProfile } from './milestones';
+
+/**
+ * Workout import from a Strong or Hevy CSV (#1179, new, no prototype counterpart).
+ * - `parseWorkoutCsv` reads the export into work sets by day (warm-up, distance/time-only and unreadable rows counted, not stored; weights to kg with `lbToKg`; a Strong file needs the unit, a Hevy header gives it); `parseCsv` is its CSV reader.
+ * - `matchExercise`, `matchAll` sort the imported names into catalogue matches (exact, then case and form insensitive, then the optional alias table) and unmatched.
+ * - `planImport` applies the user's mapping (skip or a name), leaves out days the app already has, and numbers the sets.
+ * - `IMPORT_MAX_CHARS`, `IMPORT_MAX_ROWS`, `IMPORT_MAX_DAYS` are the caps; `importDate` reads a file date.
+ */
+export { parseWorkoutCsv, parseCsv, importDate, exerciseKey, matchExercise, matchAll, planImport, IMPORT_MAX_CHARS, IMPORT_MAX_ROWS, IMPORT_MAX_DAYS, IMPORT_MAX_EXERCISES } from './workoutImport';
+export type { ImportSource, ImportError, ImportSet, ImportDay, ImportSkipped, ImportParsed, ImportResult, ImportMatches, ImportAliases, ImportWorkoutDay, ImportPlan } from './workoutImport';
+
+/**
+ * Exercise groups (supersets; #1182, ADR 012). New, not a prototype port: no prototype behaviour, no golden fixture.
+ * - `GROUP_MAX` 6, `GROUP_MIN` 2, `GROUP_TRANSITION_SEC` 15.
+ * - `groupLabels` member letters, `normalizeGroups` repair, `nextInRound` alternating order, `restAfterTick` round and transition rest (reuses `restFor`).
+ * - Edits (#1345): `joinWithNext` groups an exercise with the next (new group, join, append, or merge two groups), `moveExercise` moves one step keeping groups
+ *   valid, `leaveGroup` takes one member out. Vectors: golden/group-edits.json.
+ */
+export { GROUP_MAX, GROUP_MIN, GROUP_TRANSITION_SEC, groupLabels, normalizeGroups, validId, nextInRound, restAfterTick, canGroupWithNext, joinWithNext, moveExercise, leaveGroup } from './groups';
+export type { GroupEdit, GroupEx, GroupWithNext, IsDone, RestAfterTick } from './groups';

@@ -1,4 +1,4 @@
-// Parametric figure rig ported from the prototype's AN (docs/prototype/plate-and-bar.html, "code-built exercise
+// Parametric figure rig ported from the prototype's AN (tag prototype-final, "code-built exercise
 // animations"): same joint maths, same output for the same colours. The first 31 poses in D are the prototype's, ported
 // unchanged; later entries are our own additions (batch 2 onwards, #653). Changes from the prototype:
 // ES module, the colour map is a parameter of frame(), and it is exported without the browser globals, and
@@ -53,11 +53,11 @@ export const AN = (() => {
     J.head = pt(J.sh, P.torso + (P.neck || 0), SEG.neck + SEG.head);
     if(P.wrist || P.wristR){
       J.wr = P.wrist || add(J.sh, P.wristR);
-      J.el = ik(J.sh, J.wr, SEG.ua * (P.uaS || 1), SEG.fa, E.eb || 1);
+      J.el = ik(J.sh, J.wr, SEG.ua * (P.uaS || 1), SEG.fa * (P.faS || 1), E.eb || 1);
     } else {
       const ua = P.uaR !== undefined ? P.torso + P.uaR : P.ua;
       const fa = P.faR !== undefined ? ua + P.faR : P.fa;
-      J.el = pt(J.sh, ua, SEG.ua * (P.uaS || 1)); J.wr = pt(J.el, fa, SEG.fa);
+      J.el = pt(J.sh, ua, SEG.ua * (P.uaS || 1)); J.wr = pt(J.el, fa, SEG.fa * (P.faS || 1));
     }
     return J;
   }
@@ -363,6 +363,13 @@ export const AN = (() => {
       a:{ ankle:[150,212], torso:-22, wrist:[190,165] }, b:{ ankle:[150,212], torso:-22, wrist:[162,124] },
       props:(J,P,C) => floor(C,60,260),
       hand:(J,P,C,g) => g.ln([J.wr[0]-5,J.wr[1]+3],[J.wr[0]+5,J.wr[1]+3],3,C.eq) + `<rect x="${(J.wr[0]-10).toFixed(1)}" y="${(J.wr[1]+3).toFixed(1)}" width="20" height="26" rx="6" fill="${C.eq}"/>` },
+    // Batch 5 (own drawings, side view). faS scales the forearm (like uaS scales the upper arm) so an arm that opens out of the side view foreshortens as a whole and the elbow can stay soft. Dumbbell Fly uses it. Prone Y-T-W Raise and Archer Push-ups stay without a drawing: they need a front or top view (#1120).
+    'Dumbbell Fly': { hip:[190,165], eb:1, kb:-1, hl:['chest'],
+      a:{ ankle:[232,222], torso:180, ua:95, fa:120, uaS:.55, faS:.55 }, b:{ ankle:[232,222], torso:180, ua:-92, fa:-82, uaS:1, faS:1 },
+      props:(J,P,C,g) => floor(C,40,290) + g.ln([92,180],[210,180],9,C.eq) + g.ln([150,180],[150,226],4,C.eq), hand:(J,P,C,g) => g.circ(J.wr, 8, C.eq) },
+    'Dead Bug': { hip:[190,211], hl:['abs'],
+      a:{ torso:180, thigh:-90, shinD:0, footA:-90, ua:-90, fa:-90 }, b:{ torso:180, thigh:-12, shinD:-8, footA:-85, ua:192, fa:192 },
+      props:(J,P,C) => floor(C,30,300) },
     'Single-Leg Balance (seconds)': { root:'toe', toe:[190,214], hl:['abs'],
       a:BALANCE, b:BALANCE, rear:calfFree,
       props:(J,P,C,g) => floor(C) + freeLegs(calfFree,J,C,g,130) },
@@ -382,7 +389,7 @@ export const AN = (() => {
   function joints(name, k){
     const E = D[name]; if(!E || E.front) return null;
     const P = mix(E.a, E.b, k), J = sideJoints(E, P);
-    return { J, uaS: P.uaS || 1, rear: E.rear ? E.rear(J, P) : null };
+    return { J, uaS: P.uaS || 1, faS: P.faS || 1, rear: E.rear ? E.rear(J, P) : null };
   }
   return { frame, joints, has: n => !!D[n], names: Object.keys(D) };
 })();

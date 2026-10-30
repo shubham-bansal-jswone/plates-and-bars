@@ -21,11 +21,11 @@ Monorepo components:
 | API contract | `packages/api` | `openapi.yaml` (0.1.26), generated client, test vectors |
 | Backend | `backend` | Spring Boot API: auth, sync, account rights, AI proxy, barcode proxy, content |
 | Content | `content/*.json` | Exercise, food, recipe, card, lab data bundles |
-| Content tools | `tools/` | Importers, validators, golden-fixture generator |
+| Content tools | `tools/` | Importers and validators |
 | Website | `apps/site` | Astro site: landing, privacy, terms, deletion, licences, blog |
 | Infra | `infra/`, `.github/workflows/` | Compose stack, Caddy, CI, deploy, backup, monitoring |
 | E2E | `tests/e2e` | Playwright (web) and Maestro (Android) |
-| Prototype | `docs/prototype/plate-and-bar.html` | Behavioural reference for the rules |
+| Spec | `docs/spec/PROTOTYPE_SPEC.md`, `docs/spec/golden/` | Behavioural spec of record (HTML prototype frozen at git tag `prototype-final`) |
 
 ### Responsibilities split (observed)
 - **The server stores, syncs and guards; every rule runs on the device.** The contract header says this and the backend contains no targets, plan or progression logic (`openapi.yaml` info text; backend package list in section 3).
@@ -127,7 +127,7 @@ Note: the generic stack description in `~/.claude/CLAUDE.md` (Maven, Postgres, D
 ### 3.3 Other packages
 - `packages/core/src` (about 9.2k lines, ~50 modules): `targets`, `setup`, `plan`, `progression`, `food`, `recipes`, `workout`, `progress`, `stalls`, `mealplan`, `meals`, ... Pure functions; anything date-dependent takes `now` as an argument (`packages/core/README.md`). `package.json` `main` points at `src/index.ts`; the app consumes it as a `file:` dependency and Metro watches it.
 - `packages/api`: `openapi.yaml`, `client/{index,schema.d,contract-guards}.ts`, `test-vectors/*.json` + `verify.mjs`.
-- `tools/`: `exercises-import`, `foods-import`, `cards-import`, `exercise-figures`, `exercise-motion`, `golden-gen`, `validate/*`, `check-no-ifct`.
+- `tools/`: `exercises-import`, `foods-import`, `cards-import`, `exercise-figures`, `exercise-motion`, `validate/*`, `check-no-ifct`.
 - `apps/site/src/pages`: `index`, `privacy`, `terms`, `delete-account`, `licenses`, `blog/`.
 
 ---
@@ -174,7 +174,7 @@ The chain is stateless (`SessionCreationPolicy.STATELESS`), CSRF/form/basic logi
 `FoodsController` -> `BarcodeService` -> (`BarcodeCache`, `OffClient`, `OffMapper`, `Gs1`).
 
 ### 4.7 `ratelimit`, `common`
-See sections 11 and 12.
+See section 15 (`ratelimit`) and sections 4.1 and 11 (`common`).
 
 ---
 
@@ -378,7 +378,7 @@ sequenceDiagram
   Svc->>Q: recordTokens (usage + monthly ledger, 80% alert)
   Svc-->>App: reply + quota
 ```
-Billing/quota semantics (code comments + control flow): a unit is reserved before the provider call; provider exception or null result releases it (503 `unavailable`); once a response was received it is billed, so any later failure (no text, unparsable reply) is `BilledFailure` (also 503 `unavailable`) and the unit stays used. The four text calls are cached per `(user, feature, SHA-256 of normalised request)` in a Caffeine cache (10,000 entries, 12 h); the three image calls are never cached (ADR 008). Images are re-encoded to new JPEGs in memory (EXIF/GPS/XMP dropped): per-kind limits PHOTO 1,200,000 decoded bytes / 4096 px, FRAME 350,000 / 640 px, max 16,000,000 pixels, long side scaled to 1600; at most 2 concurrent decodes (fair `Semaphore`); a request waits up to 2 s (`PERMIT_WAIT_MS`) for a permit, then gets 503 + `Retry-After: 2`.
+Billing/quota semantics (code comments + control flow): a unit is reserved before the provider call; provider exception or null result releases it (503 `unavailable`); once a response was received it is billed, so a later failure (no text, unparsable reply) is `BilledFailure` (also 503 `unavailable`): its tokens stay in the monthly ledger but the daily unit is released (like a provider error). If the tokens themselves cannot be recorded the unit stays used. The four text calls are cached per `(user, feature, SHA-256 of normalised request)` in a Caffeine cache (10,000 entries, 12 h); the three image calls are never cached (ADR 008). Images are re-encoded to new JPEGs in memory (EXIF/GPS/XMP dropped): per-kind limits PHOTO 1,200,000 decoded bytes / 4096 px, FRAME 350,000 / 640 px, max 16,000,000 pixels, long side scaled to 1600; at most 2 concurrent decodes (fair `Semaphore`); a request waits up to 2 s (`PERMIT_WAIT_MS`) for a permit, then gets 503 + `Retry-After: 2`.
 
 ---
 
@@ -438,7 +438,7 @@ No circuit breaker or generic resilience library is present; resilience is per-i
 | Google JWKS | Nimbus cache | n/a | 1 h | refetch rate-limited |
 | Content bundles | In memory (`ContentBundles`) | bundle name | process lifetime | restart |
 
-Client side: `content_bundles` SQLite table with `ContentRefresher` (see 6.8 below), and a service worker (`public/sw.js`, `registerServiceWorker`) for offline web start (#718).
+Client side: `content_bundles` SQLite table with `ContentRefresher` (see section 20.4), and a service worker (`public/sw.js`, `registerServiceWorker`) for offline web start (#718).
 
 ---
 
@@ -449,7 +449,7 @@ There is **no message broker or queue**. Asynchronous behaviour that exists:
 - `RecordRecount` runs once in a daemon thread on `ApplicationReadyEvent` when the record cap is on.
 - `GET /me/export` uses Servlet async (`StreamingResponseBody`, `spring.mvc.async.request-timeout: 10m`).
 - `OffClient` uses a single-thread scheduled executor as a body watchdog.
-- On the device, sync is a periodic loop (section 14).
+- On the device, sync is a periodic loop (section 20.4).
 
 ---
 
@@ -597,7 +597,7 @@ Potential concerns (not measured):
 | Erasure ledger unwritable | `ErasureLedger.record` | Delete fails closed (500) | Account not deleted | Retry after fixing volume |
 | OFF down / slow | `OffClient` | 503 `upstream_unavailable`; cache miss on cache failure | Barcode lookup fails | Retry; cached products still served |
 | AI provider error | `AiProvider.complete` | 503, quota unit released | Feature unavailable | Retry |
-| AI reply unparsable | `AiReplies` | 503, unit **kept** (billed) | One unit lost | Next day |
+| AI reply unparsable | `AiReplies` | 503, daily unit released, tokens stay in the monthly ledger | None for the user | Retry |
 | API restart | process | Rate-limit/AI caches reset; refresh families and failure caps persist in MySQL | Brief loosened limits | None |
 | Deploy of a bad image | `deploy.sh` | Rolls back on failed `compose up` or health check (not to images built before #887) | Brief outage | See `infra/RUNBOOK.md` |
 
@@ -634,7 +634,8 @@ Observed in code or recorded in ADRs (`docs/adr/`), with inferred reasoning mark
 
 ```mermaid
 flowchart TD
-  R[Request] --> SG[RequestSizeGuardFilter]
+  R[Request] --> RID[RequestIdFilter]
+  RID --> SG[RequestSizeGuardFilter]
   SG --> CORS[CORS]
   CORS --> SS[SecuritySignalFilter]
   SS --> JWT[JwtAuthFilter]
@@ -724,7 +725,7 @@ Supported by the code read:
 - **Tombstone:** a record with `deleted_at` set, kept so deletes sync.
 - **Family:** all refresh tokens descended from one sign-in; revoked together on reuse.
 - **Cookie mode:** web transport of the refresh token (ADR 006).
-- **Golden fixtures:** `docs/spec/golden/*.json`, generated from the prototype by `tools/golden-gen`, used to pin `packages/core` behaviour.
+- **Golden fixtures:** `docs/spec/golden/*.json`, fixtures of record (originally generated from the prototype), used to pin `packages/core` behaviour.
 - **Lane:** an agent ownership area defined in `docs/AGENTS.md`.
 
 ### 22.5 Not identifiable from the code read

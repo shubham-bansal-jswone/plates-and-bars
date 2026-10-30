@@ -1,8 +1,10 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
+import { useReducedMotion } from '../src/components/reducedMotion';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SQLiteProvider, useSQLiteContext } from 'expo-sqlite';
 import { DB_NAME } from '../src/db/migrations';
+import { clearOpenRetries, DbOpenGate } from '../src/db/DbOpenGate';
 import { initDb } from '../src/db/initDb';
 import { lockedDb } from '../src/db/lockedDb';
 import { ContentRefresher } from '../src/content/ContentRefresher';
@@ -12,8 +14,11 @@ import { syncDb } from '../src/sync/db';
 import { SyncBadge } from '../src/sync/SyncBadge';
 import { Stores } from '../src/sync/Stores';
 import { SyncProvider } from '../src/sync/SyncProvider';
+import { WeightUnitProvider } from '../src/settings/weightUnit';
+import { PlateSettingsProvider } from '../src/settings/plateSettings';
 import { DeviceStepsProvider } from '../src/steps/DeviceStepsProvider';
 import { RestColdStart } from '../src/reminders/RestColdStart';
+import { HomeWidgetSync } from '../src/widget/HomeWidgetSync';
 import { initErrorTracking } from '../src/telemetry/errors';
 import { registerServiceWorker } from '../src/web/registerServiceWorker';
 
@@ -25,17 +30,24 @@ function Providers() {
   // Everything that writes goes through the app write lock; sync transactions take the same lock on the raw database.
   const db = useMemo(() => lockedDb(sqlite), [sqlite]);
   const sdb = useMemo(() => syncDb(sqlite), [sqlite]);
+  const reduced = useReducedMotion();
+  useEffect(clearOpenRetries, []); // the database opened
   return (
     <SyncProvider db={sdb}>
       <Stores db={db}>
-        <DeviceStepsProvider db={db}>
-          <ContentRefresher />
-          <RestColdStart />
-          <StatusBar style="auto" />
-          <Stack screenOptions={{ headerShown: false }} />
-          <Gate />
-          <SyncBadge />
-        </DeviceStepsProvider>
+        <WeightUnitProvider db={db}>
+          <PlateSettingsProvider db={db}>
+          <DeviceStepsProvider db={db}>
+            <ContentRefresher />
+            <RestColdStart />
+            <HomeWidgetSync />
+            <StatusBar style="auto" />
+            <Stack screenOptions={{ headerShown: false, animation: reduced ? 'none' : 'default' }} />
+            <Gate />
+            <SyncBadge />
+          </DeviceStepsProvider>
+          </PlateSettingsProvider>
+        </WeightUnitProvider>
       </Stores>
     </SyncProvider>
   );
@@ -45,9 +57,11 @@ function Providers() {
 export default function RootLayout() {
   return (
     <FontsProvider>
-      <SQLiteProvider databaseName={DB_NAME} onInit={initDb}>
-        <Providers />
-      </SQLiteProvider>
+      <DbOpenGate>
+        <SQLiteProvider databaseName={DB_NAME} onInit={initDb}>
+          <Providers />
+        </SQLiteProvider>
+      </DbOpenGate>
     </FontsProvider>
   );
 }

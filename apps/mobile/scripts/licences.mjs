@@ -130,12 +130,15 @@ const ANDROID_LICENCES = [
   ['androidx.fragment', 'Apache-2.0', null, 'fragment@1.8.9 fragment-ktx@1.8.9'],
   ['androidx.graphics', 'Apache-2.0', null, 'graphics-shapes@1.0.1 graphics-shapes-android@1.0.1'],
   ['androidx.interpolator', 'Apache-2.0', null, 'interpolator@1.0.0'],
-  ['androidx.lifecycle', 'Apache-2.0', null, 'lifecycle-common@2.6.2 lifecycle-common-java8@2.6.2 lifecycle-livedata@2.6.2 lifecycle-livedata-core@2.6.2 lifecycle-livedata-core-ktx@2.6.2 lifecycle-process@2.6.2 lifecycle-runtime@2.6.2 lifecycle-runtime-ktx@2.6.2 lifecycle-viewmodel@2.6.2 lifecycle-viewmodel-ktx@2.6.2 lifecycle-viewmodel-savedstate@2.6.2'],
+  ['androidx.lifecycle', 'Apache-2.0', null, 'lifecycle-common@2.6.2 lifecycle-common-java8@2.6.2 lifecycle-livedata@2.6.2 lifecycle-livedata-core@2.6.2 lifecycle-livedata-core-ktx@2.6.2 lifecycle-process@2.6.2 lifecycle-runtime@2.6.2 lifecycle-runtime-ktx@2.6.2 lifecycle-service@2.6.2 lifecycle-viewmodel@2.6.2 lifecycle-viewmodel-ktx@2.6.2 lifecycle-viewmodel-savedstate@2.6.2'],
   ['androidx.loader', 'Apache-2.0', null, 'loader@1.0.0'],
   ['androidx.profileinstaller', 'Apache-2.0', null, 'profileinstaller@1.4.0'],
   ['androidx.recyclerview', 'Apache-2.0', null, 'recyclerview@1.2.1'],
   ['androidx.resourceinspection', 'Apache-2.0', null, 'resourceinspection-annotation@1.0.1'],
   ['androidx.savedstate', 'Apache-2.0', null, 'savedstate@1.2.1 savedstate-ktx@1.2.1'],
+  // WorkManager and the Room and SQLite libraries it builds on: react-native-android-widget's background task worker (#1181). POMs name Apache-2.0.
+  ['androidx.room', 'Apache-2.0', null, 'room-common@2.5.0 room-runtime@2.5.0'],
+  ['androidx.sqlite', 'Apache-2.0', null, 'sqlite@2.3.0 sqlite-framework@2.3.0'],
   ['androidx.startup', 'Apache-2.0', null, 'startup-runtime@1.1.1'],
   ['androidx.swiperefreshlayout', 'Apache-2.0', null, 'swiperefreshlayout@1.1.0'],
   ['androidx.tracing', 'Apache-2.0', null, 'tracing@1.2.0 tracing-ktx@1.2.0'],
@@ -144,8 +147,11 @@ const ANDROID_LICENCES = [
   ['androidx.versionedparcelable', 'Apache-2.0', null, 'versionedparcelable@1.1.1'],
   ['androidx.viewpager', 'Apache-2.0', null, 'viewpager@1.0.0'],
   ['androidx.viewpager2', 'Apache-2.0', null, 'viewpager2@1.0.0'],
+  ['androidx.work', 'Apache-2.0', null, 'work-runtime@2.8.1'],
   ['androidx.window', 'Apache-2.0', null, 'window@1.5.1 window-core@1.5.1 window-core-android@1.5.1'],
   ['com.abovevacant', 'MIT', 'epitaph.txt', 'epitaph@0.1.1'],
+  // androidsvg-aar 1.4: react-native-android-widget's SVG drawing (#1181). Its POM names Apache-2.0 (Maven Central).
+  ['com.caverock', 'Apache-2.0', null, 'androidsvg-aar@1.4'],
   ['com.facebook.fbjni', 'Apache-2.0', null, 'fbjni@0.7.0'],
   ['com.facebook.fresco', 'MIT', 'fresco.txt', 'animated-base@3.7.0 animated-drawable@3.7.0 animated-gif@3.7.0 animated-gif-lite@3.7.0 drawee@3.7.0 fbcore@3.7.0 fresco@3.7.0 imagepipeline@3.7.0 imagepipeline-base@3.7.0 imagepipeline-native@3.7.0 imagepipeline-okhttp3@3.7.0 memory-type-ashmem@3.7.0 memory-type-java@3.7.0 memory-type-native@3.7.0 middleware@3.7.0 nativeimagefilters@3.7.0 nativeimagetranscoder@3.7.0 soloader@3.7.0 ui-common@3.7.0 ui-core@3.7.0 urimod@3.7.0 vito-core@3.7.0 vito-core-common-impl@3.7.0 vito-core-impl@3.7.0 vito-core-java-impl@3.7.0 vito-drawee-support@3.7.0 vito-options@3.7.0 vito-provider@3.7.0 vito-renderer@3.7.0 vito-source@3.7.0 webpsupport@3.7.0'],
   ['com.facebook.hermes', 'MIT', 'hermes.txt', 'hermes-android@260318099.0.4'],
@@ -180,11 +186,11 @@ const ANDROID_LICENCES = [
   ['com.squareup.zstd', 'Apache-2.0', null, 'zstd-kmp@0.4.0 zstd-kmp-android@0.4.0 zstd-kmp-okio@0.4.0 zstd-kmp-okio-android@0.4.0'],
   ['com.vanniktech', 'Apache-2.0', null, 'android-image-cropper@4.7.0'],
   ['commons-codec', 'Apache-2.0', null, 'commons-codec@1.10'],
-  ['commons-io', 'Apache-2.0', null, 'commons-io@1.4'],
+  ['commons-io', 'Apache-2.0', null, 'commons-io@2.6'],
   // The native half of Expo modules installed from npm (their prebuilt AARs); the Expo repository's MIT licence.
   ['expo.modules.asset', 'MIT', 'expo.txt', 'expo.modules.asset@58.0.16'],
   ['expo.modules.router', 'MIT', 'expo.txt', 'expo.modules.router@58.0.22'],
-  ['host.exp.exponent', 'MIT', 'expo.txt', 'expo.modules.clipboard@58.0.3 expo.modules.crypto@58.0.7 expo.modules.filesystem@58.0.9 expo.modules.font@58.0.8 expo.modules.haptics@58.0.7 expo.modules.imageloader@58.0.3 expo.modules.imagemanipulator@58.0.14 expo.modules.imagepicker@58.0.10 expo.modules.keepawake@58.0.3 expo.modules.linking@58.0.13 expo.modules.securestore@58.0.2 expo.modules.sharing@58.0.19 expo.modules.splashscreen@58.0.10 expo.modules.sqlite@58.0.13 expo.modules.statusbar@58.0.3 expo.modules.videothumbnails@58.0.2'],
+  ['host.exp.exponent', 'MIT', 'expo.txt', 'expo.modules.clipboard@58.0.3 expo.modules.crypto@58.0.7 expo.modules.documentpicker@58.0.4 expo.modules.filesystem@58.0.9 expo.modules.font@58.0.8 expo.modules.haptics@58.0.7 expo.modules.imageloader@58.0.3 expo.modules.imagemanipulator@58.0.14 expo.modules.imagepicker@58.0.10 expo.modules.keepawake@58.0.3 expo.modules.linking@58.0.13 expo.modules.securestore@58.0.2 expo.modules.sharing@58.0.19 expo.modules.splashscreen@58.0.10 expo.modules.sqlite@58.0.13 expo.modules.statusbar@58.0.3 expo.modules.videothumbnails@58.0.2'],
   // zxing-cpp (barcode reader for the scanner, #944): its POM and LICENSE are Apache-2.0; the Android build has writers off, so the bundled libzint is not in it; libzueci is (see NATIVE).
   ['io.github.zxing-cpp', 'Apache-2.0', 'zxing-cpp-android.txt', 'android@3.1.1'],
   ['io.github.expo', 'MIT', 'expo-modules-v2-android.txt', 'expo-modules-v2-react@0.2.5'],
@@ -370,8 +376,8 @@ const assets = [
   { name: 'MoveNet Lightning (pose model weights)', version: '4', licence: 'Apache-2.0', url: 'https://www.kaggle.com/models/google/movenet/TfJs/singlepose-lightning', text: textId(read(join(root, 'public/pose/movenet-lightning/LICENSE.txt'))) },
   // Live pose tracking on Android (#947): the model weights are bundled in the app as an asset of the plate-pose module.
   { name: 'MoveNet Lightning (pose model weights, Android, TensorFlow Lite float16)', version: '1', licence: 'Apache-2.0', url: 'https://www.kaggle.com/models/google/movenet/tfLite/singlepose-lightning-tflite-float16', text: textId(read(join(root, 'modules/plate-pose/MODEL-LICENSE.txt'))) },
-  // Web barcode scanner (#944): the reader we serve from public/zxing, built from the ZXing-C++ commit zxing-wasm 3.1.3 pins (a17fd9dc).
-  { name: 'ZXing-C++ WebAssembly reader (web barcode scanner)', version: '3.1.3 (zxing-wasm)', licence: 'Apache-2.0 AND BSD-3-Clause AND MIT', url: 'https://github.com/Sec-ant/zxing-wasm', text: textId(read(join(root, 'public/zxing/LICENSE.txt'))) },
+  // Web barcode scanner (#944): the reader we serve from public/zxing, built from the ZXing-C++ commit zxing-wasm 3.1.6 pins (2c3dcfef).
+  { name: 'ZXing-C++ WebAssembly reader (web barcode scanner)', version: '3.1.6 (zxing-wasm)', licence: 'Apache-2.0 AND BSD-3-Clause AND MIT', url: 'https://github.com/Sec-ant/zxing-wasm', text: textId(read(join(root, 'public/zxing/LICENSE.txt'))) },
   // Label scanning (#1067, ADR 010). Web: the worker, the WebAssembly core and the language data we serve from public/tesseract. Android: the same language data, bundled as an asset.
   { name: 'Tesseract OCR engine for the web (tesseract.js worker and WebAssembly core, label scanner)', version: 'tesseract.js 7.0.0, tesseract.js-core 7.0.0', licence: 'Apache-2.0 AND BSD-2-Clause AND BSD-3-Clause AND IJG AND libpng-2.0 AND MIT AND Zlib AND libtiff', url: 'https://github.com/naptha/tesseract.js', text: textId(read(join(root, 'public/tesseract/LICENSE.txt'))) },
   { name: 'tessdata_fast English language data (label scanner, web and Android)', version: '4.1.0', licence: 'Apache-2.0', url: 'https://github.com/tesseract-ocr/tessdata_fast', text: textId(read(join(root, 'modules/plate-label-scanner/DATA-LICENSE.txt'))) },

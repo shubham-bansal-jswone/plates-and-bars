@@ -3,7 +3,7 @@ import { pendingCount } from '../src/db/outbox';
 import { syncOnce } from '../src/sync/engine';
 import { makeApi, verifyEmailCode } from '../src/sync/auth';
 import { acceptTokenPair, signOut, withPhotosSettled } from '../src/sync/guard';
-import { getUserId, setKv, KEY_USER } from '../src/sync/store';
+import { getKv, getUserId, setKv, KEY_USER } from '../src/sync/store';
 import { saveWeightDoc } from './sync-fixtures';
 import { fakeServer, memoryTokens, openDb, seedConsent, turns } from './sync-helpers';
 
@@ -99,10 +99,16 @@ describe('sign-out and account switch guard (#31)', () => {
     await db.runAsync("INSERT INTO profiles (key, data) VALUES ('me', '{}')");
     await db.runAsync('DELETE FROM sync_outbox'); // already synced
     await db.runAsync("INSERT INTO settings (key, value) VALUES ('device.flag', '1')");
+    await db.runAsync("INSERT INTO settings (key, value) VALUES ('device.keystore_checked', 'done')");
+    await db.runAsync("INSERT INTO settings (key, value) VALUES ('device.milestones_shown', '[\"plates-1\"]')"); // belongs to the wiped history (#1351)
+    await db.runAsync("INSERT INTO settings (key, value) VALUES ('device.weight_unit', 'lb'), ('device.plates', '{}')");
     expect(await acceptTokenPair(db, tokens, pair(USER_B))).toEqual({ kind: 'signed_in', wiped: true });
+    expect(await db.getFirstAsync("SELECT value FROM settings WHERE key = 'device.milestones_shown'")).toBeNull();
+    expect(await db.getFirstAsync("SELECT value FROM settings WHERE key IN ('device.weight_unit', 'device.plates')")).toBeNull(); // user choices go with the account (#1371)
     expect(await db.getFirstAsync('SELECT key FROM profiles')).toBeNull();
     expect(await getUserId(db)).toBe(USER_B);
     expect(await db.getFirstAsync("SELECT value FROM settings WHERE key = 'device.flag'")).not.toBeNull();
+    expect(await getKv(db, 'device.keystore_checked')).toBe('done'); // a fact about this phone, kept on purpose
     expect(tokens.current?.access).toBe(`access-of-${USER_B}`);
     expect(mockVault.wipes).toBe(1);
   });
@@ -188,6 +194,8 @@ describe('sign-out and account switch guard (#31)', () => {
     await setKv(db, KEY_USER, USER_A);
     await saveWeightDoc(db, w('2026-10-08'));
     await saveWeightDoc(db, w('2026-10-09'));
+    await setKv(db, 'device.weight_unit', 'lb');
+    await setKv(db, 'device.plates', '{}');
     expect(await signOut(db, tokens)).toBe(2);
     expect(tokens.current).not.toBeNull();
     expect(mockVault.wipes).toBe(0);
@@ -197,15 +205,20 @@ describe('sign-out and account switch guard (#31)', () => {
     expect(await pendingCount(db)).toBe(0);
     expect(await db.getFirstAsync('SELECT key FROM weights')).toBeNull();
     expect(await getUserId(db)).toBeNull();
+    expect(await db.getFirstAsync("SELECT value FROM settings WHERE key IN ('device.weight_unit', 'device.plates')")).toBeNull(); // forced wipe too (#1371)
   });
 
-  it('sign-out with nothing unsynced forgets the tokens and keeps the data', async () => {
+  it('sign-out with nothing unsynced forgets the tokens and keeps the data, the unit and the plates (#1371)', async () => {
     const db = await openDb();
     const tokens = memoryTokens({ access: 'a', refresh: 'r' });
     await setKv(db, KEY_USER, USER_A);
+    await setKv(db, 'device.weight_unit', 'lb');
+    await setKv(db, 'device.plates', '{}');
     expect(await signOut(db, tokens)).toBe(0);
     expect(tokens.current).toBeNull();
     expect(await getUserId(db)).toBe(USER_A);
+    expect(await getKv(db, 'device.weight_unit')).toBe('lb');
+    expect(await getKv(db, 'device.plates')).toBe('{}');
     expect(mockVault.wipes).toBe(0);
   });
 });

@@ -329,6 +329,83 @@ describe('add and remove exercises (#147)', () => {
     expect((await loadLifts(db))[name]).toBeUndefined(); // its only session was this one
   });
 
+  it('removing a member of a two-exercise group dissolves it, stored with an explicit null (#1182)', async () => {
+    const { db } = await started();
+    const w = (await loadWorkout(db, DATE))!;
+    await saveWorkout(db, { ...w, exercises: w.exercises.map((e, i) => (i < 2 ? { ...e, group: 'g1' } : e)), updated_at: '2026-10-08T09:30:00Z' });
+    const opts = { db, profile, now: NOW, focus: [], adjustments: {}, notify: jest.fn(), startRest: jest.fn(), exclusions: [], swaps: [], saveRule: jest.fn(), tune: {} } as unknown as Parameters<typeof useWorkoutDay>[0];
+    const fresh = await renderHook(() => useWorkoutDay({ ...opts, reloadKey: 0 }));
+    await waitFor(() => expect(fresh.result.current.day.exs[0]?.group).toBe('g1'));
+    const [a, b] = fresh.result.current.day.exs;
+    await act(async () => void fresh.result.current.removeExercise(a!.name));
+    await settle();
+    expect(fresh.result.current.day.exs.find((e) => e.name === b!.name)?.group).toBeNull();
+    expect((await loadWorkout(db, DATE))!.exercises.find((e) => e.name === b!.name)).toHaveProperty('group', null);
+  });
+
+  describe('the screen state carries the group, so an unrelated edit never writes a null (#1182)', () => {
+    const grouped = async (n: number) => {
+      const { db } = await started();
+      const w = (await loadWorkout(db, DATE))!;
+      await saveWorkout(db, { ...w, exercises: w.exercises.map((e, i) => (i < n ? { ...e, group: 'g1' } : e)), updated_at: '2026-10-08T09:30:00Z' });
+      const opts = { db, profile, now: NOW, focus: [], adjustments: {}, notify: jest.fn(), startRest: jest.fn(), exclusions: [], swaps: [], saveRule: jest.fn(), tune: {} } as unknown as Parameters<typeof useWorkoutDay>[0];
+      const fresh = await renderHook(() => useWorkoutDay({ ...opts, reloadKey: 0 }));
+      await waitFor(() => expect(fresh.result.current.day.exs[0]?.group).toBe('g1'));
+      return { db, result: fresh.result };
+    };
+    const stored = async (db: Awaited<ReturnType<typeof started>>['db']) => (await loadWorkout(db, DATE))!.exercises.map((e) => e.group ?? null);
+
+    it('after a can\'t-do swap, removing an unrelated exercise keeps the group on every member', async () => {
+      const { db, result } = await grouped(3);
+      const first = result.current.day.exs[0]!.name;
+      await act(async () => result.current.cant(0, { name: first, reason: 'dislike', dur: 'today', scope: 'exercise', key: first }, 'Dumbbell Bench Press'));
+      await settle();
+      expect(result.current.day.exs.slice(0, 3).map((e) => e.group)).toEqual(['g1', 'g1', 'g1']);
+      const last = result.current.day.exs[result.current.day.exs.length - 1]!.name;
+      await act(async () => void result.current.removeExercise(last));
+      await settle();
+      expect((await stored(db)).slice(0, 3)).toEqual(['g1', 'g1', 'g1']);
+    });
+
+    it('a group stored by a pull since the screen loaded is not wiped by an unrelated edit', async () => {
+      const { db, result } = await started();
+      const w = (await loadWorkout(db, DATE))!;
+      await saveWorkout(db, { ...w, version: w.version + 1, exercises: w.exercises.map((e, i) => (i < 2 ? { ...e, group: 'g1' } : e)) });
+      await act(async () => result.current.setForm(3, 'yes'));
+      await settle();
+      expect((await stored(db)).slice(0, 2)).toEqual(['g1', 'g1']);
+    });
+  });
+
+  it('a group a pull stored on an exercise this screen did not have survives addExercise of that exercise (#1182)', async () => {
+    const { db, result } = await started();
+    const w = (await loadWorkout(db, DATE))!;
+    const rope = w.exercises[w.exercises.length - 1]!; // adjacent to the appended Cable Fly, so the pair is a valid group
+    const fly = { ...rope, name: 'Cable Fly', group: 'g2' };
+    await saveWorkout(db, { ...w, version: w.version + 1, exercises: [...w.exercises.map((e) => (e.name === rope.name ? { ...e, group: 'g2' } : e)), fly] });
+    await act(async () => void result.current.addExercise('Cable Fly'));
+    await settle();
+    const got = (await loadWorkout(db, DATE))!.exercises;
+    expect(got.find((e) => e.name === rope.name)?.group).toBe('g2');
+    expect(got.find((e) => e.name === 'Cable Fly')?.group).toBe('g2');
+  });
+
+  it('a new session over a tombstoned row adds no group key to exercises matching its grouped names', async () => {
+    const { db } = await started();
+    const w = (await loadWorkout(db, DATE))!;
+    const dead = { ...w, version: w.version + 1, deleted_at: '2026-10-08T09:40:00Z', updated_at: '2026-10-08T09:40:00Z', exercises: w.exercises.map((e, i) => (i < 2 ? { ...e, group: 'g1' } : e)) };
+    await saveWorkout(db, dead);
+    const opts = { db, profile, now: NOW, focus: [], adjustments: {}, notify: jest.fn(), startRest: jest.fn(), exclusions: [], swaps: [], saveRule: jest.fn(), tune: {} } as unknown as Parameters<typeof useWorkoutDay>[0];
+    const fresh = await renderHook(() => useWorkoutDay({ ...opts, reloadKey: 0 }));
+    await waitFor(() => expect(fresh.result.current.day.ready).toBe(true));
+    await act(async () => void (await fresh.result.current.start('Upper A', {}, null)));
+    await settle();
+    const got = (await loadWorkout(db, DATE))!;
+    expect(got.deleted_at).toBeNull();
+    expect(got.exercises.length).toBeGreaterThan(1);
+    expect(got.exercises.some((e) => 'group' in e)).toBe(false);
+  });
+
   it('removing the last exercise deletes today\'s workout so a new session can start', async () => {
     const { db, result } = await started();
     for (const e of [...result.current.day.exs]) await act(async () => void result.current.removeExercise(e.name));
@@ -636,5 +713,57 @@ describe('a write queued during Start, when Start adopts another device\'s sessi
     expect(sets.find((s) => s.id === 'f0')).toMatchObject({ done: true, weight_kg: 50, reps: 5, version: 2 });
     expect(await outbox(db)).toEqual([]);
     expect(await db.getAllAsync('SELECT 1 FROM lift_stats')).toEqual([]);
+  });
+});
+
+describe('finish early (#1157)', () => {
+  it('keeps ticked sets, drops unticked sets and untouched exercises in one write, and a reload shows the same', async () => {
+    const { db, result } = await started();
+    const [a, b] = result.current.day.exs;
+    await act(async () => result.current.editSet(0, 'work', 0, 'w', '20'));
+    await act(async () => result.current.editSet(0, 'work', 0, 'r', '5'));
+    await act(async () => result.current.tick(0, 0));
+    await settle();
+    const total = result.current.day.exs.length;
+    await act(async () => void result.current.finishEarly());
+    await settle();
+    expect(result.current.day.exs.map((e) => [e.name, e.sets.length])).toEqual([[a!.name, 1]]);
+    expect((await live(db, a!.name)).map((s) => s.done)).toEqual([true]);
+    expect(await live(db, b!.name)).toEqual([]);
+    expect((await loadWorkout(db, DATE))?.exercises.map((e) => e.name)).toEqual([a!.name]);
+    expect(total).toBeGreaterThan(1);
+  });
+
+  it('removes an exercise with only ticked warm-ups (and its warm-ups), keeps a kept exercise\'s unticked warm-ups, drops a second session never started', async () => {
+    const { db, result } = await started();
+    const [a, b] = result.current.day.exs;
+    await act(async () => result.current.editSet(0, 'work', 0, 'w', '20'));
+    await act(async () => result.current.editSet(0, 'work', 0, 'r', '5'));
+    await act(async () => result.current.tick(0, 0));
+    await act(async () => result.current.rampStart(0)); // an unticked warm-up on the kept exercise
+    await act(async () => result.current.rampStart(1));
+    await act(async () => result.current.editSet(1, 'ramp', 0, 'w', '20'));
+    await act(async () => result.current.rampTick(1, 0)); // a ticked warm-up, no ticked work set
+    await act(async () => void (await result.current.addSecond('Lower A')));
+    await settle();
+    expect((await live(db, b!.name, 'ramp')).some((s) => s.done)).toBe(true);
+    expect(result.current.day.exs.some((e) => e.part === 2)).toBe(true);
+    await act(async () => void result.current.finishEarly());
+    await settle();
+    expect(result.current.day.exs.map((e) => e.name)).toEqual([a!.name]);
+    expect(result.current.day.exs.some((e) => e.part === 2)).toBe(false);
+    expect(await live(db, b!.name, 'ramp')).toEqual([]);
+    expect(await live(db, b!.name)).toEqual([]);
+    expect((await live(db, a!.name, 'ramp')).map((s) => s.done)).toEqual([false]);
+    expect((await loadSets(db, DATE)).filter((s) => !s.deleted_at && s.exercise !== a!.name)).toEqual([]);
+  });
+
+  it('does nothing when no set is ticked', async () => {
+    const { result } = await started();
+    const before = result.current.day.exs.length;
+    let ok = true;
+    await act(async () => void (ok = result.current.finishEarly()));
+    expect(ok).toBe(false);
+    expect(result.current.day.exs).toHaveLength(before);
   });
 });

@@ -1,4 +1,4 @@
-import { num, type Rate, type SetEntry } from '@plate-and-bar/core';
+import { dedupeExercises, normalizeGroups, num, type Rate, type SetEntry } from '@plate-and-bar/core';
 import { newId } from '../db/records';
 import type { Form, Workout, WorkoutExercise, WorkoutSet } from './types';
 
@@ -20,6 +20,8 @@ export interface ExState {
   skipRamp: boolean;
   /** The answer to "Where did you feel that set most?" ('target', 'pain' or a `misplaced_feel` index). */
   feel: string | null;
+  /** Group (superset) id; null or absent is ungrouped. Core's `normalizeGroups` keeps it valid (ADR 012). */
+  group?: string | null;
   sets: Row[];
   ramp: Row[];
 }
@@ -38,9 +40,41 @@ export const stamp = (d: Date): string => d.toISOString().replace(/\.\d{3}Z$/, '
  * The stored exercise for `e`. Keys this client does not know (added by a newer one) are carried through from the
  * `stored` copy, as `mods` is; the known keys always come from the screen, and `feel` is dropped when it is cleared.
  */
-export function exerciseRecord(e: ExState, stored?: WorkoutExercise): WorkoutExercise {
-  const { feel: _f, ...extra } = stored ?? ({} as WorkoutExercise);
-  return { ...extra, name: e.name, part: e.part, bridge: e.bridge, form: e.form, found_kg: e.found, skip_ramp: e.skipRamp, ...(e.feel ? { feel: e.feel } : {}) };
+export function exerciseRecord(e: ExState, stored: WorkoutExercise | undefined, base: WorkoutExercise | undefined): WorkoutExercise {
+  const { feel: _f, group: _g, ...extra } = stored ?? ({} as WorkoutExercise);
+  // `group`: the id when set; an explicit null only when `base` (the copy this screen loaded, the merge's base) had a value (even an
+  // invalid one) or null, so the three-way merge sees the ungroup. Never decided from `stored` (so `base` has no default: undefined means no base copy, no null): a group a pull stored since the
+  // load would be wiped by an unrelated edit. The key is never added for an exercise that never had one.
+  const group = e.group ? { group: e.group } : base?.group !== undefined ? { group: null } : {};
+  return { ...extra, name: e.name, part: e.part, bridge: e.bridge, form: e.form, found_kg: e.found, skip_ramp: e.skipRamp, ...(e.feel ? { feel: e.feel } : {}), ...group };
+}
+
+/** Core's `normalizeGroups` on any list with a `group`: the repaired group of each item (null when dissolved or invalid). */
+const repaired = (gs: readonly unknown[]): (string | null)[] => normalizeGroups(gs.map((g) => ({ name: '', sets: 0, group: g as string | null }))).map((x) => x.group ?? null);
+
+/** Repairs the groups of a stored exercise list: a broken or split group is dissolved with an explicit `group: null`; other exercises are untouched. */
+export function fixGroups(list: readonly WorkoutExercise[]): WorkoutExercise[] {
+  const g = repaired(list.map((e) => e.group));
+  return list.map((e, i) => (e.group != null && g[i] === null ? { ...e, group: null } : e));
+}
+
+/**
+ * A stored exercise list with one entry per name (#1340): core's `dedupeExercises` (first copy keeps its place and fields, group repair
+ * after). Set rows are stored by exercise name, so the kept entry already owns every copy's rows and no set data is lost. A list with no
+ * repeat comes back as `fixGroups` leaves it. Used on every merge and on load; the cleaned list is written back only by the next real edit.
+ */
+export function dedupeStored(list: readonly WorkoutExercise[]): WorkoutExercise[] {
+  const marked = list.map((e, i) => ({ name: e.name, sets: 0, group: e.group, i }));
+  return dedupeExercises(marked).map(({ i, group }) => {
+    const e = list[i] as WorkoutExercise;
+    return e.group != null && group === null ? { ...e, group: null } : e;
+  });
+}
+
+/** The same repair on the screen's exercises (a group left with under 2 members, a split or an over-full one is dissolved). */
+export function fixExGroups(exs: readonly ExState[]): ExState[] {
+  const g = repaired(exs.map((e) => e.group));
+  return exs.map((e, i) => (e.group != null && g[i] === null ? { ...e, group: null } : e));
 }
 
 const text = (n: number | null): string => (n === null ? '' : String(n));
@@ -71,9 +105,10 @@ export function exercisesFrom(w: Workout, sets: readonly WorkoutSet[]): ExState[
   const rows = (name: string, kind: 'work' | 'ramp'): Row[] =>
     sets
       .filter((s) => s.exercise === name && s.kind === kind && !s.deleted_at)
-      .sort((a, b) => a.set_index - b.set_index)
+      .sort((a, b) => a.set_index - b.set_index || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)) // ties (rows of repeated names from before #1335) by id, never by database order
       .map((s) => ({ id: s.id, version: s.version, w: text(s.weight_kg), r: text(s.reps), done: s.done, rate: s.rate, t: s.t }));
-  return w.exercises.map((x) => ({
+  // One entry per name (#1340): rows are read by name, so the kept entry shows every copy's sets.
+  return dedupeStored(w.exercises).map((x) => ({
     name: x.name,
     part: x.part,
     bridge: x.bridge,
@@ -81,6 +116,7 @@ export function exercisesFrom(w: Workout, sets: readonly WorkoutSet[]): ExState[
     found: x.found_kg,
     skipRamp: x.skip_ramp,
     feel: x.feel ?? null,
+    group: x.group ?? null,
     sets: rows(x.name, 'work'),
     ramp: rows(x.name, 'ramp'),
   }));
@@ -99,7 +135,7 @@ const touched = (r: Row): boolean => r.done || r.w !== '' || r.r !== '' || r.rat
 export function carryOnto(adopted: readonly ExState[], local: readonly ExState[]): { exs: ExState[]; changed: { name: string; ids: string[] }[]; kept: Map<string, string | null> } {
   const changed: { name: string; ids: string[] }[] = [];
   const kept = new Map<string, string | null>();
-  const exs = structuredClone(adopted) as ExState[];
+  const exs = fixExGroups(structuredClone(adopted) as ExState[]);
   for (const mine of local) for (const m of mine.sets) if (touched(m)) kept.set(m.id, null);
   for (const ex of exs) {
     const mine = local.find((l) => l.name === ex.name);
@@ -128,23 +164,31 @@ function pick<T extends object>(base: T | undefined, mine: T, theirs: T): T {
 /**
  * Today's workout row when the stored copy changed since this screen last loaded or wrote it (`base`): a sync pull or a
  * rule saved on Targets. A three-way merge by field and by exercise name: the stored list and order are kept, edits made
- * here win field by field, exercises added here are appended, and exercises removed on either side stay removed (#410).
+ * here win field by field, exercises added here go after their predecessor here, and exercises removed on either side stay removed (#410).
  */
 export function mergeWorkout(base: Workout, mine: Workout, theirs: Workout): Workout {
   const byName = (l: readonly WorkoutExercise[]) => new Map(l.map((e) => [e.name, e]));
   const b = byName(base.exercises), m = byName(mine.exercises), t = byName(theirs.exercises);
-  const exercises = [
-    ...theirs.exercises.flatMap((e) => {
-      const own = m.get(e.name);
-      if (own) return [pick(b.get(e.name), own, e)];
-      return b.has(e.name) ? [] : [e]; // in the base but not here: removed on this device, so it stays removed
-    }),
-    ...mine.exercises.filter((e) => !t.has(e.name) && !b.has(e.name)),
-  ];
+  const exercises = theirs.exercises.flatMap((e) => {
+    const own = m.get(e.name);
+    if (own) return [pick(b.get(e.name), own, e)];
+    return b.has(e.name) ? [] : [e]; // in the base but not here: removed on this device, so it stays removed
+  });
+  // An exercise added here goes right after its predecessor in this device's order (the nearest earlier one that is in the
+  // merged list), at the front when none, so a group built around it stays together when the other device appended too (#1331).
+  mine.exercises.forEach((e, i) => {
+    if (t.has(e.name) || b.has(e.name)) return;
+    let at = 0;
+    for (let k = i - 1; k >= 0; k--) {
+      const p = exercises.findIndex((x) => x.name === mine.exercises[k]?.name);
+      if (p >= 0) { at = p + 1; break; }
+    }
+    exercises.splice(at, 0, e);
+  });
   const { exercises: _b, ...baseRest } = base;
   const { exercises: _m, ...mineRest } = mine;
   const { exercises: _t, ...theirsRest } = theirs;
-  return { ...pick(baseRest, mineRest, theirsRest), exercises };
+  return { ...pick(baseRest, mineRest, theirsRest), exercises: dedupeStored(exercises) };
 }
 
 /** A workout row as text without its `version`: a sync push patches only the version, so it does not count as a change. */
@@ -167,6 +211,7 @@ export function unionWorkout(mine: Workout, theirs: Workout): Workout {
   const base = hasSession(win) || !hasSession(lose) ? win : lose;
   return {
     ...base,
+    exercises: dedupeStored(base.exercises),
     cardio_min: win.cardio_min ?? lose.cardio_min,
     id: theirs.id,
     version: theirs.version,

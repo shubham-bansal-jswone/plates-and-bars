@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react-native';
 import { StyleSheet } from 'react-native';
 import * as useThemeModule from '../src/theme/useTheme';
-import { Button, Choice, Switch } from '../src/components/ui';
+import { Button, Chip, Choice, Switch } from '../src/components/ui';
 import { dark, light } from '../src/theme/tokens';
 
 const ring = (el: { props: { style?: unknown } }) => {
@@ -27,7 +27,7 @@ describe('focus ring', () => {
     await render(<Button label="Save" kind="ghost" onPress={() => {}} />);
     await fireEvent(screen.getByLabelText('Save'), 'focus', { target: 1 });
     expect(ring(screen.getByLabelText('Save'))?.color).toBe(dark.focus);
-    expect(dark.focus).toBe('#8AB0FF');
+    expect(dark.focus).toBe('#B7FF00');
     expect(light.focus).toBe('#2457E6');
   });
 
@@ -73,5 +73,59 @@ describe('focus ring', () => {
     expect(screen.getByLabelText('Rest timer').props.onFocus).toEqual(expect.any(Function));
     await fireEvent(sw, 'focus', { target: 1 });
     expect(ring(screen.getByLabelText('Rest timer').parent as never)).toMatchObject({ width: 2, color: light.focus });
+  });
+});
+
+describe('chip targets (#1192)', () => {
+  it('Choice and Chip are at least 44x44, so a one-digit chip is not narrower', async () => {
+    await render(
+      <>
+        <Choice chip label="6" selected={false} onPress={() => {}} />
+        <Chip label="Easy" onPress={() => {}} />
+      </>,
+    );
+    for (const n of ['6', 'Easy']) {
+      const box = StyleSheet.flatten(screen.getByLabelText(n).props.style as never) as Record<string, number>;
+      expect(box.minWidth).toBeGreaterThanOrEqual(44);
+      expect(box.minHeight).toBeGreaterThanOrEqual(44);
+    }
+  });
+});
+
+describe('switch hit area (#1121)', () => {
+  it('is at least 44x44 around the 40x20 track, and a tap on the padding toggles once', async () => {
+    const onValueChange = jest.fn();
+    await render(<Switch accessibilityLabel="Rest timer" value={false} onValueChange={onValueChange} />);
+    const box = StyleSheet.flatten(screen.getByTestId('switch-hit-area').parent!.props.style as never) as Record<string, number>;
+    expect(box.minWidth).toBeGreaterThanOrEqual(44);
+    expect(box.minHeight).toBeGreaterThanOrEqual(44);
+    await fireEvent.press(screen.getByTestId('switch-hit-area'));
+    expect(onValueChange).toHaveBeenCalledTimes(1);
+    expect(onValueChange).toHaveBeenCalledWith(true);
+  });
+
+  it('a press on the switch itself is not forwarded to the hit area (no double fire on web)', async () => {
+    const onValueChange = jest.fn();
+    await render(<Switch accessibilityLabel="Rest timer" value={false} onValueChange={onValueChange} />);
+    // The switch has no press ancestor handler; the hit area is a sibling, so the press must not reach onValueChange.
+    await fireEvent.press(screen.getByLabelText('Rest timer'));
+    expect(onValueChange).not.toHaveBeenCalled();
+    await fireEvent(screen.getByLabelText('Rest timer'), 'valueChange', true);
+    expect(onValueChange).toHaveBeenCalledTimes(1);
+    expect(onValueChange).toHaveBeenCalledWith(true);
+  });
+
+  it('the hit-area div is not a tab stop (#1192)', async () => {
+    await render(<Switch accessibilityLabel="Rest timer" value={false} onValueChange={() => {}} />);
+    expect(screen.getByTestId('switch-hit-area').props.tabIndex).toBe(-1);
+  });
+
+  it.each([['dark', dark], ['light', light]])('keeps the off-state thumb and track visible in %s', async (_n, pal) => {
+    jest.spyOn(useThemeModule, 'useTheme').mockReturnValue(pal as never);
+    await render(<Switch accessibilityLabel="Rest timer" value={false} onValueChange={() => {}} />);
+    const sw = screen.getByLabelText("Rest timer");
+    expect(sw.props.thumbTintColor).toBe(pal.ink);
+    expect(sw.props.tintColor).toBe(pal.muted);
+    expect(pal.ink).not.toBe(pal.muted);
   });
 });

@@ -1,3 +1,4 @@
+import { StyleSheet } from 'react-native';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { WorkoutScreen } from '../src/screens/WorkoutScreen';
 import { saveProfile } from '../src/db/records';
@@ -48,6 +49,8 @@ describe('musclesOf', () => {
   });
 });
 
+afterEach(() => jest.restoreAllMocks());
+
 describe('Workout start preview: muscle map', () => {
   it('shows the map with a text alternative, the legend and the muscle lists', async () => {
     await mount();
@@ -74,6 +77,18 @@ describe('Workout start preview: muscle map', () => {
   });
 });
 
+describe('Workout start preview: check-in', () => {
+  it('is inline above Start, with its questions answerable without opening anything', async () => {
+    await mount();
+    await screen.findByText('Push B day');
+    expect(screen.getByText('Quick check-in (optional)')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /check-in/i })).toBeNull(); // not a disclosure
+    const order = (JSON.stringify(screen.toJSON()).match(/Quick check-in \(optional\)|Start Push B/g) ?? []);
+    expect(order[0]).toBe('Quick check-in (optional)');
+    await fireEvent.press(screen.getByLabelText('Sleep last night: Poor'));
+  });
+});
+
 describe('Workout session: Muscles today', () => {
   async function started() {
     const db = await mount();
@@ -88,12 +103,25 @@ describe('Workout session: Muscles today', () => {
     const toggle = screen.getByLabelText(`Muscles today: ${MAIN}`);
     expect(toggle.props.accessibilityRole).toBe('button');
     expect(toggle.props.accessibilityState).toMatchObject({ expanded: true });
+    expect(StyleSheet.flatten(toggle.props.style)).toMatchObject({ minHeight: 56, borderTopWidth: 1 }); // the shared Disclosure row
     expect(screen.getByLabelText(`Muscles worked: ${MAIN}`)).toBeTruthy();
     expect(screen.getByText('Main focus')).toBeTruthy();
 
     await tickFirstSet();
     await waitFor(() => expect(screen.queryByLabelText(/^Muscles worked: /)).toBeNull());
     expect(screen.getByLabelText(`Muscles today: ${MAIN}`).props.accessibilityState).toMatchObject({ expanded: false });
+  });
+
+  it.each([
+    [390, false],
+    [1280, false],
+  ])('at %i px the map is expanded after the first tick: %s', async (width, expanded) => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- spy on the module object the screen reads from
+    jest.spyOn(require('react-native'), 'useWindowDimensions').mockReturnValue({ width, height: 900, scale: 1, fontScale: 1 });
+    await started();
+    await tickFirstSet();
+    await screen.findByText('1 of 15 sets done, 480 kg lifted');
+    expect(screen.getByLabelText(`Muscles today: ${MAIN}`).props.accessibilityState).toMatchObject({ expanded });
   });
 
   it('opens and closes on a tap, and keeps the choice once made', async () => {

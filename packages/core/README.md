@@ -1,7 +1,7 @@
 # @plate-and-bar/core
 
 The app's rules (targets, plan engine, progression, burn, food maths) ported from the prototype
-(`docs/prototype/plate-and-bar.html`) into pure TypeScript. No DOM, no storage, no I/O, no clock:
+(frozen at git tag `prototype-final`; the spec of record is `docs/spec/PROTOTYPE_SPEC.md`) into pure TypeScript. No DOM, no storage, no I/O, no clock:
 anything that depends on the date takes `now` as an argument. The app and backend import rules from
 here instead of re-typing numbers.
 
@@ -28,8 +28,11 @@ by a test marked `PINNED QUIRK`, and raised as a `spec-question` issue.
 | Default macro targets | `DEFAULT_PROTEIN_TARGET`, `DEFAULT_CARBS_TARGET`, `DEFAULT_FAT_TARGET` | `DEFAULT_SETTINGS.protein`, `.carbs`, `.fat` | none (differential test) |
 | Coverage and focus picker | `plannedCoverage`, `coverageTemplates`, `doneCoverage`, `coverageRows`, `weeklyCoverage`, `focusPicker`, `toggleFocus`, `COVER_SHOW`, `COVER_LOW`, `COVER_FULL`, `FOCUS_MAX` | `weeklyCoverage`, `actualCoverage`, `coverageHtml`/`fillActualCoverage` rows, `focusHtml`, `focusAction`, `COVER_SHOW` | none (differential tests) |
 | Progress: body and day targets | `latestWeight`, `measureAt`, `navyBodyFat`, `waterTarget`, `workoutBurn`, `stepsTarget`, `weightDrift`, `WATER_DEFAULT_ML`, `WATER_ML_PER_KG`, `WATER_TRAINING_ML`, `STEPS_DEFAULT`, `STEPS_MIN`, `STEPS_MAX`, `WEIGHT_DRIFT_KG` | `latestWeight`, `measureAt`, `navyBF`, `waterTarget`, `workoutBurn`, `stepsTarget`, the `drift` check in `setupSummaryHtml` (#161) | `formulas.json` (plus differential tests) |
-| Progress: real burn, check-in, habits | `weeklyAvg`, `rapidLoss`, `addKcal`, `weightSlope`, `adaptiveBurn`, `nextAdaptive`, `targetFromBurn`, `weeklyCheckin`, `habits`, `KCAL_PER_KG`, `RAPID_LOSS_KCAL`, `CHECKIN_KCAL_STEP`, `CARDIO_WEEK_MIN` | `weeklyAvg`, `calorieCard`, `adjAction` `adj-kcal`, `weightSlope`, `adaptiveBurn`, the `settings.adaptive` update and facts of `renderCheckin`, `targetFromBurn`, `consistencyHtml` | none (differential tests) |
-| Progress: weight and waist trend, entry limits (#233) | `weightSeries`, `waistSeries`, `trendChange`, `chartLayout`, `scaleJump`, `weightEntry`, `measurementRow`, `sleepEntry`, `round1`, `WEIGHT_CHART_POINTS`, `WAIST_CHART_POINTS`, `WEIGHT_CHART_BOX`, `WAIST_CHART_BOX`, `SCALE_JUMP_KG`, `SCALE_JUMP_DAYS`, `WEIGHT_ABOVE_KG`, `WEIGHT_BELOW_KG`, `TAPE_MIN_CM`, `TAPE_MAX_CM`, `SLEEP_MAX_H` | `weightChart`, `waistPts` and `change` in `measuresHtml`, `lineChart`, `case 'saveW'` (value, `S.ui.scaleJump`), `scaleJumpHtml`, `saveMeasures`, `r1`; `sleepEntry` and the limits follow the contract (`Weight`, `TapeCm`, `DayNote.sleep`), `weightEntry` rejects values that round to 20.0 or 400.0, and `sleepEntry` rejects text that is not a number (#247) | none (differential tests) |
+| Progress: real burn, check-in, habits | `weeklyAvg`, `rapidLoss`, `addKcal`, `weightSlope`, `adaptiveBurn`, `nextAdaptive`, `targetFromBurn`, `weeklyCheckin`, `habits`, `KCAL_PER_KG`, `KCAL_PER_LB`, `RAPID_LOSS_KCAL`, `CHECKIN_KCAL_STEP`, `CARDIO_WEEK_MIN` | `weeklyAvg`, `calorieCard`, `adjAction` `adj-kcal`, `weightSlope`, `adaptiveBurn`, the `settings.adaptive` update and facts of `renderCheckin`, `targetFromBurn`, `consistencyHtml` | none (differential tests) |
+| Progress: weight and waist trend, entry limits (#233) | `weightSeries` (optional `limit`, default `WEIGHT_CHART_POINTS`), `waistSeries`, `trendChange`, `chartLayout`, `scaleJump`, `weightEntry`, `measurementRow`, `sleepEntry`, `round1`, `WEIGHT_CHART_POINTS`, `WAIST_CHART_POINTS`, `WEIGHT_CHART_BOX`, `WAIST_CHART_BOX`, `SCALE_JUMP_KG`, `SCALE_JUMP_DAYS`, `WEIGHT_ABOVE_KG`, `WEIGHT_BELOW_KG`, `TAPE_MIN_CM`, `TAPE_MAX_CM`, `SLEEP_MAX_H` | `weightChart`, `waistPts` and `change` in `measuresHtml`, `lineChart` (`chartLayout` takes optional dates and spaces x by date, a spec change, #1370; without them it is the prototype's; vectors `chart-layout.json`), `case 'saveW'` (value, `S.ui.scaleJump`), `scaleJumpHtml`, `saveMeasures`, `r1`; `sleepEntry` and the limits follow the contract (`Weight`, `TapeCm`, `DayNote.sleep`), `weightEntry` rejects values that round to 20.0 or 400.0, and `sleepEntry` rejects text that is not a number (#247) | `chart-layout.json` (`chartLayout` by date), plus differential tests |
+| Progress: weekly bar chart layout (#1351 A3) | `barLayout`, `BAR_MAX_WIDTH`, `BAR_MIN_HEIGHT` | none (new rule; spec section 0, 2026-10-30): the Seven-days bars of `renderProgress` are fixed CSS bars. Gaps are not bars, a real 0 is a stub, any finite target above 0 is drawn and never changes x or width | none (golden vectors `bar-layout.json`) |
+| Progress series: range, weekly downsample, any tape part (#1351 C1) | `rangeSeries`, `downsampleWeekly`, `DOWNSAMPLE_THRESHOLD`, `RANGE_DAYS`, `measureSeries` (optional `limit`, default `WAIST_CHART_POINTS`; `Infinity` keeps all, 0, negative or NaN gives none; `weightSeries` takes the same `limit`) | none: new rules (`waistSeries` now calls `measureSeries`) | `progressSeries.json` |
+| Weekly intake average (#1351 A6) | `intakeAverage` (logged-days-weighted average over the last 4 `weeklyIntake` weeks; null, not 0, with none) | none: new rule | `weeklyIntake.json` (`intake_average`) |
 | Science cards (#488) | `proteinFloor`, `PROTEIN_PER_KG` | `Math.round(w*1.6)` and its 1.6 in `KB.protein.b` (the weight is shown with `r1`) | none (differential test) |
 | Meal ideas | `nextMealInfo`, `mealByTime`, `combos`, `combosFast`, `round05`, `ideasPage`, `OLDER_MEAL_PROTEIN_G`, `IDEAS_PER_PAGE`, `IDEAS_KCAL_LEFT_MIN`, `MEAL_ORDER` | same names (`mealByTime` takes the hour); `ideasPage` is the paging and protein note of `guidanceHtml`; `MEAL_ORDER` is `MEALS` | none (differential tests) |
 | Meal plan and grocery list | `buildPlan`, `planItems`, `swapPlanMeal`, `planIsCurrent`, `planForMeal`, `planDayTotals`, `groceryList`, `groceryAmount`, `PLAN_DAYS`, `PLAN_OPTIONS`, `PLAN_ROTATION` | `buildPlan`, `planItems`, `case 'mp-swap'`, the saved-plan check and day line of `planSheet`, `planForMeal`, `grocerySheet` and its `fmtAmt` | none (differential tests) |
@@ -73,7 +76,7 @@ earlier `exp`), a missing `where` is `gym` (what prototype `homeWhere` reads), a
 Stalls and personal bests read each lift's `hist` (scores rounded to 0.1, last 8) and `pbToast`
 (contract `LiftStat.history` with `score`, and `pb_toast_date`). `updateLift` writes both, as the
 prototype does after every tick, rating or form change, except that a same-day record keeps its
-`pbToast` so the best toast shows at most once a day (#121; the prototype follows in a spec-change PR). Cards come back as facts (key, names, rep
+`pbToast` so the best toast shows at most once a day (#121). Cards come back as facts (key, names, rep
 range), not HTML. Save "Switch to lo–hi" with `stallRangeOverride`, which returns the contract
 `Settings.exercise_overrides[name]` entry (#128). The stall card's "Or switch to …" button shows when
 `sidewaysOf` returns a name; pass where the user trains today (the day's override, else the
@@ -159,9 +162,9 @@ npm run test:coverage # jest with a 90% line-coverage threshold
 
 ## How the golden tests work
 
-`docs/spec/golden/<area>.json` holds input/output pairs generated from the prototype. Tests load them
-from the repo root (`test/helpers.ts`, `loadGolden`) and check every case. Never edit or regenerate
-these files here; a prototype change lands them in a `spec-change` PR, and this package follows.
+`docs/spec/golden/<area>.json` holds the spec's input/output pairs (originally generated from the prototype, no longer regenerated). Tests load them
+from the repo root (`test/helpers.ts`, `loadGolden`) and check every case. Change these files only in a
+`spec-change` PR, which edits the spec, the fixture and this package's port together.
 
 The fixtures store display-rounded numbers, so the test projects the port's result onto the fixture
 shape before comparing (`toGolden` in `test/targets.test.ts`): energy values with `Math.round`,

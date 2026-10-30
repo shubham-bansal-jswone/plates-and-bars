@@ -1,4 +1,4 @@
-import { answerSetup, expect, label, saved, tab, test } from '../support/app.mjs';
+import { answerSetup, expect, label, openSheet, saved, tab, test } from '../support/app.mjs';
 
 // #819: a user with no training days has no template to start, so "Pick exercises" on the Workout start screen is how a session begins.
 test('a 0-day user picks an exercise from the start screen and logs a set, offline', async ({ page }) => {
@@ -8,9 +8,7 @@ test('a 0-day user picks an exercise from the start screen and logs a set, offli
   await tab(page, 'Workout');
   await expect(page.getByText('Rest day', { exact: true })).toBeVisible();
   await page.context().setOffline(true);
-  await label(page, 'Pick exercises').click();
-  const sheet = page.locator('[role="dialog"][aria-label="Add exercise"]');
-  await expect(sheet).toBeVisible();
+  await openSheet(page, label(page, 'Pick exercises'), 'Add exercise');
   const name = 'Barbell Bench Press';
   const chip = label(page, `Add ${name}`);
   await chip.click(); // a pick is only a preview (#1005): nothing is stored until Start

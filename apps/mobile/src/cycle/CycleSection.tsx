@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { addDays, round1, sameDayLastCycle, waterRetentionPhase } from '@plate-and-bar/core';
+import { addDays, sameDayLastCycle, waterRetentionPhase } from '@plate-and-bar/core';
 import { Text } from '../components/Text';
 import { Button, Field, Heading, Hint, Note } from '../components/ui';
 import { shortDate } from '../format';
@@ -12,6 +12,8 @@ import {
   CYCLE_PRIVATE, CYCLE_REMOVE_LAST, CYCLE_SAME_DAY, CYCLE_START_HINT, CYCLE_TITLE, CYCLE_TURN_ON, CYCLE_WATER_NOTE,
 } from './copy';
 import type { Cycle } from './useCycle';
+import { useWeightUnit } from '../settings/weightUnit';
+import { weightWithUnit } from '../workout/unitText';
 
 /** Today or earlier, a real calendar date. */
 const validStart = (v: string, today: string): boolean => /^\d{4}-\d{2}-\d{2}$/.test(v) && addDays(v, 0) === v && v <= today;
@@ -19,6 +21,7 @@ const validStart = (v: string, today: string): boolean => /^\d{4}-\d{2}-\d{2}$/.
 /** Progress tab, "Cycle log" (prototype `cycleHtml`): shown to women until they turn it on, and to anyone who has it on. Device only. */
 export function CycleSection({ cycle, date, today, weights, female, notify }: { cycle: Cycle; date: string; today: string; weights: readonly Weight[]; female: boolean; notify: (msg: string) => void }) {
   const t = useTheme();
+  const { unit } = useWeightUnit();
   const d = cycle.data;
   const [text, setText] = useState(date);
   // Deliberate deviation from the prototype's one-tap `cyc-off` (prototype line 3369, docs/spec/PROTOTYPE_SPEC.md section 0, 2026-10-18):
@@ -55,14 +58,14 @@ export function CycleSection({ cycle, date, today, weights, female, notify }: { 
           </Text>
           {waterRetentionPhase(c) ? <Note>{CYCLE_WATER_NOTE}</Note> : null}
           {c.late ? <Hint>{CYCLE_LATE}</Hint> : null}
-          {prev && w ? <Hint>{CYCLE_SAME_DAY(shortDate(prev), String(round1(w.weight_kg)))}</Hint> : null}
+          {prev && w ? <Hint>{CYCLE_SAME_DAY(shortDate(prev), weightWithUnit(w.weight_kg, unit))}</Hint> : null}
         </>
       ) : (
         <Hint>{CYCLE_START_HINT}</Hint>
       )}
       <View style={styles.inline}>
         <Field label={CYCLE_DATE_LABEL} placeholder={CYCLE_DATE_PLACEHOLDER} autoCapitalize="none" autoCorrect={false} value={text} onChangeText={setText} />
-        <Button label={CYCLE_LOG} onPress={() => (validStart(text.trim(), today) ? void cycle.logStart(text.trim()) : notify(CYCLE_DATE_BAD))} />
+        <Button kind="ghost" label={CYCLE_LOG} onPress={() => (validStart(text.trim(), today) ? void cycle.logStart(text.trim()) : notify(CYCLE_DATE_BAD))} />
       </View>
       {d.starts.length ? (
         <>

@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "origin": "docs/prototype/plate-and-bar.html (MARKERS tips, renderLabs, labsShellHtml, labSheet; lab reports, #1070). Hand entry only: no AI, no upload. Informational, not diagnostic.",
+  "origin": "imported once from the prototype (frozen at tag prototype-final) (MARKERS tips, renderLabs, labsShellHtml, labSheet; lab reports, #1070); content is now the source of record. Hand entry only: no AI, no upload. Informational, not diagnostic.",
   "not_medical_advice": "This is general information, not medical advice and not a diagnosis. Only a doctor can tell you what a result means for you. Please see a doctor about your results.",
   "intro": "Enter the results from a blood report to track them and get general lifestyle tips. A doctor should interpret your results. Saved only on this device.",
   "check_values": "Check every value against your report before saving. A misread decimal point matters here.",

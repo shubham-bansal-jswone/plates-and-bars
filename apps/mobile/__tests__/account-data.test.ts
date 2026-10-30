@@ -47,7 +47,7 @@ const put = (db: Db, table: string, key: string, doc: object, extra: (string | n
   return db.runAsync(sql, ...args);
 };
 
-/** One row in each of the 16 synced tables; one of them is a tombstone. */
+/** One row in each of the 17 synced tables; one of them is a tombstone. */
 async function seedAll(db: Db) {
   await put(db, 'profiles', 'me', { ...meta, id: null, weight_kg: 80 });
   await put(db, 'consents', 'c1', { ...meta, id: 'c1', kind: 'data_storage', given_at: meta.updated_at, text_version: '1' });
@@ -67,6 +67,7 @@ async function seedAll(db: Db) {
   await put(db, 'exclusions', 'e1', { ...meta, id: 'e1' });
   await put(db, 'swaps', 'Squat', { ...meta, id: null, from: 'Squat' });
   await put(db, 'user_settings', 'me', { ...meta, id: null });
+  await put(db, 'routines', 'q1', { ...meta, id: 'q1', name: 'Upper A', exercises: [{ name: 'Squat', sets: 3 }], created_at: meta.updated_at });
 }
 
 describe('export from the local store (#27)', () => {

@@ -10,7 +10,17 @@ export const KEY_PHOTOS_WIPE = 'device.photos_wipe_pending';
 export const KEY_SETTINGS_KEPT = 'device.settings_kept';
 /** Reminder choices (#943). Device-only like the settings edits kept above: removed by a store wipe, with the alarms. */
 export const KEY_REMINDERS = 'device.reminders';
+/** The running rest dock (#1143): end time, label and list, so a reload resumes it. Device-only, removed by a store wipe with the day it belongs to. */
+export const KEY_REST = 'device.rest';
+/** The weight unit shown and typed, `kg` or `lb` (#1185). Device-only, never synced; removed by a store wipe with the account's other choices (#1371). */
+export const KEY_WEIGHT_UNIT = 'device.weight_unit';
+/** The plate calculator's bar weight and available plates per unit (#1176). Device-only, never synced; removed by a store wipe with the account's other choices (#1371). */
+export const KEY_PLATES = 'device.plates';
+/** Ids of the milestones already shown (toasted, or earned before this key existed), a JSON array (#1351 A9). Device-only, never synced; null means never seeded. Removed with a store wipe, so a restored account seeds again and is not flooded. */
+export const KEY_MILESTONES_SHOWN = 'device.milestones_shown';
 export const KEY_CURSOR = 'sync.cursor';
+/** Set once the cursor was reset after the upgrade that added the routines table (ADR 011), so `routines` already on the server are pulled. */
+export const KEY_ROUTINES_PULLED = 'sync.routines_pulled';
 const liftKey = (exercise: string) => `sync.lift.${exercise}`;
 
 export async function getKv(db: StoreDb, key: string): Promise<string | null> {

@@ -1,3 +1,4 @@
+import { lbToKg, type WeightUnit } from './weightUnit';
 import { addDays, daysBetween, mondayOf, weekdayOf } from './dates';
 import { dayComplete, logTotals, type FoodLogFacts } from './food';
 import { num } from './num';
@@ -52,7 +53,7 @@ export interface BurnSet {
   deleted_at?: string | null | undefined;
 }
 
-const live = <T extends { deleted_at?: string | null | undefined }>(xs: readonly T[]): T[] => xs.filter((x) => x.deleted_at == null);
+export const live = <T extends { deleted_at?: string | null | undefined }>(xs: readonly T[]): T[] => xs.filter((x) => x.deleted_at == null);
 
 /**
  * The latest weigh-in on or before `upTo` (any date when `upTo` is omitted), or null.
@@ -63,6 +64,21 @@ export function latestWeight(weighIns: readonly WeighIn[], upTo?: string): numbe
   let best: WeighIn | null = null;
   for (const w of live(weighIns)) if ((!upTo || w.date <= upTo) && (!best || w.date >= best.date)) best = w;
   return best ? best.weight_kg : null;
+}
+
+/**
+ * The bodyweight for `date`: the latest live weigh-in on or before it, else the profile weight, else null (#1404).
+ * One lookup for the app (assisted lifts, PR toast, History, Recent PRs) and for milestones.
+ *
+ * A profile weight of 0 or less counts as no weight (null). This only affects invalid data: the contract requires `exclusiveMinimum: 0`
+ * and setup only accepts 30 to 300 kg. It matches the old milestones `||` for 0; a negative weight used to pass through `||` and the app's `??`, and now gives null.
+ * Callers that need a number (burn) use `?? 0`, as the burn maths treats 0 as "no weight".
+ * A weigh-in is returned as stored. Not a prototype port; built on `latestWeight`.
+ */
+export function bodyweightOn(weighIns: readonly WeighIn[], date: string, profileKg?: number | null): number | null {
+  const w = latestWeight(weighIns, date);
+  if (w !== null) return w;
+  return profileKg != null && profileKg > 0 ? profileKg : null;
 }
 
 /**
@@ -252,6 +268,8 @@ export function weightDrift(weighIns: readonly WeighIn[], setupWeightKg: number)
 
 /** Kcal per kg of body weight (prototype `KCAL_PER_KG`). */
 export const KCAL_PER_KG = 7700;
+/** Kcal per lb of body weight: the rounded-to-100 lb equivalent of `KCAL_PER_KG` (7700 x 0.4536 = 3,493, shown as 3,500). Display-only; the maths stays in kg. */
+export const KCAL_PER_LB = 3500;
 /** Calories added when weight drops fast (prototype `calorieCard`'s 150). */
 export const RAPID_LOSS_KCAL = 150;
 /** Minimum change before the check-in suggests a new calorie target (prototype `renderCheckin`'s 100). */
@@ -571,16 +589,35 @@ export interface Habits {
 }
 
 /**
+ * Sessions a week to be on track: plan days minus 1, at least 2. The one goal rule, shared by `habits` and `weeksOnTrackSeries`.
+ *
+ * Mirrors the goal in prototype `consistencyHtml()`.
+ */
+export function weeklySessionGoal(profile: PlanProfile | null | undefined): number {
+  return Math.max(2, splitFor(profile).list.length - 1);
+}
+
+/**
+ * Whether the Monday-week starting `monday` was on track: at least `goal` session dates in `[monday, monday + 7)`.
+ * Shared by `habits` and `weeksOnTrackSeries`.
+ *
+ * Mirrors the per-week test in prototype `consistencyHtml()`.
+ */
+export function weekOnTrack(dates: readonly string[], monday: string, goal: number): boolean {
+  const we = addDays(monday, 7);
+  return dates.filter((d) => d >= monday && d < we).length >= goal;
+}
+
+/**
  * Gentle habits: on-track weeks in a row, not streaks of days.
  *
  * Mirrors prototype `consistencyHtml()` (its numbers and choice of line, not its HTML).
  */
 export function habits(date: string, sessions: SessionLog, profile: PlanProfile | null | undefined, days: readonly ProgressDay[]): Habits {
-  const goal = Math.max(2, splitFor(profile).list.length - 1), dates = Object.keys(sessions), monday = mondayOf(date);
+  const goal = weeklySessionGoal(profile), dates = Object.keys(sessions), monday = mondayOf(date);
   let weeks = 0;
   for (let k = 1; k <= 26; k++) {
-    const ws = addDays(monday, -7 * k), we = addDays(ws, 7);
-    if (dates.filter((d) => d >= ws && d < we).length >= goal) weeks++;
+    if (weekOnTrack(dates, addDays(monday, -7 * k), goal)) weeks++;
     else break;
   }
   const logged = daysEnding(days, date, 7).filter((d) => live(d.logs).length).length;
@@ -657,6 +694,12 @@ export const WEIGHT_CHART_POINTS = 30;
 /** Measurements on the waist chart (prototype `measuresHtml`'s `slice(-20)`). */
 export const WAIST_CHART_POINTS = 20;
 
+/** The last `limit` of `pts`: all for `Infinity`, none unless `limit > 0` (so 0, negatives and NaN give `[]`). */
+function lastN<T>(pts: T[], limit: number): T[] {
+  if (!(limit > 0)) return [];
+  return limit >= pts.length ? pts : pts.slice(-limit);
+}
+
 const byDate = <T extends readonly [string, unknown]>(a: T, b: T): number => (a[0] < b[0] ? -1 : 1);
 
 /**
@@ -664,14 +707,17 @@ const byDate = <T extends readonly [string, unknown]>(a: T, b: T): number => (a[
  * `trendChange`, need 2 or more; with fewer the prototype shows "Log a few weigh-ins to see your trend
  * line here."
  *
+ * `limit` (default 30) is the most points kept: `Infinity` keeps all, and 0, a negative or NaN gives none (new, #1351 C1,
+ * for the 12w and All ranges; the default leaves the output as the prototype's).
+ *
  * Mirrors the series in prototype `weightChart()`.
  */
-export function weightSeries(weighIns: readonly WeighIn[], upTo: string): TrendPoint[] {
-  return [...entries(weighIns)]
+export function weightSeries(weighIns: readonly WeighIn[], upTo: string, limit: number = WEIGHT_CHART_POINTS): TrendPoint[] {
+  const pts = [...entries(weighIns)]
     .filter(([d]) => d <= upTo)
     .sort(byDate)
-    .slice(-WEIGHT_CHART_POINTS)
     .map(([date, v]) => ({ date, v }));
+  return lastN(pts, limit);
 }
 
 /**
@@ -681,12 +727,27 @@ export function weightSeries(weighIns: readonly WeighIn[], upTo: string): TrendP
  * Mirrors `waistPts` in prototype `measuresHtml()`.
  */
 export function waistSeries(measurements: readonly MeasurementFacts[], upTo: string): TrendPoint[] {
-  return live(measurements)
-    .filter((m) => m.waist_cm && m.date <= upTo)
-    .map((m) => [m.date, m.waist_cm as number] as const)
+  return measureSeries(measurements, 'waist_cm', upTo);
+}
+
+/**
+ * The points for any tape part: the last `limit` (default 20, `WAIST_CHART_POINTS`) days with a nonzero value for
+ * `key` on or before `date`, oldest first. Pass `Infinity` for no cap; `limit` 0, a negative or NaN gives `[]`. Deleted rows are ignored.
+ *
+ * New rule (#1351 C1), the general form of `waistSeries`; `waistSeries` calls it with `'waist_cm'`.
+ */
+export function measureSeries(
+  tapes: readonly MeasurementFacts[],
+  key: MeasureKey,
+  date: string,
+  limit: number = WAIST_CHART_POINTS,
+): TrendPoint[] {
+  const pts = live(tapes)
+    .filter((m) => m[key] && m.date <= date)
+    .map((m) => [m.date, m[key] as number] as const)
     .sort(byDate)
-    .slice(-WAIST_CHART_POINTS)
-    .map(([date, v]) => ({ date, v }));
+    .map(([d, v]) => ({ date: d, v }));
+  return lastN(pts, limit);
 }
 
 /**
@@ -739,12 +800,17 @@ export interface ChartLayout {
 }
 
 /**
- * Line-chart layout: points spread evenly from `px` to `W - 8`, values scaled between `py` (max) and
- * `H - py` (min); a range under 1 is widened by 0.5 each way. Null with fewer than 2 points.
+ * Line-chart layout: values scaled between `py` (max) and `H - py` (min); a range under 1 is widened by 0.5 each way. Null with fewer than 2 points.
  *
- * Mirrors the geometry of prototype `weightChart()` (with `WEIGHT_CHART_BOX`) and `lineChart()` (`WAIST_CHART_BOX`).
+ * x runs from `px` to `W - 8`. With `dates` (one `YYYY-MM-DD` per value, oldest first) a point sits at the share of whole days
+ * (`daysBetween`) from the first date to its own, out of the days from the first to the last, so weigh-ins 3 and 7 days apart are drawn
+ * 3 and 7 units apart and the slope reads true. Without `dates`, when `dates` does not have one entry per value, or when the first and last
+ * date are the same day, or any date is malformed or earlier than the one before it, points are spread evenly by index, the prototype's layout.
+ *
+ * Index spacing mirrors the geometry of prototype `weightChart()` (with `WEIGHT_CHART_BOX`) and `lineChart()` (`WAIST_CHART_BOX`);
+ * spacing by date is a spec change (#1370, PROTOTYPE_SPEC section 0), y is unchanged.
  */
-export function chartLayout(values: readonly number[], box: ChartBox): ChartLayout | null {
+export function chartLayout(values: readonly number[], box: ChartBox, dates?: readonly string[]): ChartLayout | null {
   if (values.length < 2) return null;
   const { W, H, px, py } = box;
   let mn = Math.min(...values), mx = Math.max(...values);
@@ -752,8 +818,60 @@ export function chartLayout(values: readonly number[], box: ChartBox): ChartLayo
     mn -= 0.5;
     mx += 0.5;
   }
-  const X = (i: number): number => px + (i * (W - px - 8)) / (values.length - 1), Y = (v: number): number => py + ((mx - v) * (H - py * 2)) / (mx - mn);
+  const w = W - px - 8, last = values.length - 1;
+  // Days from the first date to each point; used only when there is one per value, all finite, never going backwards, and the span is above 0.
+  const offs = dates && dates.length === values.length ? dates.map((d) => daysBetween(dates[0] as string, d)) : null;
+  const span = offs ? (offs[last] as number) : 0;
+  const byDate = offs !== null && span > 0 && offs.every((o, i) => Number.isFinite(o) && o >= (offs[i - 1] ?? 0));
+  const X = (i: number): number => (byDate && offs ? px + ((offs[i] as number) * w) / span : px + (i * w) / last);
+  const Y = (v: number): number => py + ((mx - v) * (H - py * 2)) / (mx - mn);
   return { min: mn, max: mx, points: values.map((v, i) => ({ x: X(i), y: Y(v) })) };
+}
+
+/** Widest a bar is drawn, in box units (about 70 px at the app's widest chart), so a chart of 1 or 2 bars does not make slabs. */
+export const BAR_MAX_WIDTH = 40;
+/** Shortest a bar is drawn, box units: a real 0 (or a negative value, clamped to 0) shows as a stub so it differs from a gap (null). */
+export const BAR_MIN_HEIGHT = 2;
+
+/** One bar of `barLayout`: a rectangle in box units, its bottom on the baseline. */
+export interface BarRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+/** Result of `barLayout`. */
+export interface BarLayout {
+  /** The value at the top grid line (y = `py`); the baseline (y = `H - py`) is 0. */
+  max: number;
+  /** One entry per value, in order; null where the value is null (a gap, never a bar). */
+  bars: (BarRect | null)[];
+  /** The target's y, or null when there is no target (absent, 0 or less, or not finite). */
+  targetY: number | null;
+}
+
+/**
+ * Bar-chart layout: one slot per value from `px` to `W - 8`, each bar 70% of its slot (at most `BAR_MAX_WIDTH` box units) centred in it,
+ * rising from the baseline at 0 and at least `BAR_MIN_HEIGHT` tall. A null value is a gap: no bar. The y axis runs 0 to the tallest value
+ * (1 when there is none), widened to include any finite target above 0, however far, so short bars stay truthful: a target moves heights
+ * (as `chartLayout` does for a line) but never x or width. A target of 0 or less, or not finite, is ignored. Null with no values.
+ *
+ * New rule (#1351 A3), no prototype counterpart; vectors in `docs/spec/golden/bar-layout.json`.
+ */
+export function barLayout(values: readonly (number | null)[], target: number | undefined, box: ChartBox): BarLayout | null {
+  if (values.length === 0) return null;
+  const { W, H, px, py } = box;
+  const tallest = Math.max(0, ...values.filter((v): v is number => v !== null));
+  const drawn = target !== undefined && Number.isFinite(target) && target > 0 ? target : null;
+  const max = Math.max(tallest, drawn ?? 0) || 1;
+  const slot = (W - 8 - px) / values.length, width = Math.min(slot * 0.7, BAR_MAX_WIDTH), plot = H - py * 2;
+  const bars = values.map((v, i): BarRect | null => {
+    if (v === null) return null;
+    const height = Math.max((v / max) * plot, BAR_MIN_HEIGHT);
+    return { x: px + i * slot + (slot - width) / 2, y: H - py - height, width, height };
+  });
+  return { max, bars, targetY: drawn === null ? null : H - py - (drawn / max) * plot };
 }
 
 /** A rise at least this big over the last weigh-in triggers the scale-jump note, kg (prototype's 0.8). */
@@ -805,10 +923,14 @@ export type WeightEntry = { kind: 'save'; kg: number } | { kind: 'clear' } | { k
  * contract's exclusive bounds, so 20.01–20.04 and 399.95–399.99 (which round to 20.0 and 400.0) are
  * bad (#247); a blank box clears; anything else is bad.
  *
+ * With `unit` 'lb' the typed text is pounds, rounded to 0.1 lb, and `kg` is that exactly (whole pounds 100 to 300
+ * show back unchanged); kg is unchanged.
+ *
  * Mirrors the checks in the prototype's `case 'saveW'` (document click listener).
  */
-export function weightEntry(text: string): WeightEntry {
-  const kg = round1(num(text));
+export function weightEntry(text: string, unit: WeightUnit = 'kg'): WeightEntry {
+  // In lb the box is rounded to 0.1 lb (what the user sees) and saves that exactly in kg; the bounds are in kg.
+  const kg = unit === 'lb' ? lbToKg(round1(num(text))) : round1(num(text));
   if (kg > WEIGHT_ABOVE_KG && kg < WEIGHT_BELOW_KG) return { kind: 'save', kg };
   if (!text.trim()) return { kind: 'clear' };
   return { kind: 'bad' };

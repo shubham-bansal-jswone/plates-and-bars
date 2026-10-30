@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react-native';
+import { StyleSheet } from 'react-native';
 import { FoodScreen } from '../src/screens/FoodScreen';
 import { saveProfile } from '../src/db/records';
 import { loadSettings, saveSettings } from '../src/db/settings';
@@ -81,6 +82,8 @@ describe('Food screen', () => {
     expect(screen.getByLabelText(`Protein 0 of ${DEFAULT_PROTEIN_TARGET} g, ${DEFAULT_PROTEIN_TARGET} g to go`)).toBeTruthy();
     expect(screen.getByLabelText(`Carbs 0 of ${DEFAULT_CARBS_TARGET} g, ${DEFAULT_CARBS_TARGET} g to go`)).toBeTruthy();
     expect(screen.getByLabelText(`Fat 0 of ${DEFAULT_FAT_TARGET} g, ${DEFAULT_FAT_TARGET} g to go`)).toBeTruthy();
+    // What is shown matches what is spoken: the prototype's "g to go", not "g left".
+    expect(screen.getByText(`${DEFAULT_FAT_TARGET} g to go`)).toBeTruthy();
   });
 
   describe('flex chips', () => {
@@ -740,6 +743,85 @@ describe('Estimated burn today so far', () => {
   });
 });
 
+describe('Cards above the meals hold their place while they read (#1411)', () => {
+  // They sit above the meals: popping in after the screen showed moved "+ Add to breakfast" down under a tap.
+  const gated = async (match: string, answer: 'rows' | 'fail') => {
+    const db = memoryDb();
+    await saveProfile(db, profile());
+    const read = db.getAllAsync.bind(db);
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    db.getAllAsync = (async (sql: string, ...p: (string | number)[]) => {
+      if (sql.includes(match)) {
+        await gate;
+        if (answer === 'fail') throw new Error('disk');
+      }
+      return read(sql, ...p);
+    }) as typeof db.getAllAsync;
+    await render(withProfile(db, <FoodScreen db={db} now={NOW} />));
+    await screen.findByRole('header', { name: 'Food' });
+    await screen.findByLabelText('+ Add to breakfast');
+    return release;
+  };
+  const hidden = { includeHiddenElements: true };
+
+  it('burn: draws the card shell with its label and a dash, hidden from the screen reader, then the numbers in the same card', async () => {
+    const release = await gated('SELECT data FROM weights', 'rows');
+    const shell = screen.getByTestId('burn-pending', hidden);
+    expect(within(shell).getByText('Estimated burn today so far', hidden)).toBeTruthy();
+    expect(within(shell).getByText('—', hidden)).toBeTruthy();
+    expect(within(shell).getByRole('button', { name: 'Details', ...hidden }).props.accessibilityState?.disabled ?? within(shell).getByRole('button', { name: 'Details', ...hidden }).props['aria-disabled']).toBeTruthy();
+    expect(screen.queryByLabelText('Estimated burn today so far, 1,766–2,158 kcal')).toBeNull();
+    expect(screen.queryByLabelText('Show burn details')).toBeNull(); // not reachable while pending
+    await act(async () => release());
+    expect(await screen.findByLabelText('Estimated burn today so far, 1,766–2,158 kcal')).toBeTruthy();
+    expect(screen.queryByTestId('burn-pending', hidden)).toBeNull();
+  });
+
+  it('burn: drops the shell when the read fails, so no empty card stays', async () => {
+    const release = await gated('SELECT data FROM weights', 'fail');
+    expect(screen.getByTestId('burn-pending', hidden)).toBeTruthy();
+    await act(async () => release());
+    await waitFor(() => expect(screen.queryByTestId('burn-pending', hidden)).toBeNull());
+    expect(screen.queryByText('Estimated burn today so far')).toBeNull();
+  });
+
+  it('water: draws the card at once with the count pending and the buttons off, then fills it in place', async () => {
+    const release = await gated('FROM water_logs WHERE log_date', 'rows');
+    const card = screen.getByTestId('water-pending', hidden);
+    expect(within(card).getByText('Water today', hidden)).toBeTruthy();
+    expect(within(card).getByText('— of about — L', hidden)).toBeTruthy();
+    for (const name of ['Add a glass, 250 millilitres', 'Add a bottle, 1000 millilitres']) {
+      const b = within(card).getByRole('button', { name, ...hidden });
+      expect(b.props.accessibilityState?.disabled ?? b.props['aria-disabled']).toBeTruthy();
+    }
+    await fireEvent.press(within(card).getByText('+ Glass', hidden));
+    await flush();
+    await act(async () => release());
+    expect(await screen.findByLabelText(/^0 of about [\d.]+ litres$/)).toBeTruthy();
+    expect(screen.queryByTestId('water-pending', hidden)).toBeNull();
+    expect(screen.getByLabelText('0% of today’s water')).toBeTruthy(); // the press while pending logged nothing
+  });
+
+  it('water: drops the card when its read fails and nothing was read', async () => {
+    const release = await gated('FROM water_logs WHERE log_date', 'fail');
+    expect(screen.getByTestId('water-pending', hidden)).toBeTruthy();
+    await act(async () => release());
+    await waitFor(() => expect(screen.queryByText('Water today')).toBeNull());
+  });
+});
+
+describe('Estimated burn on a past day (#1123)', () => {
+  it('says "today so far" only for today; a past day names its date', async () => {
+    await setup();
+    await screen.findByText('Estimated burn today so far');
+    await fireEvent.press(screen.getByRole('button', { name: 'Previous day' }));
+    expect(await screen.findByText('Estimated burn on Wednesday, 7 Oct')).toBeTruthy();
+    expect(screen.queryByText('Estimated burn today so far')).toBeNull();
+    expect(screen.getByLabelText(/^Estimated burn on Wednesday, 7 Oct, /)).toBeTruthy();
+  });
+});
+
 describe('Meal prep on Food', () => {
   const batch = (over: Record<string, unknown> = {}) => ({ id: 'b1', name: 'Dal (home-style)', meal: 'Lunch' as const, left: 3, until: '2026-10-14', food: { kcal: 161, protein_g: 7.8, carbs_g: 23.3, fat_g: 4.6 }, ...over });
   async function withPrep(prep: ReturnType<typeof batch>[]) {
@@ -904,5 +986,47 @@ describe('toast posted by setup', () => {
     await screen.unmount();
     await setup();
     expect(screen.queryByText('Targets updated')).toBeNull();
+  });
+});
+
+describe('fibre row (#1194)', () => {
+  it('centres the Why? link on the row of the fibre and fruit and veg text', async () => {
+    const db = memoryDb();
+    await saveProfile(db, profile());
+    db.rows.set('food_logs:a', JSON.stringify({ version: 0, updated_at: '2026-10-08T00:00:00Z', deleted_at: null, date: DATE, qty: 1, carbs_g: 0, fat_g: 0, food_id: null, id: 'a', meal: 'Breakfast', name: 'Oats', kcal: 100, protein_g: 3 }));
+    await setup({ db });
+    await screen.findByText('Oats');
+    let row = screen.getByLabelText('Why? Why track fibre and fruit and veg?').parent;
+    while (row && StyleSheet.flatten(row.props.style)?.flexDirection !== 'row') row = row.parent;
+    expect(StyleSheet.flatten(row!.props.style).alignItems).toBe('center');
+  });
+});
+
+describe('add sheet frame (#1194)', () => {
+  it('has a title heading and a Close control outside the scrolling list; Close and Done both close it', async () => {
+    await setup();
+    await open();
+    expect(screen.getByRole('header', { name: 'Add to breakfast' })).toBeTruthy();
+    // The sheet's ScrollView is the nearest one above the search field; it holds the list, not the title, Close or Done.
+    let sheetScroll = screen.getByLabelText('Search foods').parent;
+    while (sheetScroll && sheetScroll.type !== 'RCTScrollView') sheetScroll = sheetScroll.parent;
+    expect(sheetScroll).toBeTruthy();
+    expect(within(sheetScroll!).getByLabelText('Search foods')).toBeTruthy();
+    expect(within(sheetScroll!).queryByRole('header', { name: 'Add to breakfast' })).toBeNull();
+    expect(within(sheetScroll!).queryByLabelText('Close add to breakfast')).toBeNull();
+    expect(within(sheetScroll!).queryByLabelText('Done')).toBeNull();
+    expect(screen.getByLabelText('Done')).toBeTruthy();
+    await fireEvent.press(screen.getByLabelText('Close add to breakfast'));
+    expect(screen.queryByLabelText('Search foods')).toBeNull();
+    await open();
+    await fireEvent.press(screen.getByLabelText('Done'));
+    expect(screen.queryByLabelText('Search foods')).toBeNull();
+  });
+
+  it('the title is not light weight', async () => {
+    await setup();
+    await open();
+    const style = StyleSheet.flatten(screen.getByRole('header', { name: 'Add to breakfast' }).props.style);
+    expect(Number(style.fontWeight)).toBeGreaterThanOrEqual(600);
   });
 });

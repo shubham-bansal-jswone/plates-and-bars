@@ -1,4 +1,5 @@
-import { StyleSheet, Vibration } from 'react-native';
+import { AccessibilityInfo, Platform, StyleSheet, TextInput, Vibration } from 'react-native';
+import { expand, press, pressDay, reveal, tickFirstSets } from './disclosure-helpers';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { WorkoutScreen } from '../src/screens/WorkoutScreen';
 import { saveProfile } from '../src/db/records';
@@ -12,6 +13,8 @@ import { getCatalog } from '../src/workout/catalog';
 import { HAND_PICKED } from '@plate-and-bar/core';
 import type { ExType, LiftRecord } from '@plate-and-bar/core';
 import type { Workout, WorkoutSet } from '../src/workout/types';
+import { focusNode } from '../src/labelscan/focus';
+import { SyncContext, type SyncState } from '../src/sync/SyncProvider';
 import { memoryDb, withProfile } from './helpers';
 
 jest.mock('expo-router', () => ({ useRouter: () => ({ replace: jest.fn(), push: jest.fn() }), useFocusEffect: (cb: () => void) => jest.requireActual('react').useEffect(cb, []) }));
@@ -78,9 +81,22 @@ async function seedLift(db: Db, name: string, w: number, scores?: number[]) {
   db.rows.set(`lift_stats:${name}`, JSON.stringify(rec));
 }
 
+/** Two earlier days of stored sets for the lift (best estimated 1RM 90 kg): the all-time best the personal-best toast compares against (#1351). */
+async function seedEarlier(db: Db, name: string) {
+  for (const [date, w] of [['2026-09-20', 60], ['2026-09-21', 67.5]] as const) {
+    db.rows.set(`workouts:${date}`, JSON.stringify({ date, deleted_at: null }));
+    await saveSet(db, date, { id: `earlier-${date}`, version: 0, updated_at: `${date}T09:00:00Z`, deleted_at: null, workout_id: null, exercise: name, kind: 'work', set_index: 0, weight_kg: w, reps: 10, done: true, rate: null, t: null });
+  }
+}
+
 /** Lets everything already queued run: promise callbacks, then one macrotask turn. No wall-clock delay. */
 const flush = () => act(async () => { await new Promise<void>((r) => setImmediate(r)); });
-const press = (label: string) => fireEvent.press(screen.getByLabelText(label));
+
+/** The "Guide and tools" disclosure is closed except on an exercise's very first session. */
+const openGuide = async (name: string) => {
+  const b = screen.getByLabelText(`Guide and tools for ${name}`);
+  if (!b.props.accessibilityState?.expanded) await fireEvent.press(b);
+};
 const stored = <T,>(db: Db, key: string) => JSON.parse(db.rows.get(key) as string) as T;
 const storedSets = (db: Db) => [...db.sets.values()].map((s) => JSON.parse(s.data) as WorkoutSet);
 const placeholder = (label: string) => screen.getByLabelText(label).props.placeholder as string;
@@ -100,6 +116,8 @@ afterEach(() => {
   fake = false;
   jest.useRealTimers();
 });
+
+jest.mock('../src/labelscan/focus', () => ({ ...jest.requireActual('../src/labelscan/focus'), focusNode: jest.fn() }));
 
 describe('Workout tab: preview and Start', () => {
   it('shows today’s planned session from core with a Start button', async () => {
@@ -186,14 +204,7 @@ describe('Workout tab: preview and Start', () => {
     await press('Start Push B');
     await screen.findByText('Push B');
     // The screen offers a second session once every exercise has a done set; the save is still held.
-    const first = screen.getAllByLabelText(/^Mark .* set 1 done$/).length;
-    for (const m of screen.getAllByLabelText(/^Mark .* set 1 done$/)) {
-      const n = /^Mark (.*) set 1 done$/.exec(m.props.accessibilityLabel as string)![1];
-      const wt = screen.queryByLabelText(`${n} set 1 kg`) ?? screen.queryByLabelText(`${n} set 1 kg each`);
-      if (wt) await fireEvent.changeText(wt, '10');
-      await fireEvent.changeText(screen.getByLabelText(`${n} set 1 reps`), '10');
-      await press(`Mark ${n} set 1 done`);
-    }
+    const first = await tickFirstSets();
     await press('Training again later today?');
     await press('Add Pull B');
     expect(db.rows.get(`workouts:${DATE}`)).toBeUndefined(); // Start is still saving
@@ -221,14 +232,7 @@ describe('Workout tab: preview and Start', () => {
     await press('Start Push B');
     await screen.findByText('Push B');
     // The screen offers a second session once every exercise has a done set; the save is still held.
-    const first = screen.getAllByLabelText(/^Mark .* set 1 done$/).length;
-    for (const m of screen.getAllByLabelText(/^Mark .* set 1 done$/)) {
-      const n = /^Mark (.*) set 1 done$/.exec(m.props.accessibilityLabel as string)![1];
-      const wt = screen.queryByLabelText(`${n} set 1 kg`) ?? screen.queryByLabelText(`${n} set 1 kg each`);
-      if (wt) await fireEvent.changeText(wt, '10');
-      await fireEvent.changeText(screen.getByLabelText(`${n} set 1 reps`), '10');
-      await press(`Mark ${n} set 1 done`);
-    }
+    const first = await tickFirstSets();
     await press('Training again later today?');
     await press('Add Pull B');
     expect(db.rows.get(`workouts:${DATE}`)).toBeUndefined(); // Start is still saving
@@ -245,7 +249,7 @@ describe('Workout tab: preview and Start', () => {
     await screen.findByText('Push B day');
     await press('Training away from your gym?');
     await press('Dumbbells only');
-    await press('Choose Pull A');
+    await pressDay('Choose Pull A');
     await press('Start Pull A');
     await screen.findByText('Pull A (dumbbells only)');
     expect(stored<Workout>(db, `workouts:${DATE}`)).toMatchObject({ where: 'dumbbells', base: 'Pull A' });
@@ -260,6 +264,7 @@ describe('Workout tab: preview and Start', () => {
     await screen.findByText('Push B (dumbbells only)');
     const first = stored<Workout>(db, `workouts:${DATE}`).exercises.map((e) => e.name);
     for (const n of first) {
+      await expand(n);
       const wt = screen.queryByLabelText(`${n} set 1 kg each`);
       if (wt) await fireEvent.changeText(wt, '10');
       await fireEvent.changeText(screen.getByLabelText(`${n} set 1 reps`), '10');
@@ -350,7 +355,9 @@ describe('Workout tab: logging sets', () => {
     for (let k = n + 1; k > 1; k--) await press('Remove last set of Barbell Bench Press');
     await waitFor(() => expect(sets()).toBe(1));
     expect(screen.queryByLabelText('Remove last set of Barbell Bench Press')).toBeNull();
-    expect(screen.getByText('Set removed')).toBeTruthy();
+    const removed = StyleSheet.flatten(screen.getByText('Set removed').parent?.props.style);
+    expect(removed).toMatchObject({ position: 'absolute', bottom: 90 }); // every other Workout toast stays at the bottom
+    expect('top' in removed).toBe(false);
   });
 
   it('the set chips are named from their visible text (WCAG 2.5.3, #800)', async () => {
@@ -371,6 +378,7 @@ describe('Workout tab: logging sets', () => {
     await press('Add Goblet Squat');
     expect(await screen.findByText('Goblet Squat added')).toBeTruthy();
     await waitFor(() => expect(stored<Workout>(db, `workouts:${DATE}`).exercises.map((e) => e.name)).toContain('Goblet Squat'));
+    await expand('Goblet Squat');
     await press('Remove exercise Goblet Squat from today');
     expect(screen.getByLabelText('Tap again to remove Goblet Squat from today')).toBeTruthy();
     await press('Tap again to remove Goblet Squat from today');
@@ -399,7 +407,7 @@ describe('Workout tab: logging sets', () => {
     await press('Close');
     await typeAndAdd('Cossack Squat');
     await press('Add Cossack Squat with these muscles');
-    expect(await screen.findByText('Pick at least one main muscle.')).toBeTruthy();
+    expect(await screen.findByText('Choose a main muscle first.')).toBeTruthy();
     await press('Main muscle: quads');
     await press('Also working: glutes');
     await press('Add Cossack Squat with these muscles');
@@ -429,11 +437,13 @@ describe('Workout tab: logging sets', () => {
     await started();
     // 3 sets of 10 at 60 kg on a 6–10 barbell lift: add one 2.5 kg step and aim for the bottom of the range.
     expect(screen.getByText('Suggested: 62.5 kg × 6–10 reps')).toBeTruthy();
+    // Suggestion, reason and warm-up are inline: the guide stays closed here.
     expect(screen.getAllByLabelText('Why? How the suggested weight is chosen').length).toBeGreaterThan(0);
     expect(placeholder('Barbell Bench Press set 1 kg')).toBe('62.5');
     expect(placeholder('Barbell Bench Press set 1 reps')).toBe('6');
-    expect(screen.getByText(/8 reps at 32.5 kg, then 4 at 47.5 kg/)).toBeTruthy();
-    expect(screen.getByLabelText('Why? Why warm up before the first big lift?, Barbell Bench Press')).toBeTruthy();
+    expect(screen.getByLabelText('Warm up first: 8 reps at 25 kg, then 5 at 37.5 kg, then 3 at 50 kg. Not logged.')).toBeTruthy(); // 62.5 kg is at least 60: the graduated ramp (#1240)
+    expect(screen.getByLabelText('Why? Why warm up before a big lift?, Barbell Bench Press')).toBeTruthy();
+    await openGuide('Barbell Bench Press'); // the rest line is reference material
     expect(screen.getByLabelText('Why? Why rest 2–3 minutes on big lifts?, Barbell Bench Press')).toBeTruthy();
     await fireEvent.press(screen.getByLabelText('Why these exercises? How your sessions are built'));
     expect(await screen.findByText(/You train 6 days a week, so your plan uses push\/pull\/legs twice, which trains .* Sessions are trimmed to fit about 60 minutes, keeping/)).toBeTruthy();
@@ -457,13 +467,177 @@ describe('Workout tab: logging sets', () => {
     expect(l.prev).toMatchObject({ date: '2026-10-05', form: 'yes' });
     expect(l.hist?.at(-1)).toEqual({ date: DATE, e: 75 });
 
-    expect(screen.getByText('Rest 2:30')).toBeTruthy();
+    expect(screen.getByLabelText('Rest 2:30')).toBeTruthy();
     // The panel sits in an opaque dock, so the "How to do" link under it cannot show through the gap.
     const dock = screen.getByLabelText('Rest timer').parent;
     expect(StyleSheet.flatten(dock?.props.style)).toMatchObject({ position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: expect.any(String) });
     expect(screen.getByText('Next: set 2 of Barbell Bench Press')).toBeTruthy();
+    // A bottom toast is lifted above the dock (90 + the 100 px ring + 30).
+    await press('Add set to Barbell Bench Press');
+    await press('Remove last set of Barbell Bench Press');
+    expect(StyleSheet.flatten(screen.getByText('Set removed').parent?.props.style)).toMatchObject({ bottom: 220 });
     expect(screen.getByLabelText('Mark Barbell Bench Press set 1 done').props.accessibilityState.checked).toBe(true);
     expect(screen.getByText('1 of 15 sets done, 375 kg lifted')).toBeTruthy();
+  });
+
+  async function removeExercise(name: string) {
+    await expand(name);
+    await press(`Remove exercise ${name} from today`);
+    await press(`Tap again to remove ${name} from today`);
+    await waitFor(() => expect(screen.queryByLabelText(`Mark ${name} set 1 done`)).toBeNull());
+  }
+  async function cutToOneSet(name: string) {
+    await expand(name);
+    while (screen.queryByLabelText(`Remove last set of ${name}`)) await press(`Remove last set of ${name}`);
+  }
+
+  it('the rest dock never names an exercise that was removed: it moves on to the next one (#1141)', async () => {
+    await started();
+    await cutToOneSet('Barbell Bench Press');
+    await press('Mark Barbell Bench Press set 1 done');
+    expect(screen.getByText('Next: Machine Shoulder Press')).toBeTruthy();
+    await removeExercise('Machine Shoulder Press');
+    expect(screen.queryByText('Next: Machine Shoulder Press')).toBeNull();
+    expect(screen.getByText('Next: Pec Deck Fly')).toBeTruthy();
+    for (const n of ['Pec Deck Fly', 'Cable Lateral Raise', 'Overhead Cable Extension']) await removeExercise(n);
+    expect(screen.queryByTestId('rest-title')).toBeNull(); // nothing left to do: the dock closes
+  });
+
+  it('after a removal the dock names only exercises after the ticked one, never an earlier skipped one (#1141)', async () => {
+    await started();
+    await cutToOneSet('Machine Shoulder Press');
+    await press('Mark Machine Shoulder Press set 1 done'); // Bench is skipped
+    expect(screen.getByText('Next: Pec Deck Fly')).toBeTruthy();
+    await removeExercise('Pec Deck Fly');
+    expect(screen.getByText('Next: Cable Lateral Raise')).toBeTruthy();
+    expect(screen.queryByText('Next: Barbell Bench Press')).toBeNull();
+  });
+
+  // Reviewer's reproductions on #1333: while a rest runs the ungrouped dock behaves as before groups.
+  it('removing the exercise just finished keeps "Next: <Name>", not "set 1 of" the one after (#1182 S4)', async () => {
+    await started();
+    await cutToOneSet('Barbell Bench Press');
+    await press('Mark Barbell Bench Press set 1 done');
+    expect(screen.getByText('Next: Machine Shoulder Press')).toBeTruthy();
+    await removeExercise('Barbell Bench Press');
+    expect(screen.getByText('Next: Machine Shoulder Press')).toBeTruthy();
+  });
+
+  it('unticking the finished exercise and then removing the target moves on, not back to the finished one (#1182 S4)', async () => {
+    await started();
+    await cutToOneSet('Barbell Bench Press');
+    await press('Mark Barbell Bench Press set 1 done');
+    await press('Mark Barbell Bench Press set 1 done'); // untick
+    expect(screen.getByText('Next: Machine Shoulder Press')).toBeTruthy();
+    await removeExercise('Machine Shoulder Press');
+    expect(screen.getByText('Next: Pec Deck Fly')).toBeTruthy();
+  });
+
+  it('when the last set of the target is ticked with nothing after it, the dock closes, though an earlier exercise is open again (#1182 S4)', async () => {
+    await started();
+    await cutToOneSet('Barbell Bench Press');
+    for (const n of ['Machine Shoulder Press', 'Pec Deck Fly', 'Cable Lateral Raise']) await removeExercise(n);
+    await press('Mark Barbell Bench Press set 1 done');
+    expect(screen.getByText('Next: Overhead Cable Extension')).toBeTruthy();
+    await press('Mark Barbell Bench Press set 1 done'); // untick: the finished exercise is open again
+    await expand('Overhead Cable Extension');
+    while (screen.queryByLabelText('Remove last set of Overhead Cable Extension')) await press('Remove last set of Overhead Cable Extension');
+    await press('Mark Overhead Cable Extension set 1 done');
+    expect(screen.queryByTestId('rest-title')).toBeNull(); // Bench is open again, but the dock never goes back to it
+  });
+
+  async function swapToday(name: string) {
+    await reveal(name);
+    await press(`Can’t do ${name}`);
+    await press('Equipment isn’t available');
+    await press('Just today');
+    const rows = screen.getAllByRole('button').filter((b) => /Works your/.test(String(b.props.accessibilityLabel ?? '')));
+    const pick = String(rows[0]?.props.accessibilityLabel).split('. ')[0] as string;
+    await fireEvent.press(rows[0] as never);
+    await waitFor(() => expect(screen.queryByText(`Swapped in ${pick}`)).toBeTruthy()); // a ticked exercise stays; the replacement follows it
+    return pick;
+  }
+
+  it('a swap during a rest keeps the dock on the replacement, not the exercise after it (#1150)', async () => {
+    await started();
+    await cutToOneSet('Machine Shoulder Press');
+    await press('Mark Machine Shoulder Press set 1 done');
+    expect(screen.getByText('Next: Pec Deck Fly')).toBeTruthy();
+    const pick = await swapToday('Pec Deck Fly');
+    expect(screen.getByText(`Next: ${pick}`)).toBeTruthy();
+  });
+
+  it('swapping the exercise just ticked: the dock names the replacement from its first set, not "set 2" (#1150)', async () => {
+    await started();
+    await expand('Machine Shoulder Press');
+    await press('Mark Machine Shoulder Press set 1 done');
+    expect(screen.getByText('Next: set 2 of Machine Shoulder Press')).toBeTruthy();
+    const pick = await swapToday('Machine Shoulder Press');
+    expect(screen.getByText(`Next: ${pick}`)).toBeTruthy();
+    expect(screen.queryByText(/set 2 of/)).toBeNull();
+  });
+
+  it('swapping a later exercise leaves the dock label alone (#1150)', async () => {
+    await started();
+    await cutToOneSet('Machine Shoulder Press');
+    await press('Mark Machine Shoulder Press set 1 done');
+    await swapToday('Cable Lateral Raise');
+    expect(screen.getByText('Next: Pec Deck Fly')).toBeTruthy();
+  });
+
+  it('ticking the final set closes the rest dock, so it does not cover the Session done panel (#1141)', async () => {
+    await started();
+    for (const n of PUSH_B.slice(1)) await removeExercise(n);
+    await expand('Barbell Bench Press');
+    await press('Mark Barbell Bench Press set 1 done');
+    expect(screen.getByText('Next: set 2 of Barbell Bench Press')).toBeTruthy();
+    for (let k = 2; screen.queryByLabelText(`Mark Barbell Bench Press set ${k} done`); k++) await press(`Mark Barbell Bench Press set ${k} done`);
+    expect(screen.queryByTestId('rest-title')).toBeNull();
+    expect(screen.queryByText(/^Next:/)).toBeNull();
+  });
+
+  describe('the rest dock across a reload (#1143)', () => {
+    const NOW_MS = new Date(2026, 9, 8, 10, 0, 0).getTime();
+    const saved = (over: object = {}) => JSON.stringify({ id: 1, end: NOW_MS + 122_000, total: 150, label: 'Next: Machine Shoulder Press', from: ['Machine Shoulder Press', 'Pec Deck Fly'], date: DATE, ...over });
+    const reload = async (raw: string) => {
+      const db = await started();
+      jest.spyOn(Date, 'now').mockReturnValue(NOW_MS);
+      await press('Mark Barbell Bench Press set 1 done');
+      db.rows.set('settings:device.rest', raw);
+      await screen.unmount();
+      await mount(db);
+      await flush();
+      return db;
+    };
+
+    it('ticking a set stores the rest, and a reload resumes it with the time left and its Next label', async () => {
+      const db = await started();
+      jest.spyOn(Date, 'now').mockReturnValue(NOW_MS);
+      await press('Mark Barbell Bench Press set 1 done');
+      expect(JSON.parse(db.rows.get('settings:device.rest') as string)).toMatchObject({ end: NOW_MS + 150_000, date: DATE });
+      jest.spyOn(Date, 'now').mockReturnValue(NOW_MS + 28_000);
+      await screen.unmount();
+      await mount(db);
+      expect(await screen.findByLabelText('Rest 2:02')).toBeTruthy();
+      expect(screen.getByText('Next: set 2 of Barbell Bench Press')).toBeTruthy();
+    });
+
+    it('an elapsed rest is not shown and is dropped', async () => {
+      const db = await reload(saved({ end: NOW_MS - 1000 }));
+      expect(screen.queryByLabelText('Rest timer')).toBeNull();
+      await waitFor(() => expect(db.rows.has('settings:device.rest')).toBe(false));
+    });
+
+    it('a rest from another day is dropped', async () => {
+      const db = await reload(saved({ date: '2026-10-07' }));
+      expect(screen.queryByLabelText('Rest timer')).toBeNull();
+      await waitFor(() => expect(db.rows.has('settings:device.rest')).toBe(false));
+    });
+
+    it('a stored list with no exercise left to do closes the dock', async () => {
+      await reload(saved({ from: ['Gone Exercise'] }));
+      expect(screen.queryByLabelText('Rest timer')).toBeNull();
+    });
   });
 
   it('the rest timer’s +30 s button adds core’s REST_EXTEND_SEC', async () => {
@@ -472,9 +646,9 @@ describe('Workout tab: logging sets', () => {
     const clock = frozenClock();
     try {
       await press('Mark Barbell Bench Press set 1 done');
-      expect(await screen.findByText('Rest 2:30')).toBeTruthy();
+      expect(await screen.findByLabelText('Rest 2:30')).toBeTruthy();
       await press('+30 s');
-      expect(await screen.findByText('Rest 3:00')).toBeTruthy();
+      expect(await screen.findByLabelText('Rest 3:00')).toBeTruthy();
     } finally {
       clock.mockRestore();
     }
@@ -494,7 +668,7 @@ describe('Workout tab: logging sets', () => {
     await press('Mark Barbell Bench Press set 1 done');
     // One set, about 3 minutes, at the 82 kg profile weight: core's workoutBurn.
     expect(await screen.findByText('About 20 kcal burned')).toBeTruthy();
-    expect(screen.getByText(/Rough estimate from 1 sets \(about 3 minutes\) at your bodyweight; about 15 kcal of it is above what you’d burn resting/)).toBeTruthy();
+    expect(screen.getByText(/Rough estimate from 1 set \(about 3 minutes\) at your bodyweight; about 15 kcal of it is above what you’d burn resting/)).toBeTruthy();
 
     expect(screen.getByLabelText('Cardio minutes').props.value).toBe('');
     fireEvent.changeText(screen.getByLabelText('Cardio minutes'), '30');
@@ -573,6 +747,37 @@ describe('Workout tab: logging sets', () => {
     await keys('45', 45);
   });
 
+  it('keeps autocorrect and autocapitalize off in the set row inputs, and shows the toast at the top so it does not cover the row and tick', async () => {
+    await setup();
+    await press('Start Push B');
+    await screen.findByText('Push B');
+    for (const label of ['Barbell Bench Press set 1 kg', 'Barbell Bench Press set 1 reps']) {
+      const input = screen.getByLabelText(label);
+      expect(input.props.autoCorrect).toBe(false);
+      expect(input.props.autoCapitalize).toBe('none');
+    }
+    await press('Mark Barbell Bench Press set 1 done');
+    const toast = await screen.findByText('Enter the weight and reps first.');
+    const wrap = StyleSheet.flatten(toast.parent?.props.style);
+    // The top variant carries no `bottom` at all (react-native-web would keep a `bottom: undefined` override's base value).
+    expect(wrap).toMatchObject({ position: 'absolute', top: 12 });
+    expect('bottom' in wrap).toBe(false);
+  });
+
+  const toastStyle = async (text: string) => StyleSheet.flatten((await screen.findByText(text)).parent?.props.style);
+
+  it('shows the ramp refusal at the top too, whatever its wording', async () => {
+    await setup();
+    await press('Start Push B');
+    await screen.findByText('Push B');
+    await expand('Machine Shoulder Press');
+    await press('Start the ramp for Machine Shoulder Press');
+    await press('Mark Machine Shoulder Press ramp set 1 done');
+    const style = await toastStyle('Enter the weight first.');
+    expect(style).toMatchObject({ position: 'absolute', top: 12 });
+    expect('bottom' in style).toBe(false);
+  });
+
   it('refuses to tick a first-time set with nothing to fill from', async () => {
     const db = await setup();
     await press('Start Push B');
@@ -580,6 +785,40 @@ describe('Workout tab: logging sets', () => {
     await press('Mark Barbell Bench Press set 1 done');
     expect(await screen.findByText('Enter the weight and reps first.')).toBeTruthy();
     expect(storedSets(db).some((s) => s.done)).toBe(false);
+  });
+
+  it('focuses the first empty field and marks it invalid on a refused tick, clearing it on edit', async () => {
+    await setup();
+    await press('Start Push B');
+    await screen.findByText('Push B');
+    await press('Mark Barbell Bench Press set 1 done');
+    await screen.findByText('Enter the weight and reps first.');
+    const w = screen.getByLabelText('Barbell Bench Press set 1 kg');
+    expect(w.props['aria-invalid']).toBe(true);
+    expect(StyleSheet.flatten(w.props.style)).toMatchObject({ borderColor: expect.any(String), borderWidth: 2 }); // a 2px danger border; the focus-colour outline is covered in input-web-outline.test.tsx
+    expect(screen.getByLabelText('Barbell Bench Press set 1 reps').props['aria-invalid']).toBeUndefined();
+    await fireEvent.changeText(w, '40');
+    expect(screen.getByLabelText('Barbell Bench Press set 1 kg').props['aria-invalid']).toBeUndefined();
+    await press('Mark Barbell Bench Press set 1 done'); // weight typed; reps fill from the suggestion
+    expect(screen.getByLabelText('Mark Barbell Bench Press set 1 done').props.accessibilityState).toMatchObject({ checked: true });
+  });
+
+  it('announces the empty-tick message to screen readers (iOS has no live regions)', async () => {
+    const os = Platform.OS;
+    const say = jest.spyOn(AccessibilityInfo, 'announceForAccessibility').mockImplementation(() => {});
+    Platform.OS = 'ios';
+    try {
+      await setup();
+      await press('Start Push B');
+      await screen.findByText('Push B');
+      await press('Mark Barbell Bench Press set 1 done');
+      await screen.findByText('Enter the weight and reps first.');
+      expect(say).toHaveBeenCalledWith('Enter the weight and reps first.');
+      expect(screen.getByText('Enter the weight and reps first.').props.accessibilityLiveRegion).toBe('polite');
+    } finally {
+      Platform.OS = os;
+      say.mockRestore();
+    }
   });
 
   it('rating a set stores it and adjusts the next target (Easy adds a step)', async () => {
@@ -593,8 +832,74 @@ describe('Workout tab: logging sets', () => {
     await waitFor(() => expect(storedSets(db).every((s) => s.rate === null)).toBe(true));
   });
 
+  describe('focus follows the rating control (#1408)', () => {
+    const CHANGE = 'Barbell Bench Press set 1 rated Hard. Change rating';
+    // focusNode is the shared helper (native: setAccessibilityFocus, web: element.focus()); what it was given says which control took focus.
+    const spy = () => jest.mocked(focusNode).mockClear();
+    const target = (focus: jest.Mock, n: number) => (focus.mock.calls[n]?.[0] as { props?: { accessibilityLabel?: string } } | undefined)?.props?.accessibilityLabel;
+
+    it('rating a set moves focus to its "Change rating" button', async () => {
+      const focus = jest.mocked(focusNode); spy();
+      await started();
+      await press('Mark Barbell Bench Press set 1 done');
+      focus.mockClear();
+      await press('Barbell Bench Press set 1: Hard');
+      await screen.findByLabelText(CHANGE);
+      await waitFor(() => expect(focus).toHaveBeenCalledTimes(1));
+      expect(target(focus, 0)).toBe(CHANGE);
+    });
+
+    it('pressing "Change rating" moves focus to the first rating chip', async () => {
+      const focus = jest.mocked(focusNode); spy();
+      await started();
+      await press('Mark Barbell Bench Press set 1 done');
+      await press('Barbell Bench Press set 1: Hard');
+      await screen.findByLabelText(CHANGE);
+      await waitFor(() => expect(focus).toHaveBeenCalledTimes(1));
+      focus.mockClear();
+      await press(CHANGE);
+      await screen.findByLabelText('Barbell Bench Press set 1: Easy');
+      await waitFor(() => expect(focus).toHaveBeenCalledTimes(1));
+      expect(target(focus, 0)).toBe('Barbell Bench Press set 1: Easy');
+    });
+
+    it('takes no focus when a rated set is shown again after a remount', async () => {
+      const focus = jest.mocked(focusNode); spy();
+      const db = await started();
+      await press('Mark Barbell Bench Press set 1 done');
+      await press('Barbell Bench Press set 1: Hard');
+      await screen.findByLabelText(CHANGE);
+      await waitFor(() => expect(storedSets(db).find((x) => x.rate)?.rate).toBe('hard'));
+      await screen.unmount();
+      focus.mockClear();
+      await mount(db);
+      await screen.findByLabelText(CHANGE);
+      expect(focus).not.toHaveBeenCalled();
+    });
+
+    it('takes no focus when a sync pull rates the set', async () => {
+      const focus = jest.mocked(focusNode); spy();
+      const db = await setup({ lifts });
+      await screen.unmount();
+      const ui = (v: number) => withProfile(db, <SyncContext.Provider value={{ dataVersion: v } as SyncState}><WorkoutScreen db={db} now={THURSDAY} /></SyncContext.Provider>);
+      const { rerender } = await render(ui(0));
+      await press('Start Push B');
+      await screen.findByText('Push B');
+      await press('Mark Barbell Bench Press set 1 done');
+      await screen.findByLabelText('Barbell Bench Press set 1: Hard');
+      await waitFor(() => expect(storedSets(db).some((x) => x.exercise === 'Barbell Bench Press' && x.done)).toBe(true));
+      const row = storedSets(db).find((x) => x.exercise === 'Barbell Bench Press' && x.done)!;
+      await saveSet(db, '2026-10-08', { ...row, rate: 'hard' });
+      focus.mockClear();
+      await rerender(ui(1));
+      await screen.findByLabelText(CHANGE);
+      expect(focus).not.toHaveBeenCalled();
+    });
+  });
+
   it('asks about form after the last set and stores the answer on the exercise', async () => {
     const db = await started();
+    await expand('Overhead Cable Extension');
     for (const j of [1, 2, 3]) await press(`Mark Overhead Cable Extension set ${j} done`);
     await press('Overhead Cable Extension form: Not really');
     await waitFor(() => expect(stored<Workout>(db, `workouts:${DATE}`).exercises[4]?.form).toBe('no'));
@@ -629,8 +934,10 @@ describe('Workout tab: logging sets', () => {
       await setup();
       await press((await screen.findByLabelText('Start Push B')).props.accessibilityLabel);
       await screen.findByText('Push B');
+      // Inline for every exercise: the row is collapsed and Guide and tools is closed.
       expect(screen.getByLabelText('Setup steps for Overhead Cable Extension').props.accessibilityState).toMatchObject({ expanded: true });
       expect(screen.getByText(`1. ${getCatalog().cards['Overhead Cable Extension']!.setup[0]}`)).toBeTruthy();
+      await expand('Overhead Cable Extension');
       await fireEvent.changeText(screen.getByLabelText('Overhead Cable Extension set 1 kg'), '20');
       await fireEvent.changeText(screen.getByLabelText('Overhead Cable Extension set 1 reps'), '10');
       await press('Mark Overhead Cable Extension set 1 done');
@@ -643,6 +950,7 @@ describe('Workout tab: logging sets', () => {
       await screen.findByText('Push B');
       expect(screen.getAllByText('Learn mode').length).toBeGreaterThan(0);
       expect(screen.getByLabelText('Setup steps for Overhead Cable Extension').props.accessibilityState).toMatchObject({ expanded: false });
+      await expand('Overhead Cable Extension');
       for (const j of [1, 2, 3]) await press(`Mark Overhead Cable Extension set ${j} done`);
       expect(screen.queryByLabelText('Setup steps for Overhead Cable Extension')).toBeNull();
     });
@@ -650,8 +958,13 @@ describe('Workout tab: logging sets', () => {
 
   describe('feel check after a set (#485)', () => {
     const NAME = 'Overhead Cable Extension';
-    it('shows only once a set is done, then stores the answer and its tip', async () => {
+    const startedOnName = async () => {
       const db = await started();
+      await expand(NAME);
+      return db;
+    };
+    it('shows only once a set is done, then stores the answer and its tip', async () => {
+      const db = await startedOnName();
       expect(screen.queryByText('Where did you feel that set most?')).toBeNull();
       await press(`Mark ${NAME} set 1 done`);
       expect(await screen.findByText('Where did you feel that set most?')).toBeTruthy();
@@ -661,7 +974,7 @@ describe('Workout tab: logging sets', () => {
     });
 
     it('the right place is stored as target', async () => {
-      const db = await started();
+      const db = await startedOnName();
       await press(`Mark ${NAME} set 1 done`);
       await press(`${NAME} felt: Back of the upper arms (triceps)`);
       expect(await screen.findByText('Felt it in the right place. Good.')).toBeTruthy();
@@ -675,6 +988,7 @@ describe('Workout tab: logging sets', () => {
       await mount(db);
       await press((await screen.findByLabelText('Start Push B')).props.accessibilityLabel);
       await screen.findByText('Push B');
+      await expand(NAME);
       await press(`Mark ${NAME} set 1 done`);
       await waitFor(() => expect(storedSets(db).some((x) => x.done)).toBe(true));
       expect(screen.queryByText('Where did you feel that set most?')).toBeNull();
@@ -682,7 +996,7 @@ describe('Workout tab: logging sets', () => {
 
     it('It hurt shows the safety note; Skip remaining sets keeps only the done sets', async () => {
     fakeClock();
-      const db = await started();
+      const db = await startedOnName();
       await press(`Mark ${NAME} set 1 done`);
       await press(`${NAME}: It hurt`);
       expect(await screen.findByText('Stop this exercise for today.')).toBeTruthy();
@@ -696,18 +1010,20 @@ describe('Workout tab: logging sets', () => {
     });
 
     it('the answer is still there after the app is reopened', async () => {
-      const db = await started();
+      const db = await startedOnName();
       await press(`Mark ${NAME} set 1 done`);
       await press(`${NAME} felt: Back of the upper arms (triceps)`);
       await waitFor(() => expect(stored<Workout>(db, `workouts:${DATE}`).exercises[4]?.feel).toBe('target'));
       await screen.unmount();
       await mount(db);
+      await screen.findByText('Push B');
+      await expand(NAME); // a reopened session expands the first exercise with sets left
       expect(await screen.findByText('Felt it in the right place. Good.')).toBeTruthy();
       expect(screen.queryByText('Where did you feel that set most?')).toBeNull();
     });
 
     it('Skip remaining sets renumbers the sets left, so a set added next gets a free position', async () => {
-      const db = await started();
+      const db = await startedOnName();
       await press(`Mark ${NAME} set 1 done`);
       await press(`Mark ${NAME} set 3 done`); // done, not done, done
       await press(`${NAME}: It hurt`);
@@ -722,7 +1038,7 @@ describe('Workout tab: logging sets', () => {
     });
 
     it('It hurt then Find an alternative opens the can\'t-do sheet at "for how long" with pain', async () => {
-      await started();
+      await startedOnName();
       await press(`Mark ${NAME} set 1 done`);
       await press(`${NAME}: It hurt`);
       await press(`Find an alternative to ${NAME}`);
@@ -738,6 +1054,7 @@ describe('Workout tab: logging sets', () => {
 
   it('keeps what was ticked after the app is reopened', async () => {
     const db = await started();
+    await expand('Pec Deck Fly');
     await fireEvent.changeText(screen.getByLabelText('Pec Deck Fly set 1 kg'), '27.5');
     await fireEvent.changeText(screen.getByLabelText('Pec Deck Fly set 1 reps'), '11');
     await press('Mark Pec Deck Fly set 1 done');
@@ -745,6 +1062,7 @@ describe('Workout tab: logging sets', () => {
     await screen.unmount();
     await mount(db);
     await screen.findByText('Push B');
+    await expand('Pec Deck Fly');
     expect(screen.getByLabelText('Mark Pec Deck Fly set 1 done').props.accessibilityState.checked).toBe(true);
     expect(screen.getByLabelText('Pec Deck Fly set 1 kg').props.value).toBe('27.5');
     expect(screen.getByLabelText('Pec Deck Fly set 1 reps').props.value).toBe('11');
@@ -753,6 +1071,7 @@ describe('Workout tab: logging sets', () => {
 
   it('opens the how-to card from content (long keys)', async () => {
     await started();
+    await openGuide('Barbell Bench Press');
     await press('How to do Barbell Bench Press');
     const card = getCatalog().cards['Barbell Bench Press']!;
     expect(await screen.findByText(`• ${card.key_cues[0]}`)).toBeTruthy();
@@ -763,7 +1082,10 @@ describe('Workout tab: logging sets', () => {
 
   it('offers a second session once every exercise has a done set, and adds it as part 2', async () => {
     const db = await started();
-    for (const n of PUSH_B) await press(`Mark ${n} set 1 done`);
+    for (const n of PUSH_B) {
+      await expand(n);
+      await press(`Mark ${n} set 1 done`);
+    }
     await press('Training again later today?');
     await press('Add Pull B');
     await waitFor(() => expect(stored<Workout>(db, `workouts:${DATE}`).template).toBe('Push B + Pull B'));
@@ -787,14 +1109,45 @@ describe('Workout tab: first-time ramp', () => {
     expect(screen.getAllByText('I know my weight').length).toBeGreaterThan(0);
     expect(screen.queryByText(/^Start the ramp for /)).toBeNull();
     expect(screen.queryByText(/^I know my weight for /)).toBeNull();
+    await expand('Machine Shoulder Press');
     expect(screen.getByLabelText('Start the ramp for Machine Shoulder Press')).toBeTruthy();
     expect(screen.getByLabelText('I know my weight for Machine Shoulder Press')).toBeTruthy();
+  });
+
+  it('moves focus to the first working set weight field after "I know my weight", not leaving it on the removed button (#1144)', async () => {
+    await setup();
+    await press('Start Push B');
+    await screen.findByText('Push B');
+    await expand('Machine Shoulder Press');
+    // react-native's jest mock puts one shared jest.fn `focus` on TextInput's prototype.
+    const focus = (TextInput as unknown as { prototype: { focus: jest.Mock } }).prototype.focus;
+    focus.mockClear();
+    expect(focus).not.toHaveBeenCalled(); // expanding alone does not focus
+    await press('I know my weight for Machine Shoulder Press');
+    await waitFor(() => expect(focus).toHaveBeenCalledTimes(1));
+    expect((focus.mock.contexts[0] as { props: { accessibilityLabel: string } }).props.accessibilityLabel).toBe('Machine Shoulder Press set 1 kg');
+  });
+
+  it('focuses only once: expanding the exercise again after "I know my weight" does not refocus (#1144)', async () => {
+    await setup();
+    await press('Start Push B');
+    await screen.findByText('Push B');
+    await expand('Machine Shoulder Press');
+    const focus = (TextInput as unknown as { prototype: { focus: jest.Mock } }).prototype.focus;
+    focus.mockClear();
+    await press('I know my weight for Machine Shoulder Press');
+    await waitFor(() => expect(focus).toHaveBeenCalledTimes(1));
+    await expand('Barbell Bench Press');
+    await expand('Machine Shoulder Press');
+    expect(screen.getByLabelText('Machine Shoulder Press set 1 kg')).toBeTruthy();
+    expect(focus).toHaveBeenCalledTimes(1);
   });
 
   it('starts a ramp, stores its sets as kind ramp, and the rated weight becomes the working target', async () => {
     const db = await setup();
     await press('Start Push B');
     await screen.findByText('Push B');
+    await expand('Machine Shoulder Press');
     await press('Start the ramp for Machine Shoulder Press');
     await fireEvent.changeText(screen.getByLabelText('Machine Shoulder Press ramp set 1 weight'), '20');
     await press('Mark Machine Shoulder Press ramp set 1 done');
@@ -807,10 +1160,21 @@ describe('Workout tab: first-time ramp', () => {
     expect(screen.getByText(/Working weight found/)).toBeTruthy();
   });
 
+  it('marks the ramp weight invalid on a refused ramp tick', async () => {
+    await setup();
+    await press('Start Push B');
+    await screen.findByText('Push B');
+    await expand('Machine Shoulder Press');
+    await press('Start the ramp for Machine Shoulder Press');
+    await press('Mark Machine Shoulder Press ramp set 1 done');
+    expect(screen.getByLabelText('Machine Shoulder Press ramp set 1 weight').props['aria-invalid']).toBe(true);
+  });
+
   it('shows the Easy note after an Easy ramp set, with the next step, and drops it for a later rating (#823)', async () => {
     await setup();
     await press('Start Push B');
     await screen.findByText('Push B');
+    await expand('Machine Shoulder Press');
     await press('Start the ramp for Machine Shoulder Press');
     expect(screen.queryByText(/^Easy, so add a step/)).toBeNull();
     await fireEvent.changeText(screen.getByLabelText('Machine Shoulder Press ramp set 1 weight'), '20');
@@ -829,25 +1193,40 @@ describe('Workout tab: first-time ramp', () => {
     const db = await setup();
     await press('Start Push B');
     await screen.findByText('Push B');
-    const guides = screen.getAllByText('First time: find your weight').length;
+    // One exercise is expanded at a time, so count the guides by expanding each exercise in turn.
+    const countGuides = async () => {
+      let n = 0;
+      for (const name of PUSH_B) {
+        await expand(name);
+        n += screen.queryAllByText('First time: find your weight').length;
+      }
+      return n;
+    };
+    const guides = await countGuides();
+    expect(guides).toBeGreaterThan(1);
+    await expand('Machine Shoulder Press');
     expect(screen.getByLabelText('Start the ramp for Machine Shoulder Press')).toBeTruthy();
     await press('I know my weight for Machine Shoulder Press');
     // Only that exercise's guide goes; the other new exercises keep theirs.
     expect(screen.queryByLabelText('Start the ramp for Machine Shoulder Press')).toBeNull();
     expect(screen.queryByLabelText('I know my weight for Machine Shoulder Press')).toBeNull();
-    expect(screen.getAllByText('First time: find your weight')).toHaveLength(guides - 1);
-    expect(screen.getByLabelText('Start the ramp for Pec Deck Fly')).toBeTruthy();
+    expect(await countGuides()).toBe(guides - 1);
     await waitFor(() => expect(stored<Workout>(db, `workouts:${DATE}`).exercises[1]).toMatchObject({ name: 'Machine Shoulder Press', skip_ramp: true, found_kg: null }));
     expect(storedSets(db).filter((s) => s.kind === 'ramp')).toHaveLength(0);
     // The working sets are still there to log.
+    await expand('Machine Shoulder Press');
     expect(screen.getByLabelText('Machine Shoulder Press set 1 kg')).toBeTruthy();
+    await expand('Pec Deck Fly');
+    expect(screen.getByLabelText('Start the ramp for Pec Deck Fly')).toBeTruthy();
 
     await screen.unmount();
     await mount(db);
     await screen.findByText('Push B');
+    expect(await countGuides()).toBe(guides - 1);
+    await expand('Machine Shoulder Press');
     expect(screen.queryByLabelText('Start the ramp for Machine Shoulder Press')).toBeNull();
     expect(screen.queryByLabelText('I know my weight for Machine Shoulder Press')).toBeNull();
-    expect(screen.getAllByText('First time: find your weight')).toHaveLength(guides - 1);
+    await expand('Pec Deck Fly');
     expect(screen.getByLabelText('Start the ramp for Pec Deck Fly')).toBeTruthy();
   });
 });
@@ -869,13 +1248,14 @@ describe('Workout tab: personal best', () => {
   it('toasts a personal best once a day and records pb_toast_date', async () => {
     const lifts = { 'Barbell Bench Press': 60 };
     const db = await setup({ lifts, hist: { 'Barbell Bench Press': [80, 90] } });
+    await seedEarlier(db, 'Barbell Bench Press');
     await press('Start Push B');
     await screen.findByText('Push B');
     await fireEvent.changeText(screen.getByLabelText('Barbell Bench Press set 1 kg'), '70');
     await fireEvent.changeText(screen.getByLabelText('Barbell Bench Press set 1 reps'), '10');
     await press('Mark Barbell Bench Press set 1 done');
     // 70 kg x 10 scores 93.3 against a best of 90: more than 0.5% better.
-    expect(await screen.findByText('New personal best on Barbell Bench Press')).toBeTruthy();
+    expect(await screen.findByText('New personal best: Barbell Bench Press 70 kg x 10, estimated 1RM 93.3 kg (+3.3 kg)')).toBeTruthy();
     expect(stored<LiftRecord>(db, 'lift_stats:Barbell Bench Press').pbToast).toBe(DATE);
 
     await act(async () => void jest.advanceTimersByTime(3000));
@@ -883,7 +1263,7 @@ describe('Workout tab: personal best', () => {
     await fireEvent.changeText(screen.getByLabelText('Barbell Bench Press set 2 kg'), '72.5');
     await fireEvent.changeText(screen.getByLabelText('Barbell Bench Press set 2 reps'), '10');
     await press('Mark Barbell Bench Press set 2 done');
-    await waitFor(() => expect(storedSets(db).filter((s) => s.done)).toHaveLength(2));
+    await waitFor(() => expect(storedSets(db).filter((s) => s.done && !s.id.startsWith('earlier-'))).toHaveLength(2));
     expect(screen.queryByText(/New personal best/)).toBeNull();
     expect(stored<LiftRecord>(db, 'lift_stats:Barbell Bench Press').pbToast).toBe(DATE);
   });
@@ -892,18 +1272,19 @@ describe('Workout tab: personal best', () => {
     const vibrate = jest.spyOn(Vibration, 'vibrate').mockImplementation(() => undefined);
     const lifts = { 'Barbell Bench Press': 60 };
     const db = await setup({ lifts, hist: { 'Barbell Bench Press': [80, 90] } });
+    await seedEarlier(db, 'Barbell Bench Press');
     await press('Start Push B');
     await screen.findByText('Push B');
     vibrate.mockClear(); // starting the session or ticking a set may start a rest; only the PB buzz is counted here
     await fireEvent.changeText(screen.getByLabelText('Barbell Bench Press set 1 kg'), '70');
     await fireEvent.changeText(screen.getByLabelText('Barbell Bench Press set 1 reps'), '10');
     await press('Mark Barbell Bench Press set 1 done');
-    expect(await screen.findByText('New personal best on Barbell Bench Press')).toBeTruthy();
+    expect(await screen.findByText('New personal best: Barbell Bench Press 70 kg x 10, estimated 1RM 93.3 kg (+3.3 kg)')).toBeTruthy();
     expect(vibrate.mock.calls.filter(([p]) => p === 60)).toHaveLength(1);
     await fireEvent.changeText(screen.getByLabelText('Barbell Bench Press set 2 kg'), '72.5');
     await fireEvent.changeText(screen.getByLabelText('Barbell Bench Press set 2 reps'), '10');
     await press('Mark Barbell Bench Press set 2 done');
-    await waitFor(() => expect(storedSets(db).filter((s) => s.done)).toHaveLength(2));
+    await waitFor(() => expect(storedSets(db).filter((s) => s.done && !s.id.startsWith('earlier-'))).toHaveLength(2));
     expect(vibrate.mock.calls.filter(([p]) => p === 60)).toHaveLength(1);
     vibrate.mockRestore();
   });
@@ -960,7 +1341,10 @@ describe('Workout tab: write ordering and guards', () => {
     const db = await setup({ lifts });
     await fireEvent.press(await screen.findByLabelText('Start Push B'));
     await screen.findByText('Push B');
-    for (const n of PUSH_B) await press(`Mark ${n} set 1 done`);
+    for (const n of PUSH_B) {
+      await expand(n);
+      await press(`Mark ${n} set 1 done`);
+    }
     await press('Training again later today?');
     const add = screen.getByLabelText('Add Pull B');
     await act(async () => {
@@ -997,13 +1381,16 @@ describe('Workout tab: write ordering and guards', () => {
     const db = await setup({ lifts });
     await fireEvent.press(await screen.findByLabelText('Start Push B'));
     await screen.findByText('Push B');
+    await expand('Overhead Cable Extension');
     for (const j of [1, 2, 3]) await press(`Mark Overhead Cable Extension set ${j} done`);
     await waitFor(() => expect(storedSets(db).filter((s) => s.done)).toHaveLength(3));
     // The tick's save stays queued until the test opens the gate, so the answer is given while it is still slow.
     let release!: () => void;
     const gate = new Promise<void>((r) => (release = r));
+    await expand('Barbell Bench Press');
     db.hold = (sql) => (sql.includes('INTO workouts') || sql.includes('workout_sets') ? gate : undefined);
     await press('Mark Barbell Bench Press set 1 done');
+    await expand('Overhead Cable Extension');
     await press('Overhead Cable Extension form: Not really');
     await flush();
     // The gate really held the tick's save: the Bench tick is not stored yet.
@@ -1019,7 +1406,7 @@ describe('Workout tab: write ordering and guards', () => {
     await screen.findByText('Push B day');
     await press('Sleep last night: Poor');
     await press('Lighter session');
-    await press('Choose Pull B');
+    await pressDay('Choose Pull B');
     await press('Start Pull B');
     await waitFor(() => expect(db.rows.get(`workouts:${DATE}`)).toBeDefined());
     expect(stored<Workout>(db, `workouts:${DATE}`)).toMatchObject({ base: 'Pull B', ci_choice: 'light', mods: { light: true } });

@@ -13,12 +13,15 @@ Specs (one concern each, every test starts with an empty browser profile):
 - `photos.spec.mjs`: progress photos on web (no camera, choose a photo, delete asks twice, cancelling the picker).
 - `workout-edit.spec.mjs`: Add exercise, a typed exercise with muscle tags, Can't do and Remove exercise, offline, each checked again after a reload.
 - `workout-360.spec.mjs`: the Workout screen with a started session and a ticked set has no sideways scroll at 360x640 (#900).
-- `sheet-focus.spec.mjs`: a sheet opens with focus on its title and gives focus back to the opener on Escape (#661).
+- `sheet-focus.spec.mjs`: a sheet opens with focus on its title and gives focus back to the opener on Escape (#661); Tab and Shift+Tab cycle through the how-to sheet's controls only (#1275).
+- `tab-order.spec.mjs`: Tab from the tab bar reaches only visible controls of the active screen, never an aria-hidden inactive tab screen (#1191).
+- `reload-1200.spec.mjs`: ten reloads at 768 px, sequential health-check taps, and a second tab (known failure, #1232: blank page; found in #1200).
 - `a11y.spec.mjs`: axe-core on the main screens and with each sheet open (food add, exercise settings, can't do, how to, add exercise, custom exercise, photo check-in, exercise to avoid; #661), light and dark. Known failures are listed by rule and element with their issue number (`support/axe.mjs`, tested in `axe-known.spec.mjs`); a new violation fails, a fixed one goes stale and fails.
 
 - `pose-specs/pose.spec.mjs` (own config, `playwright.pose.config.mjs`): live pose tracking (#947) on a build with `EXPO_PUBLIC_POSE_TRACKING=1`, a fake camera and the real CSP. Run with `npm run test:pose` (see "Pose tracking test").
 
 - `barcode-specs/barcode.spec.mjs` (own config, `playwright.barcode.config.mjs`): the web barcode scanner (#944) on a build with `EXPO_PUBLIC_BARCODE_SCAN=1`, a fake camera showing one EAN-13 and the real CSP. Run with `npm run test:barcode` (see "Barcode scanner test").
+- `label-specs/label.spec.mjs` (own config, `playwright.label.config.mjs`): the web label-scan OCR engine (#1078) on a build with `EXPO_PUBLIC_LABEL_SCAN=1`, reading a committed synthetic label under the real CSP and COEP. Run with `npm run test:label` (see "Label scan test").
 
 Rules: only `127.0.0.1` is reachable (every other request is aborted and every test fails at teardown if there was one); no sign-in and no server, so sync and AI are off; selectors are `aria-label`s; there are no fixed sleeps (`saved()` waits for the app's SQLite worker to answer its writes).
 
@@ -66,6 +69,17 @@ cd ../../tests/e2e && npm run test:barcode
 ```
 
 Chromium starts with `--use-file-for-fake-video-capture` pointing at a clip the config writes to the temp folder (`support/ean13-video.mjs`: one EAN-13, black bars on white, no binary in git). The spec opens the scanner's dev screen (`/barcode-dev`) and checks, under the shipped CSP: with no native `BarcodeDetector` the code is read by zxing-wasm, whose chunk (`zxing-decoder-*`) and `/zxing/3.1.3/zxing_reader.wasm` (served as `application/wasm`) are fetched only when the scanner opens and are not in the service worker cache; with a native detector that lists `ean_13` neither is fetched (skipped on a Chromium without one); every request goes to our own origin and none but GET is made; the camera tracks are stopped when the scanner closes; a refused camera shows the typed-number path, which refuses a bad check digit.
+
+## Label scan test
+
+The flag is compiled in, so the suite has its own export and config:
+
+```
+cd apps/mobile && EXPO_PUBLIC_LABEL_SCAN=1 npx expo export --platform web --output-dir ../../tests/e2e/.label-dist
+cd ../../tests/e2e && npm run test:label
+```
+
+The spec walks Food, Add, "Scan a nutrition label", "Choose a photo" (the file chooser is given `fixtures/nutrition-label.png`), "Read the label", and checks the review screen holds the printed calories, protein, carbs and fat. The image is our own invention (a made-up per 100 g table, black on white), drawn by `scripts/make-label-image.mjs`; the PNG is committed and CI does not regenerate it. Under the shipped CSP and COEP it checks: the engine (`tesseract-engine-*` chunk, `/tesseract/js-*/worker.min.js`, the core `.wasm.js` and `eng.traineddata`) is not fetched on first load and is fetched on the scan; every request goes to our own origin and none but GET is made; no CSP console message; nothing under `/tesseract/` is in the service worker cache.
 
 ## Play Store graphics (on demand, not CI)
 
