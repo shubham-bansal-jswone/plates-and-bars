@@ -17,6 +17,7 @@ const plugin = require('../plugins/with-r8-keep-rules') as ((c: unknown) => unkn
   MARKER: string;
   RULES: string;
   applyKeepRules(s: string): string;
+  readRulesFile(f: string): string;
 };
 
 // What the Expo SDK 58 template ships in android/app/proguard-rules.pro.
@@ -52,6 +53,26 @@ describe('R8 keep rules for WorkManager and Room', () => {
     const once = plugin.applyKeepRules(TEMPLATE);
     expect(plugin.applyKeepRules(once)).toBe(once);
     expect(once.split(plugin.MARKER)).toHaveLength(2);
+  });
+  it('replaces an older block, so a changed RULES reaches an android folder that already exists', () => {
+    const stale = `${TEMPLATE}\n${plugin.MARKER}\n-keep class androidx.work.** { *; }\n-keep class androidx.room.old.Only { *; }\n`;
+    const out = plugin.applyKeepRules(stale);
+    expect(out).not.toContain('androidx.room.old.Only');
+    expect(out).toContain('-keep class androidx.room.** { *; }');
+    expect(out.split(plugin.MARKER)).toHaveLength(2);
+    expect(plugin.applyKeepRules(out)).toBe(out);
+  });
+  it('names the plugin and the template change when proguard-rules.pro is missing', () => {
+    const fs = require('fs') as { readFileSync: () => string };
+    const realRead = fs.readFileSync;
+    fs.readFileSync = () => {
+      throw Object.assign(new Error('ENOENT: no such file'), { code: 'ENOENT' });
+    };
+    try {
+      expect(() => plugin.readRulesFile('/tmp/android/app/proguard-rules.pro')).toThrow(/with-r8-keep-rules: .*proguard-rules\.pro is missing; the Expo template changed/);
+    } finally {
+      fs.readFileSync = realRead;
+    }
   });
   it('handles an empty file and a file without a trailing newline', () => {
     expect(plugin.applyKeepRules('')).toContain('-keep class androidx.room.** { *; }');

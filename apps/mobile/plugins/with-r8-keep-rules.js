@@ -27,13 +27,26 @@ const RULES = `${MARKER}
 -keep class androidx.room.** { *; }`;
 
 /**
- * Appends the keep rules to a proguard-rules.pro body, once. Existing rules (and the template's comments) are
- * kept as they are, and a file that already has the block is returned unchanged so a second prebuild is a no-op.
+ * Writes the keep rules into a proguard-rules.pro body. Existing rules (and the template's comments) are kept as
+ * they are. The block starts at MARKER and runs to the end of the file, so a later prebuild replaces it with the
+ * current RULES instead of keeping stale ones, and two runs over the same input give the same output.
  */
 function applyKeepRules(contents) {
-  if (contents.includes(MARKER)) return contents;
-  const base = contents === '' || contents.endsWith('\n') ? contents : `${contents}\n`;
-  return `${base}\n${RULES}\n`;
+  const at = contents.indexOf(MARKER);
+  const head = (at === -1 ? contents : contents.slice(0, at)).replace(/\s+$/, '');
+  return `${head === '' ? '' : `${head}\n\n`}${RULES}\n`;
+}
+
+/** Reads the generated file, naming the plugin (and the template change behind it) when it is not there. */
+function readRulesFile(file) {
+  try {
+    return fs.readFileSync(file, 'utf8');
+  } catch (e) {
+    if (e && e.code === 'ENOENT') {
+      throw new Error(`with-r8-keep-rules: ${file} is missing; the Expo template changed, update the plugin.`);
+    }
+    throw e;
+  }
 }
 
 /** Writes the rules into the generated android/app/proguard-rules.pro after the template has been copied. */
@@ -42,7 +55,7 @@ function withR8KeepRules(config) {
     'android',
     (c) => {
       const file = path.join(c.modRequest.platformProjectRoot, 'app', 'proguard-rules.pro');
-      const before = fs.readFileSync(file, 'utf8');
+      const before = readRulesFile(file);
       const after = applyKeepRules(before);
       if (after !== before) fs.writeFileSync(file, after);
       return c;
@@ -54,3 +67,4 @@ module.exports = withR8KeepRules;
 module.exports.MARKER = MARKER;
 module.exports.RULES = RULES;
 module.exports.applyKeepRules = applyKeepRules;
+module.exports.readRulesFile = readRulesFile;
