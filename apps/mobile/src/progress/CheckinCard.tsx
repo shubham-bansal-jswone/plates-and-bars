@@ -119,9 +119,7 @@ export function CheckinCard({ date, c: ci, cycleNote = false }: { date: string; 
       ) : null}
       <Card>
         <MetricRow cells={[
-          { value: String(h.thisWeek), label: `sessions this week (aim ${h.goal}+)` },
-          { value: `${h.logged}/7`, label: 'days with food logged' },
-          { value: String(h.weeks), label: 'on-track weeks in a row' },
+          { value: String(h.weeks), label: `on-track week${h.weeks === 1 ? '' : 's'} in a row` },
         ]} />
       </Card>
       <Hint>{h.message === 'streak' ? HABIT_MESSAGE.streak(h.weeks, h.goal) : HABIT_MESSAGE[h.message]}</Hint>

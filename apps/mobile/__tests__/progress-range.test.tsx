@@ -116,6 +116,14 @@ describe('RangedTrend range control', () => {
     expect(tab('4 weeks').props.accessibilityState.selected).toBe(true);
   });
 
+  it('the visible change line keeps the number with its unit (non-breaking space) (#1409)', async () => {
+    await render(<RangedTrend series={weekly(5)} end={END} convert={same} unit="kg" noun="Weight" box={WEIGHT_CHART_BOX} changeLine={(ch) => `Down ${ch.amount} kg since ${ch.since}`} />);
+    const raw = screen.getByText(/^Down [\d.]+.kg since/).props.children as string | string[];
+    const text = Array.isArray(raw) ? raw.join('') : raw;
+    expect(text).toMatch(/^Down [\d.]+\u00a0kg since/);
+    expect(text).not.toMatch(/\d kg/);
+  });
+
   it('with fewer than 2 points anywhere it shows the log-more note and no control', async () => {
     await trend([{ date: END, v: 80 }]);
     expect(screen.getByText('Log a few weigh-ins to see your trend line here.')).toBeTruthy();

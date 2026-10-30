@@ -155,7 +155,7 @@ function WeightSection({ p }: { p: Progress }) {
         <Field label={`Weight in ${unit}`} inputMode="decimal" placeholder={unit} value={text} onChangeText={setText} />
         <Button kind="ghost" label="Save weight" onPress={() => p.saveWeightText(text, unit)} />
       </View>
-      {latest !== null ? <Text style={{ color: c.ink }} accessibilityLabel={`Latest weigh-in ${weightWithUnit(latest, unit)}`}>{`Latest: ${weightWithUnit(latest, unit)}`}</Text> : <Hint>Log a few weigh-ins to see them here.</Hint>}
+      {latest !== null ? <Text style={{ color: c.ink }} accessibilityLabel={`Latest weigh-in ${weightWithUnit(latest, unit)}`}>{`Latest: ${weightWithUnit(latest, unit)}`}</Text> : null}
       <RangedTrend
         series={kgSeries}
         end={p.date}

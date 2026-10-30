@@ -54,10 +54,13 @@ describe('Weekly check-in: one lime number and the burn disclosure', () => {
     await mount();
     expect(screen.getByText('The 7 days up to 8 Oct')).toBeTruthy();
     expect(screen.queryByText('This week')).toBeNull();
-    const lime = ['sessions: 2 / 4', 'days logged: 3 / 7', 'avg kcal (target 2,000): 2,000', 'sessions this week (aim 3+): 2'].filter((l) => {
+    const lime = ['sessions: 2 / 4', 'days logged: 3 / 7', 'avg kcal (target 2,000): 2,000', 'on-track week in a row: 1'].filter((l) => {
       try { return colour(l) === dark.brand; } catch { return false; }
     });
     expect(lime).toEqual(['sessions: 2 / 4']);
+    // One week reads singular, and the habits block does not repeat the check-in's sessions or days (#1409).
+    expect(screen.getByLabelText('on-track week in a row: 1')).toBeTruthy();
+    expect(screen.queryByLabelText(/sessions this week|days with food logged/)).toBeNull();
   });
 
   it('How this works keeps its name, opens and closes, and carries the state', async () => {

@@ -1,13 +1,14 @@
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
 import {
-  COVER_SHOW, VOLUME_AVG_WEEKS, addDays, doneCoverage, mondayOf, volumeVsPlan, weeklyDoneSets,
+  COVER_SHOW, VOLUME_AVG_WEEKS, addDays, doneCoverage, mondayOf, recentVolumeMuscle, volumeVsPlan, weeklyDoneSets,
   type CoverageDay, type MuscleSets, type WeekSets,
 } from '../src/index';
 
 const g = JSON.parse(readFileSync(resolve(__dirname, '../../../docs/spec/golden/progressVolume.json'), 'utf8')) as {
   tags: Record<string, { primary: string[]; secondary: string[] }>;
   avg_weeks: number;
+  recent_muscle: { note: string; weeks: WeekSets[]; expected: string | null }[];
   weekly: { note: string; end: string; weeks: number; days: CoverageDay[]; expected: WeekSets[] }[];
   vs_plan: { note: string; weeks: { week: string; partial: boolean; sets: MuscleSets }[]; planned: MuscleSets; since: string | null; expected: ReturnType<typeof volumeVsPlan> }[];
 };
@@ -82,5 +83,11 @@ describe('volumeVsPlan (#1351 C2)', () => {
   it('exactly on target is not below; half sets average through', () => {
     const r = volumeVsPlan([{ week: 'a', partial: false, sets: { chest: 5.5 } }, { week: 'b', partial: false, sets: { chest: 6 } }], { chest: 5.75 }, '2026-10-01');
     expect(r.rows[0]).toMatchObject({ avg: 5.75, below: false, low: true });
+  });
+});
+
+describe('recentVolumeMuscle (#1409)', () => {
+  it.each(g.recent_muscle.map((c) => [c.note, c] as const))('%s', (_note, c) => {
+    expect(recentVolumeMuscle(c.weeks)).toBe(c.expected);
   });
 });

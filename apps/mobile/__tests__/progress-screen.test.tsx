@@ -573,6 +573,12 @@ describe('Weekly check-in, burn and habits', () => {
     expect(screen.queryByText(DAYS_HINT)).toBeNull();
   });
 
+  it('Body weight with no weigh-in says it once, not twice (#1409)', async () => {
+    await setup({ db: memoryDb() });
+    expect(await screen.findByText('Log a few weigh-ins to see your trend line here.')).toBeTruthy();
+    expect(screen.queryByText('Log a few weigh-ins to see them here.')).toBeNull();
+  });
+
   it('shows the week numbers from core, the burn card waiting for data, and the habits', async () => {
     const db = memoryDb();
     await saveLog(db, meal(DATE, 1, 600));
@@ -582,7 +588,11 @@ describe('Weekly check-in, burn and habits', () => {
     expect(screen.getByText('The 7 days up to 8 Oct')).toBeTruthy();
     expect(screen.getByText(/Steps: about 8,000 a day\. Sleep: 6\.5 hours a night, under the 7–9 hours/)).toBeTruthy();
     expect(screen.getByText(/Needs 10 more complete days in the last 2 weeks.* and 6 more weigh-ins/)).toBeTruthy();
-    expect(screen.getByLabelText('days with food logged: 1/7')).toBeTruthy();
+    // The check-in block owns the sessions and days numbers; the habits block below does not repeat them (#1409).
+    expect(screen.getByLabelText('days logged: 1 / 7')).toBeTruthy();
+    expect(screen.queryByLabelText(/days with food logged/)).toBeNull();
+    expect(screen.queryByLabelText(/sessions this week/)).toBeNull();
+    expect(screen.getByLabelText('on-track weeks in a row: 0')).toBeTruthy();
     expect(screen.getByLabelText('Why? Building the habit')).toBeTruthy();
     expect(screen.getAllByLabelText('Why? Steps, cardio and lifting')).toHaveLength(2);
     expect(screen.getByText(/Missed a few days\?/)).toBeTruthy();
