@@ -6,6 +6,7 @@ import { TargetsScreen } from '../src/screens/TargetsScreen';
 import { saveProfile } from '../src/db/records';
 import { loadSettings, saveSettings } from '../src/db/settings';
 import { defaultSettings } from '../src/settings/types';
+import { space } from '../src/theme/tokens';
 import { buildProfile, emptyDraft } from '../src/setup/logic';
 import { DeviceStepsProvider } from '../src/steps/DeviceStepsProvider';
 import { STEPS_COPY } from '../src/steps/copy';
@@ -87,6 +88,23 @@ describe('TargetsScreen columns at 1280 (#1417)', () => {
     expect(right).toContain('Account and data');
     expect(right).not.toContain('Training rules');
     expect(left.indexOf('Daily targets')).toBeLessThan(left.indexOf('Training rules'));
+  });
+});
+
+describe('Account and data heading offset (#1417)', () => {
+  afterEach(() => jest.restoreAllMocks());
+  const top = async (width: number) => {
+    jest.spyOn(Dimensions, 'get').mockReturnValue({ width, height: 800, scale: 1, fontScale: 1 });
+    const db = memoryDb();
+    await saveProfile(db, goldenProfile());
+    await render(withProfile(db, <TargetsScreen db={db} />));
+    return StyleSheet.flatten((await screen.findByRole('header', { name: 'Account and data' })).props.style).marginTop;
+  };
+  it('gets the first-heading offset at the top of the right column at 1280, and the ordinary 16 when stacked', async () => {
+    expect(await top(1280)).toBe(space.sm);
+  });
+  it('keeps the ordinary section gap at a narrow width', async () => {
+    expect(await top(500)).toBe(16);
   });
 });
 
