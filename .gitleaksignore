@@ -1,6 +1,6 @@
 # False positive: a made-up user UUID in a test (apps/mobile/__tests__/sync-races.test.tsx at that commit); the line was rewritten in the next commit.
 7dba8c022f36b0a3a4e3f31e7c955a26e1620c66:apps/mobile/__tests__/sync-races.test.tsx:generic-api-key:86
 # False positive: a made-up user UUID in a test (apps/mobile/__tests__/settings-stale-save.test.tsx at that commit); the line was rewritten in a later commit.
-a6176f8a376cffefb6136b4d8f93dd7c75e5b294:apps/mobile/__tests__/settings-stale-save.test.tsx:generic-api-key:15
+46971d0a8b99d92a31db243f188c41065365fb24:apps/mobile/__tests__/settings-stale-save.test.tsx:generic-api-key:15
 # Fake fixture header in the first commit of the access-log test (#714); later commits no longer contain it
 cf4e234e1d2fd22f337f9f6c41dc01c81b6bd553:infra/scripts/test-web-caddy.sh:curl-auth-header:66
