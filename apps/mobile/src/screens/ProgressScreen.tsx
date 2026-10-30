@@ -205,7 +205,7 @@ function MeasureSection({ p, isToday }: { p: Progress; isToday: boolean }) {
         {shown.map((m) => (
           <View key={m.key} style={styles.field}>
             <Caption>{`${m.label} (cm)`}</Caption>
-            <Field label={`${m.label} in cm`} inputMode="decimal" placeholder="cm" value={text[m.key] ?? ''} onChangeText={(v) => setText({ ...text, [m.key]: v })} />
+            <Field style={styles.measureInput} label={`${m.label} in cm`} inputMode="decimal" placeholder="cm" value={text[m.key] ?? ''} onChangeText={(v) => setText({ ...text, [m.key]: v })} />
           </View>
         ))}
       </View>
@@ -254,8 +254,11 @@ const styles = StyleSheet.create({
   hidden: { display: 'none' },
   section: { gap: 8, marginTop: 16 },
   inline: { gap: 8 },
-  fields: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 12, rowGap: 8, alignItems: 'flex-start' },
-  field: { gap: 4, flexBasis: '45%', minWidth: 130, flexGrow: 1 },
+  fields: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 12, rowGap: 8 },
+  // Fields in a row share a height and sit at the bottom, so a label that wraps pushes its own label up, not the input down.
+  field: { gap: 4, justifyContent: 'flex-end', flexBasis: '45%', minWidth: 130, flexGrow: 1 },
+  // Field's flexGrow would stretch the input to the row's height (the taller field's), not just sit at the bottom.
+  measureInput: { flexGrow: 0 },
   cols: { flexDirection: 'row', gap: 24, alignItems: 'flex-start' },
   col: { flex: 1, gap: 8 },
   row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },

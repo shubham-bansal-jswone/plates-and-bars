@@ -1,3 +1,4 @@
+import { StyleSheet } from 'react-native';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { fitWithin } from '../src/photos/capture';
 import { PhotosSection } from '../src/photos/PhotosSection';
@@ -73,6 +74,18 @@ beforeEach(() => {
 });
 
 describe('progress photos (#429)', () => {
+  it('sits on one Card like its neighbours, with no card inside it (#1417)', async () => {
+    await show();
+    await screen.findByLabelText('New photo check-in');
+    type J = { props?: { style?: unknown }; children?: (J | string)[] | null };
+    const isCard = (n: J) => { const st = (StyleSheet.flatten(n.props?.style as object) ?? {}) as Record<string, unknown>; return st.borderRadius === 20 && st.padding === 16; };
+    const cards: number[] = [];
+    const walk = (n: J, depth: number) => { if (isCard(n)) cards.push(depth); (n.children ?? []).forEach((k) => typeof k === 'object' && walk(k, depth + 1)); };
+    walk(screen.toJSON() as unknown as J, 0);
+    expect(cards).toHaveLength(1);
+    expect(screen.getByRole('header', { name: 'Progress photos' })).toBeTruthy();
+  });
+
   it('with no photos it says why to take them and offers a check-in', async () => {
     await show();
     expect(await screen.findByText(/No photos yet\. Front, side and back every 2–4 weeks/)).toBeTruthy();

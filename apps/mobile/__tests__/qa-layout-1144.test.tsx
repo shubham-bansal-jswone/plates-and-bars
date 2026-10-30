@@ -120,7 +120,7 @@ describe('#1144 Targets columns', () => {
     await saveProfile(db, buildProfile({ ...emptyDraft(), sex: 'male', age: '30', unit: 'cm', cm: '165', weight: '82', activity: 'sitting', where: 'gym', days: 6, exp: 'some', minutes: 60, goal: 'lose', pace: 'moderate', screen: ['no', 'no', 'no', 'no', 'no', 'no'] }, new Date(2026, 9, 8)));
     await render(withProfile(db, <TargetsScreen db={db} />));
     const h1 = await screen.findByRole('header', { name: 'Your setup' });
-    const rules = screen.getByRole('header', { name: 'Training rules' });
+    const rules = screen.getByRole('header', { name: 'Account and data' }); // the right column's first heading (Training rules moved to the left column, #1417)
     expect(style(rules).marginTop).toBe(style(h1).marginTop);
     expect(style(rules).marginTop).toBe(space.sm);
   });
