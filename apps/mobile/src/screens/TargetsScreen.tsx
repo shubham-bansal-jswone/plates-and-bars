@@ -121,7 +121,7 @@ export function TargetsScreen({ db, now = () => new Date() }: Props) {
   );
   const rules = (
     <>
-      {section('Training rules', wide)}
+      {section('Training rules')}
       {ready ? (
         <>
           <RulesSection db={db} today={localDate(now())} now={now} notify={notify} profile={profile} weekPlan={settings.adjustments.weekPlan as WeekPlan | undefined} />
@@ -149,7 +149,7 @@ export function TargetsScreen({ db, now = () => new Date() }: Props) {
   );
   const account = (
     <>
-      {section('Account and data')}
+      {section('Account and data', wide)}
       {drift ? (
         <View style={{ gap: 8 }}>
           <Note>{`Your latest weight is ${formatWeight(drift.latest, unit)} ${unit}, ${formatWeight(drift.diff, unit)} ${unit} ${drift.lower ? 'lower' : 'higher'} than at setup. Recalculate your targets?`}</Note>
@@ -179,9 +179,9 @@ export function TargetsScreen({ db, now = () => new Date() }: Props) {
             <View style={{ flex: 1, gap: 8 }}>
               {intro}
               {targets}
+              {rules}
             </View>
             <View style={{ flex: 1, gap: 8 }}>
-              {rules}
               {account}
             </View>
           </View>

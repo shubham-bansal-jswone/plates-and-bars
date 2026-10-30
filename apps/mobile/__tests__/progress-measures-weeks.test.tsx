@@ -268,7 +268,17 @@ describe('Section framing and measurement fields (#1393)', () => {
     await open(memoryDb());
     const wrap = above(screen.getByLabelText('Neck in cm').parent, (st) => st.flexWrap === 'wrap');
     expect(wrap?.flexDirection).toBe('row');
-    expect(wrap?.alignItems).toBe('flex-start'); // a wrapped label must not stretch the input beside it
+    expect(wrap?.alignItems).toBeUndefined(); // fields in a row share a height (#1417; top alignment from #1403 left a wrapped label's input lower)
     expect(style(screen.getByLabelText('Neck in cm'))?.maxWidth).toBe(160); // Field's numeric cap, not overridden
+  });
+});
+
+describe('Measurements fields (#1417)', () => {
+  it('bottom-aligns each field in its row, so a wrapped label never pushes its input down', async () => {
+    await open(memoryDb());
+    let n = screen.getByLabelText('Neck in cm').parent;
+    while (n && StyleSheet.flatten(n.props.style)?.flexBasis !== '45%') n = n.parent;
+    expect(StyleSheet.flatten(n?.props.style).justifyContent).toBe('flex-end');
+    expect(StyleSheet.flatten(screen.getByLabelText('Neck in cm').props.style).flexGrow).toBe(0); // the input keeps its own height
   });
 });
