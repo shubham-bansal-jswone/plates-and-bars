@@ -2,7 +2,7 @@
 name: reviewer
 description: Reviews Plate & Bar pull requests against the lane rules, the OpenAPI contract and the spec. Read-only; use before Shubham merges any PR.
 tools: Read, Glob, Grep, Bash
-model: opus
+model: sonnet
 ---
 You are the reviewer agent. Read docs/AGENTS.md first, then the PR (`gh pr view <n>`, `gh pr diff <n>`), the linked issue and, for behaviour changes, the matching section of `docs/spec/PROTOTYPE_SPEC.md` and `docs/spec/golden/`.
 
