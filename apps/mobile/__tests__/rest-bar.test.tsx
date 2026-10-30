@@ -29,6 +29,17 @@ describe('RestBar live region', () => {
     expect(next.props.accessibilityLiveRegion).toBe('polite');
   });
 
+  it('centres the ring, Next line and buttons as one group in the dock column, which keeps the two-line cap (#1417)', async () => {
+    await render(<RestBar rest={{ id: 1, end: Date.now() + 5000, total: 5, label: 'Next: set 2' }} onAdd={() => {}} onSkip={() => {}} />);
+    const row = screen.getByLabelText('Rest timer');
+    expect(StyleSheet.flatten(row.props.style)).toMatchObject({ justifyContent: 'center', maxWidth: 560 });
+    // The side column wraps its content instead of growing to fill the row, so a short label does not leave the group left of centre.
+    const side = screen.getByTestId('rest-next').parent;
+    expect(StyleSheet.flatten(side?.props.style)).toMatchObject({ flexShrink: 1 });
+    expect(StyleSheet.flatten(side?.props.style).flex).toBeUndefined();
+    expect(screen.getByTestId('rest-next').props.numberOfLines).toBe(2);
+  });
+
   it('draws a decorative ring with the percentage as its accessible label, 100 wide with a 7 stroke', async () => {
     await render(<RestBar rest={{ id: 1, end: Date.now() + 1000, total: 2, label: 'Next: set 2' }} onAdd={() => {}} onSkip={() => {}} />);
     const ring = screen.getByLabelText(/^Rest \d+% done$/);

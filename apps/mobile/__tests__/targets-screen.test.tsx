@@ -1,4 +1,4 @@
-import { Dimensions } from 'react-native';
+import { Dimensions, StyleSheet } from 'react-native';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { COVER_LOW } from '@plate-and-bar/core';
 import golden from '../../../docs/spec/golden/targets.json';
@@ -65,6 +65,28 @@ describe('TargetsScreen reading order', () => {
     const tree = JSON.stringify(screen.toJSON());
     expect(tree.indexOf('Training rules')).toBeGreaterThan(-1);
     expect(tree.indexOf('Training rules')).toBeLessThan(tree.indexOf('Account and data'));
+  });
+});
+
+describe('TargetsScreen columns at 1280 (#1417)', () => {
+  afterEach(() => jest.restoreAllMocks());
+  type J = { props?: { style?: unknown }; children?: (J | string)[] | null };
+  const kids = (n: J) => (n.children ?? []).filter((c): c is J => typeof c === 'object');
+  const flat = (n: J) => (StyleSheet.flatten(n.props?.style as object) ?? {}) as Record<string, unknown>;
+  const find = (n: J, f: (n: J) => boolean): J | undefined => (f(n) ? n : kids(n).map((k) => find(k, f)).find(Boolean));
+  const columns = () => find(screen.toJSON() as unknown as J, (n) => flat(n).flexDirection === 'row' && flat(n).gap === 24 && kids(n).length === 2)!;
+  it('puts Your setup, Daily targets and Training rules on the left and Account and data on the right, in the stacked reading order', async () => {
+    jest.spyOn(Dimensions, 'get').mockReturnValue({ width: 1280, height: 800, scale: 1, fontScale: 1 });
+    const db = memoryDb();
+    await saveProfile(db, goldenProfile());
+    await render(withProfile(db, <TargetsScreen db={db} />));
+    await screen.findByText('Account and data');
+    const [left = '', right = ''] = kids(columns()).map((k) => JSON.stringify(k));
+    for (const t of ['Your setup', 'Daily targets', 'Training rules']) expect(left).toContain(t);
+    expect(left).not.toContain('Account and data');
+    expect(right).toContain('Account and data');
+    expect(right).not.toContain('Training rules');
+    expect(left.indexOf('Daily targets')).toBeLessThan(left.indexOf('Training rules'));
   });
 });
 

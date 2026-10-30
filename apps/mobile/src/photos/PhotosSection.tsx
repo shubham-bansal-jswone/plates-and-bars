@@ -5,7 +5,7 @@ import { measureAt, weeklyAvg, type MeasurementFacts, type WeighIn } from '@plat
 import { useWeightUnit } from '../settings/weightUnit';
 import { weightWithUnit } from '../workout/unitText';
 import { Text } from '../components/Text';
-import { Button, Heading, Hint, Note, Chip } from '../components/ui';
+import { Button, Card, Heading, Hint, Note, Chip } from '../components/ui';
 import { shortDate } from '../format';
 import { type as typeScale } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
@@ -74,7 +74,7 @@ export function PhotosSection({ db, date, weights, tapes, notify }: Props) {
   };
 
   return (
-    <View style={styles.section}>
+    <Card style={styles.section}>
       <Heading level={2} style={[typeScale.heading, { color: c.ink }]}>{PHOTOS_TITLE}</Heading>
       <Hint>{persistent ? PHOTOS_HINT_DEVICE : PHOTOS_HINT_WEB}</Hint>
       {!ph.ready ? (
@@ -109,7 +109,7 @@ export function PhotosSection({ db, date, weights, tapes, notify }: Props) {
           {sheet ? <CheckinSheet ph={ph} notify={notify} onClose={() => setSheet(false)} /> : null}
         </>
       )}
-    </View>
+    </Card>
   );
 }
 
