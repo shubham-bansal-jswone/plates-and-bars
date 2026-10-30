@@ -743,6 +743,46 @@ describe('Estimated burn today so far', () => {
   });
 });
 
+describe('Estimated burn card holds its place while it reads (#1411)', () => {
+  // The card sits above the meals: popping in after the screen showed moved "+ Add to breakfast" down by its height under a tap.
+  const gated = async (answer: 'rows' | 'fail') => {
+    const db = memoryDb();
+    await saveProfile(db, profile());
+    const read = db.getAllAsync.bind(db);
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    db.getAllAsync = (async (sql: string, ...p: (string | number)[]) => {
+      if (sql.includes('SELECT data FROM weights')) {
+        await gate;
+        if (answer === 'fail') throw new Error('disk');
+      }
+      return read(sql, ...p);
+    }) as typeof db.getAllAsync;
+    await render(withProfile(db, <FoodScreen db={db} now={NOW} />));
+    await screen.findByRole('header', { name: 'Food' });
+    await screen.findByLabelText('+ Add to breakfast');
+    return release;
+  };
+
+  it('shows a block as tall as the card above the meals until the read answers, then the card in its place', async () => {
+    const release = await gated('rows');
+    const block = screen.getByTestId('burn-pending', { includeHiddenElements: true });
+    expect(StyleSheet.flatten(block.props.style).height).toBe(92);
+    expect(screen.queryByText('Estimated burn today so far')).toBeNull();
+    await act(async () => release());
+    expect(await screen.findByLabelText('Estimated burn today so far, 1,766–2,158 kcal')).toBeTruthy();
+    expect(screen.queryByTestId('burn-pending', { includeHiddenElements: true })).toBeNull();
+  });
+
+  it('drops the block when the read fails, so no empty card stays', async () => {
+    const release = await gated('fail');
+    expect(screen.getByTestId('burn-pending', { includeHiddenElements: true })).toBeTruthy();
+    await act(async () => release());
+    await waitFor(() => expect(screen.queryByTestId('burn-pending', { includeHiddenElements: true })).toBeNull());
+    expect(screen.queryByText('Estimated burn today so far')).toBeNull();
+  });
+});
+
 describe('Estimated burn on a past day (#1123)', () => {
   it('says "today so far" only for today; a past day names its date', async () => {
     await setup();

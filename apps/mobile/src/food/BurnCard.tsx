@@ -10,6 +10,7 @@ import { loadDayNote } from '../db/food';
 import { loadWeights } from '../db/progress';
 import { loadSets, loadWorkout, type WorkoutDb } from '../db/workouts';
 import type { Profile } from '../setup/types';
+import { radius } from '../theme/tokens';
 import { useTheme } from '../theme/useTheme';
 import { WhyLink } from '../why/WhyLink';
 import { useStoredText } from '../progress/useStoredText';
@@ -36,6 +37,7 @@ interface Props {
 export function BurnCard({ db, date, profile, steps, sleep, onSaveStepsSleep, kcalEaten, today = date, reloadKey = 0 }: Props) {
   const c = useTheme();
   const [open, setOpen] = useState(false);
+  const [failed, setFailed] = useState(false);
   const [facts, setFacts] = useState<{ kg: number; sets: Awaited<ReturnType<typeof loadSets>>; cardio: number | null; stepsGoal: number } | null>(null);
   // Tab screens stay mounted, so a set ticked or a weigh-in added elsewhere is read again each time the tab is shown.
   const [shown, setShown] = useState(0);
@@ -45,12 +47,14 @@ export function BurnCard({ db, date, profile, steps, sleep, onSaveStepsSleep, kc
     const before = Array.from({ length: 7 }, (_, i) => addDays(date, i - 7));
     Promise.all([loadWeights(db), loadSets(db, date), loadWorkout(db, date), Promise.all(before.map((d) => loadDayNote(db, d)))])
       .then(([w, sets, workout, notes]) => live && setFacts({ kg: bodyweightOn(w, date, profile.weight_kg) ?? 0, sets, cardio: workout?.cardio_min ?? null, stepsGoal: stepsTarget(notes.filter((n) => n !== null), date) }))
-      .catch(() => {});
+      .catch(() => live && setFailed(true));
     return () => {
       live = false;
     };
   }, [db, date, profile.weight_kg, shown, reloadKey]);
-  if (!facts) return null;
+  // Until the first read answers, hold the card's place: it sits above the meals, so popping in later moved "+ Add to breakfast"
+  // down by its height and a tap aimed at it missed (#1411). A failed read shows nothing, as before.
+  if (!facts) return failed ? null : <View testID="burn-pending" aria-hidden style={[styles.pending, { backgroundColor: c.surface }]} />;
   const wb = workoutBurn(facts.sets, facts.cardio, facts.kg);
   const b: BurnToday = burnToday(profile, facts.kg, steps, wb, kcalEaten);
   const label = date === today ? 'Estimated burn today so far' : `Estimated burn on ${dateSub(date)}`;
@@ -111,6 +115,8 @@ function StepsSleepInputs({ steps, sleep, goal, onSave }: { steps: number | null
 
 const styles = StyleSheet.create({
   gap: { gap: 8 },
+  /** The height of the closed card at the default text size and width (measured in the web build). */
+  pending: { height: 92, borderRadius: radius.lg },
   head: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
   row: { flexDirection: 'row', justifyContent: 'space-between', gap: 8 },
 });
