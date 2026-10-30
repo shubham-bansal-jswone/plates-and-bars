@@ -1,12 +1,16 @@
-import { COVER_SHOW, addDays, type VolumeVsPlan, type WeekSets } from '@plate-and-bar/core';
+import { COVER_SHOW, addDays, recentVolumeMuscle, type VolumeVsPlan, type WeekSets } from '@plate-and-bar/core';
 import type { Bar } from './BarChart';
 
 /**
- * The muscle shown first: the user's first focus muscle that the meter shows, else the one furthest below its plan (lowest
- * `avg - target`; with no target that is the lowest average), the first of `COVER_SHOW` on a tie.
+ * The muscle shown first, never one with an empty chart when another has sets (#1409): the user's first focus muscle that the meter shows, if it has a done set
+ * in the weeks drawn; else the muscle with the most sets in the most recent week that has any (core's `recentVolumeMuscle`); with no sets drawn, the focus muscle
+ * anyway, else the one furthest below its plan (lowest `avg - target`; with no target that is the lowest average), the first of `COVER_SHOW` on a tie.
  */
-export function defaultMuscle(focus: readonly string[], rows: readonly VolumeVsPlan[]): string {
+export function defaultMuscle(focus: readonly string[], rows: readonly VolumeVsPlan[], weeks: readonly WeekSets[] = []): string {
   const f = focus.find((m) => COVER_SHOW.includes(m));
+  if (f && weeks.some((w) => w.sets[f])) return f;
+  const recent = recentVolumeMuscle(weeks);
+  if (recent) return recent;
   if (f) return f;
   let best = rows[0];
   for (const r of rows) if (best && r.gap < best.gap) best = r;

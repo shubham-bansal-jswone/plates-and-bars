@@ -182,3 +182,6 @@ export const VOL_ROW_LABEL = (muscle: string, avg: string, target: string | null
   `${muscle}, average ${avg} sets a week${target === null ? '' : `, your current plan about ${target}`}${below ? ', below your plan' : ''}${low ? ', low' : ''}`;
 export const VOL_SHOW_ALL = 'Show all';
 export const VOL_SHOW_FEWER = 'Show fewer';
+
+/** Shown text: a number and its unit joined by a non-breaking space, so a wrapped line never leaves the unit alone (#1409). The spoken label keeps plain spaces. */
+export const unitTogether = (text: string): string => text.replace(/(\d) (kg|lb)\b/g, '$1\u00a0$2');

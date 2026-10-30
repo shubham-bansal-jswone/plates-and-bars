@@ -48,6 +48,18 @@ describe('lead lift and chips', () => {
     for (const n of ['Squat', 'Row']) expect(screen.getByRole('button', { name: n })).toBeTruthy();
   });
 
+  it('the shown sentence keeps each number with its unit (non-breaking space); the spoken label keeps plain spaces (#1409)', async () => {
+    mockHook = hook([...weekly('Bench Press', 8, 60)]);
+    await show();
+    const top = Math.round(e1rm(60 + 7 * 2.5) * 10) / 10;
+    const shown = screen.getByText(/^Bench Press estimated 1-rep max/, hidden);
+    const raw = (shown.props.children as string[] | string);
+    const text = Array.isArray(raw) ? raw.join('') : raw;
+    expect(text).toContain(`${top}\u00a0kg`);
+    expect(text).not.toMatch(/\d kg/);
+    expect(screen.getByLabelText(new RegExp(`max ${top} kg, up`))).toBeTruthy();
+  });
+
   it('chips switch the lift and the choice is held while the section stays mounted', async () => {
     mockHook = hook([...weekly('Bench Press', 8, 60), ...weekly('Squat', 4, 100)]);
     await show();
@@ -292,6 +304,9 @@ describe('states', () => {
     mockHook = hook([set(END, 'Bench Press', 80, 5)]);
     await show();
     expect(screen.getByText(`Bench Press estimated 1-rep max ${e1rm(80)} kg`)).toBeTruthy();
+    // The single-point sentence keeps the number with its unit: the raw text has a non-breaking space, which getByText's normalizer hides (#1409).
+    const raw = screen.getByText(/^Bench Press estimated 1-rep max/).props.children as string | string[];
+    expect(Array.isArray(raw) ? raw.join('') : raw).toBe(`Bench Press estimated 1-rep max ${e1rm(80)}\u00a0kg`);
     expect(screen.getByText(`${e1rm(80)} kg`, hidden)).toBeTruthy();
     expect(screen.queryByRole('image')).toBeNull();
     expect(screen.queryByRole('button', { name: '12 weeks' })).toBeNull();

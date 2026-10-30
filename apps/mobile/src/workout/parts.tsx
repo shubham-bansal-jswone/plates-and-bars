@@ -113,7 +113,8 @@ function RunningRest({ rest, onAdd, onSkip, onHeight }: { rest: RestState; onAdd
               the bar and filled at zero, so "Rest done, go!" is spoken once and the countdown is not read every second.
               srOnly hides it visually only: no display: none and no aria-hidden, which would silence the region. */}
           <Text testID="rest-announce" accessibilityLiveRegion="polite" style={styles.srOnly}>{left ? '' : REST_DONE}</Text>
-          <Text accessibilityLiveRegion="polite" style={[type.bodyStrong, { color: c.ink }]}>{rest.label}</Text>
+          {/* Two lines at most, so a long exercise name does not grow the dock over the sets; the full name stays in the spoken label (#1409). */}
+          <Text testID="rest-next" numberOfLines={2} ellipsizeMode="tail" accessibilityLabel={rest.label} accessibilityLiveRegion="polite" style={[type.bodyStrong, { color: c.ink }]}>{rest.label}</Text>
           <View style={styles.restBtns}>
             <Button label="+30 s" kind="ghost" onPress={onAdd} />
             <Button label={left ? 'Skip' : 'Close'} kind={left ? 'ghost' : 'primary'} onPress={onSkip} />

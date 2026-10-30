@@ -93,7 +93,7 @@ export function VolumeSection({ db, sets, date, today, profile, settings }: Prop
 function Body({ volume, date, today, focus, choice, onChoice }: { volume: NonNullable<ReturnType<typeof useProgressVolume>['volume']>; date: string; today: string; focus: readonly string[]; choice: string | null; onChoice: (m: string) => void }) {
   const c = useTheme();
   const { weeks, result, planned, since } = volume;
-  const muscle = choice ?? defaultMuscle(focus, result.rows);
+  const muscle = choice ?? defaultMuscle(focus, result.rows, weeks);
   const label = name(muscle);
   const bars = useMemo(() => volumeBars(weeks, muscle, since), [weeks, muscle, since]);
   const target = planned[muscle] || 0;
