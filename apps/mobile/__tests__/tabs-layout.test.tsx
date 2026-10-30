@@ -26,6 +26,12 @@ jest.mock('expo-router', () => {
 jest.mock('expo-router/tabs', () => ({ BottomTabBar: () => null }));
 jest.mock('react-native-safe-area-context', () => ({ useSafeAreaInsets: () => ({ top: 24, bottom: 20, left: 0, right: 0 }) }));
 const mockScreens: MockScreen[] = [];
+const fakeBar = (index: number) => ({
+  state: { index, routes: ['index', 'workout'].map((name) => ({ key: name, name })) },
+  descriptors: { index: { options: { title: 'Food' } }, workout: { options: { title: 'Workout' } } },
+  emitter: { emit: () => ({ defaultPrevented: false }) },
+  navigateToTab: () => undefined,
+}) as never;
 
 describe('tab bar', () => {
   afterEach(() => jest.restoreAllMocks());
@@ -69,16 +75,17 @@ describe('tab bar', () => {
     }
   });
 
-  it('puts the tab bar in a navigation landmark', async () => {
+  it('puts the tab bar in a navigation landmark: web draws the nav bar, native keeps the stock bar', async () => {
     const bar = mockTabs.mock.calls[0][0].tabBar;
     const os = Platform.OS;
     try {
       Platform.OS = 'web';
-      await render(bar({}));
-      expect(JSON.stringify(screen.toJSON())).toContain('"role":"navigation"');
+      await render(bar(fakeBar(0)));
+      expect(screen.getByLabelText('Sections').props.role).toBe('navigation');
+      expect(JSON.stringify(screen.toJSON())).not.toContain('tablist');
       await screen.unmount();
       Platform.OS = 'android';
-      await render(bar({}));
+      await render(bar(fakeBar(0)));
       expect(JSON.stringify(screen.toJSON())).not.toContain('navigation');
     } finally {
       Platform.OS = os;
