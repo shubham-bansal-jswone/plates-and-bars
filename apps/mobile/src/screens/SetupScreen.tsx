@@ -4,7 +4,7 @@ import { View } from 'react-native';
 import { Text } from '../components/Text';
 import { useRouter } from 'expo-router';
 import { ResultsView } from '../components/ResultsView';
-import { Button, Caption, Card, ErrorText, Field, Choice, Group, H1, Hint, Label, Note, Page, Switch, layout, Press } from '../components/ui';
+import { Button, Caption, Card, ErrorText, Field, Choice, Group, H1, Hint, Label, Note, Page, Switch, layout, Press, useWide } from '../components/ui';
 import { ACTIVITY, CONSENT, EXPERIENCE, GOALS, PACES, SCREEN_Q, WHERE } from '../setup/copy';
 import { DAY_CHOICES, SESSION_MINUTES, SETUP_STEPS as STEPS, type WeightUnit } from '@plate-and-bar/core';
 import { LegalLinks } from '../legal/LegalLinks';
@@ -295,6 +295,7 @@ function SetupFlow({ recalc, weight }: { recalc: boolean; weight: number | null 
   const { profile: stored, consent, giveConsent, saveSetup, skipSetup } = useProfile();
   const router = useRouter();
   const c = useTheme();
+  const wide = useWide();
   const { unit } = useWeightUnit(); // the box is typed in this unit; the answers go to core in kg (`answersInKg`)
   const [d, setD] = useState<Draft>(() => (stored ? { ...draftFromProfile(stored, unit), ...(weight ? { weight: weightFieldText(String(weight), unit) } : {}) } : emptyDraft()));
   const [step, setStep] = useState(stored && recalc ? STEPS : 0);
@@ -382,12 +383,18 @@ function SetupFlow({ recalc, weight }: { recalc: boolean; weight: number | null 
       </View>
       {profile ? (
         <>
-          <ResultsView profile={profile} showWhy columns />
-          <View style={{ width: '100%', maxWidth: 560, alignSelf: 'center', gap: 8 }}>
-            {err ? <ErrorText>{err}</ErrorText> : null}
-            <Button label="Use these targets" onPress={() => save(profile, stored ? 'Targets updated' : null)} />
-            {stored ? <Button kind="ghost" label="Keep my current targets" onPress={() => save({ ...profile, targets: stored.targets }, 'Setup saved, targets unchanged')} /> : null}
-          </View>
+          <ResultsView
+            profile={profile}
+            showWhy
+            columns
+            footer={
+              <View style={{ width: '100%', maxWidth: 560, alignSelf: wide ? 'flex-start' : 'center', gap: 8 }}>
+                {err ? <ErrorText>{err}</ErrorText> : null}
+                <Button label="Use these targets" onPress={() => save(profile, stored ? 'Targets updated' : null)} />
+                {stored ? <Button kind="ghost" label="Keep my current targets" onPress={() => save({ ...profile, targets: stored.targets }, 'Setup saved, targets unchanged')} /> : null}
+              </View>
+            }
+          />
         </>
       ) : (
         <>
