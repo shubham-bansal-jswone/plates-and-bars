@@ -23,7 +23,7 @@ Finish the full v1 from `docs/development-plan.md`: Expo app (web + Android), As
 - Merge agent PRs when the reviewer verdict is Approve (or Approve with nits after the nits are applied) AND CI is green. No per-PR question to the owner.
 - Open source only: nothing proprietary, no vendor terms of use. Check the licence before adding any dependency, action or image. MPL-2.0 (axe-core) was accepted as open source.
 - Spec questions: decide per the author's recommendation, label `decided`, comment on the issue, keep working.
-- Never force-push or rewrite history. Use merge commits and revert commits.
+- Never force-push or rewrite history. Use merge commits and revert commits. (One owner-approved exception, done 2026-10-30: the prototype-image history rewrite. See "State at 2026-10-30".)
 - No `Co-Authored-By` trailer and no "Generated with Claude Code" line in commits or PR bodies.
 - Tests are mandatory; bug fixes ship a regression test that fails before the fix. Verify before claiming done.
 - Security: secrets only via env; never log food, weight, health answers or tokens; all AI features stay off until the owner picks a provider and budget.
@@ -958,7 +958,7 @@ All agents and merge watchers stopped. On resume, in this order:
 5. This PR (#1237) needs its review relaunched.
 Worktrees added since the section above: `../wt-tsfix` (#1238, own node_modules), `../wt-handoff` (this PR).
 
-## State at 2026-10-28 night (read this first)
+## State at 2026-10-28 night (superseded: see "State at 2026-10-30" at the end)
 Owner rules now: **at most 7 agents in parallel**; "don't stop until everything is done": keep a queue (author -> Opus reviewer -> nits -> merge watcher on green) and drain it. Each agent worktree runs its own `npm ci`; never `npm ci` in the main checkout while agents run. Reviewers Opus, authors Sonnet. The main checkout is on `design-overhaul`.
 
 **Merged into design-overhaul today (after the evening section):** #1235 (second tab: retry then "open in another tab"; closes #1232), #1236 (aria-describedby for Setup errors; #1229), #1238 (base typecheck fix), #1237 (HANDOFF), #1243 (Dependabot: Sentry RN moves with the SDK, barcode-detector+zxing grouped), #1245 (MDC copied to async export threads; #1226), #1246 (core `warmupRamp`; #1241), #1247 (Progress axe scans a logged day; #1204), #1249 (barcode e2e reads the zxing version; #1244), #1251 (Redo keeps stored height at the limits; #1224), #1258 (label-scan OCR smoke under CSP/COEP; #1078), Dependabot #1210-#1218, #1220, #1221. Closed: #1219 (Expo pins Sentry), #1222.
@@ -1026,3 +1026,21 @@ Owner rules now: **at most 7 agents in parallel**; "don't stop until everything 
 - 2026-10-30 (final): "complete everything that is left". Closed #1179, #1371, #1128, #1315, #1411. Merged #1416 (reviewer agent on Sonnet, permanent), #1418 (closes #1417: measurements alignment, photos card, Targets 1280 columns, rest dock centring), #1419 (Food burn and water cards hold their place while loading: the real cause of the add-food e2e flake). Soak: design-overhaul CI passed 5 of 5 attempts after #1419. 0 open PRs.
   - Still open, nothing actionable now: #1400 (reload-1200 renderer crash, needs a repeat), #1314 (Node 24 SIGSEGV, local only), #1225 (CORS X-Request-Id, no client reads it), #1394 and #1410 (v1.1).
   - OWNER: history rewrite force-push (strip embedded prototype images). iOS VoiceOver checks belong to the iOS pre-production gate (#948, parked).
+
+## State at 2026-10-30 evening (read this first)
+
+**Repo:** 0 open PRs, 0 agents running. `design-overhaul` is the default and working branch; `main` was promoted from it (#1421, merge commit) and is now 1 commit behind (#1432, gitleaks re-pin). Promote again with a `design-overhaul` -> `main` PR (merge commit, not squash); nothing deploys on a `main` push because no `*_DEPLOY_ENABLED` / `SITE_DEPLOY_TARGET` variable is set.
+
+**History rewrite: DONE (2026-10-30).** `git filter-repo --replace-text` replaced every `data:image/jpeg;base64,...` in history with `data:image/jpeg;base64,REMOVED` (old versions of `docs/prototype/plate-and-bar.html`). All 170 branches and the `prototype-final` tag were force-pushed with per-ref leases. Checks: tip trees of `main`, `design-overhaul` and `prototype-final` are identical to before; the only file that changed on any branch tip is the prototype HTML (121 old branches); no embedded JPEG is left in any object; repo 82 MB -> 36 MB.
+- Every commit ID changed. Old SHAs in issues, PR comments and the older sections of this file no longer resolve on branches.
+- Backup bundle of all branches and tags before the rewrite: `/Users/shubhambansal/Desktop/ai-personal/fit-app/plates-and-bars-backup-2026-10-30.bundle` (69 MB). Restore with `git clone <bundle>`.
+- GitHub keeps 811 read-only `refs/pull/*` refs, so the old commits (with the photos) are still reachable through PR pages and direct commit URLs. Full purge needs a GitHub Support request (owner, optional).
+- Pinned SHAs re-mapped from filter-repo's commit map: `.gitleaks.toml` (3 entries) and `.gitleaksignore` (settings-stale-save fingerprint a6176f8a -> 46971d0a) in #1432. Full-history gitleaks scan is green on `design-overhaul`; `main` turns green after the next promotion. The other two `.gitleaksignore` fingerprints point at commits that are on no branch, left as is.
+- Clones and worktrees made before the rewrite hold the old history. The main checkout was reset onto the new history. The 9 old worktrees from earlier sessions (`rb-1198`, `wt-1184app`, `wt-1218`, `wt-qa-scratch`, `.claude/worktrees/agent-*`) still have the old history: delete them, do not push from them.
+
+**Android build for the phone:** `android-release.yml` dispatched on `design-overhaul` (run 41047521604, flags on through the `android-release` environment, which now allows `design-overhaul`). APK: `/Users/shubhambansal/Desktop/ai-personal/fit-app/android-build-2026-10-30/apk/release/app-release.apk` (180 MB, all ABIs, debug-signed because the environment has no keystore secrets; fine for sideloading). Install: `~/Library/Android/sdk/platform-tools/adb install -r <apk>` with USB debugging on, or copy to the phone and open it. The workflow artifact expires 2026-11-13. This supersedes the 2026-10-28 "Testing on the phone" note.
+
+**Agents:** all agents, reviewers included, run Sonnet 5.5 at medium effort (owner, permanent); `.claude/agents/reviewer.md` says `model: sonnet` (#1416); `core.md` and `contract.md` keep `model: opus` in the file by owner choice, but calls still pass sonnet. Only one agent at a time may use the Playwright MCP browser; others use the repo's e2e Playwright. The merge watcher (`watch-merge.sh`) can race another merge ("Base branch was modified"): check green and merge by hand.
+
+**Open issues, nothing actionable now:** #1400 (reload-1200 renderer crash, needs a repeat), #1314 (Node 24 SIGSEGV, local only), #1225 (CORS X-Request-Id, no client reads it), #1394 (MyFitnessPal import, v1.1, needs a real export file), #1410 (sync keeps device exercise order, v1.1). New and not started: #1422 (own 3D exercise animations in Blender) with phases #1423-#1431. Parked: #948 iOS (incl. VoiceOver checks), #975 Play, #926/#946 AI, #29 branch protection, #36 staging.
+
