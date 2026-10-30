@@ -36,21 +36,23 @@ interface Props {
 export function BurnCard({ db, date, profile, steps, sleep, onSaveStepsSleep, kcalEaten, today = date, reloadKey = 0 }: Props) {
   const c = useTheme();
   const [open, setOpen] = useState(false);
-  const [failed, setFailed] = useState(false);
+  const [failedAt, setFailedAt] = useState<string | null>(null);
   const [facts, setFacts] = useState<{ kg: number; sets: Awaited<ReturnType<typeof loadSets>>; cardio: number | null; stepsGoal: number } | null>(null);
   // Tab screens stay mounted, so a set ticked or a weigh-in added elsewhere is read again each time the tab is shown.
   const [shown, setShown] = useState(0);
   useFocusEffect(useCallback(() => setShown((n) => n + 1), []));
+  const readKey = `${date}:${shown}:${reloadKey}`; // a failure belongs to its read: the next one holds the card's place again
+  const failed = failedAt === readKey;
   useEffect(() => {
     let live = true;
     const before = Array.from({ length: 7 }, (_, i) => addDays(date, i - 7));
     Promise.all([loadWeights(db), loadSets(db, date), loadWorkout(db, date), Promise.all(before.map((d) => loadDayNote(db, d)))])
       .then(([w, sets, workout, notes]) => live && setFacts({ kg: bodyweightOn(w, date, profile.weight_kg) ?? 0, sets, cardio: workout?.cardio_min ?? null, stepsGoal: stepsTarget(notes.filter((n) => n !== null), date) }))
-      .catch(() => live && setFailed(true));
+      .catch(() => live && setFailedAt(readKey));
     return () => {
       live = false;
     };
-  }, [db, date, profile.weight_kg, shown, reloadKey]);
+  }, [db, date, profile.weight_kg, shown, reloadKey, readKey]);
   const label = date === today ? 'Estimated burn today so far' : `Estimated burn on ${dateSub(date)}`;
   if (!facts && failed) return null;
   // Until the first read answers, the real card shell holds its place (it sits above the meals, so a card popping in later moved

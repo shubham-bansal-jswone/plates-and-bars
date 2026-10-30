@@ -791,6 +791,10 @@ describe('Cards above the meals hold their place while they read (#1411)', () =>
     const card = screen.getByTestId('water-pending', hidden);
     expect(within(card).getByText('Water today', hidden)).toBeTruthy();
     expect(within(card).getByText('— of about — L', hidden)).toBeTruthy();
+    for (const name of ['Add a glass, 250 millilitres', 'Add a bottle, 1000 millilitres']) {
+      const b = within(card).getByRole('button', { name, ...hidden });
+      expect(b.props.accessibilityState?.disabled ?? b.props['aria-disabled']).toBeTruthy();
+    }
     await fireEvent.press(within(card).getByText('+ Glass', hidden));
     await flush();
     await act(async () => release());
