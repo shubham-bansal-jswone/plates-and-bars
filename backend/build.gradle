@@ -34,7 +34,7 @@ dependencies {
     // JWT signing/verification and Google JWKS verification (brings nimbus-jose-jwt, Apache-2.0).
     implementation 'org.springframework.security:spring-security-oauth2-jose'
     // In-memory token-bucket rate limits (Apache-2.0).
-    implementation 'com.bucket4j:bucket4j_jdk17-core:8.21.0'
+    implementation 'com.bucket4j:bucket4j_jdk17-core:8.22.0'
     // Bounded cache for the rate-limit buckets (Apache-2.0).
     implementation 'com.github.ben-manes.caffeine:caffeine'
     // Validates sync requests against the schemas in openapi.yaml (Apache-2.0), and reads that YAML (Apache-2.0).
