@@ -73,7 +73,7 @@
     "js-yaml": "^3.15.2",
     "jsdom": "26.1.0",
     "puppeteer-core": "^25.16.0",
-    "typescript": "^6.0.3"
+    "typescript": "^7.0.2"
   },
   "expo": {
     "install": {
